@@ -6,6 +6,7 @@ export type Config = {
   issueLimit: number;
   maxCycles: number;
   checkIntervalSeconds: number;
+  checkTimeoutMinutes: number;
   logMaxChars: number;
   labels: {
     inProgress: string;
@@ -26,6 +27,7 @@ const DEFAULTS: Config = {
   issueLimit: 100,
   maxCycles: 3,
   checkIntervalSeconds: 15,
+  checkTimeoutMinutes: 60,
   logMaxChars: 20000,
   labels: {
     inProgress: "status:in-progress",

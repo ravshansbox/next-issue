@@ -19,7 +19,7 @@ import {
   type Issue,
   issueComments,
   setLabel,
-  watchChecks,
+  waitForChecks,
 } from "./github.mts";
 import { fixPrompt, implementPrompt, parseCommitSubject, reviewPrompt } from "./prompts.mts";
 import { readState, writeState } from "./state.mts";
@@ -102,8 +102,17 @@ export async function processIssue(context: Context, issue: Issue): Promise<Outc
     await writeState(repo, state);
 
     log(`cycle ${state.cycle}: waiting for the checks`);
-    const checks = await watchChecks(repo, branch, config.checkIntervalSeconds);
-    if (checks !== "pass") {
+    const checks = await waitForChecks(
+      repo,
+      branch,
+      config.checkIntervalSeconds,
+      config.checkTimeoutMinutes * 60_000,
+    );
+    if (checks === "timeout") {
+      await handOver(context, issue, state.pr, "The checks did not finish in time.");
+      return "needs-human";
+    }
+    if (checks === "fail") {
       const logs = await failedCheckLogs(repo, branch, config.logMaxChars);
       await fix(context, issue, worktree, branch, "The continuous integration checks failed.", logs);
       continue;

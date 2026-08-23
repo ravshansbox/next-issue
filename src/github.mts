@@ -10,9 +10,11 @@ export type Issue = {
   assignees: string[];
 };
 
-export type CheckState = "pass" | "fail" | "pending" | "other";
+export type CheckState = "pass" | "fail" | "pending" | "none" | "timeout";
 
 const CHECK_PENDING_CODE = 8;
+
+type CheckSummary = { name: string; bucket: string; link: string; description: string };
 
 function slug(repo: Repo): string {
   return `${repo.owner}/${repo.name}`;
@@ -126,7 +128,20 @@ export async function createPr(
   return number;
 }
 
-export async function watchChecks(repo: Repo, branch: string, intervalSeconds: number): Promise<CheckState> {
+async function listChecks(repo: Repo, branch: string): Promise<CheckSummary[] | "none"> {
+  const result = await run(
+    "gh",
+    ["pr", "checks", branch, "--json", "name,bucket,link,description", "--repo", slug(repo)],
+    { cwd: repo.root },
+  );
+  if (result.stdout.trim().length === 0) {
+    return "none";
+  }
+  const checks = JSON.parse(result.stdout) as CheckSummary[];
+  return checks.length === 0 ? "none" : checks;
+}
+
+async function watchOnce(repo: Repo, branch: string, intervalSeconds: number): Promise<CheckState> {
   const watch = await run(
     "gh",
     ["pr", "checks", branch, "--watch", "--fail-fast", "--interval", String(intervalSeconds), "--repo", slug(repo)],
@@ -141,21 +156,40 @@ export async function watchChecks(repo: Repo, branch: string, intervalSeconds: n
   return "fail";
 }
 
+export async function waitForChecks(
+  repo: Repo,
+  branch: string,
+  intervalSeconds: number,
+  timeoutMs: number,
+): Promise<CheckState> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if ((await listChecks(repo, branch)) === "none") {
+      return "none";
+    }
+    const state = await watchOnce(repo, branch, intervalSeconds);
+    if (state !== "pending") {
+      return state;
+    }
+    await delay(intervalSeconds * 1000);
+  }
+  return "timeout";
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function failedCheckLogs(repo: Repo, branch: string, maxChars: number): Promise<string> {
   const result = await run(
     "gh",
     ["pr", "checks", branch, "--json", "name,bucket,link,description", "--repo", slug(repo)],
     { cwd: repo.root },
   );
-  if (result.code !== 0 && result.stdout.length === 0) {
+  if (result.stdout.trim().length === 0) {
     return result.stderr;
   }
-  const checks = JSON.parse(result.stdout) as Array<{
-    name: string;
-    bucket: string;
-    link: string;
-    description: string;
-  }>;
+  const checks = JSON.parse(result.stdout) as CheckSummary[];
   const failed = checks.filter((check) => check.bucket === "fail");
   const parts: string[] = [];
   for (const check of failed) {
