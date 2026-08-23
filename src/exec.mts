@@ -12,7 +12,23 @@ export type RunOptions = {
   inherit?: boolean;
 };
 
+export type CommandRecord = {
+  command: string;
+  args: string[];
+  cwd?: string;
+  code: number;
+  ms: number;
+  stderr: string;
+};
+
+let observer: ((record: CommandRecord) => void) | undefined;
+
+export function setCommandObserver(next: (record: CommandRecord) => void): void {
+  observer = next;
+}
+
 export function run(command: string, args: string[], options: RunOptions = {}): Promise<RunResult> {
+  const started = Date.now();
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
@@ -32,7 +48,16 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
     });
     child.on("error", reject);
     child.on("close", (code) => {
-      resolve({ code: code ?? 1, stdout, stderr });
+      const result = { code: code ?? 1, stdout, stderr };
+      observer?.({
+        command,
+        args,
+        cwd: options.cwd,
+        code: result.code,
+        ms: Date.now() - started,
+        stderr: result.code === 0 ? "" : stderr.trim(),
+      });
+      resolve(result);
     });
     if (options.input !== undefined) {
       child.stdin?.end(options.input);
