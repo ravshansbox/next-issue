@@ -120,7 +120,6 @@ async function main(): Promise<number> {
       failed: count(reports, "error"),
       skipped: count(reports, "skipped"),
       tokens: summary.total.total,
-      costUsd: summary.total.costUsd,
     },
     "quiet",
   );

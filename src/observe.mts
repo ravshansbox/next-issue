@@ -12,7 +12,6 @@ export type Usage = {
   cacheRead: number;
   cacheWrite: number;
   total: number;
-  costUsd: number;
 };
 
 export type RoleTotals = Usage & {
@@ -23,7 +22,7 @@ export type RoleTotals = Usage & {
 const VISIBILITY: Record<Level, number> = { quiet: 0, normal: 1, verbose: 2 };
 
 export function emptyUsage(): Usage {
-  return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, costUsd: 0 };
+  return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
 }
 
 export function addUsage(target: Usage, source: Usage): void {
@@ -32,7 +31,6 @@ export function addUsage(target: Usage, source: Usage): void {
   target.cacheRead += source.cacheRead;
   target.cacheWrite += source.cacheWrite;
   target.total += source.total;
-  target.costUsd += source.costUsd;
 }
 
 class Sink {

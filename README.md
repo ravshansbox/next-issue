@@ -54,7 +54,7 @@ Every run has an id, `<timestamp>`, and writes two files under
 
 - `<id>.jsonl` — one JSON object per event, with `ts`, `runId`, `kind`, and the
   `issue`, `role` or `round` in scope;
-- `<id>.summary.json` — token and cost totals per agent role, event counts, and
+- `<id>.summary.json` — token totals per agent role, event counts, and
   one report per issue with the outcome, the reason, the pull request number
   and the budgets used.
 
@@ -65,12 +65,12 @@ Recorded for each step: `claim`, `comments`, `worktree`, `implement`, `push`,
 `pull-request`, `checks`, `review` and `fix`, each with a `.start`, `.end` or
 `.error` event and a duration in `ms`. Every `git` and `gh` command is recorded
 with its exit code and duration. Each agent call adds a `usage` event with the
-tokens, the cost, the turn count, the tool-call count, the model and the path
+tokens, the turn count, the tool-call count, the model and the path
 of the pi session file, so you can open the session again and read the full
 transcript.
 
 ```bash
-jq -r 'select(.kind=="usage") | [.issue,.role,.total,.costUsd] | @tsv' \
+jq -r 'select(.kind=="usage") | [.issue,.role,.turns,.total] | @tsv' \
   .next-issue/runs/*.jsonl
 ```
 

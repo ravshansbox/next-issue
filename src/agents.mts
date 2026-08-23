@@ -132,7 +132,6 @@ function collect(messages: readonly unknown[]): Stats {
         cacheRead: number;
         cacheWrite: number;
         totalTokens: number;
-        cost?: { total: number };
       };
     };
     if (message.role !== "assistant") {
@@ -146,7 +145,6 @@ function collect(messages: readonly unknown[]): Stats {
       usage.cacheRead += message.usage.cacheRead;
       usage.cacheWrite += message.usage.cacheWrite;
       usage.total += message.usage.totalTokens;
-      usage.costUsd += message.usage.cost?.total ?? 0;
     }
     if (text === undefined && Array.isArray(message.content)) {
       const parts = message.content
