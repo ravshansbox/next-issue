@@ -9,7 +9,8 @@ export type IssueState = {
   phase: Phase;
   branch: string;
   pr?: number;
-  cycle: number;
+  ciFixes: number;
+  reviewRounds: number;
 };
 
 function dir(repo: Repo): string {

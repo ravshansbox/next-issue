@@ -55,7 +55,8 @@ export async function processIssue(context: Context, issue: Issue): Promise<Outc
     issue: issue.number,
     phase: "claimed" as const,
     branch,
-    cycle: 0,
+    ciFixes: 0,
+    reviewRounds: 0,
   };
 
   log(`issue #${issue.number}: ${issue.title}`);
@@ -97,11 +98,8 @@ export async function processIssue(context: Context, issue: Issue): Promise<Outc
   await writeState(repo, state);
   log(`pull request #${state.pr}`);
 
-  while (state.cycle < config.maxCycles) {
-    state.cycle += 1;
-    await writeState(repo, state);
-
-    log(`cycle ${state.cycle}: waiting for the checks`);
+  for (;;) {
+    log("waiting for the checks");
     const checks = await waitForChecks(
       repo,
       branch,
@@ -113,12 +111,42 @@ export async function processIssue(context: Context, issue: Issue): Promise<Outc
       return "needs-human";
     }
     if (checks === "fail") {
+      if (state.ciFixes >= config.maxCiFixes) {
+        await handOver(context, issue, state.pr, `The limit of ${config.maxCiFixes} check fixes was reached.`);
+        state.phase = "needs-human";
+        await writeState(repo, state);
+        return "needs-human";
+      }
+      state.ciFixes += 1;
+      await writeState(repo, state);
       const logs = await failedCheckLogs(repo, branch, config.logMaxChars);
-      await fix(context, issue, worktree, branch, "The continuous integration checks failed.", logs);
+      const committed = await fix(
+        context,
+        issue,
+        worktree,
+        branch,
+        "The continuous integration checks failed.",
+        logs,
+      );
+      if (!committed) {
+        await handOver(context, issue, state.pr, "The fixer added no commit for the failed checks.");
+        state.phase = "needs-human";
+        await writeState(repo, state);
+        return "needs-human";
+      }
       continue;
     }
 
-    log("reviewing");
+    if (state.reviewRounds >= config.maxReviewRounds) {
+      await handOver(context, issue, state.pr, `The limit of ${config.maxReviewRounds} review rounds was reached.`);
+      state.phase = "needs-human";
+      await writeState(repo, state);
+      return "needs-human";
+    }
+    state.reviewRounds += 1;
+    await writeState(repo, state);
+
+    log(`review round ${state.reviewRounds}`);
     await setLabel(repo, issue.number, config.labels.inReview, managedLabels(config));
     const verdictTool = createVerdictTool();
     await runAgent(context.modelRuntime, {
@@ -143,7 +171,7 @@ export async function processIssue(context: Context, issue: Issue): Promise<Outc
       log(`done, pull request #${state.pr} waits for your merge`);
       return "done";
     }
-    await fix(
+    const committed = await fix(
       context,
       issue,
       worktree,
@@ -151,12 +179,13 @@ export async function processIssue(context: Context, issue: Issue): Promise<Outc
       "The reviewer requested changes.",
       formatVerdict(verdict),
     );
+    if (!committed) {
+      await handOver(context, issue, state.pr, "The fixer added no commit for the review findings.");
+      state.phase = "needs-human";
+      await writeState(repo, state);
+      return "needs-human";
+    }
   }
-
-  await handOver(context, issue, state.pr, `The cycle limit of ${config.maxCycles} was reached.`);
-  state.phase = "needs-human";
-  await writeState(repo, state);
-  return "needs-human";
 }
 
 async function fix(
@@ -166,7 +195,7 @@ async function fix(
   branch: string,
   reason: string,
   detail: string,
-): Promise<void> {
+): Promise<boolean> {
   log(`fixing: ${reason}`);
   const output = await runAgent(context.modelRuntime, {
     name: "fixer",
@@ -176,8 +205,11 @@ async function fix(
     tools: CODING_TOOLS,
   });
   const subject = parseCommitSubject(output, `fix: address feedback on issue #${issue.number}`);
-  await commitAll(worktree, `${subject}\n\nRefs #${issue.number}`);
+  if (!(await commitAll(worktree, `${subject}\n\nRefs #${issue.number}`))) {
+    return false;
+  }
   await push(worktree, context.config.remote, branch);
+  return true;
 }
 
 async function handOver(

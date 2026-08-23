@@ -4,7 +4,8 @@ import { join } from "node:path";
 export type Config = {
   remote: string;
   issueLimit: number;
-  maxCycles: number;
+  maxCiFixes: number;
+  maxReviewRounds: number;
   checkIntervalSeconds: number;
   checkTimeoutMinutes: number;
   logMaxChars: number;
@@ -25,7 +26,8 @@ export type Config = {
 const DEFAULTS: Config = {
   remote: "origin",
   issueLimit: 100,
-  maxCycles: 3,
+  maxCiFixes: 3,
+  maxReviewRounds: 3,
   checkIntervalSeconds: 15,
   checkTimeoutMinutes: 60,
   logMaxChars: 20000,
