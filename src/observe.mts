@@ -178,7 +178,7 @@ function short(value: unknown): string {
     return "-";
   }
   if (typeof value === "number") {
-    return Number.isInteger(value) ? String(value) : value.toFixed(3);
+    return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(6)));
   }
   const text = String(value).replace(/\s+/g, " ");
   return text.length > 120 ? `${text.slice(0, 117)}...` : text;
