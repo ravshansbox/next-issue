@@ -11,6 +11,13 @@ export type IssueState = {
   pr?: number;
   ciFixes: number;
   reviewRounds: number;
+  reviewLog: ReviewRound[];
+};
+
+export type ReviewRound = {
+  round: number;
+  fingerprint: string;
+  findings: string;
 };
 
 function dir(repo: Repo): string {

@@ -22,8 +22,15 @@ import {
   waitForChecks,
 } from "./github.mts";
 import { fixPrompt, implementPrompt, parseCommitSubject, reviewPrompt } from "./prompts.mts";
-import { readState, writeState } from "./state.mts";
-import { createVerdictTool, formatVerdict } from "./verdict.mts";
+import { readState, type ReviewRound, writeState } from "./state.mts";
+import {
+  blockingFindings,
+  createVerdictTool,
+  fingerprint,
+  formatFindings,
+  formatVerdict,
+  isApproved,
+} from "./verdict.mts";
 
 export type Context = {
   repo: Repo;
@@ -57,6 +64,7 @@ export async function processIssue(context: Context, issue: Issue): Promise<Outc
     branch,
     ciFixes: 0,
     reviewRounds: 0,
+    reviewLog: [],
   };
 
   log(`issue #${issue.number}: ${issue.title}`);
@@ -127,6 +135,7 @@ export async function processIssue(context: Context, issue: Issue): Promise<Outc
         branch,
         "The continuous integration checks failed.",
         logs,
+        history(state.reviewLog),
       );
       if (!committed) {
         await handOver(context, issue, state.pr, "The fixer added no commit for the failed checks.");
@@ -152,7 +161,13 @@ export async function processIssue(context: Context, issue: Issue): Promise<Outc
     await runAgent(context.modelRuntime, {
       name: "reviewer",
       cwd: worktree,
-      prompt: reviewPrompt(issue, comments, await diff(worktree, context.base, config.remote)),
+      prompt: reviewPrompt(
+        issue,
+        comments,
+        await diff(worktree, context.base, config.remote),
+        state.reviewRounds,
+        history(state.reviewLog),
+      ),
       modelSpec: config.models.reviewer,
       tools: READ_ONLY_TOOLS,
       customTools: [verdictTool.tool],
@@ -163,7 +178,7 @@ export async function processIssue(context: Context, issue: Issue): Promise<Outc
       return "needs-human";
     }
     await commentOnPr(repo, state.pr, formatVerdict(verdict));
-    if (verdict.verdict === "approve") {
+    if (isApproved(verdict)) {
       await setLabel(repo, issue.number, config.labels.done, managedLabels(config));
       state.phase = "done";
       await writeState(repo, state);
@@ -171,13 +186,30 @@ export async function processIssue(context: Context, issue: Issue): Promise<Outc
       log(`done, pull request #${state.pr} waits for your merge`);
       return "done";
     }
+    const blocking = blockingFindings(verdict);
+    const mark = fingerprint(blocking);
+    if (state.reviewLog.some((round) => round.fingerprint === mark)) {
+      await handOver(context, issue, state.pr, "The reviewer repeated findings that an earlier round did not fix.");
+      state.phase = "needs-human";
+      await writeState(repo, state);
+      return "needs-human";
+    }
+    const earlier = history(state.reviewLog);
+    state.reviewLog.push({
+      round: state.reviewRounds,
+      fingerprint: mark,
+      findings: formatFindings(blocking),
+    });
+    await writeState(repo, state);
+
     const committed = await fix(
       context,
       issue,
       worktree,
       branch,
       "The reviewer requested changes.",
-      formatVerdict(verdict),
+      formatFindings(blocking),
+      earlier,
     );
     if (!committed) {
       await handOver(context, issue, state.pr, "The fixer added no commit for the review findings.");
@@ -195,12 +227,13 @@ async function fix(
   branch: string,
   reason: string,
   detail: string,
+  earlier: string[],
 ): Promise<boolean> {
   log(`fixing: ${reason}`);
   const output = await runAgent(context.modelRuntime, {
     name: "fixer",
     cwd: worktree,
-    prompt: fixPrompt(issue, reason, detail),
+    prompt: fixPrompt(issue, reason, detail, earlier),
     modelSpec: context.config.models.fixer,
     tools: CODING_TOOLS,
   });
@@ -223,6 +256,10 @@ async function handOver(
   if (pr !== undefined) {
     await commentOnPr(context.repo, pr, `next-issue needs help: ${reason}`);
   }
+}
+
+function history(rounds: ReviewRound[]): string[] {
+  return rounds.map((round) => `Round ${round.round}:\n${round.findings}`);
 }
 
 function log(message: string): void {

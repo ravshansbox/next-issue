@@ -26,7 +26,22 @@ export function implementPrompt(issue: Issue, comments: string[]): string {
   ].join("\n\n");
 }
 
-export function reviewPrompt(issue: Issue, comments: string[], diff: string): string {
+export function reviewPrompt(
+  issue: Issue,
+  comments: string[],
+  diff: string,
+  round: number,
+  earlier: string[],
+): string {
+  const scope =
+    round === 1
+      ? "Check correctness, scope, repository conventions and test cover."
+      : [
+          "This is a later round. Judge two things only:",
+          "whether the earlier findings below are now fixed, and whether the new commits broke something.",
+          "Do not raise a new point of taste. Do not repeat a finding that is fixed.",
+          `## Earlier findings\n${earlier.join("\n")}`,
+        ].join("\n");
   return [
     "You are the reviewer. Judge whether the diff solves the issue correctly.",
     issueBlock(issue, comments),
@@ -36,20 +51,35 @@ export function reviewPrompt(issue: Issue, comments: string[], diff: string): st
     "```",
     "## Rules",
     "Read files for context when you must. Do not change any file.",
-    "Check correctness, scope, repository conventions and test cover.",
+    scope,
+    "Mark a finding blocking only for a wrong result, a missing part of the issue, a regression or a broken convention.",
     "Report the result with the submit_review tool. Call it exactly once.",
   ].join("\n\n");
 }
 
-export function fixPrompt(issue: Issue, reason: string, detail: string): string {
+export function fixPrompt(
+  issue: Issue,
+  reason: string,
+  detail: string,
+  earlier: string[],
+): string {
   return [
     `You are the fixer. Correct the work for issue #${issue.number}: ${issue.title}.`,
     `## Reason\n${reason}`,
     `## Detail\n${detail}`,
+    earlier.length > 0
+      ? [
+          "## Earlier rounds",
+          earlier.join("\n"),
+          "Keep those earlier fixes. Do not undo work that a later round did not question.",
+        ].join("\n")
+      : "",
     "## Rules",
     "Fix the cause, not the symptom. Keep the change minimal.",
     COMMIT_RULES,
-  ].join("\n\n");
+  ]
+    .filter((part) => part.length > 0)
+    .join("\n\n");
 }
 
 export function parseCommitSubject(text: string, fallback: string): string {
