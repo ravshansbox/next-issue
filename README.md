@@ -47,6 +47,41 @@ round two, the reviewer judges only the earlier findings and any regression.
 The harness runs all git and `gh` commands itself. The agents only read and
 change files.
 
+## Observability
+
+Every run has an id, `<timestamp>`, and writes two files under
+`.next-issue/runs/`:
+
+- `<id>.jsonl` — one JSON object per event, with `ts`, `runId`, `kind`, and the
+  `issue`, `role` or `round` in scope;
+- `<id>.summary.json` — token and cost totals per agent role, event counts, and
+  one report per issue with the outcome, the reason, the pull request number
+  and the budgets used.
+
+The summary also goes to standard output, so the harness fits in a pipe. All
+progress goes to standard error.
+
+Recorded for each step: `claim`, `comments`, `worktree`, `implement`, `push`,
+`pull-request`, `checks`, `review` and `fix`, each with a `.start`, `.end` or
+`.error` event and a duration in `ms`. Every `git` and `gh` command is recorded
+with its exit code and duration. Each agent call adds a `usage` event with the
+tokens, the cost, the turn count, the tool-call count, the model and the path
+of the pi session file, so you can open the session again and read the full
+transcript.
+
+```bash
+jq -r 'select(.kind=="usage") | [.issue,.role,.total,.costUsd] | @tsv' \
+  .next-issue/runs/*.jsonl
+```
+
+Three levels of console output:
+
+| Level | Shows |
+| --- | --- |
+| `--quiet` | Run and issue milestones, verdicts, hand-overs, errors |
+| default | The above plus each step end, each tool call and failed commands |
+| `--verbose` | The above plus every command and all agent text |
+
 ## Requirements
 
 - Node 24 or later, for direct `.mts` execution
