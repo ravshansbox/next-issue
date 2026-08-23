@@ -4,12 +4,14 @@ import { loadConfig } from "./config.mts";
 import { detectRepo } from "./git.mts";
 import { currentLogin, defaultBranch, openIssues } from "./github.mts";
 import { type Context, processIssue } from "./pipeline.mts";
+import { clearState } from "./state.mts";
 
 type Args = {
   issue?: number;
   once: boolean;
   max?: number;
   help: boolean;
+  reset: boolean;
 };
 
 const USAGE = `next-issue [options]
@@ -17,15 +19,18 @@ const USAGE = `next-issue [options]
   --issue <n>  handle one issue only
   --once       stop after the first handled issue
   --max <n>    handle at most n issues
+  --reset      drop the saved budgets and findings first
   --help       show this text
 `;
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { once: false, help: false };
+  const args: Args = { once: false, help: false, reset: false };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]!;
     if (arg === "--help") {
       args.help = true;
+    } else if (arg === "--reset") {
+      args.reset = true;
     } else if (arg === "--once") {
       args.once = true;
     } else if (arg === "--issue") {
@@ -69,6 +74,9 @@ async function main(): Promise<number> {
   for (const issue of issues) {
     if (args.max !== undefined && handled >= args.max) {
       break;
+    }
+    if (args.reset) {
+      await clearState(repo, issue.number);
     }
     const outcome = await processIssue(context, issue);
     if (outcome === "skipped") {

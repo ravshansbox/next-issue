@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Repo } from "./git.mts";
 
@@ -34,6 +34,10 @@ export async function readState(repo: Repo, issue: number): Promise<IssueState |
   } catch {
     return undefined;
   }
+}
+
+export async function clearState(repo: Repo, issue: number): Promise<void> {
+  await rm(file(repo, issue), { force: true });
 }
 
 export async function writeState(repo: Repo, state: IssueState): Promise<void> {
