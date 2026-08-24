@@ -2,6 +2,8 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Repo } from "./git.mts";
 
+export const STATE_DIR = ".next-issue";
+
 export type Phase = "claimed" | "implemented" | "pushed" | "review" | "done" | "needs-human";
 
 export type IssueState = {
@@ -21,7 +23,7 @@ export type ReviewRound = {
 };
 
 function dir(repo: Repo): string {
-  return join(repo.root, ".next-issue");
+  return join(repo.root, STATE_DIR);
 }
 
 function file(repo: Repo, issue: number): string {

@@ -7,7 +7,7 @@ import { detectRepo, type Repo, repoRoot } from "./git.mts";
 import { currentLogin, defaultBranch, openIssues } from "./github.mts";
 import { type Level, message, Recorder } from "./observe.mts";
 import { type Context, type IssueReport, processIssue } from "./pipeline.mts";
-import { clearState } from "./state.mts";
+import { clearState, STATE_DIR } from "./state.mts";
 
 type Args = {
   issue?: number;
@@ -145,7 +145,7 @@ async function handle(
     },
     "quiet",
   );
-  const summaryFile = join(repo.root, ".next-issue", "runs", `${recorder.runId}.summary.json`);
+  const summaryFile = join(repo.root, STATE_DIR, "runs", `${recorder.runId}.summary.json`);
   await writeFile(summaryFile, `${JSON.stringify(summary, null, 2)}\n`);
   await write(process.stdout, `${JSON.stringify(summary, null, 2)}\n`);
   return count(reports, "needs-human") + count(reports, "error") > 0 ? 1 : 0;

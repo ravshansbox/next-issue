@@ -1,6 +1,7 @@
 import { createWriteStream, type WriteStream } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
+import { STATE_DIR } from "./state.mts";
 
 export type Level = "quiet" | "normal" | "verbose";
 
@@ -80,7 +81,7 @@ export class Recorder {
 
   static async create(root: string, level: Level): Promise<Recorder> {
     const runId = new Date().toISOString().replace(/[:.]/g, "-");
-    const dir = join(root, ".next-issue", "runs");
+    const dir = join(root, STATE_DIR, "runs");
     await mkdir(dir, { recursive: true });
     const file = join(dir, `${runId}.jsonl`);
     const sink = new Sink(createWriteStream(file, { flags: "a" }), level, file);
