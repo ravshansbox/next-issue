@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "node src/cli.mts",
+    "test": "node --test \"src/**/*.test.mts\"",
     "typecheck": "tsc --noEmit"
   },
   "license": "MIT",

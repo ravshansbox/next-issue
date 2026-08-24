@@ -65,19 +65,19 @@ type Run = {
   comments: string[];
 };
 
-export function isClaimable(issue: Issue, context: Context): boolean {
+export function isClaimable(issue: Issue, config: Config, login: string): boolean {
   const labels = new Set(issue.labels);
-  const { labels: names } = context.config;
+  const names = config.labels;
   if (labels.has(names.done) || labels.has(names.needsHuman) || labels.has(names.skip)) {
     return false;
   }
-  return issue.assignees.length === 0 || issue.assignees.includes(context.login);
+  return issue.assignees.length === 0 || issue.assignees.includes(login);
 }
 
 export async function processIssue(context: Context, issue: Issue): Promise<IssueReport> {
   const started = Date.now();
   const log = context.recorder.scope({ issue: issue.number });
-  if (!isClaimable(issue, context)) {
+  if (!isClaimable(issue, context.config, context.login)) {
     log.event("issue.skip", { title: issue.title });
     return { issue: issue.number, outcome: "skipped", ciFixes: 0, reviewRounds: 0, ms: 0 };
   }
