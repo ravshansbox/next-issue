@@ -8,6 +8,7 @@ import { currentLogin, defaultBranch, openIssues } from "./github.mts";
 import { type Level, message, Recorder } from "./observe.mts";
 import { type Context, type IssueReport, processIssue } from "./pipeline.mts";
 import { clearState, STATE_DIR } from "./state.mts";
+import { formatSummary, type RunSummary } from "./summary.mts";
 
 type Command = "run" | "init";
 
@@ -17,6 +18,7 @@ type Args = {
   once: boolean;
   max?: number;
   help: boolean;
+  json: boolean;
   reset: boolean;
   force: boolean;
   level: Level;
@@ -30,6 +32,7 @@ const USAGE = `next-issue [command] [options]
   --once       stop after the first handled issue
   --max <n>    handle at most n issues
   --reset      drop the saved budgets and findings first
+  --json       print the machine summary instead of the text one
   --force      replace an existing config file, with init
   --verbose    show every command and all agent output
   --quiet      show only the milestones and the summary
@@ -41,6 +44,7 @@ function parseArgs(argv: string[]): Args {
     command: "run",
     once: false,
     help: false,
+    json: false,
     reset: false,
     force: false,
     level: "normal",
@@ -54,6 +58,8 @@ function parseArgs(argv: string[]): Args {
       args.command = "init";
     } else if (arg === "--force") {
       args.force = true;
+    } else if (arg === "--json") {
+      args.json = true;
     } else if (arg === "--help") {
       args.help = true;
     } else if (arg === "--reset") {
@@ -166,7 +172,7 @@ async function handle(
     }
   }
 
-  const summary = { ...recorder.summary(), issues: reports };
+  const summary: RunSummary = { ...recorder.summary(), issues: reports };
   recorder.event(
     "run.end",
     {
@@ -180,7 +186,7 @@ async function handle(
   );
   const summaryFile = join(repo.root, STATE_DIR, "runs", `${recorder.runId}.summary.json`);
   await writeFile(summaryFile, `${JSON.stringify(summary, null, 2)}\n`);
-  await write(process.stdout, `${JSON.stringify(summary, null, 2)}\n`);
+  await write(process.stdout, args.json ? `${JSON.stringify(summary, null, 2)}\n` : formatSummary(summary));
   return count(reports, "needs-human") + count(reports, "error") > 0 ? 1 : 0;
 }
 

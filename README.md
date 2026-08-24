@@ -86,7 +86,8 @@ Every run has an id, `<timestamp>`, and writes two files under
   one report per issue with the outcome, the reason, the pull request number
   and the budgets used.
 
-The summary also goes to standard output, so the harness fits in a pipe. All
+A short text summary of the same data goes to standard output. Use `--json` to
+get the full summary object there instead, so the harness fits in a pipe. All
 progress goes to standard error.
 
 Recorded for each step: `claim`, `comments`, `worktree`, `implement`, `push`,
@@ -196,6 +197,7 @@ A role without an entry in `models` uses the default model of the SDK. A
 | `--once` | Stop after the first handled issue |
 | `--max <n>` | Handle at most n issues |
 | `--reset` | Drop the saved budgets and findings first |
+| `--json` | Print the machine summary instead of the text one |
 | `--verbose` | Show every command and all agent output |
 | `--quiet` | Show only the milestones and the summary |
 | `--help` | Show the option list |
@@ -220,7 +222,8 @@ workflow reads the commits since the last tag and picks the bump: `feat` gives a
 minor, `fix` gives a patch, and a `!` mark or a `BREAKING CHANGE` body gives a
 major. Any other type releases nothing.
 
-The workflow then bumps the version, tags it, pushes the tag, makes the GitHub
-release with generated notes and publishes the package to npm with a
+The workflow then bumps the version and publishes the package to npm with a
 [trusted publish](https://docs.npmjs.com/trusted-publishers), so no token is
-stored.
+stored. Only after the publish does it push the tag and make the GitHub release,
+so a failed publish leaves no half-release behind. The release job stays on a
+GitHub runner, because npm takes provenance only from a GitHub runner.
