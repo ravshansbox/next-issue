@@ -91,7 +91,8 @@ progress goes to standard error.
 Recorded for each step: `claim`, `comments`, `worktree`, `implement`, `push`,
 `pull-request`, `checks`, `review` and `fix`, each with a `.start`, `.end` or
 `.error` event and a duration in `ms`. Every `git` and `gh` command is recorded
-with its exit code and duration. Each agent call adds a `usage` event with the
+with its exit code and duration. A `tool` event holds the tool name, and for a
+`Bash` tool the command too. Each agent call adds a `usage` event with the
 tokens, the cost estimate in dollars, the turn count, the tool-call count, the
 model and the session id, so you can open the session again and read the full
 transcript.

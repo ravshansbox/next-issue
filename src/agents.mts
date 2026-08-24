@@ -1,5 +1,5 @@
 import { type PermissionMode, query } from "@anthropic-ai/claude-agent-sdk";
-import { emptyUsage, type Recorder, type Usage } from "./observe.mts";
+import { emptyUsage, type Fields, type Recorder, type Usage } from "./observe.mts";
 
 export type Profile = {
   tools: string[];
@@ -78,7 +78,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
         if (block.type === "tool_use") {
           toolCalls += 1;
           toolNames.set(block.id, block.name);
-          log.event("tool", { tool: block.name });
+          log.event("tool", toolFields(block.name, block.input));
         }
         if (block.type === "text") {
           text += block.text;
@@ -154,4 +154,12 @@ function main(models: Record<string, { outputTokens: number }>): string | undefi
     }
   }
   return name;
+}
+
+export function toolFields(name: string, input: unknown): Fields {
+  if (name !== "Bash" || typeof input !== "object" || input === null) {
+    return { tool: name };
+  }
+  const { command } = input as { command?: unknown };
+  return typeof command === "string" ? { tool: name, command } : { tool: name };
 }
