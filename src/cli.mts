@@ -44,14 +44,22 @@ function parseArgs(argv: string[]): Args {
     } else if (arg === "--quiet") {
       args.level = "quiet";
     } else if (arg === "--issue") {
-      args.issue = Number(argv[++index]);
+      args.issue = whole(argv[++index], arg);
     } else if (arg === "--max") {
-      args.max = Number(argv[++index]);
+      args.max = whole(argv[++index], arg);
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
   }
   return args;
+}
+
+function whole(value: string | undefined, option: string): number {
+  const parsed = Number(value);
+  if (value === undefined || !Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`${option} needs a whole number of 1 or more`);
+  }
+  return parsed;
 }
 
 async function main(): Promise<number> {
