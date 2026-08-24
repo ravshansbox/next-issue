@@ -9,6 +9,7 @@ import {
   push,
   removeWorktree,
   type Repo,
+  worktreePath,
 } from "./git.mts";
 import {
   assignIssue,
@@ -247,7 +248,9 @@ async function work(
       await setLabel(repo, issue.number, config.labels.done, managedLabels(config));
       state.phase = "done";
       await writeState(repo, state);
-      await removeWorktree(repo, issue.number);
+      if (!(await removeWorktree(repo, issue.number))) {
+        log.event("worktree.kept", { path: worktreePath(repo, issue.number) }, "quiet");
+      }
       return finish("done");
     }
 

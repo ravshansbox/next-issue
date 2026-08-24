@@ -23,8 +23,12 @@ export function parseRemote(url: string): { owner: string; name: string } {
   throw new Error(`Cannot parse the git remote URL: ${url}`);
 }
 
+export async function repoRoot(cwd: string): Promise<string> {
+  return must("git", ["rev-parse", "--show-toplevel"], { cwd });
+}
+
 export async function detectRepo(cwd: string, remote: string): Promise<Repo> {
-  const root = await must("git", ["rev-parse", "--show-toplevel"], { cwd });
+  const root = await repoRoot(cwd);
   const url = await must("git", ["remote", "get-url", remote], { cwd });
   const { owner, name } = parseRemote(url);
   return { owner, name, root };
@@ -38,6 +42,10 @@ export async function addWorktree(repo: Repo, issue: number, base: string, remot
   const path = worktreePath(repo, issue);
   const branch = branchName(issue);
   await must("git", ["fetch", remote, base], { cwd: repo.root });
+  await must("git", ["worktree", "prune"], { cwd: repo.root });
+  if (await hasWorktree(repo, path)) {
+    return path;
+  }
   const existing = await run("git", ["rev-parse", "--verify", branch], { cwd: repo.root });
   const args =
     existing.code === 0
@@ -47,8 +55,14 @@ export async function addWorktree(repo: Repo, issue: number, base: string, remot
   return path;
 }
 
-export async function removeWorktree(repo: Repo, issue: number): Promise<void> {
-  await run("git", ["worktree", "remove", worktreePath(repo, issue)], { cwd: repo.root });
+export async function hasWorktree(repo: Repo, path: string): Promise<boolean> {
+  const list = await must("git", ["worktree", "list", "--porcelain"], { cwd: repo.root });
+  return list.split("\n").some((line) => line.trim() === `worktree ${path}`);
+}
+
+export async function removeWorktree(repo: Repo, issue: number): Promise<boolean> {
+  const result = await run("git", ["worktree", "remove", worktreePath(repo, issue)], { cwd: repo.root });
+  return result.code === 0;
 }
 
 export function branchName(issue: number): string {
