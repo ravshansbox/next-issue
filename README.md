@@ -18,8 +18,11 @@ next-issue
 
 For each open issue, oldest first:
 
-1. Skip the issue when a `status:done`, `status:needs-human` or `status:blocked`
-   label is present, or when another person is the assignee.
+1. Claim the issue only when it holds the `status:todo` label, holds no
+   `status:in-progress` or `status:in-review` label, and has no assignee. A
+   `status:done`, `status:needs-human` or `status:blocked` label always stops
+   the claim. An issue with saved state under `.next-issue/` resumes instead,
+   whatever its labels, unless another person is now the assignee.
 2. Assign the issue to you and add `status:in-progress`.
 3. Add a git worktree on a new `issue-<n>` branch from the default branch.
 4. Let the implementer agent do the work, then commit and push.
@@ -161,7 +164,14 @@ JSON stops the run.
 | `logMaxChars` | `20000` | The maximum length of the failed job logs |
 | `setupCommand` | none | A shell command to run in a new worktree, before the implementer |
 | `models` | `{}` | The model per agent role |
-| `labels` | see above | The names of the labels that the harness sets |
+| `labels` | see above | The names of the labels that the harness reads and sets |
+
+An empty `labels.ready` turns the ready requirement off. The harness then
+claims every open issue that no other label and no assignee holds back.
+
+The log gives the reason for a skipped issue as `stop-label`, `not-ready`,
+`in-flight` or `assigned`. `--issue` obeys the same rules; it only makes the
+harness look at one issue.
 
 A role without an entry in `models` uses the default model of the SDK. A
 `setupCommand` that fails hands the issue to a person. State per issue goes to
