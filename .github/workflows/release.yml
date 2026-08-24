@@ -3,6 +3,7 @@ name: release
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   release:
@@ -22,7 +23,10 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - id: bump
+      - if: github.event_name == 'workflow_dispatch'
+        run: npm publish
+      - if: github.event_name == 'push'
+        id: bump
         run: |
           last=$(git describe --tags --match 'v*' --abbrev=0 2>/dev/null || echo "")
           range=${last:+$last..HEAD}
@@ -38,7 +42,7 @@ jobs:
           fi
           echo "bump=$bump" >> "$GITHUB_OUTPUT"
           echo "The bump since ${last:-the first commit} is ${bump:-none}."
-      - if: steps.bump.outputs.bump != ''
+      - if: github.event_name == 'push' && steps.bump.outputs.bump != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

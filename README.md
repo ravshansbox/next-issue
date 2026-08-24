@@ -225,5 +225,7 @@ major. Any other type releases nothing.
 The workflow then bumps the version and publishes the package to npm with a
 [trusted publish](https://docs.npmjs.com/trusted-publishers), so no token is
 stored. Only after the publish does it push the tag and make the GitHub release,
-so a failed publish leaves no half-release behind. The release job stays on a
+so a failed publish leaves no half-release behind. A manual run of the workflow
+publishes the version in `package.json` and changes nothing else, which repairs
+a release that reached GitHub but not npm. The release job stays on a
 GitHub runner, because npm takes provenance only from a GitHub runner.
