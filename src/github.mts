@@ -25,7 +25,9 @@ async function gh(repo: Repo, args: string[], input?: string): Promise<string> {
 }
 
 export async function defaultBranch(repo: Repo): Promise<string> {
-  const raw = await gh(repo, ["repo", "view", "--json", "defaultBranchRef"]);
+  const raw = await must("gh", ["repo", "view", slug(repo), "--json", "defaultBranchRef"], {
+    cwd: repo.root,
+  });
   return JSON.parse(raw).defaultBranchRef.name as string;
 }
 
