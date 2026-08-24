@@ -1,6 +1,7 @@
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { CODING_TOOLS, READ_ONLY_TOOLS, runAgent } from "./agents.mts";
 import { type Config, managedLabels } from "./config.mts";
+import { run } from "./exec.mts";
 import {
   addWorktree,
   branchName,
@@ -129,7 +130,7 @@ async function work(
   const worktree = await log.step("worktree", { branch }, () =>
     addWorktree(repo, issue.number, context.base, config.remote),
   );
-  const run: Run = { context, issue, log, state, branch, worktree, comments };
+  const job: Run = { context, issue, log, state, branch, worktree, comments };
   const finish = (outcome: Outcome, reason?: string): IssueReport => ({
     issue: issue.number,
     outcome,
@@ -139,6 +140,17 @@ async function work(
     reviewRounds: state.reviewRounds,
     ms: Date.now() - started,
   });
+
+  if (config.setupCommand !== undefined) {
+    const setup = await log.step("setup", { cmd: config.setupCommand }, () =>
+      run("bash", ["-lc", config.setupCommand!], { cwd: worktree }),
+    );
+    if (setup.code !== 0) {
+      log.event("setup.fail", { code: setup.code, stderr: setup.stderr.trim().slice(-2000) }, "quiet");
+      await handOver(job, "The setup command failed in the worktree.");
+      return await stop(job, finish("needs-human", "setup failed"));
+    }
+  }
 
   if (state.phase === "claimed") {
     const result = await log.step("implement", {}, () =>
@@ -151,7 +163,7 @@ async function work(
     );
     const subject = parseCommitSubject(result.text, `fix: resolve issue #${issue.number}`);
     if (!(await commitAll(worktree, `${subject}\n\nRefs #${issue.number}`))) {
-      await handOver(run, "The implementer produced no change.");
+      await handOver(job, "The implementer produced no change.");
       return finish("needs-human", "no implementation commit");
     }
     log.event("commit", { subject });
@@ -177,29 +189,29 @@ async function work(
     );
     log.event("checks.state", { state: checks });
     if (checks === "timeout") {
-      await handOver(run, "The checks did not finish in time.");
+      await handOver(job, "The checks did not finish in time.");
       return finish("needs-human", "checks timeout");
     }
     if (checks === "fail") {
       if (state.ciFixes >= config.maxCiFixes) {
-        await handOver(run, `The limit of ${config.maxCiFixes} check fixes was reached.`);
-        return await stop(run, finish("needs-human", "check budget"));
+        await handOver(job, `The limit of ${config.maxCiFixes} check fixes was reached.`);
+        return await stop(job, finish("needs-human", "check budget"));
       }
       state.ciFixes += 1;
       await writeState(repo, state);
       const logs = await failedCheckLogs(repo, branch, config.logMaxChars);
       log.event("checks.logs", { chars: logs.length });
-      const committed = await fixRound(run, "The continuous integration checks failed.", logs);
+      const committed = await fixRound(job, "The continuous integration checks failed.", logs);
       if (!committed) {
-        await handOver(run, "The fixer added no commit for the failed checks.");
-        return await stop(run, finish("needs-human", "no fix commit"));
+        await handOver(job, "The fixer added no commit for the failed checks.");
+        return await stop(job, finish("needs-human", "no fix commit"));
       }
       continue;
     }
 
     if (state.reviewRounds >= config.maxReviewRounds) {
-      await handOver(run, `The limit of ${config.maxReviewRounds} review rounds was reached.`);
-      return await stop(run, finish("needs-human", "review budget"));
+      await handOver(job, `The limit of ${config.maxReviewRounds} review rounds was reached.`);
+      return await stop(job, finish("needs-human", "review budget"));
     }
     state.reviewRounds += 1;
     await writeState(repo, state);
@@ -218,8 +230,8 @@ async function work(
     );
     const verdict = verdictTool.read();
     if (verdict === undefined) {
-      await handOver(run, "The reviewer gave no verdict.");
-      return await stop(run, finish("needs-human", "no verdict"));
+      await handOver(job, "The reviewer gave no verdict.");
+      return await stop(job, finish("needs-human", "no verdict"));
     }
     const blocking = blockingFindings(verdict);
     log.event("verdict", {
@@ -241,28 +253,28 @@ async function work(
 
     const mark = fingerprint(blocking);
     if (state.reviewLog.some((round) => round.fingerprint === mark)) {
-      await handOver(run, "The reviewer repeated findings that an earlier round did not fix.");
-      return await stop(run, finish("needs-human", "repeated findings"));
+      await handOver(job, "The reviewer repeated findings that an earlier round did not fix.");
+      return await stop(job, finish("needs-human", "repeated findings"));
     }
     const earlier = history(state.reviewLog);
     state.reviewLog.push({ round: state.reviewRounds, fingerprint: mark, findings: formatFindings(blocking) });
     await writeState(repo, state);
 
-    const committed = await fixRound(run, "The reviewer requested changes.", formatFindings(blocking), earlier);
+    const committed = await fixRound(job, "The reviewer requested changes.", formatFindings(blocking), earlier);
     if (!committed) {
-      await handOver(run, "The fixer added no commit for the review findings.");
-      return await stop(run, finish("needs-human", "no fix commit"));
+      await handOver(job, "The fixer added no commit for the review findings.");
+      return await stop(job, finish("needs-human", "no fix commit"));
     }
   }
 }
 
-async function fixRound(run: Run, reason: string, detail: string, earlier: string[] = []): Promise<boolean> {
-  const { context, issue, log, worktree, branch } = run;
+async function fixRound(job: Run, reason: string, detail: string, earlier: string[] = []): Promise<boolean> {
+  const { context, issue, log, worktree, branch } = job;
   const result = await log.step("fix", { reason }, () =>
     runAgent(context.modelRuntime, log, {
       name: "fixer",
       cwd: worktree,
-      prompt: fixPrompt(issue, reason, detail, earlier.length > 0 ? earlier : history(run.state.reviewLog)),
+      prompt: fixPrompt(issue, reason, detail, earlier.length > 0 ? earlier : history(job.state.reviewLog)),
       tools: CODING_TOOLS,
     }),
   );
@@ -276,8 +288,8 @@ async function fixRound(run: Run, reason: string, detail: string, earlier: strin
   return true;
 }
 
-async function handOver(run: Run, reason: string): Promise<void> {
-  const { context, issue, log, state } = run;
+async function handOver(job: Run, reason: string): Promise<void> {
+  const { context, issue, log, state } = job;
   log.event("hand-over", { reason }, "quiet");
   await setLabel(context.repo, issue.number, context.config.labels.needsHuman, managedLabels(context.config));
   if (state.pr !== undefined) {
@@ -285,9 +297,9 @@ async function handOver(run: Run, reason: string): Promise<void> {
   }
 }
 
-async function stop(run: Run, report: IssueReport): Promise<IssueReport> {
-  run.state.phase = "needs-human";
-  await writeState(run.context.repo, run.state);
+async function stop(job: Run, report: IssueReport): Promise<IssueReport> {
+  job.state.phase = "needs-human";
+  await writeState(job.context.repo, job.state);
   return report;
 }
 

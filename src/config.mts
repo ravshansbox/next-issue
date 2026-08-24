@@ -9,6 +9,7 @@ export type Config = {
   checkIntervalSeconds: number;
   checkTimeoutMinutes: number;
   logMaxChars: number;
+  setupCommand?: string;
   labels: {
     ready: string;
     inProgress: string;
