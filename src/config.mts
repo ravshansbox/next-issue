@@ -10,6 +10,7 @@ export type Config = {
   checkTimeoutMinutes: number;
   logMaxChars: number;
   labels: {
+    ready: string;
     inProgress: string;
     inReview: string;
     done: string;
@@ -27,6 +28,7 @@ const DEFAULTS: Config = {
   checkTimeoutMinutes: 60,
   logMaxChars: 20000,
   labels: {
+    ready: "status:todo",
     inProgress: "status:in-progress",
     inReview: "status:in-review",
     done: "status:done",
@@ -50,5 +52,11 @@ export async function loadConfig(cwd: string): Promise<Config> {
 }
 
 export function managedLabels(config: Config): string[] {
-  return [config.labels.inProgress, config.labels.inReview, config.labels.done, config.labels.needsHuman];
+  return [
+    config.labels.ready,
+    config.labels.inProgress,
+    config.labels.inReview,
+    config.labels.done,
+    config.labels.needsHuman,
+  ];
 }

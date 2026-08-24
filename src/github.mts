@@ -71,18 +71,24 @@ export async function issueComments(repo: Repo, issue: number): Promise<string[]
   return parsed.comments.map((comment) => `@${comment.author.login}: ${comment.body}`);
 }
 
-export async function claimIssue(repo: Repo, issue: number, login: string, label: string): Promise<void> {
-  await ensureLabel(repo, label);
-  await gh(repo, ["issue", "edit", String(issue), "--add-assignee", login, "--add-label", label]);
+export async function assignIssue(repo: Repo, issue: number, login: string): Promise<void> {
+  await gh(repo, ["issue", "edit", String(issue), "--add-assignee", login]);
+}
+
+export async function labelsOf(repo: Repo, issue: number): Promise<string[]> {
+  const raw = await gh(repo, ["issue", "view", String(issue), "--json", "labels"]);
+  const parsed = JSON.parse(raw) as { labels: Array<{ name: string }> };
+  return parsed.labels.map((label) => label.name);
 }
 
 export async function setLabel(repo: Repo, issue: number, add: string, remove: string[]): Promise<void> {
   await ensureLabel(repo, add);
+  const current = await labelsOf(repo, issue);
   const args = ["issue", "edit", String(issue), "--add-label", add];
-  for (const name of remove.filter((item) => item !== add)) {
+  for (const name of remove.filter((item) => item !== add && current.includes(item))) {
     args.push("--remove-label", name);
   }
-  await run("gh", [...args, "--repo", slug(repo)], { cwd: repo.root });
+  await gh(repo, args);
 }
 
 export async function ensureLabel(repo: Repo, label: string): Promise<void> {

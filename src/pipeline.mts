@@ -11,7 +11,7 @@ import {
   type Repo,
 } from "./git.mts";
 import {
-  claimIssue,
+  assignIssue,
   commentOnPr,
   createPr,
   failedCheckLogs,
@@ -120,7 +120,8 @@ async function work(
   const branch = state.branch;
 
   await log.step("claim", { label: config.labels.inProgress }, async () => {
-    await claimIssue(repo, issue.number, context.login, config.labels.inProgress);
+    await assignIssue(repo, issue.number, context.login);
+    await setLabel(repo, issue.number, config.labels.inProgress, managedLabels(config));
     await writeState(repo, state);
   });
 
