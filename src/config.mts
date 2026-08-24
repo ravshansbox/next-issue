@@ -16,11 +16,6 @@ export type Config = {
     needsHuman: string;
     skip: string;
   };
-  models: {
-    implementer?: string;
-    reviewer?: string;
-    fixer?: string;
-  };
 };
 
 const DEFAULTS: Config = {
@@ -38,7 +33,6 @@ const DEFAULTS: Config = {
     needsHuman: "status:needs-human",
     skip: "status:blocked",
   },
-  models: {},
 };
 
 export async function loadConfig(cwd: string): Promise<Config> {
@@ -49,7 +43,6 @@ export async function loadConfig(cwd: string): Promise<Config> {
       ...DEFAULTS,
       ...parsed,
       labels: { ...DEFAULTS.labels, ...parsed.labels },
-      models: { ...DEFAULTS.models, ...parsed.models },
     };
   } catch {
     return DEFAULTS;

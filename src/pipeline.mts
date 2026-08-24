@@ -145,7 +145,6 @@ async function work(
         name: "implementer",
         cwd: worktree,
         prompt: implementPrompt(issue, comments),
-        modelSpec: config.models.implementer,
         tools: CODING_TOOLS,
       }),
     );
@@ -212,7 +211,6 @@ async function work(
         name: "reviewer",
         cwd: worktree,
         prompt: reviewPrompt(issue, comments, patch, state.reviewRounds, history(state.reviewLog)),
-        modelSpec: config.models.reviewer,
         tools: READ_ONLY_TOOLS,
         customTools: [verdictTool.tool],
       }),
@@ -264,7 +262,6 @@ async function fixRound(run: Run, reason: string, detail: string, earlier: strin
       name: "fixer",
       cwd: worktree,
       prompt: fixPrompt(issue, reason, detail, earlier.length > 0 ? earlier : history(run.state.reviewLog)),
-      modelSpec: context.config.models.fixer,
       tools: CODING_TOOLS,
     }),
   );

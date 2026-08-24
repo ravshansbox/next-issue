@@ -1,7 +1,6 @@
 import {
   createAgentSession,
   ModelRuntime,
-  resolveCliModel,
   SessionManager,
   type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
@@ -11,7 +10,6 @@ export type AgentRequest = {
   name: string;
   cwd: string;
   prompt: string;
-  modelSpec?: string;
   tools: string[];
   customTools?: ToolDefinition<any, any>[];
 };
@@ -40,20 +38,8 @@ export async function runAgent(
   recorder: Recorder,
   request: AgentRequest,
 ): Promise<AgentResult> {
-  const resolved = request.modelSpec
-    ? resolveCliModel({ cliModel: request.modelSpec, modelRuntime })
-    : undefined;
-  if (resolved?.error) {
-    throw new Error(resolved.error);
-  }
-  if (resolved?.warning) {
-    recorder.event("model.warning", { role: request.name, warning: resolved.warning }, "quiet");
-  }
-
   const { session } = await createAgentSession({
     cwd: request.cwd,
-    model: resolved?.model,
-    thinkingLevel: resolved?.thinkingLevel,
     modelRuntime,
     tools: [...request.tools, ...(request.customTools ?? []).map((tool) => tool.name)],
     customTools: request.customTools,
@@ -81,7 +67,7 @@ export async function runAgent(
 
   const started = Date.now();
   const sessionFile = session.sessionFile;
-  log.event("agent.start", { model: resolved?.model?.id, session: sessionFile }, "normal");
+  log.event("agent.start", { model: session.model?.id, session: sessionFile }, "normal");
   try {
     await session.prompt(request.prompt);
   } finally {
@@ -97,7 +83,7 @@ export async function runAgent(
     turns: stats.turns,
     toolCalls,
     ms,
-    model: stats.model ?? resolved?.model?.id,
+    model: stats.model,
     sessionFile,
   };
   recorder.usage(request.name, result.usage, ms, {

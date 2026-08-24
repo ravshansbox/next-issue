@@ -97,16 +97,11 @@ Put `next-issue.config.json` in the repository:
   "maxCiFixes": 3,
   "maxReviewRounds": 3,
   "checkIntervalSeconds": 15,
-  "checkTimeoutMinutes": 60,
-  "models": {
-    "implementer": "anthropic/claude-sonnet-4-5",
-    "reviewer": "anthropic/claude-opus-4-5:high",
-    "fixer": "anthropic/claude-sonnet-4-5"
-  }
+  "checkTimeoutMinutes": 60
 }
 ```
 
-Omit a model to use your pi default. State per issue goes to
+All three roles use the model your pi settings select. State per issue goes to
 `.next-issue/<issue>.json`, so a new run continues where the last run stopped.
 
 ## Options
