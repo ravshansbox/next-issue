@@ -13,6 +13,7 @@ export type Issue = {
 export type CheckState = "pass" | "fail" | "pending" | "none" | "timeout";
 
 const CHECK_PENDING_CODE = 8;
+const NO_CHECKS = /no checks reported/i;
 
 type CheckSummary = { name: string; bucket: string; link: string; description: string };
 
@@ -135,16 +136,22 @@ export async function createPr(
   return number;
 }
 
-async function listChecks(repo: Repo, branch: string): Promise<CheckSummary[] | "none"> {
+async function readChecks(repo: Repo, branch: string): Promise<CheckSummary[] | "none"> {
   const result = await run(
     "gh",
     ["pr", "checks", branch, "--json", "name,bucket,link,description", "--repo", slug(repo)],
     { cwd: repo.root },
   );
-  if (result.stdout.trim().length === 0) {
-    return "none";
+  const output = result.stdout.trim();
+  if (output.length === 0) {
+    if (NO_CHECKS.test(result.stderr)) {
+      return "none";
+    }
+    throw new Error(
+      `gh pr checks ${branch} failed with code ${result.code}: ${result.stderr.trim()}`,
+    );
   }
-  const checks = JSON.parse(result.stdout) as CheckSummary[];
+  const checks = JSON.parse(output) as CheckSummary[];
   return checks.length === 0 ? "none" : checks;
 }
 
@@ -171,7 +178,7 @@ export async function waitForChecks(
 ): Promise<CheckState> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if ((await listChecks(repo, branch)) === "none") {
+    if ((await readChecks(repo, branch)) === "none") {
       return "none";
     }
     const state = await watchOnce(repo, branch, intervalSeconds);
@@ -188,15 +195,10 @@ function delay(ms: number): Promise<void> {
 }
 
 export async function failedCheckLogs(repo: Repo, branch: string, maxChars: number): Promise<string> {
-  const result = await run(
-    "gh",
-    ["pr", "checks", branch, "--json", "name,bucket,link,description", "--repo", slug(repo)],
-    { cwd: repo.root },
-  );
-  if (result.stdout.trim().length === 0) {
-    return result.stderr;
+  const checks = await readChecks(repo, branch);
+  if (checks === "none") {
+    return "The checks failed, but gh reports no check for the branch.";
   }
-  const checks = JSON.parse(result.stdout) as CheckSummary[];
   const failed = checks.filter((check) => check.bucket === "fail");
   const parts: string[] = [];
   for (const check of failed) {
