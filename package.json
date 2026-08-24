@@ -20,18 +20,20 @@
   "author": "ravshansbox",
   "type": "module",
   "bin": {
-    "next-issue": "src/cli.mts"
+    "next-issue": "dist/cli.mjs"
   },
   "files": [
-    "src"
+    "dist"
   ],
   "engines": {
     "node": ">=24"
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "start": "node src/cli.mts",
     "test": "node --test \"test/**/*.test.mts\"",
     "typecheck": "tsc --noEmit",
+    "prepack": "npm run build",
     "prepublishOnly": "npm run typecheck && npm test"
   },
   "devDependencies": {

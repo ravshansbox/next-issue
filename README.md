@@ -187,4 +187,8 @@ A role without an entry in `models` uses the default model of the SDK. A
 npm install
 npm run typecheck
 npm test
+npm run build
 ```
+
+`npm run build` compiles `src/*.mts` to `dist/*.mjs`. The package holds the
+compiled files, because Node does not strip types under `node_modules`.
