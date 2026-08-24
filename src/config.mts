@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { message } from "./observe.mts";
 
@@ -46,6 +46,19 @@ const DEFAULTS: Config = {
 };
 
 export const CONFIG_FILE = "next-issue.config.json";
+
+export async function writeDefaultConfig(root: string, force: boolean): Promise<string> {
+  const path = join(root, CONFIG_FILE);
+  try {
+    await writeFile(path, `${JSON.stringify(DEFAULTS, null, 2)}\n`, { flag: force ? "w" : "wx" });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      throw new Error(`${CONFIG_FILE} exists already. Use --force to replace it.`);
+    }
+    throw error;
+  }
+  return path;
+}
 
 export async function loadConfig(root: string): Promise<Config> {
   let raw: string;

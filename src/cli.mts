@@ -1,39 +1,60 @@
 #!/usr/bin/env node
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { type Config, loadConfig } from "./config.mts";
+import { CONFIG_FILE, type Config, loadConfig, writeDefaultConfig } from "./config.mts";
 import { setCommandObserver } from "./exec.mts";
-import { detectRepo, type Repo, repoRoot } from "./git.mts";
+import { detectRepo, ensureIgnored, type Repo, repoRoot } from "./git.mts";
 import { currentLogin, defaultBranch, openIssues } from "./github.mts";
 import { type Level, message, Recorder } from "./observe.mts";
 import { type Context, type IssueReport, processIssue } from "./pipeline.mts";
 import { clearState, STATE_DIR } from "./state.mts";
 
+type Command = "run" | "init";
+
 type Args = {
+  command: Command;
   issue?: number;
   once: boolean;
   max?: number;
   help: boolean;
   reset: boolean;
+  force: boolean;
   level: Level;
 };
 
-const USAGE = `next-issue [options]
+const USAGE = `next-issue [command] [options]
+
+  init         write ${CONFIG_FILE} with the defaults
 
   --issue <n>  handle one issue only
   --once       stop after the first handled issue
   --max <n>    handle at most n issues
   --reset      drop the saved budgets and findings first
+  --force      replace an existing config file, with init
   --verbose    show every command and all agent output
   --quiet      show only the milestones and the summary
   --help       show this text
 `;
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { once: false, help: false, reset: false, level: "normal" };
+  const args: Args = {
+    command: "run",
+    once: false,
+    help: false,
+    reset: false,
+    force: false,
+    level: "normal",
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]!;
-    if (arg === "--help") {
+    if (index === 0 && !arg.startsWith("-")) {
+      if (arg !== "init") {
+        throw new Error(`Unknown command: ${arg}`);
+      }
+      args.command = "init";
+    } else if (arg === "--force") {
+      args.force = true;
+    } else if (arg === "--help") {
       args.help = true;
     } else if (arg === "--reset") {
       args.reset = true;
@@ -75,6 +96,9 @@ async function main(): Promise<number> {
     return 0;
   }
   const root = await repoRoot(process.cwd());
+  if (args.command === "init") {
+    return init(root, args.force);
+  }
   const config = await loadConfig(root);
   const repo = await detectRepo(root, config.remote);
   const recorder = await Recorder.create(repo.root, args.level);
@@ -96,6 +120,15 @@ async function main(): Promise<number> {
   } finally {
     await recorder.close();
   }
+}
+
+async function init(root: string, force: boolean): Promise<number> {
+  const path = await writeDefaultConfig(root, force);
+  await write(process.stdout, `wrote ${path}\n`);
+  if (await ensureIgnored(root, `${STATE_DIR}/`)) {
+    await write(process.stdout, `added ${STATE_DIR}/ to .gitignore\n`);
+  }
+  return 0;
 }
 
 async function handle(

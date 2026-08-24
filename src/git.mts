@@ -1,3 +1,4 @@
+import { appendFile, readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { must, run } from "./exec.mts";
 
@@ -63,6 +64,22 @@ export async function hasWorktree(repo: Repo, path: string): Promise<boolean> {
 export async function removeWorktree(repo: Repo, issue: number): Promise<boolean> {
   const result = await run("git", ["worktree", "remove", worktreePath(repo, issue)], { cwd: repo.root });
   return result.code === 0;
+}
+
+export async function ensureIgnored(root: string, entry: string): Promise<boolean> {
+  const path = join(root, ".gitignore");
+  let current = "";
+  try {
+    current = await readFile(path, "utf8");
+  } catch {
+    current = "";
+  }
+  if (current.split("\n").some((line) => line.trim() === entry)) {
+    return false;
+  }
+  const gap = current.length === 0 || current.endsWith("\n") ? "" : "\n";
+  await appendFile(path, `${gap}${entry}\n`);
+  return true;
 }
 
 export function branchName(issue: number): string {
