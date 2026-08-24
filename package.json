@@ -1,6 +1,6 @@
 {
   "name": "next-issue",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "description": "Autonomous issue harness driven by the Claude Agent SDK",
   "keywords": [
     "github",
