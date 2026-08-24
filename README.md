@@ -24,7 +24,8 @@ For each open issue, oldest first:
    the claim. An issue with saved state under `.next-issue/` resumes instead,
    whatever its labels, unless another person is now the assignee.
 2. Assign the issue to you and add `status:in-progress`.
-3. Add a git worktree on a new `issue-<n>` branch from the default branch.
+3. Fetch the default branch, fast-forward the local copy of it when that is
+   safe, then add a git worktree on a new `issue-<n>` branch from it.
 4. Let the implementer agent do the work, then commit and push.
 5. Open a draft pull request that closes the issue.
 6. Wait for the checks. A pending state waits again, up to
