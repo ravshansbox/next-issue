@@ -10,6 +10,11 @@ export type Config = {
   checkTimeoutMinutes: number;
   logMaxChars: number;
   setupCommand?: string;
+  models: {
+    implementer?: string;
+    reviewer?: string;
+    fixer?: string;
+  };
   labels: {
     ready: string;
     inProgress: string;
@@ -28,6 +33,7 @@ const DEFAULTS: Config = {
   checkIntervalSeconds: 15,
   checkTimeoutMinutes: 60,
   logMaxChars: 20000,
+  models: {},
   labels: {
     ready: "status:todo",
     inProgress: "status:in-progress",
@@ -45,6 +51,7 @@ export async function loadConfig(cwd: string): Promise<Config> {
     return {
       ...DEFAULTS,
       ...parsed,
+      models: { ...DEFAULTS.models, ...parsed.models },
       labels: { ...DEFAULTS.labels, ...parsed.labels },
     };
   } catch {

@@ -158,6 +158,7 @@ async function work(
         cwd: worktree,
         prompt: implementPrompt(issue, comments),
         profile: CODING,
+        model: config.models.implementer,
       }),
     );
     const subject = parseCommitSubject(result.text, `fix: resolve issue #${issue.number}`);
@@ -223,6 +224,7 @@ async function work(
         cwd: worktree,
         prompt: reviewPrompt(issue, comments, patch, state.reviewRounds, history(state.reviewLog)),
         profile: READ_ONLY,
+        model: config.models.reviewer,
         outputSchema: VERDICT_SCHEMA,
       }),
     );
@@ -274,6 +276,7 @@ async function fixRound(job: Run, reason: string, detail: string, earlier: strin
       cwd: worktree,
       prompt: fixPrompt(issue, reason, detail, earlier.length > 0 ? earlier : history(job.state.reviewLog)),
       profile: CODING,
+      model: context.config.models.fixer,
     }),
   );
   const subject = parseCommitSubject(result.text, `fix: address feedback on issue #${issue.number}`);

@@ -98,11 +98,17 @@ Put `next-issue.config.json` in the repository:
   "maxCiFixes": 3,
   "maxReviewRounds": 3,
   "checkIntervalSeconds": 15,
-  "checkTimeoutMinutes": 60
+  "checkTimeoutMinutes": 60,
+  "models": {
+    "implementer": "claude-opus-5",
+    "reviewer": "claude-opus-5",
+    "fixer": "claude-opus-5"
+  }
 }
 ```
 
-All three roles use the model your pi settings select. State per issue goes to
+A role without an entry in `models` uses the default model of the SDK. State
+per issue goes to
 `.next-issue/<issue>.json`, so a new run continues where the last run stopped.
 
 ## Options
