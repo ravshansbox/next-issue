@@ -19,6 +19,7 @@ import {
   findPr,
   type Issue,
   issueComments,
+  markPrReady,
   setLabel,
   waitForChecks,
 } from "./github.mts";
@@ -145,7 +146,7 @@ async function work(
 
   await log.step("claim", { label: config.labels.inProgress }, async () => {
     await assignIssue(repo, issue.number, context.login);
-    await setLabel(repo, issue.number, config.labels.inProgress, managedLabels(config));
+    await setStatus(context, issue.number, state.pr, config.labels.inProgress);
     await writeState(repo, state);
   });
 
@@ -202,7 +203,14 @@ async function work(
     const existing = await findPr(repo, branch);
     return (
       existing ??
-      createPr(repo, branch, context.base, issue.title, `Closes #${issue.number}\n\nOpened by next-issue.`)
+      createPr(
+        repo,
+        branch,
+        context.base,
+        issue.title,
+        `Closes #${issue.number}\n\nOpened by next-issue.`,
+        config.draftPullRequest,
+      )
     );
   });
   state.phase = "review";
@@ -242,7 +250,7 @@ async function work(
     state.reviewRounds += 1;
     await writeState(repo, state);
 
-    await setLabel(repo, issue.number, config.labels.inReview, managedLabels(config));
+    await setStatus(context, issue.number, state.pr, config.labels.inReview);
     const patch = await diff(worktree, context.base, config.remote);
     const review = await log.step("review", { round: state.reviewRounds, diffChars: patch.length }, () =>
       runAgent(log, {
@@ -270,7 +278,10 @@ async function work(
     await commentOnPr(repo, state.pr, formatVerdict(verdict));
 
     if (isApproved(verdict)) {
-      await setLabel(repo, issue.number, config.labels.done, managedLabels(config));
+      if (config.draftPullRequest && !(await markPrReady(repo, state.pr))) {
+        log.event("pull-request.undraft.fail", { pr: state.pr }, "quiet");
+      }
+      await setStatus(context, issue.number, state.pr, config.labels.done);
       state.phase = "done";
       await writeState(repo, state);
       if (!(await removeWorktree(repo, issue.number))) {
@@ -327,9 +338,22 @@ async function handOver(
   log.event("hand-over", { reason }, "quiet");
   state.phase = "needs-human";
   await writeState(context.repo, state);
-  await setLabel(context.repo, issue, context.config.labels.needsHuman, managedLabels(context.config));
+  await setStatus(context, issue, state.pr, context.config.labels.needsHuman);
   if (state.pr !== undefined) {
     await commentOnPr(context.repo, state.pr, `next-issue needs help: ${reason}`);
+  }
+}
+
+async function setStatus(
+  context: Context,
+  issue: number,
+  pr: number | undefined,
+  label: string,
+): Promise<void> {
+  const managed = managedLabels(context.config);
+  await setLabel(context.repo, "issue", issue, label, managed);
+  if (pr !== undefined) {
+    await setLabel(context.repo, "pr", pr, label, managed);
   }
 }
 

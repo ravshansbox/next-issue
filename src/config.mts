@@ -10,6 +10,7 @@ export type Config = {
   checkIntervalSeconds: number;
   checkTimeoutMinutes: number;
   logMaxChars: number;
+  draftPullRequest: boolean;
   setupCommand?: string;
   models: {
     implementer?: string;
@@ -34,6 +35,7 @@ const DEFAULTS: Config = {
   checkIntervalSeconds: 15,
   checkTimeoutMinutes: 60,
   logMaxChars: 20000,
+  draftPullRequest: true,
   models: {},
   labels: {
     ready: "status:todo",

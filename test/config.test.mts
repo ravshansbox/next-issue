@@ -17,14 +17,23 @@ test("a missing file gives the defaults", async () => {
   const config = await loadConfig(await root());
   assert.equal(config.remote, "origin");
   assert.equal(config.maxCiFixes, 3);
+  assert.equal(config.draftPullRequest, true);
   assert.deepEqual(config.models, {});
 });
 
 test("the file merges into the defaults", async () => {
   const config = await loadConfig(
-    await root(JSON.stringify({ maxCiFixes: 1, models: { fixer: "m" }, labels: { done: "shipped" } })),
+    await root(
+      JSON.stringify({
+        maxCiFixes: 1,
+        draftPullRequest: false,
+        models: { fixer: "m" },
+        labels: { done: "shipped" },
+      }),
+    ),
   );
   assert.equal(config.maxCiFixes, 1);
+  assert.equal(config.draftPullRequest, false);
   assert.equal(config.maxReviewRounds, 3);
   assert.deepEqual(config.models, { fixer: "m" });
   assert.equal(config.labels.done, "shipped");

@@ -10,6 +10,8 @@ export type Issue = {
   assignees: string[];
 };
 
+export type Kind = "issue" | "pr";
+
 export type CheckState = "pass" | "fail" | "pending" | "none" | "timeout";
 
 const CHECK_PENDING_CODE = 8;
@@ -77,20 +79,30 @@ export async function assignIssue(repo: Repo, issue: number, login: string): Pro
   await gh(repo, ["issue", "edit", String(issue), "--add-assignee", login]);
 }
 
-export async function labelsOf(repo: Repo, issue: number): Promise<string[]> {
-  const raw = await gh(repo, ["issue", "view", String(issue), "--json", "labels"]);
+export async function labelsOf(repo: Repo, kind: Kind, number: number): Promise<string[]> {
+  const raw = await gh(repo, [kind, "view", String(number), "--json", "labels"]);
   const parsed = JSON.parse(raw) as { labels: Array<{ name: string }> };
   return parsed.labels.map((label) => label.name);
 }
 
-export async function setLabel(repo: Repo, issue: number, add: string, remove: string[]): Promise<void> {
-  await ensureLabel(repo, add);
-  const current = await labelsOf(repo, issue);
-  const args = ["issue", "edit", String(issue), "--add-label", add];
+export function labelArgs(add: string, remove: string[], current: string[]): string[] {
+  const args = ["--add-label", add];
   for (const name of remove.filter((item) => item !== add && current.includes(item))) {
     args.push("--remove-label", name);
   }
-  await gh(repo, args);
+  return args;
+}
+
+export async function setLabel(
+  repo: Repo,
+  kind: Kind,
+  number: number,
+  add: string,
+  remove: string[],
+): Promise<void> {
+  await ensureLabel(repo, add);
+  const current = await labelsOf(repo, kind, number);
+  await gh(repo, [kind, "edit", String(number), ...labelArgs(add, remove, current)]);
 }
 
 export async function ensureLabel(repo: Repo, label: string): Promise<void> {
@@ -116,6 +128,7 @@ export async function createPr(
   base: string,
   title: string,
   body: string,
+  draft: boolean,
 ): Promise<number> {
   await gh(repo, [
     "pr",
@@ -128,6 +141,7 @@ export async function createPr(
     title,
     "--body",
     body,
+    ...(draft ? ["--draft"] : []),
   ]);
   const number = await findPr(repo, branch);
   if (number === undefined) {
@@ -221,6 +235,13 @@ export async function failedCheckLogs(repo: Repo, branch: string, maxChars: numb
     parts.push(logs.stdout.slice(-maxChars));
   }
   return parts.join("\n\n").slice(-maxChars);
+}
+
+export async function markPrReady(repo: Repo, pr: number): Promise<boolean> {
+  const result = await run("gh", ["pr", "ready", String(pr), "--repo", slug(repo)], {
+    cwd: repo.root,
+  });
+  return result.code === 0;
 }
 
 export async function commentOnPr(repo: Repo, pr: number, body: string): Promise<void> {
