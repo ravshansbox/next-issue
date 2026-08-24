@@ -3,7 +3,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { branchName, ensureIgnored, parseRemote, worktreePath } from "../src/git.mts";
+import { ensureIgnored, parseRemote } from "../src/git.mts";
 
 test("parseRemote reads every remote form", () => {
   const expected = { owner: "acme", name: "tool" };
@@ -16,11 +16,6 @@ test("parseRemote reads every remote form", () => {
 
 test("parseRemote refuses an unknown form", () => {
   assert.throws(() => parseRemote("acme/tool"), /Cannot parse/);
-});
-
-test("the branch and the worktree follow the issue number", () => {
-  assert.equal(branchName(7), "issue-7");
-  assert.equal(worktreePath({ owner: "acme", name: "tool", root: "/work/tool" }, 7), "/work/tool-issue-7");
 });
 
 async function dir(gitignore?: string): Promise<string> {

@@ -3,7 +3,6 @@ import { test } from "node:test";
 import {
   blockingFindings,
   fingerprint,
-  formatFindings,
   formatVerdict,
   isApproved,
   readVerdict,
@@ -42,10 +41,6 @@ test("formatVerdict shows the head, the summary and every finding", () => {
   assert.match(text, /One problem is left\./);
   assert.match(text, /- \*\*blocking\*\* The count is wrong\./);
   assert.match(formatVerdict({ verdict: "approve", summary: "Good.", findings: [] }), /Review: approved/);
-});
-
-test("formatFindings lists the details", () => {
-  assert.equal(formatFindings(blockingFindings(BLOCKING)), "- The count is wrong.");
 });
 
 test("the fingerprint ignores the order, the case and the punctuation", () => {
