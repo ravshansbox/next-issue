@@ -26,7 +26,7 @@ For each open issue, oldest first:
 2. Assign the issue to you and add `status:in-progress`.
 3. Add a git worktree on a new `issue-<n>` branch from the default branch.
 4. Let the implementer agent do the work, then commit and push.
-5. Open a pull request that closes the issue.
+5. Open a draft pull request that closes the issue.
 6. Wait for the checks. A pending state waits again, up to
    `checkTimeoutMinutes`. A repository without checks goes straight to the
    review.
@@ -35,8 +35,8 @@ For each open issue, oldest first:
 8. Let the reviewer agent judge the diff. The reviewer returns a structured
    verdict that rates each finding `blocking` or `minor`. The harness puts the
    result on the pull request.
-9. No blocking finding means approval: set `status:done`. The merge stays with
-   you.
+9. No blocking finding means approval: mark the pull request ready for review
+   and set `status:done`. The merge stays with you.
 10. With a blocking finding, run the fixer agent and go to step 6 again. The
     budget is `maxReviewRounds`.
 
@@ -54,6 +54,11 @@ when:
 
 The fixer sees the findings of all earlier rounds, not only the last one. From
 round two, the reviewer judges only the earlier findings and any regression.
+
+Every status label that the harness puts on the issue goes on the pull request
+too, from the first review round. Thus a draft pull request shows work that the
+harness has not finished, and a `status:needs-human` pull request shows work
+that waits for a person.
 
 The harness runs all git and `gh` commands itself. The agents only read and
 change files. The commit holds all the changes in the worktree, so a setup
@@ -136,6 +141,7 @@ JSON stops the run.
   "checkIntervalSeconds": 15,
   "checkTimeoutMinutes": 60,
   "logMaxChars": 20000,
+  "draftPullRequest": true,
   "setupCommand": "npm ci",
   "models": {
     "implementer": "claude-opus-5",
@@ -162,6 +168,7 @@ JSON stops the run.
 | `checkIntervalSeconds` | `15` | The time between two check states |
 | `checkTimeoutMinutes` | `60` | The limit for one check wait |
 | `logMaxChars` | `20000` | The maximum length of the failed job logs |
+| `draftPullRequest` | `true` | Open the pull request as a draft, until the review approves |
 | `setupCommand` | none | A shell command to run in a new worktree, before the implementer |
 | `models` | `{}` | The model per agent role |
 | `labels` | see above | The names of the labels that the harness reads and sets |
