@@ -53,7 +53,7 @@ export function reviewPrompt(
     "Read files for context when you must. Do not change any file.",
     scope,
     "Mark a finding blocking only for a wrong result, a missing part of the issue, a regression or a broken convention.",
-    "Report the result with the submit_review tool. Call it exactly once.",
+    "Give the result as the structured output: the verdict, a short summary and one entry per finding.",
   ].join("\n\n");
 }
 

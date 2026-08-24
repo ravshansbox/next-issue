@@ -1,7 +1,7 @@
 # next-issue
 
 A small harness that works through the open issues of a GitHub repository with
-the pi SDK. Run it inside a git repository.
+the Claude Agent SDK. Run it inside a git repository.
 
 ```bash
 node /path/to/next-issue/src/cli.mts
@@ -22,9 +22,9 @@ For each open issue, oldest first:
    review.
 7. On a red build, give the failed job logs to the fixer agent, then go to step
    6 again. The budget is `maxCiFixes`.
-8. Let the reviewer agent judge the diff. The reviewer must call the
-   `submit_review` tool and rate each finding `blocking` or `minor`. The
-   harness puts the result on the pull request.
+8. Let the reviewer agent judge the diff. The reviewer returns a structured
+   verdict that rates each finding `blocking` or `minor`. The harness puts the
+   result on the pull request.
 9. No blocking finding means approval: set `status:done`. The merge stays with
    you.
 10. With a blocking finding, run the fixer agent and go to step 6 again. The
@@ -65,8 +65,8 @@ Recorded for each step: `claim`, `comments`, `worktree`, `implement`, `push`,
 `pull-request`, `checks`, `review` and `fix`, each with a `.start`, `.end` or
 `.error` event and a duration in `ms`. Every `git` and `gh` command is recorded
 with its exit code and duration. Each agent call adds a `usage` event with the
-tokens, the turn count, the tool-call count, the model and the path
-of the pi session file, so you can open the session again and read the full
+tokens, the cost estimate in dollars, the turn count, the tool-call count, the
+model and the session id, so you can open the session again and read the full
 transcript.
 
 ```bash
@@ -86,7 +86,8 @@ Three levels of console output:
 
 - Node 24 or later, for direct `.mts` execution
 - `gh`, authenticated with write access to the repository
-- Model credentials that the pi SDK can find
+- Anthropic credentials for the Claude Agent SDK: `ANTHROPIC_API_KEY`, or a
+  Claude subscription login
 
 ## Configuration
 

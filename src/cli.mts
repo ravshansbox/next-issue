@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createModelRuntime } from "./agents.mts";
 import { loadConfig } from "./config.mts";
 import { setCommandObserver } from "./exec.mts";
 import { detectRepo } from "./git.mts";
@@ -78,12 +77,8 @@ async function main(): Promise<number> {
     );
   });
 
-  const [base, login, modelRuntime] = await Promise.all([
-    defaultBranch(repo),
-    currentLogin(repo),
-    createModelRuntime(),
-  ]);
-  const context: Context = { repo, config, base, login, modelRuntime, recorder };
+  const [base, login] = await Promise.all([defaultBranch(repo), currentLogin(repo)]);
+  const context: Context = { repo, config, base, login, recorder };
   recorder.event(
     "run.start",
     { repo: `${repo.owner}/${repo.name}`, base, login, log: recorder.logFile },

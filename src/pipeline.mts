@@ -1,5 +1,4 @@
-import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
-import { CODING_TOOLS, READ_ONLY_TOOLS, runAgent } from "./agents.mts";
+import { CODING, READ_ONLY, runAgent } from "./agents.mts";
 import { type Config, managedLabels } from "./config.mts";
 import { run } from "./exec.mts";
 import {
@@ -27,11 +26,12 @@ import { fixPrompt, implementPrompt, parseCommitSubject, reviewPrompt } from "./
 import { type IssueState, readState, type ReviewRound, writeState } from "./state.mts";
 import {
   blockingFindings,
-  createVerdictTool,
   fingerprint,
   formatFindings,
   formatVerdict,
   isApproved,
+  readVerdict,
+  VERDICT_SCHEMA,
 } from "./verdict.mts";
 
 export type Context = {
@@ -39,7 +39,6 @@ export type Context = {
   config: Config;
   base: string;
   login: string;
-  modelRuntime: ModelRuntime;
   recorder: Recorder;
 };
 
@@ -154,11 +153,11 @@ async function work(
 
   if (state.phase === "claimed") {
     const result = await log.step("implement", {}, () =>
-      runAgent(context.modelRuntime, log, {
+      runAgent(log, {
         name: "implementer",
         cwd: worktree,
         prompt: implementPrompt(issue, comments),
-        tools: CODING_TOOLS,
+        profile: CODING,
       }),
     );
     const subject = parseCommitSubject(result.text, `fix: resolve issue #${issue.number}`);
@@ -217,18 +216,17 @@ async function work(
     await writeState(repo, state);
 
     await setLabel(repo, issue.number, config.labels.inReview, managedLabels(config));
-    const verdictTool = createVerdictTool();
     const patch = await diff(worktree, context.base, config.remote);
-    await log.step("review", { round: state.reviewRounds, diffChars: patch.length }, () =>
-      runAgent(context.modelRuntime, log, {
+    const review = await log.step("review", { round: state.reviewRounds, diffChars: patch.length }, () =>
+      runAgent(log, {
         name: "reviewer",
         cwd: worktree,
         prompt: reviewPrompt(issue, comments, patch, state.reviewRounds, history(state.reviewLog)),
-        tools: READ_ONLY_TOOLS,
-        customTools: [verdictTool.tool],
+        profile: READ_ONLY,
+        outputSchema: VERDICT_SCHEMA,
       }),
     );
-    const verdict = verdictTool.read();
+    const verdict = readVerdict(review.structured);
     if (verdict === undefined) {
       await handOver(job, "The reviewer gave no verdict.");
       return await stop(job, finish("needs-human", "no verdict"));
@@ -271,11 +269,11 @@ async function work(
 async function fixRound(job: Run, reason: string, detail: string, earlier: string[] = []): Promise<boolean> {
   const { context, issue, log, worktree, branch } = job;
   const result = await log.step("fix", { reason }, () =>
-    runAgent(context.modelRuntime, log, {
+    runAgent(log, {
       name: "fixer",
       cwd: worktree,
       prompt: fixPrompt(issue, reason, detail, earlier.length > 0 ? earlier : history(job.state.reviewLog)),
-      tools: CODING_TOOLS,
+      profile: CODING,
     }),
   );
   const subject = parseCommitSubject(result.text, `fix: address feedback on issue #${issue.number}`);

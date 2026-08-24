@@ -1,6 +1,3 @@
-import { defineTool } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
-
 export type Severity = "blocking" | "minor";
 
 export type Finding = {
@@ -14,38 +11,42 @@ export type Verdict = {
   findings: Finding[];
 };
 
-export function createVerdictTool(): { tool: ReturnType<typeof defineTool>; read: () => Verdict | undefined } {
-  let result: Verdict | undefined;
-  const tool = defineTool({
-    name: "submit_review",
-    label: "Submit review",
-    description: "Report the review result. Call this exactly once, as the last action.",
-    parameters: Type.Object({
-      verdict: Type.Union([Type.Literal("approve"), Type.Literal("request_changes")], {
-        description: "approve when no blocking problem is left",
-      }),
-      summary: Type.String({ description: "Short summary of the review" }),
-      findings: Type.Array(
-        Type.Object({
-          severity: Type.Union([Type.Literal("blocking"), Type.Literal("minor")], {
+export const VERDICT_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  properties: {
+    verdict: {
+      type: "string",
+      enum: ["approve", "request_changes"],
+      description: "approve when no blocking problem is left",
+    },
+    summary: { type: "string", description: "Short summary of the review" },
+    findings: {
+      type: "array",
+      description: "One entry per problem. Empty when nothing is wrong.",
+      items: {
+        type: "object",
+        properties: {
+          severity: {
+            type: "string",
+            enum: ["blocking", "minor"],
             description:
               "blocking for a wrong result, a missing part of the issue, a regression or a broken convention; minor for taste and style",
-          }),
-          detail: Type.String({ description: "What is wrong and where" }),
-        }),
-        { description: "One entry per problem. Empty when nothing is wrong." },
-      ),
-    }),
-    execute: async (_id, params) => {
-      result = {
-        verdict: params.verdict,
-        summary: params.summary,
-        findings: params.findings,
-      };
-      return { content: [{ type: "text", text: "Review recorded." }], details: {} };
+          },
+          detail: { type: "string", description: "What is wrong and where" },
+        },
+        required: ["severity", "detail"],
+      },
     },
-  });
-  return { tool, read: () => result };
+  },
+  required: ["verdict", "summary", "findings"],
+};
+
+export function readVerdict(value: unknown): Verdict | undefined {
+  const verdict = value as Verdict | undefined;
+  if (verdict === undefined || typeof verdict.summary !== "string" || !Array.isArray(verdict.findings)) {
+    return undefined;
+  }
+  return verdict;
 }
 
 export function blockingFindings(verdict: Verdict): Finding[] {
