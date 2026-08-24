@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { message } from "./observe.mts";
 
 export type Config = {
   remote: string;
@@ -44,19 +45,27 @@ const DEFAULTS: Config = {
   },
 };
 
-export async function loadConfig(cwd: string): Promise<Config> {
+export const CONFIG_FILE = "next-issue.config.json";
+
+export async function loadConfig(root: string): Promise<Config> {
+  let raw: string;
   try {
-    const raw = await readFile(join(cwd, "next-issue.config.json"), "utf8");
-    const parsed = JSON.parse(raw) as Partial<Config>;
-    return {
-      ...DEFAULTS,
-      ...parsed,
-      models: { ...DEFAULTS.models, ...parsed.models },
-      labels: { ...DEFAULTS.labels, ...parsed.labels },
-    };
+    raw = await readFile(join(root, CONFIG_FILE), "utf8");
   } catch {
     return DEFAULTS;
   }
+  let parsed: Partial<Config>;
+  try {
+    parsed = JSON.parse(raw) as Partial<Config>;
+  } catch (error) {
+    throw new Error(`${CONFIG_FILE} is not valid JSON: ${message(error)}`);
+  }
+  return {
+    ...DEFAULTS,
+    ...parsed,
+    models: { ...DEFAULTS.models, ...parsed.models },
+    labels: { ...DEFAULTS.labels, ...parsed.labels },
+  };
 }
 
 export function managedLabels(config: Config): string[] {

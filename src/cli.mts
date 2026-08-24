@@ -3,7 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { loadConfig } from "./config.mts";
 import { setCommandObserver } from "./exec.mts";
-import { detectRepo } from "./git.mts";
+import { detectRepo, repoRoot } from "./git.mts";
 import { currentLogin, defaultBranch, openIssues } from "./github.mts";
 import { type Level, message, Recorder } from "./observe.mts";
 import { type Context, type IssueReport, processIssue } from "./pipeline.mts";
@@ -60,9 +60,9 @@ async function main(): Promise<number> {
     process.stdout.write(USAGE);
     return 0;
   }
-  const cwd = process.cwd();
-  const config = await loadConfig(cwd);
-  const repo = await detectRepo(cwd, config.remote);
+  const root = await repoRoot(process.cwd());
+  const config = await loadConfig(root);
+  const repo = await detectRepo(root, config.remote);
   const recorder = await Recorder.create(repo.root, args.level);
   setCommandObserver((record) => {
     recorder.event(
