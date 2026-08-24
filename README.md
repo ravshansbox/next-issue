@@ -103,8 +103,19 @@ Three levels of console output:
 
 ## Configuration
 
-Put `next-issue.config.json` in the root of the repository. A field that is not
-in the file keeps its default. A file that is not valid JSON stops the run.
+To write the file with the defaults, run the `init` command in the repository:
+
+```bash
+node /path/to/next-issue/src/cli.mts init
+```
+
+The command writes `next-issue.config.json` in the root of the repository and
+adds `.next-issue/` to `.gitignore`. It stops when the config file is there
+already; `--force` replaces it. The file holds no `setupCommand`, because that
+field has no default.
+
+A field that is not in the file keeps its default. A file that is not valid
+JSON stops the run.
 
 ```json
 {
@@ -149,10 +160,12 @@ A role without an entry in `models` uses the default model of the SDK. A
 `setupCommand` that fails hands the issue to a person. State per issue goes to
 `.next-issue/<issue>.json`, so a new run continues where the last run stopped.
 
-## Options
+## Commands and options
 
-| Option | Effect |
+| Argument | Effect |
 | --- | --- |
+| `init` | Write the config file with the defaults |
+| `--force` | Replace an existing config file, with `init` |
 | `--issue <n>` | Handle one issue only |
 | `--once` | Stop after the first handled issue |
 | `--max <n>` | Handle at most n issues |
