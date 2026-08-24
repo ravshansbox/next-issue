@@ -3,7 +3,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { branchName, ensureIgnored, parseRemote, worktreePath } from "./git.mts";
+import { branchName, ensureIgnored, parseRemote, worktreePath } from "../src/git.mts";
 
 test("parseRemote reads every remote form", () => {
   const expected = { owner: "acme", name: "tool" };

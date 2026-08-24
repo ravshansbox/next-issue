@@ -3,7 +3,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { CONFIG_FILE, loadConfig, managedLabels, writeDefaultConfig } from "./config.mts";
+import { CONFIG_FILE, loadConfig, managedLabels, writeDefaultConfig } from "../src/config.mts";
 
 async function root(content?: string): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "next-issue-"));

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { loadConfig } from "./config.mts";
-import type { Issue } from "./github.mts";
-import { isClaimable } from "./pipeline.mts";
+import { loadConfig } from "../src/config.mts";
+import type { Issue } from "../src/github.mts";
+import { isClaimable } from "../src/pipeline.mts";
 
 const config = await loadConfig("/does-not-exist");
 

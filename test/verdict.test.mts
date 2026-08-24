@@ -8,7 +8,7 @@ import {
   isApproved,
   readVerdict,
   type Verdict,
-} from "./verdict.mts";
+} from "../src/verdict.mts";
 
 const BLOCKING: Verdict = {
   verdict: "request_changes",

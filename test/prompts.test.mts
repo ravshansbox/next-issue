@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseCommitSubject } from "./prompts.mts";
+import { parseCommitSubject } from "../src/prompts.mts";
 
 const FALLBACK = "fix: fallback";
 
