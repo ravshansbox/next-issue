@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { loadConfig } from "./config.mts";
+import { type Config, loadConfig } from "./config.mts";
 import { setCommandObserver } from "./exec.mts";
-import { detectRepo, repoRoot } from "./git.mts";
+import { detectRepo, type Repo, repoRoot } from "./git.mts";
 import { currentLogin, defaultBranch, openIssues } from "./github.mts";
 import { type Level, message, Recorder } from "./observe.mts";
 import { type Context, type IssueReport, processIssue } from "./pipeline.mts";
@@ -62,10 +62,16 @@ function whole(value: string | undefined, option: string): number {
   return parsed;
 }
 
+function write(stream: NodeJS.WriteStream, text: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    stream.write(text, (error) => (error === null || error === undefined ? resolve() : reject(error)));
+  });
+}
+
 async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
-    process.stdout.write(USAGE);
+    await write(process.stdout, USAGE);
     return 0;
   }
   const root = await repoRoot(process.cwd());
@@ -85,6 +91,19 @@ async function main(): Promise<number> {
     );
   });
 
+  try {
+    return await handle(args, config, repo, recorder);
+  } finally {
+    await recorder.close();
+  }
+}
+
+async function handle(
+  args: Args,
+  config: Config,
+  repo: Repo,
+  recorder: Recorder,
+): Promise<number> {
   const [base, login] = await Promise.all([defaultBranch(repo), currentLogin(repo)]);
   const context: Context = { repo, config, base, login, recorder };
   recorder.event(
@@ -128,8 +147,7 @@ async function main(): Promise<number> {
   );
   const summaryFile = join(repo.root, ".next-issue", "runs", `${recorder.runId}.summary.json`);
   await writeFile(summaryFile, `${JSON.stringify(summary, null, 2)}\n`);
-  process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
-  await recorder.close();
+  await write(process.stdout, `${JSON.stringify(summary, null, 2)}\n`);
   return count(reports, "needs-human") + count(reports, "error") > 0 ? 1 : 0;
 }
 
@@ -139,8 +157,8 @@ function count(reports: IssueReport[], outcome: IssueReport["outcome"]): number 
 
 main().then(
   (code) => process.exit(code),
-  (error: unknown) => {
-    process.stderr.write(`next-issue failed: ${message(error)}\n`);
+  async (error: unknown) => {
+    await write(process.stderr, `next-issue failed: ${message(error)}\n`);
     process.exit(1);
   },
 );
