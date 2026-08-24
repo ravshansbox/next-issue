@@ -4,7 +4,14 @@ A small harness that works through the open issues of a GitHub repository with
 the Claude Agent SDK. Run it inside a git repository.
 
 ```bash
-node /path/to/next-issue/src/cli.mts
+npx next-issue
+```
+
+Or install it once:
+
+```bash
+npm install -g next-issue
+next-issue
 ```
 
 ## What it does
@@ -96,7 +103,7 @@ Three levels of console output:
 
 ## Requirements
 
-- Node 24 or later, for direct `.mts` execution
+- Node 24 or later, because the command runs the TypeScript source directly
 - `gh`, authenticated with write access to the repository
 - Anthropic credentials for the Claude Agent SDK: `ANTHROPIC_API_KEY`, or a
   Claude subscription login
@@ -106,7 +113,7 @@ Three levels of console output:
 To write the file with the defaults, run the `init` command in the repository:
 
 ```bash
-node /path/to/next-issue/src/cli.mts init
+npx next-issue init
 ```
 
 The command writes `next-issue.config.json` in the root of the repository and
