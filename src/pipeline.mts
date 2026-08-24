@@ -65,25 +65,43 @@ type Run = {
   comments: string[];
 };
 
-export function isClaimable(issue: Issue, config: Config, login: string): boolean {
+export type Skip = "stop-label" | "not-ready" | "in-flight" | "assigned";
+
+export function skipReason(
+  issue: Issue,
+  config: Config,
+  login: string,
+  resuming: boolean,
+): Skip | undefined {
   const labels = new Set(issue.labels);
   const names = config.labels;
   if (labels.has(names.done) || labels.has(names.needsHuman) || labels.has(names.skip)) {
-    return false;
+    return "stop-label";
   }
-  return issue.assignees.length === 0 || issue.assignees.includes(login);
+  if (resuming) {
+    return issue.assignees.every((name) => name === login) ? undefined : "assigned";
+  }
+  if (names.ready.length > 0 && !labels.has(names.ready)) {
+    return "not-ready";
+  }
+  if (labels.has(names.inProgress) || labels.has(names.inReview)) {
+    return "in-flight";
+  }
+  return issue.assignees.length === 0 ? undefined : "assigned";
 }
 
 export async function processIssue(context: Context, issue: Issue): Promise<IssueReport> {
   const started = Date.now();
   const log = context.recorder.scope({ issue: issue.number });
-  if (!isClaimable(issue, context.config, context.login)) {
-    log.event("issue.skip", { title: issue.title });
+  const saved = await readState(context.repo, issue.number);
+  const skip = skipReason(issue, context.config, context.login, saved !== undefined);
+  if (skip !== undefined) {
+    log.event("issue.skip", { title: issue.title, reason: skip });
     return { issue: issue.number, outcome: "skipped", ciFixes: 0, reviewRounds: 0, ms: 0 };
   }
   log.event("issue.start", { title: issue.title, createdAt: issue.createdAt }, "quiet");
 
-  const state = (await readState(context.repo, issue.number)) ?? {
+  const state = saved ?? {
     issue: issue.number,
     phase: "claimed" as const,
     branch: branchName(issue.number),
