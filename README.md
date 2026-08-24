@@ -209,3 +209,13 @@ npm run build
 
 `npm run build` compiles `src/*.mts` to `dist/*.mjs`. The package holds the
 compiled files, because Node does not strip types under `node_modules`.
+
+## Releases
+
+Releases are automatic. Write [conventional
+commits](https://www.conventionalcommits.org/) on `main`. Release Please then
+keeps a release pull request open with the version bump and the changelog. Merge
+that pull request. The workflow tags the commit, makes the GitHub release and
+publishes the package to npm with a
+[trusted publish](https://docs.npmjs.com/trusted-publishers), so no token is
+stored.
