@@ -213,10 +213,13 @@ compiled files, because Node does not strip types under `node_modules`.
 
 ## Releases
 
-Releases are automatic. Write [conventional
-commits](https://www.conventionalcommits.org/) on `main`. Release Please then
-keeps a release pull request open with the version bump and the changelog. Merge
-that pull request. The workflow tags the commit, makes the GitHub release and
-publishes the package to npm with a
+Releases are automatic and need no pull request. Push a
+[conventional commit](https://www.conventionalcommits.org/) to `main`. The
+workflow reads the commits since the last tag and picks the bump: `feat` gives a
+minor, `fix` gives a patch, and a `!` mark or a `BREAKING CHANGE` body gives a
+major. Any other type releases nothing.
+
+The workflow then bumps the version, tags it, pushes the tag, makes the GitHub
+release with generated notes and publishes the package to npm with a
 [trusted publish](https://docs.npmjs.com/trusted-publishers), so no token is
 stored.
