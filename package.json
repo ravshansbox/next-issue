@@ -2,16 +2,38 @@
   "name": "next-issue",
   "version": "0.1.0",
   "description": "Autonomous issue harness driven by the Claude Agent SDK",
+  "keywords": [
+    "github",
+    "issues",
+    "agent",
+    "claude",
+    "automation",
+    "cli"
+  ],
+  "homepage": "https://github.com/ravshansbox/next-issue#readme",
+  "bugs": "https://github.com/ravshansbox/next-issue/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ravshansbox/next-issue.git"
+  },
+  "license": "MIT",
+  "author": "ravshansbox",
   "type": "module",
   "bin": {
     "next-issue": "src/cli.mts"
   },
+  "files": [
+    "src"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "start": "node src/cli.mts",
     "test": "node --test \"test/**/*.test.mts\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm test"
   },
-  "license": "MIT",
   "devDependencies": {
     "@types/node": "^26.2.0",
     "typescript": "^7.0.2"
