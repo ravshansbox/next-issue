@@ -6,6 +6,7 @@ import {
   branchName,
   commitAll,
   diff,
+  hasWorktree,
   push,
   removeWorktree,
   type Repo,
@@ -122,6 +123,7 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
     } catch (failure) {
       log.event("hand-over.error", { error: message(failure) }, "quiet");
     }
+    await cleanUp(context, log, issue.number);
     return {
       issue: issue.number,
       outcome: "error",
@@ -157,15 +159,18 @@ async function work(
   const job: Run = { context, issue, log, state, branch, worktree, comments };
   const escalate = (reason: string): Promise<void> =>
     handOver(context, log, issue.number, state, reason);
-  const finish = (outcome: Outcome, reason?: string): IssueReport => ({
-    issue: issue.number,
-    outcome,
-    reason,
-    pr: state.pr,
-    ciFixes: state.ciFixes,
-    reviewRounds: state.reviewRounds,
-    ms: Date.now() - started,
-  });
+  const finish = async (outcome: Outcome, reason?: string): Promise<IssueReport> => {
+    await cleanUp(context, log, issue.number);
+    return {
+      issue: issue.number,
+      outcome,
+      reason,
+      pr: state.pr,
+      ciFixes: state.ciFixes,
+      reviewRounds: state.reviewRounds,
+      ms: Date.now() - started,
+    };
+  };
 
   if (config.setupCommand !== undefined) {
     const setup = await log.step("setup", { cmd: config.setupCommand }, () =>
@@ -284,9 +289,6 @@ async function work(
       await setStatus(context, issue.number, state.pr, config.labels.done);
       state.phase = "done";
       await writeState(repo, state);
-      if (!(await removeWorktree(repo, issue.number))) {
-        log.event("worktree.kept", { path: worktreePath(repo, issue.number) }, "quiet");
-      }
       return finish("done");
     }
 
@@ -326,6 +328,20 @@ async function fixRound(job: Run, reason: string, detail: string, earlier: strin
   log.event("commit", { subject });
   await push(worktree, context.config.remote, branch);
   return true;
+}
+
+async function cleanUp(context: Context, log: Recorder, issue: number): Promise<void> {
+  const path = worktreePath(context.repo, issue);
+  try {
+    if (!(await hasWorktree(context.repo, path))) {
+      return;
+    }
+    if (!(await removeWorktree(context.repo, issue))) {
+      log.event("worktree.kept", { path }, "quiet");
+    }
+  } catch (error) {
+    log.event("worktree.error", { error: message(error) }, "quiet");
+  }
 }
 
 async function handOver(
