@@ -4,13 +4,13 @@ A small harness that works through the open issues of a GitHub repository with
 the Claude Agent SDK. Run it inside a git repository.
 
 ```bash
-npx next-issue
+npx -y next-issue@latest
 ```
 
 Or install it once:
 
 ```bash
-npm install -g next-issue
+npm install -g next-issue@latest
 next-issue
 ```
 
@@ -121,7 +121,7 @@ Three levels of console output:
 To write the file with the defaults, run the `init` command in the repository:
 
 ```bash
-npx next-issue init
+npx -y next-issue@latest init
 ```
 
 The command writes `next-issue.config.json` in the root of the repository and
