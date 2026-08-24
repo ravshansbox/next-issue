@@ -98,6 +98,11 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
     return report;
   } catch (error) {
     log.event("issue.error", { error: message(error), ms: Date.now() - started }, "quiet");
+    try {
+      await handOver(context, log, issue.number, state, `The run failed: ${message(error)}`);
+    } catch (failure) {
+      log.event("hand-over.error", { error: message(failure) }, "quiet");
+    }
     return {
       issue: issue.number,
       outcome: "error",
@@ -131,6 +136,8 @@ async function work(
     addWorktree(repo, issue.number, context.base, config.remote),
   );
   const job: Run = { context, issue, log, state, branch, worktree, comments };
+  const escalate = (reason: string): Promise<void> =>
+    handOver(context, log, issue.number, state, reason);
   const finish = (outcome: Outcome, reason?: string): IssueReport => ({
     issue: issue.number,
     outcome,
@@ -147,8 +154,8 @@ async function work(
     );
     if (setup.code !== 0) {
       log.event("setup.fail", { code: setup.code, stderr: setup.stderr.trim().slice(-2000) }, "quiet");
-      await handOver(job, "The setup command failed in the worktree.");
-      return await stop(job, finish("needs-human", "setup failed"));
+      await escalate("The setup command failed in the worktree.");
+      return finish("needs-human", "setup failed");
     }
   }
 
@@ -164,7 +171,7 @@ async function work(
     );
     const subject = parseCommitSubject(result.text, `fix: resolve issue #${issue.number}`);
     if (!(await commitAll(worktree, `${subject}\n\nRefs #${issue.number}`))) {
-      await handOver(job, "The implementer produced no change.");
+      await escalate("The implementer produced no change.");
       return finish("needs-human", "no implementation commit");
     }
     log.event("commit", { subject });
@@ -190,13 +197,13 @@ async function work(
     );
     log.event("checks.state", { state: checks });
     if (checks === "timeout") {
-      await handOver(job, "The checks did not finish in time.");
+      await escalate("The checks did not finish in time.");
       return finish("needs-human", "checks timeout");
     }
     if (checks === "fail") {
       if (state.ciFixes >= config.maxCiFixes) {
-        await handOver(job, `The limit of ${config.maxCiFixes} check fixes was reached.`);
-        return await stop(job, finish("needs-human", "check budget"));
+        await escalate(`The limit of ${config.maxCiFixes} check fixes was reached.`);
+        return finish("needs-human", "check budget");
       }
       state.ciFixes += 1;
       await writeState(repo, state);
@@ -204,15 +211,15 @@ async function work(
       log.event("checks.logs", { chars: logs.length });
       const committed = await fixRound(job, "The continuous integration checks failed.", logs);
       if (!committed) {
-        await handOver(job, "The fixer added no commit for the failed checks.");
-        return await stop(job, finish("needs-human", "no fix commit"));
+        await escalate("The fixer added no commit for the failed checks.");
+        return finish("needs-human", "no fix commit");
       }
       continue;
     }
 
     if (state.reviewRounds >= config.maxReviewRounds) {
-      await handOver(job, `The limit of ${config.maxReviewRounds} review rounds was reached.`);
-      return await stop(job, finish("needs-human", "review budget"));
+      await escalate(`The limit of ${config.maxReviewRounds} review rounds was reached.`);
+      return finish("needs-human", "review budget");
     }
     state.reviewRounds += 1;
     await writeState(repo, state);
@@ -231,8 +238,8 @@ async function work(
     );
     const verdict = readVerdict(review.structured);
     if (verdict === undefined) {
-      await handOver(job, "The reviewer gave no verdict.");
-      return await stop(job, finish("needs-human", "no verdict"));
+      await escalate("The reviewer gave no verdict.");
+      return finish("needs-human", "no verdict");
     }
     const blocking = blockingFindings(verdict);
     log.event("verdict", {
@@ -256,8 +263,8 @@ async function work(
 
     const mark = fingerprint(blocking);
     if (state.reviewLog.some((round) => round.fingerprint === mark)) {
-      await handOver(job, "The reviewer repeated findings that an earlier round did not fix.");
-      return await stop(job, finish("needs-human", "repeated findings"));
+      await escalate("The reviewer repeated findings that an earlier round did not fix.");
+      return finish("needs-human", "repeated findings");
     }
     const earlier = history(state.reviewLog);
     state.reviewLog.push({ round: state.reviewRounds, fingerprint: mark, findings: formatFindings(blocking) });
@@ -265,8 +272,8 @@ async function work(
 
     const committed = await fixRound(job, "The reviewer requested changes.", formatFindings(blocking), earlier);
     if (!committed) {
-      await handOver(job, "The fixer added no commit for the review findings.");
-      return await stop(job, finish("needs-human", "no fix commit"));
+      await escalate("The fixer added no commit for the review findings.");
+      return finish("needs-human", "no fix commit");
     }
   }
 }
@@ -292,19 +299,20 @@ async function fixRound(job: Run, reason: string, detail: string, earlier: strin
   return true;
 }
 
-async function handOver(job: Run, reason: string): Promise<void> {
-  const { context, issue, log, state } = job;
+async function handOver(
+  context: Context,
+  log: Recorder,
+  issue: number,
+  state: IssueState,
+  reason: string,
+): Promise<void> {
   log.event("hand-over", { reason }, "quiet");
-  await setLabel(context.repo, issue.number, context.config.labels.needsHuman, managedLabels(context.config));
+  state.phase = "needs-human";
+  await writeState(context.repo, state);
+  await setLabel(context.repo, issue, context.config.labels.needsHuman, managedLabels(context.config));
   if (state.pr !== undefined) {
     await commentOnPr(context.repo, state.pr, `next-issue needs help: ${reason}`);
   }
-}
-
-async function stop(job: Run, report: IssueReport): Promise<IssueReport> {
-  job.state.phase = "needs-human";
-  await writeState(job.context.repo, job.state);
-  return report;
 }
 
 function history(rounds: ReviewRound[]): string[] {
