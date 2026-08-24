@@ -30,8 +30,7 @@ export async function defaultBranch(repo: Repo): Promise<string> {
 }
 
 export async function currentLogin(repo: Repo): Promise<string> {
-  const raw = await gh(repo, ["api", "user", "--jq", ".login"]);
-  return raw.trim();
+  return must("gh", ["api", "user", "--jq", ".login"], { cwd: repo.root });
 }
 
 export async function openIssues(repo: Repo, limit: number): Promise<Issue[]> {
