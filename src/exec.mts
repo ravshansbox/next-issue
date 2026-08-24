@@ -4,12 +4,14 @@ export type RunResult = {
   code: number;
   stdout: string;
   stderr: string;
+  timedOut: boolean;
 };
 
 export type RunOptions = {
   cwd?: string;
   input?: string;
   inherit?: boolean;
+  timeoutMs?: number;
 };
 
 export type CommandRecord = {
@@ -40,15 +42,29 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
     });
     let stdout = "";
     let stderr = "";
-    child.stdout?.on("data", (chunk) => {
-      stdout += String(chunk);
+    let timedOut = false;
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk: string) => {
+      stdout += chunk;
     });
-    child.stderr?.on("data", (chunk) => {
-      stderr += String(chunk);
+    child.stderr?.on("data", (chunk: string) => {
+      stderr += chunk;
     });
-    child.on("error", reject);
+    const timer =
+      options.timeoutMs === undefined
+        ? undefined
+        : setTimeout(() => {
+            timedOut = true;
+            child.kill("SIGKILL");
+          }, options.timeoutMs);
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
     child.on("close", (code) => {
-      const result = { code: code ?? 1, stdout, stderr };
+      clearTimeout(timer);
+      const result = { code: code ?? 1, stdout, stderr, timedOut };
       observer?.({
         command,
         args,
@@ -60,6 +76,7 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
       resolve(result);
     });
     if (options.input !== undefined) {
+      child.stdin?.on("error", () => undefined);
       child.stdin?.end(options.input);
     }
   });
