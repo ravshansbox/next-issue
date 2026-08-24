@@ -155,12 +155,20 @@ async function readChecks(repo: Repo, branch: string): Promise<CheckSummary[] | 
   return checks.length === 0 ? "none" : checks;
 }
 
-async function watchOnce(repo: Repo, branch: string, intervalSeconds: number): Promise<CheckState> {
+async function watchOnce(
+  repo: Repo,
+  branch: string,
+  intervalSeconds: number,
+  timeoutMs: number,
+): Promise<CheckState> {
   const watch = await run(
     "gh",
     ["pr", "checks", branch, "--watch", "--fail-fast", "--interval", String(intervalSeconds), "--repo", slug(repo)],
-    { cwd: repo.root, inherit: true },
+    { cwd: repo.root, inherit: true, timeoutMs },
   );
+  if (watch.timedOut) {
+    return "timeout";
+  }
   if (watch.code === 0) {
     return "pass";
   }
@@ -181,7 +189,7 @@ export async function waitForChecks(
     if ((await readChecks(repo, branch)) === "none") {
       return "none";
     }
-    const state = await watchOnce(repo, branch, intervalSeconds);
+    const state = await watchOnce(repo, branch, intervalSeconds, deadline - Date.now());
     if (state !== "pending") {
       return state;
     }
