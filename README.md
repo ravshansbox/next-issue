@@ -39,13 +39,25 @@ when:
 - a fixer round adds no commit, so there is no progress;
 - the reviewer repeats a finding set from an earlier round, which shows a
    ping-pong between the fixer and the reviewer;
-- the reviewer gives no verdict, or the checks do not finish in time.
+- the reviewer gives no verdict, or the checks do not finish in time;
+- a step of the run fails with an error.
 
 The fixer sees the findings of all earlier rounds, not only the last one. From
 round two, the reviewer judges only the earlier findings and any regression.
 
 The harness runs all git and `gh` commands itself. The agents only read and
-change files.
+change files. The commit holds all the changes in the worktree, so a setup
+command that writes a file outside `.gitignore` puts that file in the commit.
+
+## Safety
+
+The implementer and the fixer run with the permission checks off. They can run
+any command in the worktree. The prompt holds the title, the body and the
+comments of the issue, which come from GitHub.
+
+Thus a person who can write an issue or a comment can try to give an
+instruction to the agent. Use the harness only on a repository where you trust
+the issue authors, or run it in a container.
 
 ## Observability
 
@@ -91,24 +103,50 @@ Three levels of console output:
 
 ## Configuration
 
-Put `next-issue.config.json` in the repository:
+Put `next-issue.config.json` in the root of the repository. A field that is not
+in the file keeps its default. A file that is not valid JSON stops the run.
 
 ```json
 {
+  "remote": "origin",
+  "issueLimit": 100,
   "maxCiFixes": 3,
   "maxReviewRounds": 3,
   "checkIntervalSeconds": 15,
   "checkTimeoutMinutes": 60,
+  "logMaxChars": 20000,
+  "setupCommand": "npm ci",
   "models": {
     "implementer": "claude-opus-5",
     "reviewer": "claude-opus-5",
     "fixer": "claude-opus-5"
+  },
+  "labels": {
+    "ready": "status:todo",
+    "inProgress": "status:in-progress",
+    "inReview": "status:in-review",
+    "done": "status:done",
+    "needsHuman": "status:needs-human",
+    "skip": "status:blocked"
   }
 }
 ```
 
-A role without an entry in `models` uses the default model of the SDK. State
-per issue goes to
+| Field | Default | Effect |
+| --- | --- | --- |
+| `remote` | `origin` | The git remote for the repository and the branches |
+| `issueLimit` | `100` | The maximum number of open issues to read |
+| `maxCiFixes` | `3` | The budget for check fixes per issue |
+| `maxReviewRounds` | `3` | The budget for review rounds per issue |
+| `checkIntervalSeconds` | `15` | The time between two check states |
+| `checkTimeoutMinutes` | `60` | The limit for one check wait |
+| `logMaxChars` | `20000` | The maximum length of the failed job logs |
+| `setupCommand` | none | A shell command to run in a new worktree, before the implementer |
+| `models` | `{}` | The model per agent role |
+| `labels` | see above | The names of the labels that the harness sets |
+
+A role without an entry in `models` uses the default model of the SDK. A
+`setupCommand` that fails hands the issue to a person. State per issue goes to
 `.next-issue/<issue>.json`, so a new run continues where the last run stopped.
 
 ## Options
@@ -119,3 +157,14 @@ per issue goes to
 | `--once` | Stop after the first handled issue |
 | `--max <n>` | Handle at most n issues |
 | `--reset` | Drop the saved budgets and findings first |
+| `--verbose` | Show every command and all agent output |
+| `--quiet` | Show only the milestones and the summary |
+| `--help` | Show the option list |
+
+## Development
+
+```bash
+npm install
+npm run typecheck
+npm test
+```
