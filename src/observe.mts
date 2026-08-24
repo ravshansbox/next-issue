@@ -163,7 +163,7 @@ export function message(error: unknown): string {
 }
 
 function render(record: Fields): string {
-  const time = String(record.ts).slice(11, 19);
+  const time = new Date(String(record.ts)).toTimeString().slice(0, 8);
   const issue = record.issue === undefined ? "" : ` #${record.issue}`;
   const extras = Object.entries(record)
     .filter(([key]) => !["ts", "runId", "kind", "issue"].includes(key))
