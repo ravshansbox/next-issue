@@ -46,3 +46,12 @@ export async function writeState(repo: Repo, state: IssueState): Promise<void> {
   await mkdir(dir(repo), { recursive: true });
   await writeFile(file(repo, state.issue), `${JSON.stringify(state, null, 2)}\n`);
 }
+
+export async function takeStop(repo: Repo): Promise<boolean> {
+  try {
+    await rm(join(dir(repo), "stop"));
+    return true;
+  } catch {
+    return false;
+  }
+}

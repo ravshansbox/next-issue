@@ -56,6 +56,17 @@ when:
 The fixer sees the findings of all earlier rounds, not only the last one. From
 round two, the reviewer judges only the earlier findings and any regression.
 
+## Stop after the current issue
+
+Run `touch .next-issue/stop` in a second terminal. The harness reads the file
+only between two issues, finishes the issue that it holds, deletes the file and
+then writes the summary as usual. A file from an earlier run is dropped at the
+start, so it stops nothing.
+
+`Ctrl-C` is different: the terminal signals every child too, so the run dies in
+the middle of a step. The saved state lets the next run continue the issue, but
+the issue keeps `status:in-progress` and the run writes no summary.
+
 Every status label that the harness puts on the issue goes on the pull request
 too, from the first review round. Thus a draft pull request shows work that the
 harness has not finished, and a `status:needs-human` pull request shows work

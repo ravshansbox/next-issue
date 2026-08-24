@@ -7,7 +7,7 @@ import { detectRepo, ensureIgnored, type Repo, repoRoot } from "./git.mts";
 import { currentLogin, defaultBranch, openIssues } from "./github.mts";
 import { type Level, message, Recorder } from "./observe.mts";
 import { type Context, type IssueReport, processIssue } from "./pipeline.mts";
-import { clearState, STATE_DIR } from "./state.mts";
+import { clearState, STATE_DIR, takeStop } from "./state.mts";
 import { formatSummary, type RunSummary } from "./summary.mts";
 
 type Command = "run" | "init";
@@ -156,6 +156,7 @@ async function handle(
   );
   recorder.event("issues", { open: issues.length }, "quiet");
 
+  await takeStop(repo);
   const reports: IssueReport[] = [];
   for (const issue of issues) {
     const handled = reports.filter((report) => report.outcome !== "skipped").length;
@@ -167,6 +168,10 @@ async function handle(
     }
     const report = await processIssue(context, issue);
     reports.push(report);
+    if (await takeStop(repo)) {
+      recorder.event("run.stop", { issue: issue.number }, "quiet");
+      break;
+    }
     if (args.once && report.outcome !== "skipped") {
       break;
     }
