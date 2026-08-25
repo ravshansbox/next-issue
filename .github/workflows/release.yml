@@ -24,7 +24,10 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - if: github.event_name == 'workflow_dispatch'
-        run: npm publish
+        run: |
+          last=$(git describe --tags --match 'v*' --abbrev=0)
+          npm version --no-git-tag-version --allow-same-version "${last#v}"
+          npm publish
       - if: github.event_name == 'push'
         id: bump
         run: |
@@ -40,15 +43,18 @@ jobs:
           elif grep -qE '^fix(\([^)]*\))?:' <<<"$subjects"; then
             bump=patch
           fi
+          echo "last=$last" >> "$GITHUB_OUTPUT"
           echo "bump=$bump" >> "$GITHUB_OUTPUT"
           echo "The bump since ${last:-the first commit} is ${bump:-none}."
       - if: github.event_name == 'push' && steps.bump.outputs.bump != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          tag=$(npm version "${{ steps.bump.outputs.bump }}" -m "chore: release %s")
+          last=${{ steps.bump.outputs.last }}
+          base=${last#v}
+          npm version --no-git-tag-version --allow-same-version "${base:-0.0.0}"
+          tag=$(npm version --no-git-tag-version "${{ steps.bump.outputs.bump }}")
           npm publish
-          git push --follow-tags
+          git tag "$tag"
+          git push origin "$tag"
           gh release create "$tag" --title "$tag" --generate-notes
