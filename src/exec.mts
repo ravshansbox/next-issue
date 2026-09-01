@@ -90,6 +90,9 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
 
 export async function must(command: string, args: string[], options: RunOptions = {}): Promise<string> {
   const result = await run(command, args, options);
+  if (result.timedOut) {
+    throw new Error(`${command} ${args.join(" ")} did not finish in time.`);
+  }
   if (result.code !== 0) {
     throw new Error(`${command} ${args.join(" ")} failed with code ${result.code}: ${result.stderr.trim()}`);
   }

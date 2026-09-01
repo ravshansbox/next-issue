@@ -60,3 +60,10 @@ test("must gives the trimmed output and throws on a code that is not zero", asyn
     /failed with code 4: why/,
   );
 });
+
+test("must reports a child that passes the time limit", async () => {
+  await assert.rejects(
+    must(NODE, script("setTimeout(() => {}, 10000)"), { timeoutMs: 100 }),
+    /did not finish in time/,
+  );
+});
