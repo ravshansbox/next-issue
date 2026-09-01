@@ -5,7 +5,6 @@ export type Command = "run" | "init";
 
 export type Args = {
   command: Command;
-  issue?: number;
   once: boolean;
   max?: number;
   help: boolean;
@@ -19,7 +18,6 @@ export const USAGE = `next-issue [command] [options]
 
   init         write ${CONFIG_FILE} with the defaults
 
-  --issue <n>  handle one issue only
   --once       stop after the first handled issue
   --max <n>    handle at most n issues
   --reset      drop the saved budgets and findings first
@@ -61,8 +59,6 @@ export function parseArgs(argv: string[]): Args {
       args.level = "verbose";
     } else if (arg === "--quiet") {
       args.level = "quiet";
-    } else if (arg === "--issue") {
-      args.issue = whole(argv[++index], arg);
     } else if (arg === "--max") {
       args.max = whole(argv[++index], arg);
     } else {

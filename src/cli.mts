@@ -75,9 +75,7 @@ async function handle(
     "quiet",
   );
 
-  const issues = (await openIssues(repo, config.issueLimit)).filter(
-    (issue) => args.issue === undefined || issue.number === args.issue,
-  );
+  const issues = await openIssues(repo, config.issueLimit);
   recorder.event("issues", { open: issues.length }, "quiet");
 
   await takeStop(repo);
