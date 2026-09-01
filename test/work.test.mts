@@ -290,6 +290,14 @@ test("a setup command that fails hands the issue to a person", async (t) => {
   assert.deepEqual(roles(target), []);
 });
 
+test("a diff that is too long is cut before the reviewer reads it", async (t) => {
+  const target = await harness(t, { config: { diffMaxChars: 20 }, diff: "x".repeat(50) });
+  assert.equal((await target.run()).outcome, "done");
+  const prompt = target.prompts.at(-1)!.prompt;
+  assert.match(prompt, /The diff is cut here, after 20 characters\./);
+  assert.equal(prompt.includes("x".repeat(21)), false);
+});
+
 test("a diff that fits reaches the reviewer whole", async (t) => {
   const target = await harness(t, { diff: "the whole diff" });
   await target.run();

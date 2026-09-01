@@ -10,6 +10,7 @@ export type Config = {
   checkIntervalSeconds: number;
   checkTimeoutMinutes: number;
   logMaxChars: number;
+  diffMaxChars: number;
   draftPullRequest: boolean;
   setupCommand?: string;
   models: {
@@ -35,6 +36,7 @@ const DEFAULTS: Config = {
   checkIntervalSeconds: 15,
   checkTimeoutMinutes: 60,
   logMaxChars: 20000,
+  diffMaxChars: 60000,
   draftPullRequest: true,
   models: {},
   labels: {
@@ -56,6 +58,7 @@ const WHOLE_FIELDS: Array<[keyof Config, number]> = [
   ["checkIntervalSeconds", 1],
   ["checkTimeoutMinutes", 1],
   ["logMaxChars", 1],
+  ["diffMaxChars", 1],
 ];
 
 const MODEL_ROLES = ["implementer", "reviewer", "fixer"] as const;

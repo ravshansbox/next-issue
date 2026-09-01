@@ -26,6 +26,12 @@ export function implementPrompt(issue: Issue, comments: string[]): string {
   ].join("\n\n");
 }
 
+export function capDiff(diff: string, maxChars: number): string {
+  return diff.length <= maxChars
+    ? diff
+    : `${diff.slice(0, maxChars)}\n... The diff is cut here, after ${maxChars} characters.`;
+}
+
 export function reviewPrompt(
   issue: Issue,
   comments: string[],

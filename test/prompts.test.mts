@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseCommitSubject } from "../src/prompts.mts";
+import { capDiff, parseCommitSubject } from "../src/prompts.mts";
 
 const FALLBACK = "fix: fallback";
 
@@ -16,4 +16,15 @@ test("parseCommitSubject falls back without a line", () => {
   assert.equal(parseCommitSubject("No subject here", FALLBACK), FALLBACK);
   assert.equal(parseCommitSubject("commit:   ", FALLBACK), FALLBACK);
   assert.equal(parseCommitSubject("", FALLBACK), FALLBACK);
+});
+
+test("capDiff keeps a diff that fits", () => {
+  assert.equal(capDiff("abc", 3), "abc");
+  assert.equal(capDiff("", 10), "");
+});
+
+test("capDiff cuts a diff that is too long and says so", () => {
+  const text = capDiff("abcdef", 3);
+  assert.match(text, /^abc\n/);
+  assert.match(text, /cut here, after 3 characters\./);
 });

@@ -22,6 +22,7 @@ test("a missing file gives the defaults", async () => {
   assert.equal(config.remote, "origin");
   assert.equal(config.maxCiFixes, 3);
   assert.equal(config.draftPullRequest, true);
+  assert.equal(config.diffMaxChars, 60000);
   assert.deepEqual(config.models, {});
 });
 
@@ -52,6 +53,7 @@ test("a field of the wrong type stops the run", async () => {
   await assert.rejects(parse({ maxCiFixes: "3" }), /maxCiFixes must be a whole number of 0 or more/);
   await assert.rejects(parse({ checkIntervalSeconds: 0 }), /checkIntervalSeconds must be a whole number of 1/);
   await assert.rejects(parse({ maxReviewRounds: 1.5 }), /maxReviewRounds must be a whole number of 1/);
+  await assert.rejects(parse({ diffMaxChars: 0 }), /diffMaxChars must be a whole number of 1/);
   await assert.rejects(parse({ draftPullRequest: "yes" }), /draftPullRequest must be true or false/);
   await assert.rejects(parse({ remote: "" }), /remote must be text that is not empty/);
   await assert.rejects(parse({ setupCommand: 12 }), /setupCommand must be text that is not empty/);

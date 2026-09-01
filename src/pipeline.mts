@@ -25,7 +25,7 @@ import {
   waitForChecks,
 } from "./github.mts";
 import { message, type Recorder } from "./observe.mts";
-import { fixPrompt, implementPrompt, parseCommitSubject, reviewPrompt } from "./prompts.mts";
+import { capDiff, fixPrompt, implementPrompt, parseCommitSubject, reviewPrompt } from "./prompts.mts";
 import { type IssueState, readState, type ReviewRound, writeState } from "./state.mts";
 import {
   blockingFindings,
@@ -302,8 +302,14 @@ async function work(
     await writeState(repo, state);
 
     await setStatus(context, issue.number, state.pr, config.labels.inReview);
-    const patch = await ports.diff(worktree, context.base, config.remote);
-    const review = await log.step("review", { round: state.reviewRounds, diffChars: patch.length }, () =>
+    const full = await ports.diff(worktree, context.base, config.remote);
+    const patch = capDiff(full, config.diffMaxChars);
+    const fields = {
+      round: state.reviewRounds,
+      diffChars: full.length,
+      cut: full.length > config.diffMaxChars,
+    };
+    const review = await log.step("review", fields, () =>
       ports.runAgent(log, {
         name: "reviewer",
         cwd: worktree,
