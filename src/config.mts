@@ -8,6 +8,7 @@ export type Config = {
   maxCiFixes: number;
   maxReviewRounds: number;
   checkIntervalSeconds: number;
+  checkGraceSeconds: number;
   checkTimeoutMinutes: number;
   agentTimeoutMinutes: number;
   setupTimeoutMinutes: number;
@@ -37,6 +38,7 @@ const DEFAULTS: Config = {
   maxCiFixes: 3,
   maxReviewRounds: 3,
   checkIntervalSeconds: 15,
+  checkGraceSeconds: 60,
   checkTimeoutMinutes: 60,
   agentTimeoutMinutes: 30,
   setupTimeoutMinutes: 15,
@@ -62,6 +64,7 @@ const WHOLE_FIELDS: Array<[keyof Config, number]> = [
   ["maxCiFixes", 0],
   ["maxReviewRounds", 1],
   ["checkIntervalSeconds", 1],
+  ["checkGraceSeconds", 0],
   ["checkTimeoutMinutes", 1],
   ["agentTimeoutMinutes", 1],
   ["setupTimeoutMinutes", 1],

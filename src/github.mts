@@ -174,11 +174,12 @@ async function watchOnce(
   branch: string,
   intervalSeconds: number,
   timeoutMs: number,
+  inherit: boolean,
 ): Promise<CheckState> {
   const watch = await run(
     "gh",
     ["pr", "checks", branch, "--watch", "--fail-fast", "--interval", String(intervalSeconds), "--repo", slug(repo)],
-    { cwd: repo.root, inherit: true, timeoutMs },
+    { cwd: repo.root, inherit, timeoutMs },
   );
   if (watch.timedOut) {
     return "timeout";
@@ -192,28 +193,63 @@ async function watchOnce(
   return "fail";
 }
 
-export async function waitForChecks(
-  repo: Repo,
-  branch: string,
-  intervalSeconds: number,
-  timeoutMs: number,
+export type ChecksProbe = {
+  list: () => Promise<"none" | "some">;
+  watch: (timeoutMs: number) => Promise<CheckState>;
+};
+
+export type Clock = {
+  now: () => number;
+  sleep: (ms: number) => Promise<void>;
+};
+
+export type WaitOptions = {
+  intervalSeconds: number;
+  graceMs: number;
+  timeoutMs: number;
+  inherit: boolean;
+};
+
+const REAL_CLOCK: Clock = {
+  now: () => Date.now(),
+  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+};
+
+export async function pollChecks(
+  probe: ChecksProbe,
+  options: { intervalSeconds: number; graceMs: number; timeoutMs: number },
+  clock: Clock = REAL_CLOCK,
 ): Promise<CheckState> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if ((await readChecks(repo, branch)) === "none") {
-      return "none";
+  const started = clock.now();
+  const deadline = started + options.timeoutMs;
+  const rest = (): number => Math.max(0, deadline - clock.now());
+  for (;;) {
+    if (rest() === 0) {
+      return "timeout";
     }
-    const state = await watchOnce(repo, branch, intervalSeconds, deadline - Date.now());
-    if (state !== "pending") {
-      return state;
+    if ((await probe.list()) === "none") {
+      if (clock.now() - started >= options.graceMs) {
+        return "none";
+      }
+    } else {
+      const state = await probe.watch(rest());
+      if (state !== "pending") {
+        return state;
+      }
     }
-    await delay(intervalSeconds * 1000);
+    await clock.sleep(Math.min(options.intervalSeconds * 1000, rest()));
   }
-  return "timeout";
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+export function waitForChecks(repo: Repo, branch: string, options: WaitOptions): Promise<CheckState> {
+  return pollChecks(
+    {
+      list: async () => ((await readChecks(repo, branch)) === "none" ? "none" : "some"),
+      watch: (timeoutMs) =>
+        watchOnce(repo, branch, options.intervalSeconds, timeoutMs, options.inherit),
+    },
+    options,
+  );
 }
 
 export async function failedCheckLogs(repo: Repo, branch: string, maxChars: number): Promise<string> {
