@@ -49,6 +49,7 @@ type Plan = {
   commits?: boolean[];
   diff?: string;
   setupCode?: number;
+  setupTimedOut?: boolean;
   fail?: keyof Ports;
   saved?: IssueState;
   issue?: Issue;
@@ -117,7 +118,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       }
       return result(`commit: fix: work on #${issue.number}`);
     },
-    runSetup: async () => ({ code: plan.setupCode ?? 0, stderr: "" }),
+    runSetup: async () => ({ code: plan.setupCode ?? 0, stderr: "", timedOut: plan.setupTimedOut }),
     setLabel: async (_repo, kind, number, label) => {
       state.labels.push({ kind, number, label });
     },
@@ -287,6 +288,19 @@ test("a setup command that fails hands the issue to a person", async (t) => {
   const target = await harness(t, { config: { setupCommand: "npm ci" }, setupCode: 1 });
   const report = await target.run();
   assert.equal(report.reason, "setup failed");
+  assert.deepEqual(roles(target), []);
+});
+
+test("a setup command that does not finish hands the issue to a person", async (t) => {
+  const target = await harness(t, {
+    config: { setupCommand: "npm ci", setupTimeoutMinutes: 5 },
+    setupCode: 1,
+    setupTimedOut: true,
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "needs-human");
+  assert.equal(report.reason, "setup timeout");
+  assert.equal(target.labels.at(-1)?.label, "status:needs-human");
   assert.deepEqual(roles(target), []);
 });
 
