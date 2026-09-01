@@ -60,6 +60,7 @@ type Harness = {
   labels: Array<{ kind: string; number: number; label: string }>;
   prompts: Array<{ role: string; prompt: string }>;
   comments: string[];
+  checkReads: number;
   pushes: number;
   ready: number[];
   run: () => Promise<IssueReport>;
@@ -84,6 +85,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     labels: [],
     prompts: [],
     comments: [],
+    checkReads: 0,
     pushes: 0,
     ready: [],
     run: () => processIssue(state.context, issue),
@@ -122,7 +124,11 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     setLabel: async (_repo, kind, number, label) => {
       state.labels.push({ kind, number, label });
     },
-    waitForChecks: async () => checks.shift() ?? "pass",
+    waitForChecks: async () => {
+      const next = checks[Math.min(state.checkReads, checks.length - 1)]!;
+      state.checkReads += 1;
+      return next;
+    },
   };
   if (plan.fail !== undefined) {
     (ports[plan.fail] as unknown) = async () => {
@@ -175,6 +181,27 @@ test("a failed build gives the logs to the fixer and then reviews", async (t) =>
   assert.deepEqual(roles(target), ["implementer", "fixer", "reviewer"]);
   assert.match(target.prompts[1]!.prompt, /the failed job logs/);
   assert.equal(target.pushes, 2);
+});
+
+test("a build that fails after the approval keeps the issue open", async (t) => {
+  const target = await harness(t, { config: { maxCiFixes: 0 }, checks: ["pass", "fail"] });
+  const report = await target.run();
+  assert.equal(report.outcome, "needs-human");
+  assert.equal(report.reason, "check budget");
+  assert.deepEqual(target.ready, []);
+  assert.equal(
+    target.labels.some((entry) => entry.label === "status:done"),
+    false,
+  );
+});
+
+test("a build that fails after the approval starts a fix round", async (t) => {
+  const target = await harness(t, { checks: ["pass", "fail", "pass"], verdicts: [APPROVE, APPROVE] });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.equal(report.ciFixes, 1);
+  assert.deepEqual(roles(target), ["implementer", "reviewer", "fixer", "reviewer"]);
+  assert.deepEqual(target.ready, [101]);
 });
 
 test("the check budget hands the issue to a person", async (t) => {
