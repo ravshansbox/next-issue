@@ -216,6 +216,20 @@ test("a repeated finding set stops the ping-pong", async (t) => {
   assert.equal(report.reviewRounds, 2);
 });
 
+test("the fixer sees the findings once in the first round and the history later", async (t) => {
+  const target = await harness(t, {
+    verdicts: [changes("The count is wrong."), changes("The name is wrong."), APPROVE],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  const first = target.prompts.find((entry) => entry.role === "fixer")!.prompt;
+  assert.match(first, /The count is wrong\./);
+  assert.doesNotMatch(first, /Earlier rounds/);
+  const second = target.prompts.filter((entry) => entry.role === "fixer")[1]!.prompt;
+  assert.match(second, /## Earlier rounds\nRound 1:\n- The count is wrong\./);
+  assert.equal(second.match(/The name is wrong\./g)?.length, 1);
+});
+
 test("the later reviewer sees the earlier findings", async (t) => {
   const target = await harness(t, { verdicts: [changes("The count is wrong."), APPROVE] });
   await target.run();
