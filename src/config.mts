@@ -9,6 +9,7 @@ export type Config = {
   maxReviewRounds: number;
   checkIntervalSeconds: number;
   checkTimeoutMinutes: number;
+  commandTimeoutMinutes: number;
   logMaxChars: number;
   diffMaxChars: number;
   draftPullRequest: boolean;
@@ -35,6 +36,7 @@ const DEFAULTS: Config = {
   maxReviewRounds: 3,
   checkIntervalSeconds: 15,
   checkTimeoutMinutes: 60,
+  commandTimeoutMinutes: 10,
   logMaxChars: 20000,
   diffMaxChars: 60000,
   draftPullRequest: true,
@@ -57,6 +59,7 @@ const WHOLE_FIELDS: Array<[keyof Config, number]> = [
   ["maxReviewRounds", 1],
   ["checkIntervalSeconds", 1],
   ["checkTimeoutMinutes", 1],
+  ["commandTimeoutMinutes", 1],
   ["logMaxChars", 1],
   ["diffMaxChars", 1],
 ];

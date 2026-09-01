@@ -47,6 +47,7 @@ test("the observer sees every command", async () => {
   assert.equal(seen.length, 2);
   assert.equal(seen[0]!.code, 0);
   assert.equal(seen[0]!.stderr, "");
+  assert.equal(seen[0]!.timedOut, false);
   assert.equal(seen[0]!.cwd, process.cwd());
   assert.ok(seen[0]!.ms >= 0);
   assert.equal(seen[1]!.code, 2);

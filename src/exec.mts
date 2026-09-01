@@ -21,16 +21,24 @@ export type CommandRecord = {
   code: number;
   ms: number;
   stderr: string;
+  timedOut: boolean;
 };
 
 let observer: ((record: CommandRecord) => void) | undefined;
+
+let defaultTimeoutMs = 10 * 60_000;
 
 export function setCommandObserver(next: (record: CommandRecord) => void): void {
   observer = next;
 }
 
+export function setDefaultTimeout(ms: number): void {
+  defaultTimeoutMs = ms;
+}
+
 export function run(command: string, args: string[], options: RunOptions = {}): Promise<RunResult> {
   const started = Date.now();
+  const limit = options.timeoutMs ?? defaultTimeoutMs;
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
@@ -51,13 +59,10 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
     child.stderr?.on("data", (chunk: string) => {
       stderr += chunk;
     });
-    const timer =
-      options.timeoutMs === undefined
-        ? undefined
-        : setTimeout(() => {
-            timedOut = true;
-            child.kill("SIGKILL");
-          }, options.timeoutMs);
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGKILL");
+    }, limit);
     let done = false;
     child.on("error", (error) => {
       clearTimeout(timer);
@@ -78,6 +83,7 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
         code: result.code,
         ms: Date.now() - started,
         stderr: result.code === 0 ? "" : stderr.trim(),
+        timedOut,
       });
       resolve(result);
     });

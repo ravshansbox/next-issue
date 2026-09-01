@@ -3,7 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { type Args, parseArgs, USAGE } from "./args.mts";
 import { type Config, loadConfig, writeDefaultConfig } from "./config.mts";
-import { setCommandObserver } from "./exec.mts";
+import { setCommandObserver, setDefaultTimeout } from "./exec.mts";
 import { detectRepo, ensureIgnored, type Repo, repoRoot } from "./git.mts";
 import { currentLogin, defaultBranch, openIssues } from "./github.mts";
 import { message, Recorder } from "./observe.mts";
@@ -28,6 +28,7 @@ async function main(): Promise<number> {
     return init(root, args.force);
   }
   const config = await loadConfig(root);
+  setDefaultTimeout(config.commandTimeoutMinutes * 60_000);
   const repo = await detectRepo(root, config.remote);
   const recorder = await Recorder.create(repo.root, args.level);
   setCommandObserver((record) => {
@@ -38,6 +39,7 @@ async function main(): Promise<number> {
         code: record.code,
         ms: record.ms,
         stderr: record.stderr.length > 0 ? record.stderr : undefined,
+        timedOut: record.timedOut ? true : undefined,
       },
       record.code === 0 ? "verbose" : "quiet",
     );
