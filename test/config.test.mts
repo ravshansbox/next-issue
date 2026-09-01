@@ -72,8 +72,9 @@ test("an unknown field stops the run", async () => {
 });
 
 test("a budget of zero and an empty ready label are allowed", async () => {
-  const config = await parse({ maxCiFixes: 0, labels: { ready: "" } });
+  const config = await parse({ maxCiFixes: 0, checkGraceSeconds: 0, labels: { ready: "" } });
   assert.equal(config.maxCiFixes, 0);
+  assert.equal(config.checkGraceSeconds, 0);
   assert.equal(config.labels.ready, "");
 });
 

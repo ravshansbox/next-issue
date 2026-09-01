@@ -279,7 +279,12 @@ async function work(
 
   for (;;) {
     const checks = await log.step("checks", { pr: state.pr }, () =>
-      ports.waitForChecks(repo, branch, config.checkIntervalSeconds, config.checkTimeoutMinutes * 60_000),
+      ports.waitForChecks(repo, branch, {
+        intervalSeconds: config.checkIntervalSeconds,
+        graceMs: config.checkGraceSeconds * 1000,
+        timeoutMs: config.checkTimeoutMinutes * 60_000,
+        inherit: log.level === "verbose",
+      }),
     );
     log.event("checks.state", { state: checks });
     if (checks === "timeout") {
