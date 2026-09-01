@@ -22,6 +22,7 @@ test("a missing file gives the defaults", async () => {
   assert.equal(config.remote, "origin");
   assert.equal(config.maxCiFixes, 3);
   assert.equal(config.draftPullRequest, true);
+  assert.equal(config.commandTimeoutMinutes, 10);
   assert.equal(config.diffMaxChars, 60000);
   assert.deepEqual(config.models, {});
 });
