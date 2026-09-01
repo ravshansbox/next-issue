@@ -185,7 +185,8 @@ test("the check budget hands the issue to a person", async (t) => {
   assert.equal(report.ciFixes, 1);
   assert.equal(target.labels.at(-1)?.label, "status:needs-human");
   assert.match(target.comments.at(-1)!, /needs help: The limit of 1 check fixes/);
-  assert.equal((await target.state())?.phase, "needs-human");
+  assert.equal((await target.state())?.handedOver, true);
+  assert.equal((await target.state())?.phase, "review");
 });
 
 test("a check budget of zero stops before the first fix", async (t) => {
@@ -326,7 +327,8 @@ test("a step that throws gives the error outcome and hands the issue over", asyn
   assert.equal(report.outcome, "error");
   assert.match(report.reason!, /the port broke/);
   assert.equal(target.labels.at(-1)?.label, "status:needs-human");
-  assert.equal((await target.state())?.phase, "needs-human");
+  assert.equal((await target.state())?.handedOver, true);
+  assert.equal((await target.state())?.phase, "implemented");
 });
 
 test("a saved state carries on and does not implement again", async (t) => {

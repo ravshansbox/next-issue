@@ -4,13 +4,14 @@ import type { Repo } from "./git.mts";
 
 export const STATE_DIR = ".next-issue";
 
-export type Phase = "claimed" | "implemented" | "pushed" | "review" | "done" | "needs-human";
+export type Phase = "claimed" | "implemented" | "review" | "done";
 
 export type IssueState = {
   issue: number;
   phase: Phase;
   branch: string;
   pr?: number;
+  handedOver?: boolean;
   ciFixes: number;
   reviewRounds: number;
   reviewLog: ReviewRound[];
@@ -38,8 +39,15 @@ export async function readState(repo: Repo, issue: number): Promise<IssueState |
   }
 }
 
-export async function clearState(repo: Repo, issue: number): Promise<void> {
-  await rm(file(repo, issue), { force: true });
+export async function resetState(repo: Repo, issue: number): Promise<boolean> {
+  const state = await readState(repo, issue);
+  if (state === undefined) {
+    return false;
+  }
+  const next: IssueState = { ...state, ciFixes: 0, reviewRounds: 0, reviewLog: [] };
+  delete next.handedOver;
+  await writeState(repo, next);
+  return true;
 }
 
 export async function writeState(repo: Repo, state: IssueState): Promise<void> {

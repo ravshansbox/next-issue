@@ -426,7 +426,7 @@ async function handOver(
   reason: string,
 ): Promise<void> {
   log.event("hand-over", { reason }, "quiet");
-  state.phase = "needs-human";
+  state.handedOver = true;
   await writeState(context.repo, state);
   await setStatus(context, issue, state.pr, context.config.labels.needsHuman);
   if (state.pr !== undefined) {

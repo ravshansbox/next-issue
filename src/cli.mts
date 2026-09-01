@@ -8,7 +8,7 @@ import { detectRepo, ensureIgnored, type Repo, repoRoot } from "./git.mts";
 import { currentLogin, defaultBranch, openIssues } from "./github.mts";
 import { message, Recorder } from "./observe.mts";
 import { type Context, type IssueReport, PORTS, processIssue } from "./pipeline.mts";
-import { clearState, STATE_DIR, takeStop } from "./state.mts";
+import { resetState, STATE_DIR, takeStop } from "./state.mts";
 import { formatSummary, type RunSummary } from "./summary.mts";
 
 function write(stream: NodeJS.WriteStream, text: string): Promise<void> {
@@ -88,7 +88,7 @@ async function handle(
       break;
     }
     if (args.reset) {
-      await clearState(repo, issue.number);
+      await resetState(repo, issue.number);
     }
     const report = await processIssue(context, issue);
     reports.push(report);
