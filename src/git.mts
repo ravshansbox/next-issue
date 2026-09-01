@@ -48,7 +48,9 @@ export async function addWorktree(repo: Repo, issue: number, base: string, remot
   if (await hasWorktree(repo, path)) {
     return path;
   }
-  const existing = await run("git", ["rev-parse", "--verify", branch], { cwd: repo.root });
+  const existing = await run("git", ["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`], {
+    cwd: repo.root,
+  });
   const args =
     existing.code === 0
       ? ["worktree", "add", path, branch]
