@@ -61,12 +61,12 @@ export async function addWorktree(repo: Repo, issue: number, base: string, remot
 
 export async function updateBase(repo: Repo, base: string, remote: string): Promise<boolean> {
   const head = await run("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], { cwd: repo.root });
-  if (head.code === 0 && head.stdout.trim() === base) {
-    const merge = await run("git", ["merge", "--ff-only", `${remote}/${base}`], { cwd: repo.root });
-    return merge.code === 0;
-  }
-  const fetch = await run("git", ["fetch", remote, `${base}:${base}`], { cwd: repo.root });
-  return fetch.code === 0;
+  const args =
+    head.code === 0 && head.stdout.trim() === base
+      ? ["merge", "--ff-only", `${remote}/${base}`]
+      : ["fetch", ".", `${remote}/${base}:${base}`];
+  const result = await run("git", args, { cwd: repo.root });
+  return result.code === 0;
 }
 
 export async function hasWorktree(repo: Repo, path: string): Promise<boolean> {
