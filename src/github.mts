@@ -267,6 +267,7 @@ export async function failedCheckLogs(repo: Repo, branch: string, maxChars: numb
     }
     const logs = await run("gh", ["run", "view", runId, "--log-failed", "--repo", slug(repo)], {
       cwd: repo.root,
+      tailChars: maxChars,
     });
     parts.push(logs.stdout.slice(-maxChars));
   }
