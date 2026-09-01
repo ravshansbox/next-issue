@@ -75,7 +75,7 @@ export function blockingFindings(verdict: Verdict): Finding[] {
 }
 
 export function isApproved(verdict: Verdict): boolean {
-  return verdict.verdict === "approve" || blockingFindings(verdict).length === 0;
+  return blockingFindings(verdict).length === 0;
 }
 
 export function formatVerdict(verdict: Verdict): string {

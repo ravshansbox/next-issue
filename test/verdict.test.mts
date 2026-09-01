@@ -60,6 +60,16 @@ test("only a blocking finding stops the approval", () => {
   assert.equal(isApproved({ verdict: "approve", summary: "", findings: [] }), true);
 });
 
+test("a blocking finding beats a verdict of approve", () => {
+  const contradictory: Verdict = {
+    verdict: "approve",
+    summary: "Good enough.",
+    findings: [{ severity: "blocking", detail: "The migration drops the table." }],
+  };
+  assert.equal(isApproved(contradictory), false);
+  assert.match(formatVerdict(contradictory), /### Review: changes requested/);
+});
+
 test("formatVerdict shows the head, the summary and every finding", () => {
   const text = formatVerdict(BLOCKING);
   assert.match(text, /### Review: changes requested/);
