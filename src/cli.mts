@@ -7,7 +7,7 @@ import { setCommandObserver } from "./exec.mts";
 import { detectRepo, ensureIgnored, type Repo, repoRoot } from "./git.mts";
 import { currentLogin, defaultBranch, openIssues } from "./github.mts";
 import { message, Recorder } from "./observe.mts";
-import { type Context, type IssueReport, processIssue } from "./pipeline.mts";
+import { type Context, type IssueReport, PORTS, processIssue } from "./pipeline.mts";
 import { clearState, STATE_DIR, takeStop } from "./state.mts";
 import { formatSummary, type RunSummary } from "./summary.mts";
 
@@ -66,7 +66,7 @@ async function handle(
   recorder: Recorder,
 ): Promise<number> {
   const [base, login] = await Promise.all([defaultBranch(repo), currentLogin(repo)]);
-  const context: Context = { repo, config, base, login, recorder };
+  const context: Context = { repo, config, base, login, recorder, ports: PORTS };
   recorder.event(
     "run.start",
     { repo: `${repo.owner}/${repo.name}`, base, login, log: recorder.logFile },
