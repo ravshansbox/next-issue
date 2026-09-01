@@ -232,6 +232,7 @@ async function work(
         prompt: implementPrompt(issue, comments),
         profile: CODING,
         model: config.models.implementer,
+        timeoutMs: config.agentTimeoutMinutes * 60_000,
       }),
     );
     const subject = parseCommitSubject(result.text, `fix: resolve issue #${issue.number}`);
@@ -316,6 +317,7 @@ async function work(
         prompt: reviewPrompt(issue, comments, patch, state.reviewRounds, history(state.reviewLog)),
         profile: READ_ONLY,
         model: config.models.reviewer,
+        timeoutMs: config.agentTimeoutMinutes * 60_000,
         outputSchema: VERDICT_SCHEMA,
       }),
     );
@@ -371,6 +373,7 @@ async function fixRound(job: Run, reason: string, detail: string, earlier: strin
       prompt: fixPrompt(issue, reason, detail, earlier),
       profile: CODING,
       model: context.config.models.fixer,
+      timeoutMs: context.config.agentTimeoutMinutes * 60_000,
     }),
   );
   const subject = parseCommitSubject(result.text, `fix: address feedback on issue #${issue.number}`);

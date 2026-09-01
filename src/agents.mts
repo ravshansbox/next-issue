@@ -14,6 +14,7 @@ export type AgentRequest = {
   profile: Profile;
   model?: string;
   outputSchema?: Record<string, unknown>;
+  timeoutMs?: number;
 };
 
 export type AgentResult = {
@@ -54,73 +55,91 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
   let structured: unknown;
 
   const started = Date.now();
-  log.event("agent.start", { model: request.model }, "normal");
-  const stream = query({
-    prompt: request.prompt,
-    options: {
-      cwd: request.cwd,
-      model: request.model,
-      tools: request.profile.tools,
-      allowedTools: request.profile.tools,
-      permissionMode: request.profile.permissionMode,
-      allowDangerouslySkipPermissions: request.profile.allowDangerouslySkipPermissions,
-      systemPrompt: { type: "preset", preset: "claude_code" },
-      outputFormat:
-        request.outputSchema === undefined
-          ? undefined
-          : { type: "json_schema", schema: request.outputSchema },
-    },
-  });
+  log.event("agent.start", { model: request.model, timeoutMs: request.timeoutMs }, "normal");
+  const controller = new AbortController();
+  const timer =
+    request.timeoutMs === undefined
+      ? undefined
+      : setTimeout(() => controller.abort(), request.timeoutMs);
+  const late = (): Error =>
+    new Error(`The ${request.name} agent did not finish in ${request.timeoutMs} ms.`);
 
-  for await (const message of stream) {
-    if (message.type === "assistant") {
-      for (const block of message.message.content) {
-        if (block.type === "tool_use") {
-          toolCalls += 1;
-          toolNames.set(block.id, block.name);
-          log.event("tool", toolFields(block.name, block.input));
-        }
-        if (block.type === "text") {
-          text += block.text;
-          if (log.level === "verbose") {
-            process.stderr.write(block.text);
+  try {
+    const stream = query({
+      prompt: request.prompt,
+      options: {
+        cwd: request.cwd,
+        model: request.model,
+        tools: request.profile.tools,
+        allowedTools: request.profile.tools,
+        permissionMode: request.profile.permissionMode,
+        allowDangerouslySkipPermissions: request.profile.allowDangerouslySkipPermissions,
+        systemPrompt: { type: "preset", preset: "claude_code" },
+        abortController: controller,
+        outputFormat:
+          request.outputSchema === undefined
+            ? undefined
+            : { type: "json_schema", schema: request.outputSchema },
+      },
+    });
+
+    for await (const message of stream) {
+      if (message.type === "assistant") {
+        for (const block of message.message.content) {
+          if (block.type === "tool_use") {
+            toolCalls += 1;
+            toolNames.set(block.id, block.name);
+            log.event("tool", toolFields(block.name, block.input));
+          }
+          if (block.type === "text") {
+            text += block.text;
+            if (log.level === "verbose") {
+              process.stderr.write(block.text);
+            }
           }
         }
       }
-    }
-    if (message.type === "user" && Array.isArray(message.message.content)) {
-      for (const block of message.message.content) {
-        if (block.type === "tool_result" && block.is_error === true) {
-          log.event("tool.error", { tool: toolNames.get(block.tool_use_id) }, "quiet");
+      if (message.type === "user" && Array.isArray(message.message.content)) {
+        for (const block of message.message.content) {
+          if (block.type === "tool_result" && block.is_error === true) {
+            log.event("tool.error", { tool: toolNames.get(block.tool_use_id) }, "quiet");
+          }
+        }
+      }
+      if (message.type === "result") {
+        sessionId = message.session_id;
+        turns = message.num_turns;
+        costUsd = message.total_cost_usd;
+        model = main(message.modelUsage) ?? model;
+        for (const entry of Object.values(message.modelUsage)) {
+          usage.input += entry.inputTokens;
+          usage.output += entry.outputTokens;
+          usage.cacheRead += entry.cacheReadInputTokens;
+          usage.cacheWrite += entry.cacheCreationInputTokens;
+          usage.total +=
+            entry.inputTokens +
+            entry.outputTokens +
+            entry.cacheReadInputTokens +
+            entry.cacheCreationInputTokens;
+        }
+        if (message.subtype === "error_during_execution") {
+          throw new Error(`The ${request.name} agent failed: ${message.errors.join("; ")}`);
+        }
+        if (message.subtype === "success") {
+          text = message.result.length > 0 ? message.result : text;
+          structured = message.structured_output;
+        } else {
+          log.event("agent.incomplete", { subtype: message.subtype }, "quiet");
         }
       }
     }
-    if (message.type === "result") {
-      sessionId = message.session_id;
-      turns = message.num_turns;
-      costUsd = message.total_cost_usd;
-      model = main(message.modelUsage) ?? model;
-      for (const entry of Object.values(message.modelUsage)) {
-        usage.input += entry.inputTokens;
-        usage.output += entry.outputTokens;
-        usage.cacheRead += entry.cacheReadInputTokens;
-        usage.cacheWrite += entry.cacheCreationInputTokens;
-        usage.total +=
-          entry.inputTokens +
-          entry.outputTokens +
-          entry.cacheReadInputTokens +
-          entry.cacheCreationInputTokens;
-      }
-      if (message.subtype === "error_during_execution") {
-        throw new Error(`The ${request.name} agent failed: ${message.errors.join("; ")}`);
-      }
-      if (message.subtype === "success") {
-        text = message.result.length > 0 ? message.result : text;
-        structured = message.structured_output;
-      } else {
-        log.event("agent.incomplete", { subtype: message.subtype }, "quiet");
-      }
-    }
+  } catch (error) {
+    throw controller.signal.aborted ? late() : error;
+  } finally {
+    clearTimeout(timer);
+  }
+  if (controller.signal.aborted) {
+    throw late();
   }
 
   const ms = Date.now() - started;
