@@ -29,15 +29,17 @@ For each open issue, oldest first:
 4. Let the implementer agent do the work, then commit and push.
 5. Open a draft pull request that closes the issue.
 6. Wait for the checks. A pending state waits again, up to
-   `checkTimeoutMinutes`. A repository without checks goes straight to the
-   review.
+   `checkTimeoutMinutes`. A repository that reports no check keeps asking for
+   `checkGraceSeconds`, because a new pull request often shows no check yet,
+   and only then goes straight to the review.
 7. On a red build, give the failed job logs to the fixer agent, then go to step
    6 again. The budget is `maxCiFixes`.
-8. Let the reviewer agent judge the diff. The reviewer returns a structured
-   verdict that rates each finding `blocking` or `minor`. The harness puts the
-   result on the pull request.
+8. Let the reviewer agent judge the diff, at most `diffMaxChars` of it. The
+   reviewer returns a structured verdict that rates each finding `blocking` or
+   `minor`. The harness puts the result on the pull request.
 9. No blocking finding means approval: mark the pull request ready for review
-   and set `status:done`. The merge stays with you.
+   and set `status:done`. The merge stays with you. A blocking finding always
+   stops the approval, even when the reviewer also says approve.
 10. With a blocking finding, run the fixer agent and go to step 6 again. The
     budget is `maxReviewRounds`.
 
@@ -51,6 +53,8 @@ when:
 - the reviewer repeats a finding set from an earlier round, which shows a
    ping-pong between the fixer and the reviewer;
 - the reviewer gives no verdict, or the checks do not finish in time;
+- an agent does not finish in `agentTimeoutMinutes`;
+- the setup command fails, or does not finish in `setupTimeoutMinutes`;
 - a step of the run fails with an error.
 
 The fixer sees the findings of all earlier rounds, not only the last one. From
@@ -78,8 +82,9 @@ command that writes a file outside `.gitignore` puts that file in the commit.
 
 ## Safety
 
-The implementer and the fixer run with the permission checks off. They can run
-any command in the worktree. The prompt holds the title, the body and the
+The implementer and the fixer run with the permission checks off. They start in
+the worktree, but nothing holds them there: they can run any command, with your
+rights, anywhere on the machine. The prompt holds the title, the body and the
 comments of the issue, which come from GitHub.
 
 Thus a person who can write an issue or a comment can try to give an
@@ -144,7 +149,8 @@ already; `--force` replaces it. The file holds no `setupCommand`, because that
 field has no default.
 
 A field that is not in the file keeps its default. A file that is not valid
-JSON stops the run.
+JSON, a field with a value of the wrong type and a field name that the harness
+does not know all stop the run, so a typo cannot pass without a word.
 
 ```json
 {
@@ -153,15 +159,15 @@ JSON stops the run.
   "maxCiFixes": 3,
   "maxReviewRounds": 3,
   "checkIntervalSeconds": 15,
+  "checkGraceSeconds": 60,
   "checkTimeoutMinutes": 60,
+  "agentTimeoutMinutes": 30,
+  "setupTimeoutMinutes": 15,
+  "commandTimeoutMinutes": 10,
   "logMaxChars": 20000,
+  "diffMaxChars": 60000,
   "draftPullRequest": true,
-  "setupCommand": "npm ci",
-  "models": {
-    "implementer": "claude-opus-5",
-    "reviewer": "claude-opus-5",
-    "fixer": "claude-opus-5"
-  },
+  "models": {},
   "labels": {
     "ready": "status:todo",
     "inProgress": "status:in-progress",
@@ -180,8 +186,13 @@ JSON stops the run.
 | `maxCiFixes` | `3` | The budget for check fixes per issue |
 | `maxReviewRounds` | `3` | The budget for review rounds per issue |
 | `checkIntervalSeconds` | `15` | The time between two check states |
+| `checkGraceSeconds` | `60` | The time to wait for the first check to show |
 | `checkTimeoutMinutes` | `60` | The limit for one check wait |
+| `agentTimeoutMinutes` | `30` | The limit for one agent call |
+| `setupTimeoutMinutes` | `15` | The limit for the setup command |
+| `commandTimeoutMinutes` | `10` | The limit for one `git` or `gh` command |
 | `logMaxChars` | `20000` | The maximum length of the failed job logs |
+| `diffMaxChars` | `60000` | The maximum length of the diff that the reviewer reads |
 | `draftPullRequest` | `true` | Open the pull request as a draft, until the review approves |
 | `setupCommand` | none | A shell command to run in a new worktree, before the implementer |
 | `models` | `{}` | The model per agent role |
@@ -191,12 +202,22 @@ An empty `labels.ready` turns the ready requirement off. The harness then
 claims every open issue that no other label and no assignee holds back.
 
 The log gives the reason for a skipped issue as `stop-label`, `not-ready`,
-`in-flight` or `assigned`. `--issue` obeys the same rules; it only makes the
-harness look at one issue.
+`in-flight` or `assigned`.
 
 A role without an entry in `models` uses the default model of the SDK. A
-`setupCommand` that fails hands the issue to a person. State per issue goes to
-`.next-issue/<issue>.json`, so a new run continues where the last run stopped.
+`setupCommand` that fails, or that does not finish in `setupTimeoutMinutes`,
+hands the issue to a person. The wait for the checks has its own limit, so
+`commandTimeoutMinutes` holds for every other `git` and `gh` command. State per
+issue goes to `.next-issue/<issue>.json`, so a new run continues where the last
+run stopped.
+
+## Retry an issue that waits for a person
+
+A hand-over leaves the state file with the used budgets in it, so the next run
+would hand the issue over again at once. To give the issue another try, take the
+`status:needs-human` label off and run with `--reset`. The flag puts the budgets
+and the findings back to zero and keeps the branch, the pull request and the
+step that the last run reached, so the work carries on where it stopped.
 
 ## Commands and options
 
@@ -204,10 +225,9 @@ A role without an entry in `models` uses the default model of the SDK. A
 | --- | --- |
 | `init` | Write the config file with the defaults |
 | `--force` | Replace an existing config file, with `init` |
-| `--issue <n>` | Handle one issue only |
 | `--once` | Stop after the first handled issue |
 | `--max <n>` | Handle at most n issues |
-| `--reset` | Drop the saved budgets and findings first |
+| `--reset` | Drop the saved budgets and findings, and keep the rest of the state |
 | `--json` | Print the machine summary instead of the text one |
 | `--verbose` | Show every command and all agent output |
 | `--quiet` | Show only the milestones and the summary |
