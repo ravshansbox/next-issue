@@ -281,7 +281,12 @@ async function work(
       await writeState(repo, state);
       const logs = await ports.failedCheckLogs(repo, branch, config.logMaxChars);
       log.event("checks.logs", { chars: logs.length });
-      const committed = await fixRound(job, "The continuous integration checks failed.", logs);
+      const committed = await fixRound(
+        job,
+        "The continuous integration checks failed.",
+        logs,
+        history(state.reviewLog),
+      );
       if (!committed) {
         await escalate("The fixer added no commit for the failed checks.");
         return finish("needs-human", "no fix commit");
@@ -350,14 +355,14 @@ async function work(
   }
 }
 
-async function fixRound(job: Run, reason: string, detail: string, earlier: string[] = []): Promise<boolean> {
+async function fixRound(job: Run, reason: string, detail: string, earlier: string[]): Promise<boolean> {
   const { context, issue, log, worktree, branch } = job;
   const { ports } = context;
   const result = await log.step("fix", { reason }, () =>
     ports.runAgent(log, {
       name: "fixer",
       cwd: worktree,
-      prompt: fixPrompt(issue, reason, detail, earlier.length > 0 ? earlier : history(job.state.reviewLog)),
+      prompt: fixPrompt(issue, reason, detail, earlier),
       profile: CODING,
       model: context.config.models.fixer,
     }),
