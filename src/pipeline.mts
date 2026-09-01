@@ -52,7 +52,11 @@ export type Ports = {
   push: typeof push;
   removeWorktree: typeof removeWorktree;
   runAgent: typeof runAgent;
-  runSetup: (command: string, cwd: string) => Promise<{ code: number; stderr: string }>;
+  runSetup: (
+    command: string,
+    cwd: string,
+    timeoutMs: number,
+  ) => Promise<{ code: number; stderr: string; timedOut?: boolean }>;
   setLabel: typeof setLabel;
   waitForChecks: typeof waitForChecks;
 };
@@ -72,7 +76,7 @@ export const PORTS: Ports = {
   push,
   removeWorktree,
   runAgent,
-  runSetup: async (command, cwd) => run("bash", ["-lc", command], { cwd }),
+  runSetup: async (command, cwd, timeoutMs) => run("bash", ["-lc", command], { cwd, timeoutMs }),
   setLabel,
   waitForChecks,
 };
@@ -215,12 +219,21 @@ async function work(
 
   if (config.setupCommand !== undefined) {
     const setup = await log.step("setup", { cmd: config.setupCommand }, () =>
-      ports.runSetup(config.setupCommand!, worktree),
+      ports.runSetup(config.setupCommand!, worktree, config.setupTimeoutMinutes * 60_000),
     );
     if (setup.code !== 0) {
-      log.event("setup.fail", { code: setup.code, stderr: setup.stderr.trim().slice(-2000) }, "quiet");
-      await escalate("The setup command failed in the worktree.");
-      return finish("needs-human", "setup failed");
+      const late = setup.timedOut === true;
+      log.event(
+        "setup.fail",
+        { code: setup.code, timedOut: late, stderr: setup.stderr.trim().slice(-2000) },
+        "quiet",
+      );
+      await escalate(
+        late
+          ? `The setup command did not finish in ${config.setupTimeoutMinutes} minutes.`
+          : "The setup command failed in the worktree.",
+      );
+      return finish("needs-human", late ? "setup timeout" : "setup failed");
     }
   }
 
