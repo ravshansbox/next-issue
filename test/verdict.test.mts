@@ -18,11 +18,36 @@ const BLOCKING: Verdict = {
   ],
 };
 
-test("readVerdict refuses a value without findings", () => {
+test("readVerdict refuses a value that is not a verdict", () => {
   assert.equal(readVerdict(undefined), undefined);
+  assert.equal(readVerdict("approve"), undefined);
   assert.equal(readVerdict({ summary: "x" }), undefined);
   assert.equal(readVerdict({ findings: [] }), undefined);
-  assert.notEqual(readVerdict(BLOCKING), undefined);
+  assert.equal(readVerdict({ verdict: "approve", summary: "x" }), undefined);
+  assert.equal(readVerdict({ verdict: "ok", summary: "x", findings: [] }), undefined);
+  assert.equal(readVerdict({ verdict: "approve", summary: 1, findings: [] }), undefined);
+  assert.deepEqual(readVerdict(BLOCKING), BLOCKING);
+});
+
+test("readVerdict refuses a finding that is not complete", () => {
+  const bad = (findings: unknown[]): unknown => ({ verdict: "request_changes", summary: "x", findings });
+  assert.equal(readVerdict(bad([{ detail: "no severity" }])), undefined);
+  assert.equal(readVerdict(bad([{ severity: "bad", detail: "wrong severity" }])), undefined);
+  assert.equal(readVerdict(bad([{ severity: "blocking" }])), undefined);
+  assert.equal(readVerdict(bad(["text"])), undefined);
+  assert.equal(readVerdict(bad([null])), undefined);
+});
+
+test("readVerdict drops the fields that it does not know", () => {
+  assert.deepEqual(
+    readVerdict({
+      verdict: "approve",
+      summary: "Good.",
+      findings: [{ severity: "minor", detail: "long name", file: "a.ts" }],
+      score: 9,
+    }),
+    { verdict: "approve", summary: "Good.", findings: [{ severity: "minor", detail: "long name" }] },
+  );
 });
 
 test("only a blocking finding stops the approval", () => {

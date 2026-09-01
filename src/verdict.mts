@@ -41,12 +41,33 @@ export const VERDICT_SCHEMA: Record<string, unknown> = {
   required: ["verdict", "summary", "findings"],
 };
 
+const SEVERITIES: string[] = ["blocking", "minor"];
+
+const VERDICTS: string[] = ["approve", "request_changes"];
+
 export function readVerdict(value: unknown): Verdict | undefined {
-  const verdict = value as Verdict | undefined;
-  if (verdict === undefined || typeof verdict.summary !== "string" || !Array.isArray(verdict.findings)) {
+  if (typeof value !== "object" || value === null) {
     return undefined;
   }
-  return verdict;
+  const { verdict, summary, findings } = value as Record<string, unknown>;
+  if (typeof verdict !== "string" || !VERDICTS.includes(verdict)) {
+    return undefined;
+  }
+  if (typeof summary !== "string" || !Array.isArray(findings)) {
+    return undefined;
+  }
+  const checked: Finding[] = [];
+  for (const item of findings) {
+    if (typeof item !== "object" || item === null) {
+      return undefined;
+    }
+    const { severity, detail } = item as Record<string, unknown>;
+    if (typeof severity !== "string" || !SEVERITIES.includes(severity) || typeof detail !== "string") {
+      return undefined;
+    }
+    checked.push({ severity: severity as Severity, detail });
+  }
+  return { verdict: verdict as Verdict["verdict"], summary, findings: checked };
 }
 
 export function blockingFindings(verdict: Verdict): Finding[] {
