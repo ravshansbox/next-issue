@@ -58,12 +58,18 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
             timedOut = true;
             child.kill("SIGKILL");
           }, options.timeoutMs);
+    let done = false;
     child.on("error", (error) => {
       clearTimeout(timer);
+      done = true;
       reject(error);
     });
     child.on("close", (code) => {
       clearTimeout(timer);
+      if (done) {
+        return;
+      }
+      done = true;
       const result = { code: code ?? 1, stdout, stderr, timedOut };
       observer?.({
         command,

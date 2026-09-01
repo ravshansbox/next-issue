@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { must, run } from "../src/exec.mts";
+import { type CommandRecord, must, run, setCommandObserver } from "../src/exec.mts";
 
 const NODE = process.execPath;
 
@@ -33,6 +33,24 @@ test("run kills a child that passes the time limit", async () => {
 
 test("run reports a command that does not exist", async () => {
   await assert.rejects(run("next-issue-no-such-command", []), /ENOENT/);
+});
+
+test("the observer sees every command", async () => {
+  const seen: CommandRecord[] = [];
+  setCommandObserver((record) => seen.push(record));
+  try {
+    await run(NODE, script("process.exit(0)"), { cwd: process.cwd() });
+    await run(NODE, script("process.stderr.write(' bad \\n'); process.exit(2)"));
+  } finally {
+    setCommandObserver(() => undefined);
+  }
+  assert.equal(seen.length, 2);
+  assert.equal(seen[0]!.code, 0);
+  assert.equal(seen[0]!.stderr, "");
+  assert.equal(seen[0]!.cwd, process.cwd());
+  assert.ok(seen[0]!.ms >= 0);
+  assert.equal(seen[1]!.code, 2);
+  assert.equal(seen[1]!.stderr, "bad");
 });
 
 test("must gives the trimmed output and throws on a code that is not zero", async () => {
