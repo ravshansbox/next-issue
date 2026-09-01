@@ -3,7 +3,11 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { CONFIG_FILE, loadConfig, managedLabels, writeDefaultConfig } from "../src/config.mts";
+import { type Config, CONFIG_FILE, loadConfig, managedLabels, writeDefaultConfig } from "../src/config.mts";
+
+async function parse(value: unknown): Promise<Config> {
+  return loadConfig(await root(JSON.stringify(value)));
+}
 
 async function root(content?: string): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "next-issue-"));
@@ -42,6 +46,29 @@ test("the file merges into the defaults", async () => {
 
 test("a broken file stops the run", async () => {
   await assert.rejects(loadConfig(await root("{ oops")), /is not valid JSON/);
+});
+
+test("a field of the wrong type stops the run", async () => {
+  await assert.rejects(parse({ maxCiFixes: "3" }), /maxCiFixes must be a whole number of 0 or more/);
+  await assert.rejects(parse({ checkIntervalSeconds: 0 }), /checkIntervalSeconds must be a whole number of 1/);
+  await assert.rejects(parse({ maxReviewRounds: 1.5 }), /maxReviewRounds must be a whole number of 1/);
+  await assert.rejects(parse({ draftPullRequest: "yes" }), /draftPullRequest must be true or false/);
+  await assert.rejects(parse({ remote: "" }), /remote must be text that is not empty/);
+  await assert.rejects(parse({ setupCommand: 12 }), /setupCommand must be text that is not empty/);
+  await assert.rejects(parse({ labels: "none" }), /labels must be an object/);
+  await assert.rejects(parse({ models: { fixer: "" } }), /models.fixer must be text that is not empty/);
+});
+
+test("an unknown field stops the run", async () => {
+  await assert.rejects(parse({ maxCiFixed: 3 }), /unknown field: maxCiFixed/);
+  await assert.rejects(parse({ models: { implementor: "m" } }), /unknown model role: implementor/);
+  await assert.rejects(parse({ labels: { blocked: "x" } }), /unknown label name: blocked/);
+});
+
+test("a budget of zero and an empty ready label are allowed", async () => {
+  const config = await parse({ maxCiFixes: 0, labels: { ready: "" } });
+  assert.equal(config.maxCiFixes, 0);
+  assert.equal(config.labels.ready, "");
 });
 
 test("managedLabels holds every label the harness sets", async () => {
