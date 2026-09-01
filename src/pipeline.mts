@@ -114,6 +114,8 @@ type Run = {
 
 export type Skip = "stop-label" | "not-ready" | "in-flight" | "assigned";
 
+type Gate = { done: true; report: IssueReport } | { done: false; fixed: boolean };
+
 export function skipReason(
   issue: Issue,
   config: Config,
@@ -277,7 +279,7 @@ async function work(
   await writeState(repo, state);
   log.event("pull-request.ready", { pr: state.pr }, "quiet");
 
-  for (;;) {
+  const gate = async (): Promise<Gate> => {
     const checks = await log.step("checks", { pr: state.pr }, () =>
       ports.waitForChecks(repo, branch, {
         intervalSeconds: config.checkIntervalSeconds,
@@ -289,27 +291,38 @@ async function work(
     log.event("checks.state", { state: checks });
     if (checks === "timeout") {
       await escalate("The checks did not finish in time.");
-      return finish("needs-human", "checks timeout");
+      return { done: true, report: await finish("needs-human", "checks timeout") };
     }
-    if (checks === "fail") {
-      if (state.ciFixes >= config.maxCiFixes) {
-        await escalate(`The limit of ${config.maxCiFixes} check fixes was reached.`);
-        return finish("needs-human", "check budget");
-      }
-      state.ciFixes += 1;
-      await writeState(repo, state);
-      const logs = await ports.failedCheckLogs(repo, branch, config.logMaxChars);
-      log.event("checks.logs", { chars: logs.length });
-      const committed = await fixRound(
-        job,
-        "The continuous integration checks failed.",
-        logs,
-        history(state.reviewLog),
-      );
-      if (!committed) {
-        await escalate("The fixer added no commit for the failed checks.");
-        return finish("needs-human", "no fix commit");
-      }
+    if (checks !== "fail") {
+      return { done: false, fixed: false };
+    }
+    if (state.ciFixes >= config.maxCiFixes) {
+      await escalate(`The limit of ${config.maxCiFixes} check fixes was reached.`);
+      return { done: true, report: await finish("needs-human", "check budget") };
+    }
+    state.ciFixes += 1;
+    await writeState(repo, state);
+    const logs = await ports.failedCheckLogs(repo, branch, config.logMaxChars);
+    log.event("checks.logs", { chars: logs.length });
+    const committed = await fixRound(
+      job,
+      "The continuous integration checks failed.",
+      logs,
+      history(state.reviewLog),
+    );
+    if (!committed) {
+      await escalate("The fixer added no commit for the failed checks.");
+      return { done: true, report: await finish("needs-human", "no fix commit") };
+    }
+    return { done: false, fixed: true };
+  };
+
+  for (;;) {
+    const before = await gate();
+    if (before.done) {
+      return before.report;
+    }
+    if (before.fixed) {
       continue;
     }
 
@@ -355,6 +368,13 @@ async function work(
     await ports.commentOnPr(repo, state.pr, formatVerdict(verdict));
 
     if (isApproved(verdict)) {
+      const after = await gate();
+      if (after.done) {
+        return after.report;
+      }
+      if (after.fixed) {
+        continue;
+      }
       if (config.draftPullRequest && !(await ports.markPrReady(repo, state.pr))) {
         log.event("pull-request.undraft.fail", { pr: state.pr }, "quiet");
       }
