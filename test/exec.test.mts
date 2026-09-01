@@ -31,6 +31,11 @@ test("run kills a child that passes the time limit", async () => {
   assert.notEqual(result.code, 0);
 });
 
+test("run keeps only the tail of a long output", async () => {
+  const result = await run(NODE, script("process.stdout.write('a'.repeat(100))"), { tailChars: 10 });
+  assert.equal(result.stdout, "a".repeat(10));
+});
+
 test("run reports a command that does not exist", async () => {
   await assert.rejects(run("next-issue-no-such-command", []), /ENOENT/);
 });

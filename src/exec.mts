@@ -12,6 +12,7 @@ export type RunOptions = {
   input?: string;
   inherit?: boolean;
   timeoutMs?: number;
+  tailChars?: number;
 };
 
 export type CommandRecord = {
@@ -55,6 +56,9 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
     child.stderr?.setEncoding("utf8");
     child.stdout?.on("data", (chunk: string) => {
       stdout += chunk;
+      if (options.tailChars !== undefined && stdout.length > options.tailChars) {
+        stdout = stdout.slice(-options.tailChars);
+      }
     });
     child.stderr?.on("data", (chunk: string) => {
       stderr += chunk;
