@@ -25,7 +25,15 @@ import {
   waitForChecks,
 } from "./github.mts";
 import { message, type Recorder } from "./observe.mts";
-import { capDiff, fixPrompt, implementPrompt, parseCommitSubject, reviewPrompt } from "./prompts.mts";
+import {
+  capDiff,
+  type FixKind,
+  fixPrompt,
+  implementPrompt,
+  parseCommitSubject,
+  parseUnrelated,
+  reviewPrompt,
+} from "./prompts.mts";
 import { type IssueState, readState, type ReviewRound, writeState } from "./state.mts";
 import {
   blockingFindings,
@@ -115,6 +123,8 @@ type Run = {
 export type Skip = "stop-label" | "not-ready" | "in-flight" | "assigned";
 
 type Gate = { done: true; report: IssueReport } | { done: false; fixed: boolean };
+
+type Fix = { committed: true } | { committed: false; unrelated?: string };
 
 export function skipReason(
   issue: Issue,
@@ -304,15 +314,24 @@ async function work(
     await writeState(repo, state);
     const logs = await ports.failedCheckLogs(repo, branch, config.logMaxChars);
     log.event("checks.logs", { chars: logs.length });
-    const committed = await fixRound(
+    const fix = await fixRound(
       job,
       "The continuous integration checks failed.",
       logs,
       history(state.reviewLog),
+      "checks",
     );
-    if (!committed) {
-      await escalate("The fixer added no commit for the failed checks.");
-      return { done: true, report: await finish("needs-human", "no fix commit") };
+    if (!fix.committed) {
+      const note = fix.unrelated;
+      await escalate(
+        note === undefined
+          ? "The fixer added no commit for the failed checks."
+          : `The checks fail for a reason this change did not cause: ${note}`,
+      );
+      return {
+        done: true,
+        report: await finish("needs-human", note === undefined ? "no fix commit" : "unrelated failure"),
+      };
     }
     return { done: false, fixed: true };
   };
@@ -393,35 +412,52 @@ async function work(
     state.reviewLog.push({ round: state.reviewRounds, fingerprint: mark, findings: formatFindings(blocking) });
     await writeState(repo, state);
 
-    const committed = await fixRound(job, "The reviewer requested changes.", formatFindings(blocking), earlier);
-    if (!committed) {
+    const fix = await fixRound(
+      job,
+      "The reviewer requested changes.",
+      formatFindings(blocking),
+      earlier,
+      "review",
+    );
+    if (!fix.committed) {
       await escalate("The fixer added no commit for the review findings.");
       return finish("needs-human", "no fix commit");
     }
   }
 }
 
-async function fixRound(job: Run, reason: string, detail: string, earlier: string[]): Promise<boolean> {
+async function fixRound(
+  job: Run,
+  reason: string,
+  detail: string,
+  earlier: string[],
+  kind: FixKind,
+): Promise<Fix> {
   const { context, issue, log, worktree, branch } = job;
   const { ports } = context;
   const result = await log.step("fix", { reason }, () =>
     ports.runAgent(log, {
       name: "fixer",
       cwd: worktree,
-      prompt: fixPrompt(issue, reason, detail, earlier),
+      prompt: fixPrompt(issue, reason, detail, earlier, kind),
       profile: CODING,
       model: context.config.models.fixer,
       timeoutMs: context.config.agentTimeoutMinutes * 60_000,
     }),
   );
+  const unrelated = parseUnrelated(result.text);
+  if (unrelated !== undefined) {
+    log.event("fix.unrelated", { reason, note: unrelated }, "quiet");
+    return { committed: false, unrelated };
+  }
   const subject = parseCommitSubject(result.text, `fix: address feedback on issue #${issue.number}`);
   if (!(await ports.commitAll(worktree, `${subject}\n\nRefs #${issue.number}`))) {
     log.event("commit.empty", { reason }, "quiet");
-    return false;
+    return { committed: false };
   }
   log.event("commit", { subject });
   await ports.push(worktree, context.config.remote, branch);
-  return true;
+  return { committed: true };
 }
 
 async function cleanUp(context: Context, log: Recorder, issue: number): Promise<void> {

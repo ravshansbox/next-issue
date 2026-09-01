@@ -50,6 +50,10 @@ when:
 
 - the check budget or the review budget runs out;
 - a fixer round adds no commit, so there is no progress;
+- the fixer reports that the checks fail for a reason the change did not cause,
+   such as a test already broken on the base branch or one that fails only under
+   load. It changes nothing and the reason reaches the pull request, rather than
+   the fixer spending its whole budget on a failure it cannot fix;
 - the reviewer repeats a finding set from an earlier round, which shows a
    ping-pong between the fixer and the reviewer;
 - the reviewer gives no verdict, or the checks do not finish in time;

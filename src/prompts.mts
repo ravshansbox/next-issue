@@ -63,11 +63,20 @@ export function reviewPrompt(
   ].join("\n\n");
 }
 
+export type FixKind = "checks" | "review";
+
+const UNRELATED_RULE = [
+  "The checks can fail for a reason this change did not cause: a test that is already broken on the base branch, one that exercises code the diff does not touch, or one that fails only under load.",
+  "Establish that before you fix anything. If the failure is not yours, change nothing and end your final message with one line in the form `unrelated: <one sentence on what fails and why it is not this change>`.",
+  "A person then reads it. Do not weaken, skip or re-record a test to make the checks pass.",
+].join("\n");
+
 export function fixPrompt(
   issue: Issue,
   reason: string,
   detail: string,
   earlier: string[],
+  kind: FixKind,
 ): string {
   return [
     `You are the fixer. Correct the work for issue #${issue.number}: ${issue.title}.`,
@@ -82,10 +91,17 @@ export function fixPrompt(
       : "",
     "## Rules",
     "Fix the cause, not the symptom. Keep the change minimal.",
+    kind === "checks" ? UNRELATED_RULE : "",
     COMMIT_RULES,
   ]
     .filter((part) => part.length > 0)
     .join("\n\n");
+}
+
+export function parseUnrelated(text: string): string | undefined {
+  const match = /^unrelated:\s*(.+)$/im.exec(text);
+  const note = match?.[1]?.trim();
+  return note !== undefined && note.length > 0 ? note : undefined;
 }
 
 export function parseCommitSubject(text: string, fallback: string): string {

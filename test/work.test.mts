@@ -51,6 +51,7 @@ type Plan = {
   setupCode?: number;
   setupTimedOut?: boolean;
   fail?: keyof Ports;
+  fixerText?: string;
   saved?: IssueState;
   issue?: Issue;
 };
@@ -117,6 +118,9 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       state.prompts.push({ role: request.name, prompt: request.prompt });
       if (request.name === "reviewer") {
         return result("reviewed", verdicts.shift());
+      }
+      if (request.name === "fixer" && plan.fixerText !== undefined) {
+        return result(plan.fixerText);
       }
       return result(`commit: fix: work on #${issue.number}`);
     },
@@ -202,6 +206,29 @@ test("a build that fails after the approval starts a fix round", async (t) => {
   assert.equal(report.ciFixes, 1);
   assert.deepEqual(roles(target), ["implementer", "reviewer", "fixer", "reviewer"]);
   assert.deepEqual(target.ready, [101]);
+});
+
+test("a fixer that reports an unrelated failure hands over without a commit", async (t) => {
+  const target = await harness(t, {
+    checks: ["fail"],
+    fixerText: "unrelated: product-inventories fails on main too, the diff does not touch it",
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "needs-human");
+  assert.equal(report.reason, "unrelated failure");
+  assert.equal(target.pushes, 1);
+  assert.deepEqual(target.ready, []);
+  assert.match(target.comments.at(-1)!, /a reason this change did not cause: product-inventories fails on main too/);
+});
+
+test("the fixer may only plead unrelated about the checks", async (t) => {
+  const target = await harness(t, {
+    verdicts: [changes("The count is wrong.")],
+    fixerText: "unrelated: not my problem",
+  });
+  const report = await target.run();
+  assert.equal(report.reason, "no fix commit");
+  assert.doesNotMatch(target.prompts.at(-1)!.prompt, /unrelated: /);
 });
 
 test("the check budget hands the issue to a person", async (t) => {
