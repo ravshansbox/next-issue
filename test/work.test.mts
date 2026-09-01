@@ -1,0 +1,322 @@
+import assert from "node:assert/strict";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { test, type TestContext } from "node:test";
+import type { AgentRequest, AgentResult } from "../src/agents.mts";
+import { type Config, loadConfig } from "../src/config.mts";
+import type { CheckState, Issue } from "../src/github.mts";
+import { Recorder } from "../src/observe.mts";
+import { type Context, type IssueReport, type Ports, processIssue } from "../src/pipeline.mts";
+import { type IssueState, readState, writeState } from "../src/state.mts";
+import type { Verdict } from "../src/verdict.mts";
+
+const ISSUE: Issue = {
+  number: 7,
+  title: "Add a flag",
+  body: "Please add it.",
+  createdAt: "2026-01-01T00:00:00Z",
+  labels: ["status:todo"],
+  assignees: [],
+};
+
+const APPROVE: Verdict = { verdict: "approve", summary: "Good.", findings: [] };
+
+function changes(...details: string[]): Verdict {
+  return {
+    verdict: "request_changes",
+    summary: "Please fix.",
+    findings: details.map((detail) => ({ severity: "blocking" as const, detail })),
+  };
+}
+
+function result(text: string, structured?: unknown): AgentResult {
+  return {
+    text,
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    turns: 1,
+    toolCalls: 0,
+    ms: 1,
+    costUsd: 0,
+    structured,
+  };
+}
+
+type Plan = {
+  config?: Partial<Config>;
+  checks?: CheckState[];
+  verdicts?: Verdict[];
+  commits?: boolean[];
+  diff?: string;
+  setupCode?: number;
+  fail?: keyof Ports;
+  saved?: IssueState;
+  issue?: Issue;
+};
+
+type Harness = {
+  context: Context;
+  labels: Array<{ kind: string; number: number; label: string }>;
+  prompts: Array<{ role: string; prompt: string }>;
+  comments: string[];
+  pushes: number;
+  ready: number[];
+  run: () => Promise<IssueReport>;
+  state: () => Promise<IssueState | undefined>;
+};
+
+async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
+  t.mock.method(process.stderr, "write", () => true);
+  const root = await mkdtemp(join(tmpdir(), "next-issue-"));
+  const repo = { owner: "acme", name: "tool", root };
+  const config = { ...(await loadConfig(root)), ...plan.config };
+  const issue = plan.issue ?? ISSUE;
+  if (plan.saved !== undefined) {
+    await writeState(repo, plan.saved);
+  }
+
+  const checks = [...(plan.checks ?? ["pass"])];
+  const verdicts = [...(plan.verdicts ?? [APPROVE])];
+  const commits = [...(plan.commits ?? [])];
+  const state: Harness = {
+    context: undefined as unknown as Context,
+    labels: [],
+    prompts: [],
+    comments: [],
+    pushes: 0,
+    ready: [],
+    run: () => processIssue(state.context, issue),
+    state: () => readState(repo, issue.number),
+  };
+
+  const ports: Ports = {
+    addWorktree: async () => join(root, "worktree"),
+    assignIssue: async () => undefined,
+    commentOnPr: async (_repo, _pr, body) => {
+      state.comments.push(body);
+    },
+    commitAll: async () => commits.shift() ?? true,
+    createPr: async () => 101,
+    diff: async () => plan.diff ?? "the diff",
+    failedCheckLogs: async () => "the failed job logs",
+    findPr: async () => undefined,
+    hasWorktree: async () => false,
+    issueComments: async () => [],
+    markPrReady: async (_repo, pr) => {
+      state.ready.push(pr);
+      return true;
+    },
+    push: async () => {
+      state.pushes += 1;
+    },
+    removeWorktree: async () => true,
+    runAgent: async (_recorder, request: AgentRequest) => {
+      state.prompts.push({ role: request.name, prompt: request.prompt });
+      if (request.name === "reviewer") {
+        return result("reviewed", verdicts.shift());
+      }
+      return result(`commit: fix: work on #${issue.number}`);
+    },
+    runSetup: async () => ({ code: plan.setupCode ?? 0, stderr: "" }),
+    setLabel: async (_repo, kind, number, label) => {
+      state.labels.push({ kind, number, label });
+    },
+    waitForChecks: async () => checks.shift() ?? "pass",
+  };
+  if (plan.fail !== undefined) {
+    (ports[plan.fail] as unknown) = async () => {
+      throw new Error("the port broke");
+    };
+  }
+
+  const recorder = await Recorder.create(root, "quiet");
+  t.after(() => recorder.close());
+  state.context = { repo, config, base: "main", login: "me", recorder, ports };
+  return state;
+}
+
+function roles(target: Harness): string[] {
+  return target.prompts.map((entry) => entry.role);
+}
+
+test("a clean run implements, reviews and finishes", async (t) => {
+  const target = await harness(t);
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.equal(report.reason, undefined);
+  assert.equal(report.pr, 101);
+  assert.equal(report.reviewRounds, 1);
+  assert.equal(report.ciFixes, 0);
+  assert.deepEqual(roles(target), ["implementer", "reviewer"]);
+  assert.equal(target.pushes, 1);
+  assert.deepEqual(target.ready, [101]);
+  assert.equal((await target.state())?.phase, "done");
+  assert.match(target.comments[0]!, /Review: approved/);
+});
+
+test("the status labels go to the issue and to the pull request", async (t) => {
+  const target = await harness(t);
+  await target.run();
+  assert.deepEqual(target.labels, [
+    { kind: "issue", number: 7, label: "status:in-progress" },
+    { kind: "issue", number: 7, label: "status:in-review" },
+    { kind: "pr", number: 101, label: "status:in-review" },
+    { kind: "issue", number: 7, label: "status:done" },
+    { kind: "pr", number: 101, label: "status:done" },
+  ]);
+});
+
+test("a failed build gives the logs to the fixer and then reviews", async (t) => {
+  const target = await harness(t, { checks: ["fail", "pass"] });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.equal(report.ciFixes, 1);
+  assert.deepEqual(roles(target), ["implementer", "fixer", "reviewer"]);
+  assert.match(target.prompts[1]!.prompt, /the failed job logs/);
+  assert.equal(target.pushes, 2);
+});
+
+test("the check budget hands the issue to a person", async (t) => {
+  const target = await harness(t, { config: { maxCiFixes: 1 }, checks: ["fail", "fail"] });
+  const report = await target.run();
+  assert.equal(report.outcome, "needs-human");
+  assert.equal(report.reason, "check budget");
+  assert.equal(report.ciFixes, 1);
+  assert.equal(target.labels.at(-1)?.label, "status:needs-human");
+  assert.match(target.comments.at(-1)!, /needs help: The limit of 1 check fixes/);
+  assert.equal((await target.state())?.phase, "needs-human");
+});
+
+test("a check budget of zero stops before the first fix", async (t) => {
+  const target = await harness(t, { config: { maxCiFixes: 0 }, checks: ["fail"] });
+  const report = await target.run();
+  assert.equal(report.reason, "check budget");
+  assert.deepEqual(roles(target), ["implementer"]);
+});
+
+test("the review budget hands the issue to a person", async (t) => {
+  const target = await harness(t, {
+    config: { maxReviewRounds: 1 },
+    verdicts: [changes("The count is wrong.")],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "needs-human");
+  assert.equal(report.reason, "review budget");
+  assert.equal(report.reviewRounds, 1);
+  assert.deepEqual(roles(target), ["implementer", "reviewer", "fixer"]);
+});
+
+test("a repeated finding set stops the ping-pong", async (t) => {
+  const target = await harness(t, {
+    verdicts: [changes("The count is wrong."), changes("the  count is wrong")],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "needs-human");
+  assert.equal(report.reason, "repeated findings");
+  assert.equal(report.reviewRounds, 2);
+});
+
+test("the later reviewer sees the earlier findings", async (t) => {
+  const target = await harness(t, { verdicts: [changes("The count is wrong."), APPROVE] });
+  await target.run();
+  const second = target.prompts.filter((entry) => entry.role === "reviewer")[1]!.prompt;
+  assert.match(second, /Earlier findings\nRound 1:\n- The count is wrong\./);
+});
+
+test("an implementer that changes nothing hands the issue to a person", async (t) => {
+  const target = await harness(t, { commits: [false] });
+  const report = await target.run();
+  assert.equal(report.reason, "no implementation commit");
+  assert.equal(report.pr, undefined);
+  assert.equal(target.pushes, 0);
+});
+
+test("a fixer that changes nothing hands the issue to a person", async (t) => {
+  const target = await harness(t, { checks: ["fail"], commits: [true, false] });
+  const report = await target.run();
+  assert.equal(report.reason, "no fix commit");
+  assert.equal(target.pushes, 1);
+});
+
+test("a check wait that runs out of time hands the issue to a person", async (t) => {
+  const target = await harness(t, { checks: ["timeout"] });
+  const report = await target.run();
+  assert.equal(report.reason, "checks timeout");
+});
+
+test("a repository without checks goes straight to the review", async (t) => {
+  const target = await harness(t, { checks: ["none"] });
+  assert.equal((await target.run()).outcome, "done");
+});
+
+test("a reviewer without a verdict hands the issue to a person", async (t) => {
+  const target = await harness(t, { verdicts: [] });
+  const report = await target.run();
+  assert.equal(report.reason, "no verdict");
+});
+
+test("a verdict of the wrong shape counts as no verdict", async (t) => {
+  const target = await harness(t, {
+    verdicts: [{ verdict: "request_changes", summary: "x" } as unknown as Verdict],
+  });
+  assert.equal((await target.run()).reason, "no verdict");
+});
+
+test("only minor findings give an approval", async (t) => {
+  const target = await harness(t, {
+    verdicts: [{ verdict: "request_changes", summary: "Taste.", findings: [{ severity: "minor", detail: "long name" }] }],
+  });
+  assert.equal((await target.run()).outcome, "done");
+});
+
+test("a setup command that fails hands the issue to a person", async (t) => {
+  const target = await harness(t, { config: { setupCommand: "npm ci" }, setupCode: 1 });
+  const report = await target.run();
+  assert.equal(report.reason, "setup failed");
+  assert.deepEqual(roles(target), []);
+});
+
+test("a diff that fits reaches the reviewer whole", async (t) => {
+  const target = await harness(t, { diff: "the whole diff" });
+  await target.run();
+  const prompt = target.prompts.at(-1)!.prompt;
+  assert.match(prompt, /the whole diff/);
+  assert.equal(prompt.includes("cut here"), false);
+});
+
+test("a step that throws gives the error outcome and hands the issue over", async (t) => {
+  const target = await harness(t, { fail: "push" });
+  const report = await target.run();
+  assert.equal(report.outcome, "error");
+  assert.match(report.reason!, /the port broke/);
+  assert.equal(target.labels.at(-1)?.label, "status:needs-human");
+  assert.equal((await target.state())?.phase, "needs-human");
+});
+
+test("a saved state carries on and does not implement again", async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: ["status:in-progress"], assignees: ["me"] },
+    saved: {
+      issue: 7,
+      phase: "review",
+      branch: "issue-7",
+      pr: 101,
+      ciFixes: 2,
+      reviewRounds: 1,
+      reviewLog: [{ round: 1, fingerprint: "old", findings: "- old" }],
+    },
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.equal(report.ciFixes, 2);
+  assert.equal(report.reviewRounds, 2);
+  assert.deepEqual(roles(target), ["reviewer"]);
+});
+
+test("a skipped issue does nothing", async (t) => {
+  const target = await harness(t, { issue: { ...ISSUE, labels: [] } });
+  const report = await target.run();
+  assert.equal(report.outcome, "skipped");
+  assert.deepEqual(target.labels, []);
+  assert.deepEqual(roles(target), []);
+});
