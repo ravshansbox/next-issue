@@ -15,6 +15,7 @@ export type Kind = "issue" | "pr";
 export type CheckState = "pass" | "fail" | "pending" | "none" | "timeout";
 
 const CHECK_PENDING_CODE = 8;
+const KNOWN_LABELS = new Map<string, Set<string>>();
 const NO_CHECKS = /no checks reported/i;
 
 type CheckSummary = { name: string; bucket: string; link: string; description: string };
@@ -108,7 +109,17 @@ export async function setLabel(
 }
 
 export async function ensureLabel(repo: Repo, label: string): Promise<void> {
+  let known = KNOWN_LABELS.get(slug(repo));
+  if (known === undefined) {
+    const raw = await gh(repo, ["label", "list", "--limit", "1000", "--json", "name"]);
+    known = new Set((JSON.parse(raw) as Array<{ name: string }>).map((item) => item.name));
+    KNOWN_LABELS.set(slug(repo), known);
+  }
+  if (known.has(label)) {
+    return;
+  }
   await run("gh", ["label", "create", label, "--repo", slug(repo)], { cwd: repo.root });
+  known.add(label);
 }
 
 export async function findPr(repo: Repo, branch: string): Promise<number | undefined> {
