@@ -66,6 +66,7 @@ type Harness = {
   waits: WaitOptions[];
   pushes: number;
   ready: number[];
+  deleted: string[];
   run: () => Promise<IssueReport>;
   state: () => Promise<IssueState | undefined>;
 };
@@ -93,6 +94,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     waits: [],
     pushes: 0,
     ready: [],
+    deleted: [],
     run: () => processIssue(state.context, issue),
     state: () => readState(repo, issue.number),
   };
@@ -111,6 +113,10 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       return committed;
     },
     createPr: async () => 101,
+    deleteBranch: async (_repo, branch) => {
+      state.deleted.push(branch);
+      return true;
+    },
     diff: async () => plan.diff ?? "the diff",
     failedCheckLogs: async () => "the failed job logs",
     findPr: async () => undefined,
@@ -176,7 +182,8 @@ test("a clean run implements, reviews and finishes", async (t) => {
   assert.deepEqual(roles(target), ["implementer", "reviewer"]);
   assert.equal(target.pushes, 1);
   assert.deepEqual(target.ready, [101]);
-  assert.equal((await target.state())?.phase, "done");
+  assert.equal(await target.state(), undefined);
+  assert.deepEqual(target.deleted, ["issue-7"]);
   assert.match(target.comments[0]!, /Review: approved/);
 });
 

@@ -4,7 +4,7 @@ import type { Repo } from "./git.mts";
 
 export const STATE_DIR = ".next-issue";
 
-export type Phase = "claimed" | "implemented" | "review" | "done";
+export type Phase = "claimed" | "implemented" | "review";
 
 export type IssueState = {
   issue: number;
@@ -62,4 +62,8 @@ export async function takeStop(repo: Repo): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export async function dropState(repo: Repo, issue: number): Promise<void> {
+  await rm(file(repo, issue), { force: true });
 }

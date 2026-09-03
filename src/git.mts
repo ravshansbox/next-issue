@@ -129,3 +129,8 @@ export async function push(cwd: string, remote: string, branch: string): Promise
 export async function revision(cwd: string): Promise<string> {
   return must("git", ["rev-parse", "HEAD"], { cwd });
 }
+
+export async function deleteBranch(repo: Repo, branch: string): Promise<boolean> {
+  const result = await run("git", ["branch", "-D", branch], { cwd: repo.root });
+  return result.code === 0;
+}
