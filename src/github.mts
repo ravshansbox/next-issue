@@ -44,6 +44,8 @@ export async function openIssues(repo: Repo, limit: number): Promise<Issue[]> {
     "list",
     "--state",
     "open",
+    "--search",
+    "sort:created-asc",
     "--limit",
     String(limit),
     "--json",
