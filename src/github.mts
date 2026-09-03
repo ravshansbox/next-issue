@@ -192,12 +192,12 @@ async function watchOnce(
   branch: string,
   intervalSeconds: number,
   timeoutMs: number,
-  inherit: boolean,
+  show: boolean,
 ): Promise<CheckState> {
   const watch = await run(
     "gh",
     ["pr", "checks", branch, "--watch", "--fail-fast", "--interval", String(intervalSeconds), "--repo", slug(repo)],
-    { cwd: repo.root, inherit, timeoutMs },
+    { cwd: repo.root, show, timeoutMs },
   );
   if (watch.timedOut) {
     return "timeout";
@@ -229,7 +229,7 @@ export type PollOptions = {
   head?: string;
 };
 
-export type WaitOptions = PollOptions & { inherit: boolean };
+export type WaitOptions = PollOptions & { show: boolean };
 
 const REAL_CLOCK: Clock = {
   now: () => Date.now(),
@@ -294,7 +294,7 @@ export function waitForChecks(repo: Repo, branch: string, options: WaitOptions):
       head: () => prHead(repo, branch),
       list: async () => ((await readChecks(repo, branch)) === "none" ? "none" : "some"),
       watch: (timeoutMs) =>
-        watchOnce(repo, branch, options.intervalSeconds, timeoutMs, options.inherit),
+        watchOnce(repo, branch, options.intervalSeconds, timeoutMs, options.show),
     },
     options,
   );
