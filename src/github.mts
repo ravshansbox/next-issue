@@ -163,6 +163,10 @@ export async function createPr(
   return number;
 }
 
+async function prHead(repo: Repo, branch: string): Promise<string> {
+  return gh(repo, ["pr", "view", branch, "--json", "headRefOid", "--jq", ".headRefOid"]);
+}
+
 async function readChecks(repo: Repo, branch: string): Promise<CheckSummary[] | "none"> {
   const result = await run(
     "gh",
@@ -207,6 +211,7 @@ async function watchOnce(
 }
 
 export type ChecksProbe = {
+  head: () => Promise<string>;
   list: () => Promise<"none" | "some">;
   watch: (timeoutMs: number) => Promise<CheckState>;
 };
@@ -216,12 +221,14 @@ export type Clock = {
   sleep: (ms: number) => Promise<void>;
 };
 
-export type WaitOptions = {
+export type PollOptions = {
   intervalSeconds: number;
   graceMs: number;
   timeoutMs: number;
-  inherit: boolean;
+  head?: string;
 };
+
+export type WaitOptions = PollOptions & { inherit: boolean };
 
 const REAL_CLOCK: Clock = {
   now: () => Date.now(),
@@ -230,24 +237,27 @@ const REAL_CLOCK: Clock = {
 
 export async function pollChecks(
   probe: ChecksProbe,
-  options: { intervalSeconds: number; graceMs: number; timeoutMs: number },
+  options: PollOptions,
   clock: Clock = REAL_CLOCK,
 ): Promise<CheckState> {
-  const started = clock.now();
-  const deadline = started + options.timeoutMs;
+  const deadline = clock.now() + options.timeoutMs;
   const rest = (): number => Math.max(0, deadline - clock.now());
+  let shown: number | undefined;
   for (;;) {
     if (rest() === 0) {
       return "timeout";
     }
-    if ((await probe.list()) === "none") {
-      if (clock.now() - started >= options.graceMs) {
-        return "none";
-      }
-    } else {
-      const state = await probe.watch(rest());
-      if (state !== "pending") {
-        return state;
+    if (options.head === undefined || (await probe.head()) === options.head) {
+      shown ??= clock.now();
+      if ((await probe.list()) === "none") {
+        if (clock.now() - shown >= options.graceMs) {
+          return "none";
+        }
+      } else {
+        const state = await probe.watch(rest());
+        if (state !== "pending") {
+          return state;
+        }
       }
     }
     await clock.sleep(Math.min(options.intervalSeconds * 1000, rest()));
@@ -257,6 +267,7 @@ export async function pollChecks(
 export function waitForChecks(repo: Repo, branch: string, options: WaitOptions): Promise<CheckState> {
   return pollChecks(
     {
+      head: () => prHead(repo, branch),
       list: async () => ((await readChecks(repo, branch)) === "none" ? "none" : "some"),
       watch: (timeoutMs) =>
         watchOnce(repo, branch, options.intervalSeconds, timeoutMs, options.inherit),
