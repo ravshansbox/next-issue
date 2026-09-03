@@ -50,6 +50,7 @@ type Plan = {
   diff?: string;
   setupCode?: number;
   setupTimedOut?: boolean;
+  selfCommit?: boolean;
   fail?: keyof Ports;
   fixerText?: string;
   saved?: IssueState;
@@ -81,6 +82,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
   const checks = [...(plan.checks ?? ["pass"])];
   const verdicts = [...(plan.verdicts ?? [APPROVE])];
   const commits = [...(plan.commits ?? [])];
+  let head = 0;
   const state: Harness = {
     context: undefined as unknown as Context,
     labels: [],
@@ -99,7 +101,13 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     commentOnPr: async (_repo, _pr, body) => {
       state.comments.push(body);
     },
-    commitAll: async () => commits.shift() ?? true,
+    commitAll: async () => {
+      const committed = commits.shift() ?? true;
+      if (committed) {
+        head += 1;
+      }
+      return committed;
+    },
     createPr: async () => 101,
     diff: async () => plan.diff ?? "the diff",
     failedCheckLogs: async () => "the failed job logs",
@@ -114,6 +122,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       state.pushes += 1;
     },
     removeWorktree: async () => true,
+    revision: async () => String(head),
     runAgent: async (_recorder, request: AgentRequest) => {
       state.prompts.push({ role: request.name, prompt: request.prompt });
       if (request.name === "reviewer") {
@@ -121,6 +130,9 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       }
       if (request.name === "fixer" && plan.fixerText !== undefined) {
         return result(plan.fixerText);
+      }
+      if (plan.selfCommit === true) {
+        head += 1;
       }
       return result(`commit: fix: work on #${issue.number}`);
     },
@@ -411,4 +423,11 @@ test("a skipped issue does nothing", async (t) => {
   assert.equal(report.outcome, "skipped");
   assert.deepEqual(target.labels, []);
   assert.deepEqual(roles(target), []);
+});
+
+test("an agent that commits its own work counts as progress", async (t) => {
+  const target = await harness(t, { commits: [false], selfCommit: true });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.equal(target.pushes, 1);
 });
