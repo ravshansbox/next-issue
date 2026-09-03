@@ -369,7 +369,7 @@ async function work(
       ports.runAgent(log, {
         name: "reviewer",
         cwd: worktree,
-        prompt: reviewPrompt(issue, comments, patch, state.reviewRounds, history(state.reviewLog)),
+        prompt: reviewPrompt(issue, comments, patch, history(state.reviewLog)),
         profile: READ_ONLY,
         model: config.models.reviewer,
         timeoutMs: config.agentTimeoutMinutes * 60_000,

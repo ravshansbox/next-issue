@@ -36,11 +36,10 @@ export function reviewPrompt(
   issue: Issue,
   comments: string[],
   diff: string,
-  round: number,
   earlier: string[],
 ): string {
   const scope =
-    round === 1
+    earlier.length === 0
       ? "Check correctness, scope, repository conventions and test cover."
       : [
           "This is a later round. Judge two things only:",
