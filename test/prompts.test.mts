@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Issue } from "../src/github.mts";
-import { capDiff, fixPrompt, parseCommitSubject, parseUnrelated } from "../src/prompts.mts";
+import { capDiff, fixPrompt, parseCommitSubject, parseUnrelated, reviewPrompt } from "../src/prompts.mts";
 
 const ISSUE: Issue = {
   number: 7,
@@ -55,4 +55,16 @@ test("only the check fixer is offered the unrelated exit", () => {
   const review = fixPrompt(ISSUE, "The reviewer requested changes.", "the findings", [], "review");
   assert.match(checks, /unrelated: /);
   assert.doesNotMatch(review, /unrelated: /);
+});
+
+test("reviewPrompt asks for a full review when no earlier finding exists", () => {
+  const prompt = reviewPrompt(ISSUE, [], "diff", []);
+  assert.doesNotMatch(prompt, /Earlier findings/);
+  assert.match(prompt, /Check correctness/);
+});
+
+test("reviewPrompt narrows a later round to the earlier findings", () => {
+  const prompt = reviewPrompt(ISSUE, [], "diff", ["Round 1:\n- The count is wrong."]);
+  assert.match(prompt, /## Earlier findings\nRound 1:\n- The count is wrong\./);
+  assert.doesNotMatch(prompt, /Check correctness/);
 });
