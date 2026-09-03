@@ -15,6 +15,7 @@ export type Kind = "issue" | "pr";
 export type CheckState = "pass" | "fail" | "pending" | "none" | "timeout";
 
 const CHECK_PENDING_CODE = 8;
+const READ_TRIES = 3;
 const KNOWN_LABELS = new Map<string, Set<string>>();
 const NO_CHECKS = /no checks reported/i;
 
@@ -243,25 +244,48 @@ export async function pollChecks(
   const deadline = clock.now() + options.timeoutMs;
   const rest = (): number => Math.max(0, deadline - clock.now());
   let shown: number | undefined;
+  let failures = 0;
   for (;;) {
     if (rest() === 0) {
       return "timeout";
     }
-    if (options.head === undefined || (await probe.head()) === options.head) {
-      shown ??= clock.now();
-      if ((await probe.list()) === "none") {
-        if (clock.now() - shown >= options.graceMs) {
-          return "none";
-        }
-      } else {
-        const state = await probe.watch(rest());
-        if (state !== "pending") {
-          return state;
-        }
+    const state = await read(probe, options.head, rest(), () => (shown ??= clock.now()));
+    if (state instanceof Error) {
+      failures += 1;
+      if (failures >= READ_TRIES) {
+        throw state;
+      }
+    } else {
+      failures = 0;
+      if (state === "none" && clock.now() - (shown ?? 0) >= options.graceMs) {
+        return "none";
+      }
+      if (state !== "none" && state !== "behind" && state !== "pending") {
+        return state;
       }
     }
     await clock.sleep(Math.min(options.intervalSeconds * 1000, rest()));
   }
+}
+
+async function read(
+  probe: ChecksProbe,
+  head: string | undefined,
+  timeoutMs: number,
+  shown: () => void,
+): Promise<CheckState | "none" | "behind" | Error> {
+  try {
+    if (head !== undefined && (await probe.head()) !== head) {
+      return "behind";
+    }
+    shown();
+    if ((await probe.list()) === "none") {
+      return "none";
+    }
+  } catch (error) {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+  return probe.watch(timeoutMs);
 }
 
 export function waitForChecks(repo: Repo, branch: string, options: WaitOptions): Promise<CheckState> {
