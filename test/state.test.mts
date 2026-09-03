@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { Repo } from "../src/git.mts";
-import { type IssueState, readState, resetState, STATE_DIR, takeStop, writeState } from "../src/state.mts";
+import { dropState, type IssueState, readState, resetState, STATE_DIR, takeStop, writeState } from "../src/state.mts";
 
 async function repo(): Promise<Repo> {
   return { owner: "acme", name: "tool", root: await mkdtemp(join(tmpdir(), "next-issue-")) };
@@ -60,4 +60,12 @@ test("takeStop reports the flag once and then takes it away", async () => {
   await writeFile(join(target.root, STATE_DIR, "stop"), "");
   assert.equal(await takeStop(target), true);
   assert.equal(await takeStop(target), false);
+});
+
+test("dropState takes the state away and accepts a state that is not there", async () => {
+  const target = await repo();
+  await writeState(target, STATE);
+  await dropState(target, 7);
+  assert.equal(await readState(target, 7), undefined);
+  await dropState(target, 7);
 });

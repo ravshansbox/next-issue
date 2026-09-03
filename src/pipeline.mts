@@ -5,6 +5,7 @@ import {
   addWorktree,
   branchName,
   commitAll,
+  deleteBranch,
   diff,
   hasWorktree,
   push,
@@ -35,7 +36,7 @@ import {
   parseUnrelated,
   reviewPrompt,
 } from "./prompts.mts";
-import { type IssueState, readState, type ReviewRound, writeState } from "./state.mts";
+import { dropState, type IssueState, readState, type ReviewRound, writeState } from "./state.mts";
 import {
   blockingFindings,
   fingerprint,
@@ -52,6 +53,7 @@ export type Ports = {
   commentOnPr: typeof commentOnPr;
   commitAll: typeof commitAll;
   createPr: typeof createPr;
+  deleteBranch: typeof deleteBranch;
   diff: typeof diff;
   failedCheckLogs: typeof failedCheckLogs;
   findPr: typeof findPr;
@@ -77,6 +79,7 @@ export const PORTS: Ports = {
   commentOnPr,
   commitAll,
   createPr,
+  deleteBranch,
   diff,
   failedCheckLogs,
   findPr,
@@ -221,6 +224,12 @@ async function work(
     handOver(context, log, issue.number, state, reason);
   const finish = async (outcome: Outcome, reason?: string): Promise<IssueReport> => {
     await cleanUp(context, log, issue.number);
+    if (outcome === "done") {
+      if (!(await ports.deleteBranch(repo, branch))) {
+        log.event("branch.kept", { branch }, "quiet");
+      }
+      await dropState(repo, issue.number);
+    }
     return {
       issue: issue.number,
       outcome,
@@ -405,8 +414,6 @@ async function work(
         log.event("pull-request.undraft.fail", { pr: state.pr }, "quiet");
       }
       await setStatus(context, issue.number, state.pr, config.labels.done);
-      state.phase = "done";
-      await writeState(repo, state);
       return finish("done");
     }
 
