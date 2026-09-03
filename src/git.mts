@@ -120,3 +120,7 @@ export async function commitAll(cwd: string, message: string): Promise<boolean> 
 export async function push(cwd: string, remote: string, branch: string): Promise<void> {
   await must("git", ["push", "-u", remote, branch], { cwd });
 }
+
+export async function revision(cwd: string): Promise<string> {
+  return must("git", ["rev-parse", "HEAD"], { cwd });
+}

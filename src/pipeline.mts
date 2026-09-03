@@ -10,6 +10,7 @@ import {
   push,
   removeWorktree,
   type Repo,
+  revision,
   worktreePath,
 } from "./git.mts";
 import {
@@ -59,6 +60,7 @@ export type Ports = {
   markPrReady: typeof markPrReady;
   push: typeof push;
   removeWorktree: typeof removeWorktree;
+  revision: typeof revision;
   runAgent: typeof runAgent;
   runSetup: (
     command: string,
@@ -83,6 +85,7 @@ export const PORTS: Ports = {
   markPrReady,
   push,
   removeWorktree,
+  revision,
   runAgent,
   runSetup: async (command, cwd, timeoutMs) => run("bash", ["-lc", command], { cwd, timeoutMs }),
   setLabel,
@@ -250,6 +253,7 @@ async function work(
   }
 
   if (state.phase === "claimed") {
+    const before = await ports.revision(worktree);
     const result = await log.step("implement", {}, () =>
       ports.runAgent(log, {
         name: "implementer",
@@ -261,11 +265,10 @@ async function work(
       }),
     );
     const subject = parseCommitSubject(result.text, `fix: resolve issue #${issue.number}`);
-    if (!(await ports.commitAll(worktree, `${subject}\n\nRefs #${issue.number}`))) {
+    if (!(await commitWork(job, before, subject))) {
       await escalate("The implementer produced no change.");
       return finish("needs-human", "no implementation commit");
     }
-    log.event("commit", { subject });
     state.phase = "implemented";
     await writeState(repo, state);
   }
@@ -435,6 +438,7 @@ async function fixRound(
 ): Promise<Fix> {
   const { context, issue, log, worktree, branch } = job;
   const { ports } = context;
+  const before = await ports.revision(worktree);
   const result = await log.step("fix", { reason }, () =>
     ports.runAgent(log, {
       name: "fixer",
@@ -451,13 +455,20 @@ async function fixRound(
     return { committed: false, unrelated };
   }
   const subject = parseCommitSubject(result.text, `fix: address feedback on issue #${issue.number}`);
-  if (!(await ports.commitAll(worktree, `${subject}\n\nRefs #${issue.number}`))) {
+  if (!(await commitWork(job, before, subject))) {
     log.event("commit.empty", { reason }, "quiet");
     return { committed: false };
   }
-  log.event("commit", { subject });
   await ports.push(worktree, context.config.remote, branch);
   return { committed: true };
+}
+
+async function commitWork(job: Run, before: string, subject: string): Promise<boolean> {
+  const { context, issue, log, worktree } = job;
+  if (await context.ports.commitAll(worktree, `${subject}\n\nRefs #${issue.number}`)) {
+    log.event("commit", { subject });
+  }
+  return (await context.ports.revision(worktree)) !== before;
 }
 
 async function cleanUp(context: Context, log: Recorder, issue: number): Promise<void> {
