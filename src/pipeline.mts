@@ -300,7 +300,7 @@ async function work(
         intervalSeconds: config.checkIntervalSeconds,
         graceMs: config.checkGraceSeconds * 1000,
         timeoutMs: config.checkTimeoutMinutes * 60_000,
-        inherit: log.level === "verbose",
+        show: log.level === "verbose",
       }),
     );
     log.event("checks.state", { state: checks });

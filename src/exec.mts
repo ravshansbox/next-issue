@@ -10,7 +10,7 @@ export type RunResult = {
 export type RunOptions = {
   cwd?: string;
   input?: string;
-  inherit?: boolean;
+  show?: boolean;
   timeoutMs?: number;
   tailChars?: number;
 };
@@ -45,7 +45,7 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
       cwd: options.cwd,
       stdio: [
         options.input === undefined ? "ignore" : "pipe",
-        options.inherit === true ? "inherit" : "pipe",
+        options.show === true ? 2 : "pipe",
         "pipe",
       ],
     });

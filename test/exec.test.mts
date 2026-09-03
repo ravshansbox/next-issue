@@ -73,3 +73,12 @@ test("must reports a child that passes the time limit", async () => {
     /did not finish in time/,
   );
 });
+
+test("run shows the output of the child on the error stream when asked", async () => {
+  const exec = new URL("../src/exec.mts", import.meta.url).href;
+  const inner = `import { run } from ${JSON.stringify(exec)}; await run(process.execPath, ["-e", "process.stdout.write('shown')"], { show: true });`;
+  const result = await run(NODE, ["--input-type=module", "-e", inner]);
+  assert.equal(result.code, 0);
+  assert.equal(result.stdout, "");
+  assert.equal(result.stderr, "shown");
+});
