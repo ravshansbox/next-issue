@@ -119,3 +119,34 @@ test("a pull request that never shows the pushed commit gives timeout", async ()
   assert.equal(base.polls, 0);
   assert.equal(time.time, OPTIONS.timeoutMs);
 });
+
+test("a check read that fails once is tried again", async () => {
+  let calls = 0;
+  const target: ChecksProbe = {
+    head: async () => "",
+    list: async () => {
+      calls += 1;
+      if (calls === 1) {
+        throw new Error("network");
+      }
+      return "some";
+    },
+    watch: async () => "pass",
+  };
+  const time = clock();
+  assert.equal(await pollChecks(target, OPTIONS, time), "pass");
+  assert.equal(time.time, 10_000);
+});
+
+test("a check read that keeps failing passes the error on", async () => {
+  const target: ChecksProbe = {
+    head: async () => {
+      throw new Error("network");
+    },
+    list: async () => "some",
+    watch: async () => "pass",
+  };
+  const time = clock();
+  await assert.rejects(pollChecks(target, { ...OPTIONS, head: "new" }, time), /network/);
+  assert.equal(time.time, 20_000);
+});
