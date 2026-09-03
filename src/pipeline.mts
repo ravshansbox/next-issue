@@ -293,8 +293,10 @@ async function work(
   log.event("pull-request.ready", { pr: state.pr }, "quiet");
 
   const gate = async (): Promise<Gate> => {
-    const checks = await log.step("checks", { pr: state.pr }, () =>
+    const head = await ports.revision(worktree);
+    const checks = await log.step("checks", { pr: state.pr, head }, () =>
       ports.waitForChecks(repo, branch, {
+        head,
         intervalSeconds: config.checkIntervalSeconds,
         graceMs: config.checkGraceSeconds * 1000,
         timeoutMs: config.checkTimeoutMinutes * 60_000,

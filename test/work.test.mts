@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { AgentRequest, AgentResult } from "../src/agents.mts";
 import { type Config, loadConfig } from "../src/config.mts";
-import type { CheckState, Issue } from "../src/github.mts";
+import type { CheckState, Issue, WaitOptions } from "../src/github.mts";
 import { Recorder } from "../src/observe.mts";
 import { type Context, type IssueReport, type Ports, processIssue } from "../src/pipeline.mts";
 import { type IssueState, readState, writeState } from "../src/state.mts";
@@ -63,6 +63,7 @@ type Harness = {
   prompts: Array<{ role: string; prompt: string }>;
   comments: string[];
   checkReads: number;
+  waits: WaitOptions[];
   pushes: number;
   ready: number[];
   run: () => Promise<IssueReport>;
@@ -89,6 +90,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     prompts: [],
     comments: [],
     checkReads: 0,
+    waits: [],
     pushes: 0,
     ready: [],
     run: () => processIssue(state.context, issue),
@@ -140,7 +142,8 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     setLabel: async (_repo, kind, number, label) => {
       state.labels.push({ kind, number, label });
     },
-    waitForChecks: async () => {
+    waitForChecks: async (_repo, _branch, options) => {
+      state.waits.push(options);
       const next = checks[Math.min(state.checkReads, checks.length - 1)]!;
       state.checkReads += 1;
       return next;
@@ -430,4 +433,10 @@ test("an agent that commits its own work counts as progress", async (t) => {
   const report = await target.run();
   assert.equal(report.outcome, "done");
   assert.equal(target.pushes, 1);
+});
+
+test("the checks wait for the commit that was pushed", async (t) => {
+  const target = await harness(t, { checks: ["fail", "pass"] });
+  await target.run();
+  assert.deepEqual(target.waits.map((options) => options.head), ["1", "2", "2"]);
 });
