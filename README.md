@@ -24,22 +24,27 @@ For each open issue, oldest first:
    the claim. An issue with saved state under `.next-issue/` resumes instead,
    whatever its labels, unless another person is now the assignee.
 2. Assign the issue to you and add `status:in-progress`.
-3. Fetch the default branch, fast-forward the local copy of it when that is
-   safe, then add a git worktree on a new `issue-<n>` branch from it.
+3. Fetch the remote, fast-forward the local copy of the default branch when
+   that is safe, then add a git worktree at `../<repo>-issue-<n>` on the
+   `issue-<n>` branch. A branch that exists on the remote is the start, and a
+   local branch that fell behind the remote is fast-forwarded.
 4. Let the implementer agent do the work, then commit and push.
 5. Open a draft pull request that closes the issue.
-6. Wait for the checks. A pending state waits again, up to
-   `checkTimeoutMinutes`. A repository that reports no check keeps asking for
-   `checkGraceSeconds`, because a new pull request often shows no check yet,
-   and only then goes straight to the review.
+6. Wait for the checks, once the pull request shows the pushed commit. A
+   pending state waits again, up to `checkTimeoutMinutes`. A read that fails
+   is tried three times before the run stops. A repository that reports no
+   check keeps asking for `checkGraceSeconds`, because a new pull request often
+   shows no check yet, and only then goes straight to the review. The later
+   gates of the same issue ask once.
 7. On a red build, give the failed job logs to the fixer agent, then go to step
    6 again. The budget is `maxCiFixes`.
 8. Let the reviewer agent judge the diff, at most `diffMaxChars` of it. The
    reviewer returns a structured verdict that rates each finding `blocking` or
    `minor`. The harness puts the result on the pull request.
 9. No blocking finding means approval: mark the pull request ready for review
-   and set `status:done`. The merge stays with you. A blocking finding always
-   stops the approval, even when the reviewer also says approve.
+   and set `status:done`. The merge stays with you. The worktree, the local
+   branch and the state file go away. The remote branch stays. A blocking
+   finding always stops the approval, even when the reviewer also says approve.
 10. With a blocking finding, run the fixer agent and go to step 6 again. The
     budget is `maxReviewRounds`.
 
@@ -110,9 +115,9 @@ A short text summary of the same data goes to standard output. Use `--json` to
 get the full summary object there instead, so the harness fits in a pipe. All
 progress goes to standard error.
 
-Recorded for each step: `claim`, `comments`, `worktree`, `implement`, `push`,
-`pull-request`, `checks`, `review` and `fix`, each with a `.start`, `.end` or
-`.error` event and a duration in `ms`. Every `git` and `gh` command is recorded
+Recorded for each step: `claim`, `comments`, `worktree`, `setup`, `implement`,
+`push`, `pull-request`, `checks`, `review` and `fix`, each with a `.start`,
+`.end` or `.error` event and a duration in `ms`. Every `git` and `gh` command is recorded
 with its exit code and duration. A `tool` event holds the tool name, and for a
 `Bash` tool the command too. Each agent call adds a `usage` event with the
 tokens, the cost estimate in dollars, the turn count, the tool-call count, the
@@ -134,7 +139,7 @@ Three levels of console output:
 
 ## Requirements
 
-- Node 24 or later, because the command runs the TypeScript source directly
+- Node 24 or later
 - `gh`, authenticated with write access to the repository
 - Anthropic credentials for the Claude Agent SDK: `ANTHROPIC_API_KEY`, or a
   Claude subscription login
@@ -221,7 +226,8 @@ A hand-over leaves the state file with the used budgets in it, so the next run
 would hand the issue over again at once. To give the issue another try, take the
 `status:needs-human` label off and run with `--reset`. The flag puts the budgets
 and the findings back to zero and keeps the branch, the pull request and the
-step that the last run reached, so the work carries on where it stopped.
+step that the last run reached, so the work carries on where it stopped. A
+commit that you pushed to the pull request in the meantime is fetched first.
 
 ## Commands and options
 
