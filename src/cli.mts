@@ -6,6 +6,7 @@ import { type Config, loadConfig, writeDefaultConfig } from "./config.mts";
 import { setCommandObserver, setDefaultTimeout } from "./exec.mts";
 import { detectRepo, ensureIgnored, type Repo, repoRoot } from "./git.mts";
 import { currentLogin, defaultBranch, openIssues } from "./github.mts";
+import { exitCode, runIssues } from "./loop.mts";
 import { message, Recorder } from "./observe.mts";
 import { type Context, type IssueReport, PORTS, processIssue } from "./pipeline.mts";
 import { resetState, STATE_DIR, takeStop } from "./state.mts";
@@ -78,25 +79,14 @@ async function handle(
   const issues = await openIssues(repo, config.issueLimit);
   recorder.event("issues", { open: issues.length }, "quiet");
 
-  await takeStop(repo);
-  const reports: IssueReport[] = [];
-  for (const issue of issues) {
-    const handled = reports.filter((report) => report.outcome !== "skipped").length;
-    if (args.max !== undefined && handled >= args.max) {
-      break;
-    }
-    if (args.reset) {
-      await resetState(repo, issue.number);
-    }
-    const report = await processIssue(context, issue);
-    reports.push(report);
-    if (await takeStop(repo)) {
-      recorder.event("run.stop", { issue: issue.number }, "quiet");
-      break;
-    }
-    if (args.once && report.outcome !== "skipped") {
-      break;
-    }
+  const { reports, stoppedAt } = await runIssues(args, {
+    issues,
+    process: (issue) => processIssue(context, issue),
+    reset: (issue) => resetState(repo, issue),
+    stop: () => takeStop(repo),
+  });
+  if (stoppedAt !== undefined) {
+    recorder.event("run.stop", { issue: stoppedAt }, "quiet");
   }
 
   const summary: RunSummary = { ...recorder.summary(), issues: reports };
@@ -114,7 +104,7 @@ async function handle(
   const summaryFile = join(repo.root, STATE_DIR, "runs", `${recorder.runId}.summary.json`);
   await writeFile(summaryFile, `${JSON.stringify(summary, null, 2)}\n`);
   await write(process.stdout, args.json ? `${JSON.stringify(summary, null, 2)}\n` : formatSummary(summary));
-  return count(reports, "needs-human") + count(reports, "error") > 0 ? 1 : 0;
+  return exitCode(reports);
 }
 
 function count(reports: IssueReport[], outcome: IssueReport["outcome"]): number {
