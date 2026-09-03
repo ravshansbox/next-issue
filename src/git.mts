@@ -42,21 +42,26 @@ export function worktreePath(repo: Repo, issue: number): string {
 export async function addWorktree(repo: Repo, issue: number, base: string, remote: string): Promise<string> {
   const path = worktreePath(repo, issue);
   const branch = branchName(issue);
-  await must("git", ["fetch", remote, base], { cwd: repo.root });
+  const upstream = `${remote}/${branch}`;
+  await must("git", ["fetch", remote], { cwd: repo.root });
   await updateBase(repo, base, remote);
   await must("git", ["worktree", "prune"], { cwd: repo.root });
-  if (await hasWorktree(repo, path)) {
-    return path;
-  }
-  const existing = await run("git", ["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`], {
-    cwd: repo.root,
-  });
-  const args =
-    existing.code === 0
+  const pushed = await hasBranch(repo, upstream, "--remotes");
+  if (!(await hasWorktree(repo, path))) {
+    const args = (await hasBranch(repo, branch))
       ? ["worktree", "add", path, branch]
-      : ["worktree", "add", "-b", branch, path, `${remote}/${base}`];
-  await must("git", args, { cwd: repo.root });
+      : ["worktree", "add", "-b", branch, path, pushed ? upstream : `${remote}/${base}`];
+    await must("git", args, { cwd: repo.root });
+  }
+  if (pushed) {
+    await run("git", ["merge", "--ff-only", upstream], { cwd: path });
+  }
   return path;
+}
+
+async function hasBranch(repo: Repo, name: string, ...flags: string[]): Promise<boolean> {
+  const list = await must("git", ["branch", "--list", ...flags, name], { cwd: repo.root });
+  return list.length > 0;
 }
 
 export async function updateBase(repo: Repo, base: string, remote: string): Promise<boolean> {
