@@ -440,3 +440,9 @@ test("the checks wait for the commit that was pushed", async (t) => {
   await target.run();
   assert.deepEqual(target.waits.map((options) => options.head), ["1", "2", "2"]);
 });
+
+test("a repository without checks pays the grace time once", async (t) => {
+  const target = await harness(t, { checks: ["none"] });
+  await target.run();
+  assert.deepEqual(target.waits.map((options) => options.graceMs), [60_000, 0]);
+});

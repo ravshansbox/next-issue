@@ -292,18 +292,20 @@ async function work(
   await writeState(repo, state);
   log.event("pull-request.ready", { pr: state.pr }, "quiet");
 
+  let noChecks = false;
   const gate = async (): Promise<Gate> => {
     const head = await ports.revision(worktree);
     const checks = await log.step("checks", { pr: state.pr, head }, () =>
       ports.waitForChecks(repo, branch, {
         head,
         intervalSeconds: config.checkIntervalSeconds,
-        graceMs: config.checkGraceSeconds * 1000,
+        graceMs: noChecks ? 0 : config.checkGraceSeconds * 1000,
         timeoutMs: config.checkTimeoutMinutes * 60_000,
         show: log.level === "verbose",
       }),
     );
     log.event("checks.state", { state: checks });
+    noChecks ||= checks === "none";
     if (checks === "timeout") {
       await escalate("The checks did not finish in time.");
       return { done: true, report: await finish("needs-human", "checks timeout") };
