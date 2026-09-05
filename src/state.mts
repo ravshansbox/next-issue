@@ -39,15 +39,10 @@ export async function readState(repo: Repo, issue: number): Promise<IssueState |
   }
 }
 
-export async function resetState(repo: Repo, issue: number): Promise<boolean> {
-  const state = await readState(repo, issue);
-  if (state === undefined) {
-    return false;
-  }
+export function resetState(state: IssueState): IssueState {
   const next: IssueState = { ...state, ciFixes: 0, reviewRounds: 0, reviewLog: [] };
   delete next.handedOver;
-  await writeState(repo, next);
-  return true;
+  return next;
 }
 
 export async function writeState(repo: Repo, state: IssueState): Promise<void> {

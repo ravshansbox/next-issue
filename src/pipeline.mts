@@ -36,7 +36,14 @@ import {
   parseUnrelated,
   reviewPrompt,
 } from "./prompts.mts";
-import { dropState, type IssueState, readState, type ReviewRound, writeState } from "./state.mts";
+import {
+  dropState,
+  type IssueState,
+  readState,
+  resetState,
+  type ReviewRound,
+  writeState,
+} from "./state.mts";
 import {
   blockingFindings,
   fingerprint,
@@ -100,6 +107,7 @@ export type Context = {
   config: Config;
   base: string;
   login: string;
+  reset: boolean;
   recorder: Recorder;
   ports: Ports;
 };
@@ -166,14 +174,15 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
   }
   log.event("issue.start", { title: issue.title, createdAt: issue.createdAt }, "quiet");
 
-  const state = saved ?? {
+  const fresh: IssueState = {
     issue: issue.number,
-    phase: "claimed" as const,
+    phase: "claimed",
     branch: branchName(issue.number),
     ciFixes: 0,
     reviewRounds: 0,
     reviewLog: [],
   };
+  const state = saved === undefined ? fresh : context.reset ? resetState(saved) : saved;
 
   try {
     const report = await work(context, issue, log, state);
