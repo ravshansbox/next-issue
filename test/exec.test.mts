@@ -31,9 +31,21 @@ test("run kills a child that passes the time limit", async () => {
   assert.notEqual(result.code, 0);
 });
 
+test("run stops on the time limit even when a grandchild holds the output open", async () => {
+  const started = Date.now();
+  const result = await run("bash", ["-lc", "sleep 30 & sleep 30"], { timeoutMs: 300 });
+  assert.equal(result.timedOut, true);
+  assert.ok(Date.now() - started < 10_000);
+});
+
 test("run keeps only the tail of a long output", async () => {
   const result = await run(NODE, script("process.stdout.write('a'.repeat(100))"), { tailChars: 10 });
   assert.equal(result.stdout, "a".repeat(10));
+});
+
+test("run keeps only the tail of a long error output", async () => {
+  const result = await run(NODE, script("process.stderr.write('b'.repeat(100))"), { tailChars: 10 });
+  assert.equal(result.stderr, "b".repeat(10));
 });
 
 test("run reports a command that does not exist", async () => {

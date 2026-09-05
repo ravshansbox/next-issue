@@ -29,6 +29,8 @@ let observer: ((record: CommandRecord) => void) | undefined;
 
 let defaultTimeoutMs = 10 * 60_000;
 
+const STDERR_TAIL = 200_000;
+
 export function setCommandObserver(next: (record: CommandRecord) => void): void {
   observer = next;
 }
@@ -60,20 +62,19 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
         stdout = stdout.slice(-options.tailChars);
       }
     });
+    const stderrLimit = options.tailChars ?? STDERR_TAIL;
     child.stderr?.on("data", (chunk: string) => {
       stderr += chunk;
+      if (stderr.length > stderrLimit) {
+        stderr = stderr.slice(-stderrLimit);
+      }
     });
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill("SIGKILL");
     }, limit);
     let done = false;
-    child.on("error", (error) => {
-      clearTimeout(timer);
-      done = true;
-      reject(error);
-    });
-    child.on("close", (code) => {
+    const settle = (code: number | null): void => {
       clearTimeout(timer);
       if (done) {
         return;
@@ -90,7 +91,21 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
         timedOut,
       });
       resolve(result);
+    };
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      done = true;
+      reject(error);
     });
+    child.on("exit", (code) => {
+      if (!timedOut) {
+        return;
+      }
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+      settle(code);
+    });
+    child.on("close", settle);
     if (options.input !== undefined) {
       child.stdin?.on("error", () => undefined);
       child.stdin?.end(options.input);
