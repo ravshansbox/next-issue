@@ -88,7 +88,6 @@ async function handle(
     recorder.event("run.stop", { issue: stoppedAt }, "quiet");
   }
 
-  const summary: RunSummary = { ...recorder.summary(), issues: reports };
   recorder.event(
     "run.end",
     {
@@ -96,10 +95,11 @@ async function handle(
       needsHuman: count(reports, "needs-human"),
       failed: count(reports, "error"),
       skipped: count(reports, "skipped"),
-      tokens: summary.total.total,
+      tokens: recorder.summary().total.total,
     },
     "quiet",
   );
+  const summary: RunSummary = { ...recorder.summary(), issues: reports };
   const summaryFile = join(repo.root, STATE_DIR, "runs", `${recorder.runId}.summary.json`);
   await writeFile(summaryFile, `${JSON.stringify(summary, null, 2)}\n`);
   await write(process.stdout, args.json ? `${JSON.stringify(summary, null, 2)}\n` : formatSummary(summary));
