@@ -148,7 +148,7 @@ export async function createPr(
   body: string,
   draft: boolean,
 ): Promise<number> {
-  await gh(repo, [
+  const created = await gh(repo, [
     "pr",
     "create",
     "--head",
@@ -161,11 +161,16 @@ export async function createPr(
     body,
     ...(draft ? ["--draft"] : []),
   ]);
-  const number = await findPr(repo, branch);
+  const number = prNumber(created) ?? (await findPr(repo, branch));
   if (number === undefined) {
     throw new Error(`The pull request for ${branch} was not found after creation.`);
   }
   return number;
+}
+
+export function prNumber(output: string): number | undefined {
+  const match = /\/pull\/(\d+)\b/.exec(output);
+  return match === null ? undefined : Number(match[1]);
 }
 
 async function prHead(repo: Repo, branch: string): Promise<string> {
