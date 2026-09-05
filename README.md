@@ -21,8 +21,9 @@ For each open issue, oldest first:
 1. Claim the issue only when it holds the `status:todo` label, holds no
    `status:in-progress` or `status:in-review` label, and has no assignee. A
    `status:done`, `status:needs-human` or `status:blocked` label always stops
-   the claim. An issue with saved state under `.next-issue/` resumes instead,
-   whatever its labels, unless another person is now the assignee.
+   the claim, a resume too. An issue with saved state under `.next-issue/`
+   resumes instead, whatever its other labels, unless another person is now the
+   assignee.
 2. Assign the issue to you and add `status:in-progress`.
 3. Fetch the remote, fast-forward the local copy of the default branch when
    that is safe, then add a git worktree at `../<repo>-issue-<n>` on the
@@ -200,7 +201,7 @@ does not know all stop the run, so a typo cannot pass without a word.
 | `agentTimeoutMinutes` | `30` | The limit for one agent call |
 | `setupTimeoutMinutes` | `15` | The limit for the setup command |
 | `commandTimeoutMinutes` | `10` | The limit for one `git` or `gh` command |
-| `logMaxChars` | `20000` | The maximum length of the failed job logs |
+| `logMaxChars` | `20000` | The maximum length of the failed job logs, shared between the failed jobs |
 | `diffMaxChars` | `60000` | The maximum length of the diff that the reviewer reads |
 | `draftPullRequest` | `true` | Open the pull request as a draft, until the review approves |
 | `setupCommand` | none | A shell command to run in a new worktree, before the implementer |
@@ -228,6 +229,8 @@ would hand the issue over again at once. To give the issue another try, take the
 and the findings back to zero and keeps the branch, the pull request and the
 step that the last run reached, so the work carries on where it stopped. A
 commit that you pushed to the pull request in the meantime is fetched first.
+The flag touches only an issue that the run handles, so the state of an issue
+that a label still holds back stays as it was.
 
 ## Commands and options
 
@@ -242,6 +245,9 @@ commit that you pushed to the pull request in the meantime is fetched first.
 | `--verbose` | Show every command and all agent output |
 | `--quiet` | Show only the milestones and the summary |
 | `--help` | Show the option list |
+
+The exit code is 1 when an issue needs a person or failed, and 0 when it does
+not, so a cron job or a CI step can read the result of the run.
 
 ## Development
 
