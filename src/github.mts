@@ -119,8 +119,12 @@ export async function ensureLabel(repo: Repo, label: string): Promise<void> {
   if (known.has(label)) {
     return;
   }
-  await run("gh", ["label", "create", label, "--repo", slug(repo)], { cwd: repo.root });
-  known.add(label);
+  const result = await run("gh", ["label", "create", label, "--repo", slug(repo)], {
+    cwd: repo.root,
+  });
+  if (result.code === 0) {
+    known.add(label);
+  }
 }
 
 export async function findPr(repo: Repo, branch: string): Promise<number | undefined> {
