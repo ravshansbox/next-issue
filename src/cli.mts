@@ -7,7 +7,7 @@ import { setCommandObserver, setDefaultTimeout } from "./exec.mts";
 import { detectRepo, ensureIgnored, type Repo, repoRoot } from "./git.mts";
 import { currentLogin, defaultBranch, openIssues } from "./github.mts";
 import { exitCode, runIssues } from "./loop.mts";
-import { message, Recorder } from "./observe.mts";
+import { message, pruneRuns, Recorder } from "./observe.mts";
 import { type Context, type IssueReport, PORTS, processIssue } from "./pipeline.mts";
 import { STATE_DIR, takeStop } from "./state.mts";
 import { formatSummary, type RunSummary } from "./summary.mts";
@@ -32,6 +32,10 @@ async function main(): Promise<number> {
   setDefaultTimeout(config.commandTimeoutMinutes * 60_000);
   const repo = await detectRepo(root, config.remote);
   const recorder = await Recorder.create(repo.root, args.level);
+  const pruned = await pruneRuns(repo.root, config.keepRunDays);
+  if (pruned > 0) {
+    recorder.event("runs.pruned", { files: pruned, keepDays: config.keepRunDays }, "verbose");
+  }
   setCommandObserver((record) => {
     recorder.event(
       record.code === 0 ? "command" : "command.fail",

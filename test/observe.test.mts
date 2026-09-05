@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { addUsage, emptyUsage, type Fields, message, Recorder } from "../src/observe.mts";
+import { addUsage, emptyUsage, type Fields, message, pruneRuns, Recorder } from "../src/observe.mts";
+import { STATE_DIR } from "../src/state.mts";
 
 async function recorder(): Promise<Recorder> {
   return Recorder.create(await mkdtemp(join(tmpdir(), "next-issue-")), "quiet");
@@ -97,4 +98,35 @@ test("message reads an error and anything else", () => {
   assert.equal(message(new Error("bad")), "bad");
   assert.equal(message("plain"), "plain");
   assert.equal(message(undefined), "undefined");
+});
+
+const DAY = 24 * 60 * 60_000;
+
+async function runsDir(ages: Record<string, number>): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), "next-issue-"));
+  const dir = join(root, STATE_DIR, "runs");
+  await mkdir(dir, { recursive: true });
+  for (const [name, days] of Object.entries(ages)) {
+    const path = join(dir, name);
+    await writeFile(path, "{}\n");
+    const when = new Date(Date.now() - days * DAY);
+    await utimes(path, when, when);
+  }
+  return root;
+}
+
+test("pruneRuns drops a run that is older than the limit", async () => {
+  const root = await runsDir({ "old.jsonl": 8, "old.summary.json": 8, "new.jsonl": 6 });
+  assert.equal(await pruneRuns(root, 7), 2);
+  assert.deepEqual((await readdir(join(root, STATE_DIR, "runs"))).sort(), ["new.jsonl"]);
+});
+
+test("pruneRuns with a limit of zero keeps every run", async () => {
+  const root = await runsDir({ "old.jsonl": 400 });
+  assert.equal(await pruneRuns(root, 0), 0);
+  assert.deepEqual(await readdir(join(root, STATE_DIR, "runs")), ["old.jsonl"]);
+});
+
+test("pruneRuns says nothing about a run directory that is not there", async () => {
+  assert.equal(await pruneRuns(await mkdtemp(join(tmpdir(), "next-issue-")), 7), 0);
 });

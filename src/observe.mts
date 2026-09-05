@@ -1,5 +1,5 @@
 import { createWriteStream, type WriteStream } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { STATE_DIR } from "./state.mts";
 
@@ -156,6 +156,34 @@ export class Recorder {
   async close(): Promise<void> {
     await this.sink.close();
   }
+}
+
+export async function pruneRuns(root: string, keepDays: number): Promise<number> {
+  if (keepDays <= 0) {
+    return 0;
+  }
+  const dir = join(root, STATE_DIR, "runs");
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return 0;
+  }
+  const cutoff = Date.now() - keepDays * 24 * 60 * 60_000;
+  let dropped = 0;
+  for (const name of names) {
+    const path = join(dir, name);
+    try {
+      const info = await stat(path);
+      if (info.isFile() && info.mtimeMs < cutoff) {
+        await rm(path, { force: true });
+        dropped += 1;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return dropped;
 }
 
 export function message(error: unknown): string {

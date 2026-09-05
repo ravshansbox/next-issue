@@ -15,6 +15,7 @@ export type Config = {
   commandTimeoutMinutes: number;
   logMaxChars: number;
   diffMaxChars: number;
+  keepRunDays: number;
   draftPullRequest: boolean;
   setupCommand?: string;
   models: {
@@ -45,6 +46,7 @@ const DEFAULTS: Config = {
   commandTimeoutMinutes: 10,
   logMaxChars: 20000,
   diffMaxChars: 60000,
+  keepRunDays: 7,
   draftPullRequest: true,
   models: {},
   labels: {
@@ -71,6 +73,7 @@ const WHOLE_FIELDS: Array<[keyof Config, number]> = [
   ["commandTimeoutMinutes", 1],
   ["logMaxChars", 1],
   ["diffMaxChars", 1],
+  ["keepRunDays", 0],
 ];
 
 const MODEL_ROLES = ["implementer", "reviewer", "fixer"] as const;

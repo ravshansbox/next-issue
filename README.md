@@ -112,6 +112,9 @@ Every run has an id, `<timestamp>`, and writes two files under
   one report per issue with the outcome, the reason, the pull request number
   and the budgets used.
 
+At the start of a run, the harness deletes the files under `.next-issue/runs/`
+that are older than `keepRunDays`. Set the field to `0` to keep them all.
+
 A short text summary of the same data goes to standard output. Use `--json` to
 get the full summary object there instead, so the harness fits in a pipe. All
 progress goes to standard error.
@@ -176,6 +179,7 @@ does not know all stop the run, so a typo cannot pass without a word.
   "commandTimeoutMinutes": 10,
   "logMaxChars": 20000,
   "diffMaxChars": 60000,
+  "keepRunDays": 7,
   "draftPullRequest": true,
   "models": {},
   "labels": {
@@ -203,6 +207,7 @@ does not know all stop the run, so a typo cannot pass without a word.
 | `commandTimeoutMinutes` | `10` | The limit for one `git` or `gh` command |
 | `logMaxChars` | `20000` | The maximum length of the failed job logs, shared between the failed jobs |
 | `diffMaxChars` | `60000` | The maximum length of the diff that the reviewer reads |
+| `keepRunDays` | `7` | The number of days to keep the run files; `0` keeps them all |
 | `draftPullRequest` | `true` | Open the pull request as a draft, until the review approves |
 | `setupCommand` | none | A shell command to run in a new worktree, before the implementer |
 | `models` | `{}` | The model per agent role |
