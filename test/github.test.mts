@@ -30,13 +30,13 @@ test("labelArgs never removes the label it adds", () => {
   ]);
 });
 
-async function fakeGh(t: TestContext): Promise<string> {
+async function fakeGh(t: TestContext, listed = '[{"name":"status:todo"}]'): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "next-issue-"));
   const labels = join(dir, "labels");
   await writeFile(labels, "status:todo\n");
   const script = `#!/bin/sh
 case "$1 $2" in
-  "label list") echo '[{"name":"status:todo"}]' ;;
+  "label list") echo '${listed}' ;;
   "label create")
     if grep -qx -- "$3" "${labels}"; then echo "label with name $3 already exists" >&2; exit 1; fi
     echo "$3" >> "${labels}" ;;
@@ -65,4 +65,16 @@ test("setLabel creates a missing label once and records no failed command", asyn
   await setLabel(repo, "pr", 2, "status:new", []);
   assert.deepEqual(seen.filter((record) => record.code !== 0), []);
   assert.equal(await readFile(join(dir, "labels"), "utf8"), "status:todo\nstatus:new\n");
+});
+
+test("setLabel tries the create again when it failed", async (t) => {
+  const dir = await fakeGh(t, "[]");
+  const seen: CommandRecord[] = [];
+  setCommandObserver((record) => seen.push(record));
+  t.after(() => setCommandObserver(() => undefined));
+  const repo = { owner: "acme", name: "retry", root: dir };
+  await setLabel(repo, "issue", 1, "status:todo", []);
+  await setLabel(repo, "issue", 1, "status:todo", []);
+  const creates = seen.filter((record) => record.args[0] === "label" && record.args[1] === "create");
+  assert.equal(creates.length, 2);
 });
