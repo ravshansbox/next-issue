@@ -282,10 +282,10 @@ async function read(
     if ((await probe.list()) === "none") {
       return "none";
     }
+    return await probe.watch(timeoutMs);
   } catch (error) {
     return error instanceof Error ? error : new Error(String(error));
   }
-  return probe.watch(timeoutMs);
 }
 
 export function waitForChecks(repo: Repo, branch: string, options: WaitOptions): Promise<CheckState> {
