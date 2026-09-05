@@ -310,6 +310,7 @@ export async function failedCheckLogs(repo: Repo, branch: string, maxChars: numb
     return "The checks failed, but gh reports no check for the branch.";
   }
   const failed = checks.filter((check) => check.bucket === "fail");
+  const share = Math.max(1, Math.floor(maxChars / Math.max(1, failed.length)));
   const parts: string[] = [];
   for (const check of failed) {
     parts.push(`## ${check.name}\n${check.description}`);
@@ -319,11 +320,11 @@ export async function failedCheckLogs(repo: Repo, branch: string, maxChars: numb
     }
     const logs = await run("gh", ["run", "view", runId, "--log-failed", "--repo", slug(repo)], {
       cwd: repo.root,
-      tailChars: maxChars,
+      tailChars: share,
     });
-    parts.push(logs.stdout.slice(-maxChars));
+    parts.push(logs.stdout.slice(-share));
   }
-  return parts.join("\n\n").slice(-maxChars);
+  return parts.join("\n\n");
 }
 
 export async function markPrReady(repo: Repo, pr: number): Promise<boolean> {
