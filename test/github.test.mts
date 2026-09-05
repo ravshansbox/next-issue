@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { type CommandRecord, setCommandObserver } from "../src/exec.mts";
-import { labelArgs, setLabel } from "../src/github.mts";
+import { labelArgs, prNumber, setLabel } from "../src/github.mts";
 
 const MANAGED = ["status:todo", "status:in-progress", "status:in-review", "status:done"];
 
@@ -77,4 +77,10 @@ test("setLabel tries the create again when it failed", async (t) => {
   await setLabel(repo, "issue", 1, "status:todo", []);
   const creates = seen.filter((record) => record.args[0] === "label" && record.args[1] === "create");
   assert.equal(creates.length, 2);
+});
+
+test("prNumber reads the number from the pull request URL", () => {
+  assert.equal(prNumber("https://github.com/acme/tool/pull/42\n"), 42);
+  assert.equal(prNumber("https://github.example.com/acme/tool/pull/7"), 7);
+  assert.equal(prNumber("no url here"), undefined);
 });
