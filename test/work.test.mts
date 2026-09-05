@@ -54,6 +54,7 @@ type Plan = {
   fail?: keyof Ports;
   fixerText?: string;
   saved?: IssueState;
+  reset?: boolean;
   issue?: Issue;
 };
 
@@ -163,7 +164,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
 
   const recorder = await Recorder.create(root, "quiet");
   t.after(() => recorder.close());
-  state.context = { repo, config, base: "main", login: "me", recorder, ports };
+  state.context = { repo, config, base: "main", login: "me", reset: plan.reset === true, recorder, ports };
   return state;
 }
 
@@ -425,6 +426,41 @@ test("a saved state carries on and does not implement again", async (t) => {
   assert.equal(report.ciFixes, 2);
   assert.equal(report.reviewRounds, 2);
   assert.deepEqual(roles(target), ["reviewer"]);
+});
+
+const HANDED_OVER: IssueState = {
+  issue: 7,
+  phase: "review",
+  branch: "issue-7",
+  pr: 101,
+  handedOver: true,
+  ciFixes: 2,
+  reviewRounds: 1,
+  reviewLog: [{ round: 1, fingerprint: "old", findings: "- old" }],
+};
+
+test("--reset puts the budgets back and keeps the resume point", async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: ["status:in-progress"], assignees: ["me"] },
+    saved: HANDED_OVER,
+    reset: true,
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.equal(report.ciFixes, 0);
+  assert.equal(report.reviewRounds, 1);
+  assert.deepEqual(roles(target), ["reviewer"]);
+});
+
+test("--reset leaves the state of a skipped issue alone", async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: ["status:needs-human"] },
+    saved: HANDED_OVER,
+    reset: true,
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "skipped");
+  assert.deepEqual(await target.state(), HANDED_OVER);
 });
 
 test("a skipped issue does nothing", async (t) => {

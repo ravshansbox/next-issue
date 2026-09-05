@@ -37,20 +37,13 @@ test("a broken state gives undefined instead of a throw", async () => {
   assert.equal(await readState(target, 7), undefined);
 });
 
-test("resetState drops the budgets and the hand-over, and keeps the resume point", async () => {
-  const target = await repo();
-  await writeState(target, { ...STATE, handedOver: true });
-  assert.equal(await resetState(target, 7), true);
-  assert.deepEqual(await readState(target, 7), {
+test("resetState drops the budgets and the hand-over, and keeps the resume point", () => {
+  assert.deepEqual(resetState({ ...STATE, handedOver: true }), {
     ...STATE,
     ciFixes: 0,
     reviewRounds: 0,
     reviewLog: [],
   });
-});
-
-test("resetState reports a state that is not there", async () => {
-  assert.equal(await resetState(await repo(), 7), false);
 });
 
 test("takeStop reports the flag once and then takes it away", async () => {

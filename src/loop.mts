@@ -5,21 +5,17 @@ import type { IssueReport } from "./pipeline.mts";
 export type Loop = {
   issues: Issue[];
   process: (issue: Issue) => Promise<IssueReport>;
-  reset: (issue: number) => Promise<unknown>;
   stop: () => Promise<boolean>;
 };
 
 export type LoopResult = { reports: IssueReport[]; stoppedAt?: number };
 
-export async function runIssues(args: Pick<Args, "max" | "once" | "reset">, loop: Loop): Promise<LoopResult> {
+export async function runIssues(args: Pick<Args, "max" | "once">, loop: Loop): Promise<LoopResult> {
   await loop.stop();
   const reports: IssueReport[] = [];
   for (const issue of loop.issues) {
     if (args.max !== undefined && handled(reports) >= args.max) {
       break;
-    }
-    if (args.reset) {
-      await loop.reset(issue.number);
     }
     const report = await loop.process(issue);
     reports.push(report);

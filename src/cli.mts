@@ -9,7 +9,7 @@ import { currentLogin, defaultBranch, openIssues } from "./github.mts";
 import { exitCode, runIssues } from "./loop.mts";
 import { message, Recorder } from "./observe.mts";
 import { type Context, type IssueReport, PORTS, processIssue } from "./pipeline.mts";
-import { resetState, STATE_DIR, takeStop } from "./state.mts";
+import { STATE_DIR, takeStop } from "./state.mts";
 import { formatSummary, type RunSummary } from "./summary.mts";
 
 function write(stream: NodeJS.WriteStream, text: string): Promise<void> {
@@ -69,7 +69,7 @@ async function handle(
   recorder: Recorder,
 ): Promise<number> {
   const [base, login] = await Promise.all([defaultBranch(repo), currentLogin(repo)]);
-  const context: Context = { repo, config, base, login, recorder, ports: PORTS };
+  const context: Context = { repo, config, base, login, reset: args.reset, recorder, ports: PORTS };
   recorder.event(
     "run.start",
     { repo: `${repo.owner}/${repo.name}`, base, login, log: recorder.logFile },
@@ -82,7 +82,6 @@ async function handle(
   const { reports, stoppedAt } = await runIssues(args, {
     issues,
     process: (issue) => processIssue(context, issue),
-    reset: (issue) => resetState(repo, issue),
     stop: () => takeStop(repo),
   });
   if (stoppedAt !== undefined) {
