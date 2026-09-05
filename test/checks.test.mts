@@ -138,6 +138,24 @@ test("a check read that fails once is tried again", async () => {
   assert.equal(time.time, 10_000);
 });
 
+test("a check watch that fails once is tried again", async () => {
+  let calls = 0;
+  const target: ChecksProbe = {
+    head: async () => "",
+    list: async () => "some",
+    watch: async () => {
+      calls += 1;
+      if (calls === 1) {
+        throw new Error("network");
+      }
+      return "pass";
+    },
+  };
+  const time = clock();
+  assert.equal(await pollChecks(target, OPTIONS, time), "pass");
+  assert.equal(time.time, 10_000);
+});
+
 test("a check read that keeps failing passes the error on", async () => {
   const target: ChecksProbe = {
     head: async () => {
