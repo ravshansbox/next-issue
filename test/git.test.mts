@@ -118,6 +118,21 @@ test("discardChanges puts back a tracked file and removes a new one", async () =
   assert.equal(await revision(path), head);
 });
 
+test("discardChanges throws away a change that the index holds", async () => {
+  const { repo } = await clones();
+  const path = await addWorktree(repo, 3, "main", "origin");
+  const head = await revision(path);
+  await writeFile(join(path, "a.txt"), "tampered\n");
+  await git(path, "add", "a.txt");
+  await writeFile(join(path, "notes.md"), "scratch\n");
+  await git(path, "add", "notes.md");
+  assert.equal(await discardChanges(path), true);
+  assert.equal(await isDirty(path), false);
+  assert.equal(await readFile(join(path, "a.txt"), "utf8"), "a.txt\n");
+  assert.equal(existsSync(join(path, "notes.md")), false);
+  assert.equal(await revision(path), head);
+});
+
 test("discardChanges keeps an ignored file and reports a clean worktree", async () => {
   const { repo } = await clones();
   const path = await addWorktree(repo, 3, "main", "origin");
