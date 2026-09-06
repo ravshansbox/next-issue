@@ -170,8 +170,8 @@ npx -y next-issue@latest init
 
 The command writes `next-issue.config.json` in the root of the repository and
 adds `.next-issue/` to `.gitignore`. It stops when the config file is there
-already; `--force` replaces it. The file holds no `setupCommand`, because that
-field has no default.
+already; `--force` replaces it. The file holds no `setupCommand`, because the
+harness deduces one from the lock file of the project.
 
 A field that is not in the file keeps its default. A file that is not valid
 JSON, a field with a value of the wrong type and a field name that the harness
@@ -221,7 +221,7 @@ does not know all stop the run, so a typo cannot pass without a word.
 | `diffMaxChars` | `60000` | The maximum length of the diff that the reviewer reads |
 | `keepRunDays` | `7` | The number of days to keep the run files; `0` keeps them all |
 | `draftPullRequest` | `true` | Open the pull request as a draft, until the review approves |
-| `setupCommand` | none | A shell command to run in a new worktree, before the implementer |
+| `setupCommand` | from the lock file | A shell command to run in a new worktree, before the implementer |
 | `models` | `{}` | The model per agent role |
 | `labels` | see above | The names of the labels that the harness reads and sets |
 
@@ -231,8 +231,30 @@ claims every open issue that no other label and no assignee holds back.
 The log gives the reason for a skipped issue as `stop-label`, `not-ready`,
 `in-flight` or `assigned`.
 
-A role without an entry in `models` uses the default model of the SDK. A
-`setupCommand` that fails, or that does not finish in `setupTimeoutMinutes`,
+A role without an entry in `models` uses the default model of the SDK.
+
+Without a `setupCommand`, the harness looks in the new worktree for a lock file
+and runs the install command that goes with it:
+
+| Lock file | Command |
+| --- | --- |
+| `pnpm-lock.yaml` | `pnpm install --frozen-lockfile` |
+| `package-lock.json` | `npm ci` |
+| `yarn.lock` | `yarn install --frozen-lockfile`, or `yarn install --immutable` with a `.yarnrc.yml` |
+| `bun.lock`, `bun.lockb` | `bun install --frozen-lockfile` |
+| `Cargo.lock` | `cargo fetch` |
+| `go.sum` | `go mod download` |
+| `uv.lock` | `uv sync` |
+| `poetry.lock` | `poetry install` |
+| `Gemfile.lock` | `bundle install` |
+
+The first match in that order wins. A project with no lock file in the list
+runs no setup, and a `setupCommand` in the config file always wins. Thus the
+agents find a worktree with its dependencies in place, and the reviewer can run
+the tests. Each command holds to the lock file, so a lock file that does not
+match the manifest stops the issue rather than changing the lock file.
+
+A `setupCommand` that fails, or that does not finish in `setupTimeoutMinutes`,
 hands the issue to a person. The wait for the checks has its own limit, so
 `commandTimeoutMinutes` holds for every other `git` and `gh` command. State per
 issue goes to `.next-issue/<issue>.json`, so a new run continues where the last

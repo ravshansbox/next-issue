@@ -37,6 +37,7 @@ import {
   parseUnrelated,
   reviewPrompt,
 } from "./prompts.mts";
+import { detectSetupCommand } from "./setup.mts";
 import {
   dropState,
   type IssueState,
@@ -62,6 +63,7 @@ export type Ports = {
   commitAll: typeof commitAll;
   createPr: typeof createPr;
   deleteBranch: typeof deleteBranch;
+  detectSetupCommand: typeof detectSetupCommand;
   diff: typeof diff;
   discardChanges: typeof discardChanges;
   failedCheckLogs: typeof failedCheckLogs;
@@ -89,6 +91,7 @@ export const PORTS: Ports = {
   commitAll,
   createPr,
   deleteBranch,
+  detectSetupCommand,
   diff,
   discardChanges,
   failedCheckLogs,
@@ -253,9 +256,10 @@ async function work(
     };
   };
 
-  if (config.setupCommand !== undefined) {
-    const setup = await log.step("setup", { cmd: config.setupCommand }, () =>
-      ports.runSetup(config.setupCommand!, worktree, config.setupTimeoutMinutes * 60_000),
+  const setupCommand = config.setupCommand ?? (await ports.detectSetupCommand(worktree));
+  if (setupCommand !== undefined) {
+    const setup = await log.step("setup", { cmd: setupCommand, found: config.setupCommand === undefined }, () =>
+      ports.runSetup(setupCommand, worktree, config.setupTimeoutMinutes * 60_000),
     );
     if (setup.code !== 0) {
       const late = setup.timedOut === true;
