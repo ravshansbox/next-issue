@@ -64,6 +64,7 @@ type Plan = {
   saved?: IssueState;
   reset?: boolean;
   reviewerWrites?: boolean;
+  detected?: string;
   issue?: Issue;
 };
 
@@ -75,6 +76,7 @@ type Harness = {
   comments: string[];
   checkReads: number;
   discards: number;
+  setups: string[];
   waits: WaitOptions[];
   pushes: number;
   ready: number[];
@@ -105,6 +107,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     comments: [],
     checkReads: 0,
     discards: 0,
+    setups: [],
     waits: [],
     pushes: 0,
     ready: [],
@@ -127,6 +130,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       return committed;
     },
     createPr: async () => 101,
+    detectSetupCommand: async () => plan.detected,
     deleteBranch: async (_repo, branch) => {
       state.deleted.push(branch);
       return true;
@@ -163,7 +167,10 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       }
       return result(`commit: fix: work on #${issue.number}`);
     },
-    runSetup: async () => ({ code: plan.setupCode ?? 0, stderr: "", timedOut: plan.setupTimedOut }),
+    runSetup: async (command) => {
+      state.setups.push(command);
+      return { code: plan.setupCode ?? 0, stderr: "", timedOut: plan.setupTimedOut };
+    },
     setLabel: async (_repo, kind, number, label) => {
       state.labels.push({ kind, number, label });
     },
@@ -423,6 +430,34 @@ test("the last review round still hands over a blocking finding", async (t) => {
   assert.equal(report.outcome, "needs-human");
   assert.equal(report.reason, "review budget");
   assert.deepEqual(target.ready, []);
+});
+
+test("a lock file gives the setup command when the config holds none", async (t) => {
+  const target = await harness(t, { detected: "pnpm install --frozen-lockfile" });
+  assert.equal((await target.run()).outcome, "done");
+  assert.deepEqual(target.setups, ["pnpm install --frozen-lockfile"]);
+});
+
+test("the config setup command wins over the lock file", async (t) => {
+  const target = await harness(t, {
+    config: { setupCommand: "make deps" },
+    detected: "pnpm install --frozen-lockfile",
+  });
+  await target.run();
+  assert.deepEqual(target.setups, ["make deps"]);
+});
+
+test("a project without a lock file runs no setup", async (t) => {
+  const target = await harness(t);
+  await target.run();
+  assert.deepEqual(target.setups, []);
+});
+
+test("a deduced setup command that fails hands the issue to a person", async (t) => {
+  const target = await harness(t, { detected: "npm ci", setupCode: 1 });
+  const report = await target.run();
+  assert.equal(report.reason, "setup failed");
+  assert.deepEqual(roles(target), []);
 });
 
 test("a setup command that fails hands the issue to a person", async (t) => {
