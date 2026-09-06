@@ -60,7 +60,10 @@ For each open issue, oldest first:
     reviewer leaves out of the findings thus gets an approval: only the findings
     count.
 11. With an open finding, run the fixer agent and go to step 6 again. The
-    budget is `maxReviewRounds`.
+    budget is `maxReviewRounds`. A fixer that holds a finding to be wrong
+    changes nothing and gives its reason instead. The reason goes on the pull
+    request and into the next round, where the reviewer withdraws the finding
+    or repeats it.
 
 ## Stops for a loop
 
@@ -68,20 +71,29 @@ The harness hands the issue to a person, with the `status:needs-human` label,
 when:
 
 - the check budget or the review budget runs out;
-- a fixer round adds no commit, so there is no progress;
+- a fixer round adds no commit and gives no reason, so there is no progress;
 - the fixer reports that the checks fail for a reason the change did not cause,
    such as a test already broken on the base branch or one that fails only under
    load. It changes nothing and the reason reaches the pull request, rather than
    the fixer spending its whole budget on a failure it cannot fix;
 - the reviewer repeats a finding set from an earlier round, which shows a
-   ping-pong between the fixer and the reviewer;
+   ping-pong between the fixer and the reviewer, or a finding that the fixer
+   disputed and the reviewer holds to. The person then decides;
 - the reviewer gives no verdict, or the checks do not finish in time;
 - an agent does not finish in `agentTimeoutMinutes`;
 - the setup command fails, or does not finish in `setupTimeoutMinutes`;
 - a step of the run fails with an error.
 
-The fixer sees the findings of all earlier rounds, not only the last one. From
-round two, the reviewer judges only the earlier findings and any regression.
+The fixer sees the findings of all earlier rounds, not only the last one, with
+its own disputes next to them. From round two, the reviewer judges only the
+earlier findings and any regression.
+
+Each agent that writes to the pull request names itself in the first line of the
+comment: `### Review: approved`, `### Review: changes requested` and
+`### Fixer: no change`. The account is the same for all of them, so the heading,
+not the author, tells them apart. The agents read the comments of the issue, not
+of the pull request, so a comment of an agent never returns to a prompt: the
+dispute of the fixer reaches the reviewer through the state file.
 
 ## Stop after the current issue
 
