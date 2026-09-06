@@ -20,11 +20,10 @@ const ISSUE: Issue = {
   assignees: [],
 };
 
-const APPROVE: Verdict = { verdict: "approve", summary: "Good.", findings: [] };
+const APPROVE: Verdict = { summary: "Good.", findings: [] };
 
 function changes(...details: string[]): Verdict {
   return {
-    verdict: "request_changes",
     summary: "Please fix.",
     findings: details.map((detail) => ({ severity: "blocking" as const, detail })),
   };
@@ -32,7 +31,6 @@ function changes(...details: string[]): Verdict {
 
 function minor(...details: string[]): Verdict {
   return {
-    verdict: "request_changes",
     summary: "Taste.",
     findings: details.map((detail) => ({ severity: "minor" as const, detail })),
   };
@@ -373,9 +371,19 @@ test("a reviewer without a verdict hands the issue to a person", async (t) => {
   assert.equal(report.reason, "no verdict");
 });
 
+test("a reviewer that says request_changes with no finding still approves", async (t) => {
+  const target = await harness(t, {
+    verdicts: [{ verdict: "request_changes", summary: "Good.", findings: [] } as unknown as Verdict],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.equal(report.reviewRounds, 1);
+  assert.match(target.comments[0]!, /Review: approved/);
+});
+
 test("a verdict of the wrong shape counts as no verdict", async (t) => {
   const target = await harness(t, {
-    verdicts: [{ verdict: "request_changes", summary: "x" } as unknown as Verdict],
+    verdicts: [{ summary: "x" } as unknown as Verdict],
   });
   assert.equal((await target.run()).reason, "no verdict");
 });

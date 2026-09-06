@@ -415,7 +415,6 @@ async function work(
     const open = openFindings(verdict, state.reviewRounds >= config.maxReviewRounds);
     log.event("verdict", {
       round: state.reviewRounds,
-      verdict: verdict.verdict,
       blocking: blocking.length,
       minor: verdict.findings.length - blocking.length,
       open: open.length,

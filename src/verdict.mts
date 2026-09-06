@@ -6,7 +6,6 @@ export type Finding = {
 };
 
 export type Verdict = {
-  verdict: "approve" | "request_changes";
   summary: string;
   findings: Finding[];
 };
@@ -14,11 +13,6 @@ export type Verdict = {
 export const VERDICT_SCHEMA: Record<string, unknown> = {
   type: "object",
   properties: {
-    verdict: {
-      type: "string",
-      enum: ["approve", "request_changes"],
-      description: "approve when no blocking problem is left",
-    },
     summary: { type: "string", description: "Short summary of the review" },
     findings: {
       type: "array",
@@ -38,21 +32,16 @@ export const VERDICT_SCHEMA: Record<string, unknown> = {
       },
     },
   },
-  required: ["verdict", "summary", "findings"],
+  required: ["summary", "findings"],
 };
 
 const SEVERITIES: string[] = ["blocking", "minor"];
-
-const VERDICTS: string[] = ["approve", "request_changes"];
 
 export function readVerdict(value: unknown): Verdict | undefined {
   if (typeof value !== "object" || value === null) {
     return undefined;
   }
-  const { verdict, summary, findings } = value as Record<string, unknown>;
-  if (typeof verdict !== "string" || !VERDICTS.includes(verdict)) {
-    return undefined;
-  }
+  const { summary, findings } = value as Record<string, unknown>;
   if (typeof summary !== "string" || !Array.isArray(findings)) {
     return undefined;
   }
@@ -67,7 +56,7 @@ export function readVerdict(value: unknown): Verdict | undefined {
     }
     checked.push({ severity: severity as Severity, detail });
   }
-  return { verdict: verdict as Verdict["verdict"], summary, findings: checked };
+  return { summary, findings: checked };
 }
 
 export function blockingFindings(verdict: Verdict): Finding[] {
