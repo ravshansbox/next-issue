@@ -59,6 +59,10 @@ const DEFAULTS: Config = {
   },
 };
 
+function defaults(): Config {
+  return { ...DEFAULTS, models: { ...DEFAULTS.models }, labels: { ...DEFAULTS.labels } };
+}
+
 const FIELDS: string[] = [...Object.keys(DEFAULTS), "setupCommand"];
 
 const WHOLE_FIELDS: Array<[keyof Config, number]> = [
@@ -81,7 +85,7 @@ const MODEL_ROLES = ["implementer", "reviewer", "fixer"] as const;
 const LABEL_NAMES = ["ready", "inProgress", "inReview", "done", "needsHuman", "skip"] as const;
 
 const FILE_DEFAULTS = {
-  ...DEFAULTS,
+  ...defaults(),
   models: Object.fromEntries(MODEL_ROLES.map((role) => [role, null])),
 };
 
@@ -107,7 +111,7 @@ export async function loadConfig(root: string): Promise<Config> {
   try {
     raw = await readFile(join(root, CONFIG_FILE), "utf8");
   } catch {
-    return { ...DEFAULTS, models: { ...DEFAULTS.models }, labels: { ...DEFAULTS.labels } };
+    return defaults();
   }
   let parsed: unknown;
   try {
@@ -125,11 +129,7 @@ export function parseConfig(value: unknown): Config {
       throw new Error(`${CONFIG_FILE} holds an unknown field: ${key}`);
     }
   }
-  const config: Config = {
-    ...DEFAULTS,
-    models: { ...DEFAULTS.models },
-    labels: { ...DEFAULTS.labels },
-  };
+  const config: Config = defaults();
   if (file.remote !== undefined) {
     config.remote = text(file.remote, "remote", false);
   }
