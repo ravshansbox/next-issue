@@ -85,9 +85,10 @@ only between two issues, finishes the issue that it holds, deletes the file and
 then writes the summary as usual. A file from an earlier run is dropped at the
 start, so it stops nothing.
 
-`Ctrl-C` is different: the terminal signals every child too, so the run dies in
-the middle of a step. The saved state lets the next run continue the issue, but
-the issue keeps `status:in-progress` and the run writes no summary.
+`Ctrl-C` is different: the harness passes the signal on to the command that runs
+and to every child of it, so the run dies in the middle of a step. The saved
+state lets the next run continue the issue, but the issue keeps
+`status:in-progress` and the run writes no summary.
 
 Every status label that the harness puts on the issue goes on the pull request
 too, from the first review round. Thus a draft pull request shows work that the

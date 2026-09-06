@@ -31,6 +31,46 @@ let defaultTimeoutMs = 10 * 60_000;
 
 const STDERR_TAIL = 200_000;
 
+const groups = new Set<number>();
+
+function forward(signal: NodeJS.Signals): void {
+  for (const pid of groups) {
+    try {
+      process.kill(-pid, signal);
+    } catch {}
+  }
+  groups.clear();
+  process.off("SIGINT", onInterrupt);
+  process.off("SIGTERM", onTerminate);
+  process.kill(process.pid, signal);
+}
+
+const onInterrupt = (): void => forward("SIGINT");
+
+const onTerminate = (): void => forward("SIGTERM");
+
+function watch(pid: number | undefined): void {
+  if (pid === undefined) {
+    return;
+  }
+  if (groups.size === 0) {
+    process.on("SIGINT", onInterrupt);
+    process.on("SIGTERM", onTerminate);
+  }
+  groups.add(pid);
+}
+
+function unwatch(pid: number | undefined): void {
+  if (pid === undefined) {
+    return;
+  }
+  groups.delete(pid);
+  if (groups.size === 0) {
+    process.off("SIGINT", onInterrupt);
+    process.off("SIGTERM", onTerminate);
+  }
+}
+
 export function setCommandObserver(next: (record: CommandRecord) => void): void {
   observer = next;
 }
@@ -52,6 +92,8 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
         "pipe",
       ],
     });
+    const pid = child.pid;
+    watch(pid);
     let stdout = "";
     let stderr = "";
     let timedOut = false;
@@ -72,11 +114,11 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
     });
     const timer = setTimeout(() => {
       timedOut = true;
-      const pid = child.pid;
+      if (pid === undefined) {
+        child.kill("SIGKILL");
+        return;
+      }
       try {
-        if (pid === undefined) {
-          throw new Error("The child has no id.");
-        }
         process.kill(-pid, "SIGKILL");
       } catch {
         child.kill("SIGKILL");
@@ -85,6 +127,7 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
     let done = false;
     const settle = (code: number | null): void => {
       clearTimeout(timer);
+      unwatch(pid);
       if (done) {
         return;
       }
@@ -103,6 +146,7 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
     };
     child.on("error", (error) => {
       clearTimeout(timer);
+      unwatch(pid);
       done = true;
       reject(error);
     });
