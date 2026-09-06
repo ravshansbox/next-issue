@@ -1,4 +1,4 @@
-import { CODING, READ_ONLY, runAgent } from "./agents.mts";
+import { CODING, REVIEWING, runAgent } from "./agents.mts";
 import { type Config, managedLabels } from "./config.mts";
 import { run } from "./exec.mts";
 import {
@@ -7,6 +7,7 @@ import {
   commitAll,
   deleteBranch,
   diff,
+  discardChanges,
   hasWorktree,
   push,
   removeWorktree,
@@ -62,6 +63,7 @@ export type Ports = {
   createPr: typeof createPr;
   deleteBranch: typeof deleteBranch;
   diff: typeof diff;
+  discardChanges: typeof discardChanges;
   failedCheckLogs: typeof failedCheckLogs;
   findPr: typeof findPr;
   hasWorktree: typeof hasWorktree;
@@ -88,6 +90,7 @@ export const PORTS: Ports = {
   createPr,
   deleteBranch,
   diff,
+  discardChanges,
   failedCheckLogs,
   findPr,
   hasWorktree,
@@ -390,12 +393,15 @@ async function work(
         name: "reviewer",
         cwd: worktree,
         prompt: reviewPrompt(issue, comments, patch, history(state.reviewLog)),
-        profile: READ_ONLY,
+        profile: REVIEWING,
         model: config.models.reviewer,
         timeoutMs: config.agentTimeoutMinutes * 60_000,
         outputSchema: VERDICT_SCHEMA,
       }),
     );
+    if (await ports.discardChanges(worktree)) {
+      log.event("review.discard", { round: state.reviewRounds }, "quiet");
+    }
     const verdict = readVerdict(review.structured);
     if (verdict === undefined) {
       await escalate("The reviewer gave no verdict.");

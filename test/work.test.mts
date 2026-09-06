@@ -63,15 +63,18 @@ type Plan = {
   fixerText?: string;
   saved?: IssueState;
   reset?: boolean;
+  reviewerWrites?: boolean;
   issue?: Issue;
 };
 
 type Harness = {
   context: Context;
+  profiles: Array<{ role: string; tools: string[] }>;
   labels: Array<{ kind: string; number: number; label: string }>;
   prompts: Array<{ role: string; prompt: string }>;
   comments: string[];
   checkReads: number;
+  discards: number;
   waits: WaitOptions[];
   pushes: number;
   ready: number[];
@@ -96,10 +99,12 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
   let head = 0;
   const state: Harness = {
     context: undefined as unknown as Context,
+    profiles: [],
     labels: [],
     prompts: [],
     comments: [],
     checkReads: 0,
+    discards: 0,
     waits: [],
     pushes: 0,
     ready: [],
@@ -127,6 +132,10 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       return true;
     },
     diff: async () => plan.diff ?? "the diff",
+    discardChanges: async () => {
+      state.discards += 1;
+      return plan.reviewerWrites === true;
+    },
     failedCheckLogs: async () => "the failed job logs",
     findPr: async () => undefined,
     hasWorktree: async () => false,
@@ -142,6 +151,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     revision: async () => String(head),
     runAgent: async (_recorder, request: AgentRequest) => {
       state.prompts.push({ role: request.name, prompt: request.prompt });
+      state.profiles.push({ role: request.name, tools: request.profile.tools });
       if (request.name === "reviewer") {
         return result("reviewed", verdicts.shift());
       }
@@ -361,6 +371,24 @@ test("a verdict of the wrong shape counts as no verdict", async (t) => {
     verdicts: [{ verdict: "request_changes", summary: "x" } as unknown as Verdict],
   });
   assert.equal((await target.run()).reason, "no verdict");
+});
+
+test("the reviewer can run commands in the worktree", async (t) => {
+  const target = await harness(t);
+  await target.run();
+  const reviewer = target.profiles.find((entry) => entry.role === "reviewer")!;
+  assert.equal(reviewer.tools.includes("Bash"), true);
+  assert.match(target.prompts.at(-1)!.prompt, /run commands to prove what you say/);
+});
+
+test("a change that the reviewer leaves never reaches a commit", async (t) => {
+  const target = await harness(t, {
+    reviewerWrites: true,
+    verdicts: [changes("The count is wrong."), APPROVE],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.equal(target.discards, 2);
 });
 
 test("a minor finding starts a fix round", async (t) => {

@@ -122,6 +122,15 @@ export async function commitAll(cwd: string, message: string): Promise<boolean> 
   return true;
 }
 
+export async function discardChanges(cwd: string): Promise<boolean> {
+  if (!(await isDirty(cwd))) {
+    return false;
+  }
+  await must("git", ["checkout", "--", "."], { cwd });
+  await must("git", ["clean", "-fd"], { cwd });
+  return true;
+}
+
 export async function push(cwd: string, remote: string, branch: string): Promise<void> {
   await must("git", ["push", "-u", remote, branch], { cwd });
 }

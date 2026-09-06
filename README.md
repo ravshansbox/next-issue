@@ -40,8 +40,11 @@ For each open issue, oldest first:
 7. On a red build, give the failed job logs to the fixer agent, then go to step
    6 again. The budget is `maxCiFixes`.
 8. Let the reviewer agent judge the diff, at most `diffMaxChars` of it. The
-   reviewer returns a structured verdict that rates each finding `blocking` or
-   `minor`. The harness puts the result on the pull request.
+   reviewer reads files and runs commands in the worktree, so it can prove a
+   finding with the tests or the type check. The harness then throws away every
+   change that the reviewer left, so no such change can reach a later commit.
+   The reviewer returns a structured verdict that rates each finding `blocking`
+   or `minor`. The harness puts the result on the pull request.
 9. An open finding is any finding, blocking or minor, while a review round is
    left. In the last round, only a blocking finding stays open: a minor finding
    there goes on the pull request but starts no fix, because a fix in the last
@@ -91,16 +94,20 @@ too, from the first review round. Thus a draft pull request shows work that the
 harness has not finished, and a `status:needs-human` pull request shows work
 that waits for a person.
 
-The harness runs all git and `gh` commands itself. The agents only read and
-change files. The commit holds all the changes in the worktree, so a setup
-command that writes a file outside `.gitignore` puts that file in the commit.
+The harness runs all git and `gh` commands itself. The commit holds all the
+changes in the worktree, so a setup command that writes a file outside
+`.gitignore` puts that file in the commit. The reviewer is the one agent whose
+changes never get that far: the harness discards them before it reads the
+verdict.
 
 ## Safety
 
-The implementer and the fixer run with the permission checks off. They start in
-the worktree, but nothing holds them there: they can run any command, with your
-rights, anywhere on the machine. The prompt holds the title, the body and the
-comments of the issue, which come from GitHub.
+Every agent can run a shell command. The implementer and the fixer run with the
+permission checks off; the reviewer runs with a smaller tool set, but its shell
+has no limit on the commands. They all start in the worktree, but nothing holds
+them there: they can run any command, with your rights, anywhere on the machine.
+The prompt holds the title, the body and the comments of the issue, which come
+from GitHub.
 
 Thus a person who can write an issue or a comment can try to give an
 instruction to the agent. Use the harness only on a repository where you trust

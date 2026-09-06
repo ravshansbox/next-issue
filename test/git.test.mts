@@ -1,10 +1,19 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { must } from "../src/exec.mts";
-import { addWorktree, ensureIgnored, parseRemote, type Repo, revision } from "../src/git.mts";
+import {
+  addWorktree,
+  discardChanges,
+  ensureIgnored,
+  isDirty,
+  parseRemote,
+  type Repo,
+  revision,
+} from "../src/git.mts";
 
 test("parseRemote reads every remote form", () => {
   const expected = { owner: "acme", name: "tool" };
@@ -93,4 +102,30 @@ test("addWorktree starts a new branch from the base", async () => {
   const { repo } = await clones();
   const path = await addWorktree(repo, 3, "main", "origin");
   assert.equal(await revision(path), await revision(repo.root));
+});
+
+test("discardChanges puts back a tracked file and removes a new one", async () => {
+  const { repo } = await clones();
+  const path = await addWorktree(repo, 3, "main", "origin");
+  const head = await revision(path);
+  await writeFile(join(path, "a.txt"), "the reviewer wrote this\n");
+  await writeFile(join(path, "notes.md"), "scratch\n");
+  assert.equal(await isDirty(path), true);
+  assert.equal(await discardChanges(path), true);
+  assert.equal(await isDirty(path), false);
+  assert.equal(await readFile(join(path, "a.txt"), "utf8"), "a.txt\n");
+  assert.equal(existsSync(join(path, "notes.md")), false);
+  assert.equal(await revision(path), head);
+});
+
+test("discardChanges keeps an ignored file and reports a clean worktree", async () => {
+  const { repo } = await clones();
+  const path = await addWorktree(repo, 3, "main", "origin");
+  await writeFile(join(path, ".gitignore"), "deps/\n");
+  await git(path, "add", ".gitignore");
+  await git(path, "commit", "-q", "-m", "ignore deps");
+  await mkdir(join(path, "deps"));
+  await writeFile(join(path, "deps", "pkg.txt"), "installed\n");
+  assert.equal(await discardChanges(path), false);
+  assert.equal(existsSync(join(path, "deps", "pkg.txt")), true);
 });
