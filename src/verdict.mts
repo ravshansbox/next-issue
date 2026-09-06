@@ -74,14 +74,20 @@ export function blockingFindings(verdict: Verdict): Finding[] {
   return verdict.findings.filter((finding) => finding.severity === "blocking");
 }
 
-export function isApproved(verdict: Verdict): boolean {
-  return blockingFindings(verdict).length === 0;
+export function openFindings(verdict: Verdict, lastRound: boolean): Finding[] {
+  return lastRound ? blockingFindings(verdict) : verdict.findings;
 }
 
-export function formatVerdict(verdict: Verdict): string {
-  const head = isApproved(verdict) ? "Review: approved" : "Review: changes requested";
+const LEFT = "The findings above stay as they are: no blocking finding is open and the review budget is spent.";
+
+export function formatVerdict(verdict: Verdict, open: Finding[]): string {
+  const approved = open.length === 0;
+  const head = approved ? "Review: approved" : "Review: changes requested";
   const lines = verdict.findings.map((finding) => `- **${finding.severity}** ${finding.detail}`);
-  return [`### ${head}`, verdict.summary, lines.join("\n")].filter((part) => part.length > 0).join("\n\n");
+  const note = approved && verdict.findings.length > 0 ? LEFT : "";
+  return [`### ${head}`, verdict.summary, lines.join("\n"), note]
+    .filter((part) => part.length > 0)
+    .join("\n\n");
 }
 
 export function formatFindings(findings: Finding[]): string {
