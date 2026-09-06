@@ -55,8 +55,8 @@ For each open issue, oldest first:
    finding.
 10. No open finding means approval: mark the pull request ready for review and
     set `status:done`. The merge stays with you. The worktree, the local branch
-    and the state file go away. The remote branch stays. A reviewer that leaves
-    a problem out of the findings thus gets an approval: only the findings
+    and the state file go away. The remote branch stays. A problem that the
+    reviewer leaves out of the findings thus gets an approval: only the findings
     count.
 11. With an open finding, run the fixer agent and go to step 6 again. The
     budget is `maxReviewRounds`.
