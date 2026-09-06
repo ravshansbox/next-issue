@@ -30,6 +30,14 @@ function changes(...details: string[]): Verdict {
   };
 }
 
+function minor(...details: string[]): Verdict {
+  return {
+    verdict: "request_changes",
+    summary: "Taste.",
+    findings: details.map((detail) => ({ severity: "minor" as const, detail })),
+  };
+}
+
 function result(text: string, structured?: unknown): AgentResult {
   return {
     text,
@@ -355,11 +363,38 @@ test("a verdict of the wrong shape counts as no verdict", async (t) => {
   assert.equal((await target.run()).reason, "no verdict");
 });
 
-test("only minor findings give an approval", async (t) => {
+test("a minor finding starts a fix round", async (t) => {
+  const target = await harness(t, { verdicts: [minor("The name is long."), APPROVE] });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.equal(report.reviewRounds, 2);
+  assert.deepEqual(roles(target), ["implementer", "reviewer", "fixer", "reviewer"]);
+  assert.match(target.prompts[2]!.prompt, /The name is long\./);
+  assert.match(target.comments[0]!, /Review: changes requested/);
+});
+
+test("the last review round leaves a minor finding and approves", async (t) => {
   const target = await harness(t, {
-    verdicts: [{ verdict: "request_changes", summary: "Taste.", findings: [{ severity: "minor", detail: "long name" }] }],
+    config: { maxReviewRounds: 1 },
+    verdicts: [minor("The name is long.")],
   });
-  assert.equal((await target.run()).outcome, "done");
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.deepEqual(roles(target), ["implementer", "reviewer"]);
+  assert.deepEqual(target.ready, [101]);
+  assert.match(target.comments[0]!, /Review: approved/);
+  assert.match(target.comments[0]!, /the review budget is spent/);
+});
+
+test("the last review round still hands over a blocking finding", async (t) => {
+  const target = await harness(t, {
+    config: { maxReviewRounds: 2 },
+    verdicts: [minor("The name is long."), changes("The count is wrong.")],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "needs-human");
+  assert.equal(report.reason, "review budget");
+  assert.deepEqual(target.ready, []);
 });
 
 test("a setup command that fails hands the issue to a person", async (t) => {

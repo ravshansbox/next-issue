@@ -4,7 +4,7 @@ import {
   blockingFindings,
   fingerprint,
   formatVerdict,
-  isApproved,
+  openFindings,
   readVerdict,
   type Verdict,
 } from "../src/verdict.mts";
@@ -50,14 +50,26 @@ test("readVerdict drops the fields that it does not know", () => {
   );
 });
 
-test("only a blocking finding stops the approval", () => {
+test("every finding is open while a review round is left", () => {
   assert.equal(blockingFindings(BLOCKING).length, 1);
-  assert.equal(isApproved(BLOCKING), false);
-  assert.equal(
-    isApproved({ verdict: "request_changes", summary: "", findings: [{ severity: "minor", detail: "taste" }] }),
-    true,
-  );
-  assert.equal(isApproved({ verdict: "approve", summary: "", findings: [] }), true);
+  assert.deepEqual(openFindings(BLOCKING, false), BLOCKING.findings);
+  const taste: Verdict = {
+    verdict: "request_changes",
+    summary: "",
+    findings: [{ severity: "minor", detail: "taste" }],
+  };
+  assert.equal(openFindings(taste, false).length, 1);
+});
+
+test("the last round leaves a minor finding open no more", () => {
+  assert.deepEqual(openFindings(BLOCKING, true), [{ severity: "blocking", detail: "The count is wrong." }]);
+  const taste: Verdict = {
+    verdict: "request_changes",
+    summary: "",
+    findings: [{ severity: "minor", detail: "taste" }],
+  };
+  assert.deepEqual(openFindings(taste, true), []);
+  assert.deepEqual(openFindings({ verdict: "approve", summary: "", findings: [] }, true), []);
 });
 
 test("a blocking finding beats a verdict of approve", () => {
@@ -66,16 +78,31 @@ test("a blocking finding beats a verdict of approve", () => {
     summary: "Good enough.",
     findings: [{ severity: "blocking", detail: "The migration drops the table." }],
   };
-  assert.equal(isApproved(contradictory), false);
-  assert.match(formatVerdict(contradictory), /### Review: changes requested/);
+  const open = openFindings(contradictory, true);
+  assert.equal(open.length, 1);
+  assert.match(formatVerdict(contradictory, open), /### Review: changes requested/);
 });
 
 test("formatVerdict shows the head, the summary and every finding", () => {
-  const text = formatVerdict(BLOCKING);
+  const text = formatVerdict(BLOCKING, BLOCKING.findings);
   assert.match(text, /### Review: changes requested/);
   assert.match(text, /One problem is left\./);
   assert.match(text, /- \*\*blocking\*\* The count is wrong\./);
-  assert.match(formatVerdict({ verdict: "approve", summary: "Good.", findings: [] }), /Review: approved/);
+  assert.match(text, /- \*\*minor\*\* The name is long\./);
+  assert.match(formatVerdict({ verdict: "approve", summary: "Good.", findings: [] }, []), /Review: approved/);
+});
+
+test("an approval that leaves a finding says why", () => {
+  const taste: Verdict = {
+    verdict: "request_changes",
+    summary: "Taste only.",
+    findings: [{ severity: "minor", detail: "The name is long." }],
+  };
+  const text = formatVerdict(taste, []);
+  assert.match(text, /### Review: approved/);
+  assert.match(text, /- \*\*minor\*\* The name is long\./);
+  assert.match(text, /the review budget is spent/);
+  assert.doesNotMatch(formatVerdict(taste, taste.findings), /the review budget is spent/);
 });
 
 test("the fingerprint ignores the order, the case and the punctuation", () => {

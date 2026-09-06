@@ -49,7 +49,7 @@ import {
   fingerprint,
   formatFindings,
   formatVerdict,
-  isApproved,
+  openFindings,
   readVerdict,
   VERDICT_SCHEMA,
 } from "./verdict.mts";
@@ -402,16 +402,18 @@ async function work(
       return finish("needs-human", "no verdict");
     }
     const blocking = blockingFindings(verdict);
+    const open = openFindings(verdict, state.reviewRounds >= config.maxReviewRounds);
     log.event("verdict", {
       round: state.reviewRounds,
       verdict: verdict.verdict,
       blocking: blocking.length,
       minor: verdict.findings.length - blocking.length,
+      open: open.length,
       summary: verdict.summary,
     }, "quiet");
-    await ports.commentOnPr(repo, state.pr, formatVerdict(verdict));
+    await ports.commentOnPr(repo, state.pr, formatVerdict(verdict, open));
 
-    if (isApproved(verdict)) {
+    if (open.length === 0) {
       const after = await gate();
       if (after.done) {
         return after.report;
@@ -426,19 +428,19 @@ async function work(
       return finish("done");
     }
 
-    const mark = fingerprint(blocking);
+    const mark = fingerprint(open);
     if (state.reviewLog.some((round) => round.fingerprint === mark)) {
       await escalate("The reviewer repeated findings that an earlier round did not fix.");
       return finish("needs-human", "repeated findings");
     }
     const earlier = history(state.reviewLog);
-    state.reviewLog.push({ round: state.reviewRounds, fingerprint: mark, findings: formatFindings(blocking) });
+    state.reviewLog.push({ round: state.reviewRounds, fingerprint: mark, findings: formatFindings(open) });
     await writeState(repo, state);
 
     const fix = await fixRound(
       job,
       "The reviewer requested changes.",
-      formatFindings(blocking),
+      formatFindings(open),
       earlier,
       "review",
     );
