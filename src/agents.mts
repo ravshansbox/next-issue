@@ -29,8 +29,8 @@ export type AgentResult = {
   structured?: unknown;
 };
 
-const READ_ONLY: Profile = {
-  tools: ["Read", "Grep", "Glob"],
+const REVIEWING: Profile = {
+  tools: ["Read", "Grep", "Glob", "Bash"],
   permissionMode: "dontAsk",
 };
 
@@ -40,7 +40,7 @@ const CODING: Profile = {
   allowDangerouslySkipPermissions: true,
 };
 
-export { CODING, READ_ONLY };
+export { CODING, REVIEWING };
 
 export async function runAgent(recorder: Recorder, request: AgentRequest): Promise<AgentResult> {
   const log = recorder.scope({ role: request.name });
