@@ -1,0 +1,8 @@
+- Pull the trunk on the main worktree at the start of the conversation, and again before you create a worktree.
+- Never make a change on the main worktree.
+- Never switch the main worktree branch.
+- Before making any change pick an existing github issue or create a new one.
+- Enter a git worktree before you make a change.
+- Name the worktree folder and branch name after the issue number.
+- A task is complete only when its pull request passes ci and its body links a github issue with `Closes #<issue>`.
+- Each `test` description names the actor, the action and the observable outcome.
