@@ -126,7 +126,7 @@ export async function discardChanges(cwd: string): Promise<boolean> {
   if (!(await isDirty(cwd))) {
     return false;
   }
-  await must("git", ["checkout", "--", "."], { cwd });
+  await must("git", ["reset", "--hard", "HEAD"], { cwd });
   await must("git", ["clean", "-fd"], { cwd });
   return true;
 }
