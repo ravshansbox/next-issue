@@ -293,6 +293,17 @@ test("a fixer that disputes a finding keeps the round going", async (t) => {
   assert.match(target.comments[1]!, /### Fixer: no change\n\nthe count follows the convention/);
 });
 
+test("a change that a disputing fixer leaves never reaches the next reviewer", async (t) => {
+  const target = await harness(t, {
+    reviewerWrites: true,
+    verdicts: [changes("The count is wrong."), APPROVE],
+    fixerText: ["unrelated: the count follows the convention in CONTRIBUTING.md"],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.equal(target.discards, 3);
+});
+
 test("the next reviewer reads the dispute of the fixer", async (t) => {
   const target = await harness(t, {
     verdicts: [changes("The count is wrong."), APPROVE],

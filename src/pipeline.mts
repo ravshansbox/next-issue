@@ -463,6 +463,9 @@ async function reviewRound(job: Run): Promise<Round> {
     }
     state.reviewLog.at(-1)!.dispute = note;
     await writeState(repo, state);
+    if (await ports.discardChanges(worktree)) {
+      log.event("fix.discard", { round: state.reviewRounds }, "quiet");
+    }
     await ports.commentOnPr(repo, pr, `### Fixer: no change\n\n${note}`);
   }
   return { done: false };
