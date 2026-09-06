@@ -97,9 +97,9 @@ state lets the next run continue the issue, but the issue keeps
 `status:in-progress` and the run writes no summary.
 
 Every status label that the harness puts on the issue goes on the pull request
-too, from the first review round. Thus a draft pull request shows work that the
-harness has not finished, and a `status:needs-human` pull request shows work
-that waits for a person.
+too, as soon as the pull request exists. Thus a draft pull request shows work
+that the harness has not finished, and a `status:needs-human` pull request shows
+work that waits for a person.
 
 The harness runs all git and `gh` commands itself. The commit holds all the
 changes in the worktree, so a setup command that writes a file outside
