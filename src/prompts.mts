@@ -75,7 +75,8 @@ const UNRELATED_RULE = [
 
 const DISPUTE_RULE = [
   "A finding can be wrong: it can miss a convention of this repository, ask for work that the issue does not want, or describe behaviour that the code does not have.",
-  "Establish that before you change anything. If you must not fix the findings, change nothing and end your final message with one line in the form `unrelated: <one sentence on which finding is wrong and why>`.",
+  "Establish that before you change anything. If every finding is wrong, change nothing and end your final message with one line in the form `unrelated: <one sentence on why the findings are wrong>`.",
+  "If only some of the findings are wrong, fix the correct ones and change nothing for the wrong ones. Write no `unrelated` line in that round. The next round holds only the findings that are left, and you can dispute them there.",
   "The reviewer reads that line in the next round. Do not make a change that you hold to be wrong only to end the round.",
 ].join("\n");
 

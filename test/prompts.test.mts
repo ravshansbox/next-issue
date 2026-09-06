@@ -53,7 +53,13 @@ test("each fixer kind is offered the unrelated exit for its own cause", () => {
   const checks = fixPrompt(ISSUE, "The continuous integration checks failed.", "the logs", [], "checks");
   const review = fixPrompt(ISSUE, "The reviewer requested changes.", "the findings", [], "review");
   assert.match(checks, /unrelated: <one sentence on what fails/);
-  assert.match(review, /unrelated: <one sentence on which finding is wrong/);
+  assert.match(review, /unrelated: <one sentence on why the findings are wrong/);
+});
+
+test("the review fixer is told to dispute only when every finding is wrong", () => {
+  const review = fixPrompt(ISSUE, "The reviewer requested changes.", "the findings", [], "review");
+  assert.match(review, /If every finding is wrong, change nothing/);
+  assert.match(review, /If only some of the findings are wrong, fix the correct ones/);
 });
 
 test("reviewPrompt asks for a full review when no earlier finding exists", () => {
