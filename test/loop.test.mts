@@ -5,7 +5,7 @@ import { exitCode, type Loop, runIssues } from "../src/loop.mts";
 import type { IssueReport, Outcome } from "../src/pipeline.mts";
 
 function issue(number: number): Issue {
-  return { number, title: "t", body: "", createdAt: "2026-01-01T00:00:00Z", labels: [], assignees: [] };
+  return { number, title: "t", body: "", createdAt: "2026-01-01T00:00:00Z", labels: [] };
 }
 
 function report(number: number, outcome: Outcome): IssueReport {

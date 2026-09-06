@@ -7,7 +7,6 @@ export type Issue = {
   body: string;
   createdAt: string;
   labels: string[];
-  assignees: string[];
 };
 
 export type Kind = "issue" | "pr";
@@ -36,10 +35,6 @@ export async function defaultBranch(repo: Repo): Promise<string> {
   return JSON.parse(raw).defaultBranchRef.name as string;
 }
 
-export async function currentLogin(repo: Repo): Promise<string> {
-  return must("gh", ["api", "user", "--jq", ".login"], { cwd: repo.root });
-}
-
 export async function openIssues(repo: Repo, limit: number): Promise<Issue[]> {
   const raw = await gh(repo, [
     "issue",
@@ -51,7 +46,7 @@ export async function openIssues(repo: Repo, limit: number): Promise<Issue[]> {
     "--limit",
     String(limit),
     "--json",
-    "number,title,body,createdAt,labels,assignees",
+    "number,title,body,createdAt,labels",
   ]);
   const parsed = JSON.parse(raw) as Array<{
     number: number;
@@ -59,7 +54,6 @@ export async function openIssues(repo: Repo, limit: number): Promise<Issue[]> {
     body: string | null;
     createdAt: string;
     labels: Array<{ name: string }>;
-    assignees: Array<{ login: string }>;
   }>;
   return parsed
     .map((item) => ({
@@ -68,7 +62,6 @@ export async function openIssues(repo: Repo, limit: number): Promise<Issue[]> {
       body: item.body ?? "",
       createdAt: item.createdAt,
       labels: item.labels.map((label) => label.name),
-      assignees: item.assignees.map((assignee) => assignee.login),
     }))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
@@ -77,10 +70,6 @@ export async function issueComments(repo: Repo, issue: number): Promise<string[]
   const raw = await gh(repo, ["issue", "view", String(issue), "--json", "comments"]);
   const parsed = JSON.parse(raw) as { comments: Array<{ author: { login: string }; body: string }> };
   return parsed.comments.map((comment) => `@${comment.author.login}: ${comment.body}`);
-}
-
-export async function assignIssue(repo: Repo, issue: number, login: string): Promise<void> {
-  await gh(repo, ["issue", "edit", String(issue), "--add-assignee", login]);
 }
 
 export async function labelsOf(repo: Repo, kind: Kind, number: number): Promise<string[]> {
