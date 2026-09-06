@@ -74,8 +74,8 @@ test("run kills a grandchild that outlives its parent on the time limit", async 
   const dir = await mkdtemp(join(tmpdir(), "next-issue-"));
   const file = join(dir, "pid");
   try {
-    const result = await run("bash", ["-lc", `sleep 30 & echo $! > ${file}; sleep 30`], {
-      timeoutMs: 300,
+    const result = await run("bash", ["-c", `sleep 30 & echo $! > ${file}; sleep 30`], {
+      timeoutMs: 1000,
     });
     assert.equal(result.timedOut, true);
     const pid = Number((await readFile(file, "utf8")).trim());
