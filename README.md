@@ -96,10 +96,11 @@ and to every child of it, so the run dies in the middle of a step. The saved
 state lets the next run continue the issue, but the issue keeps
 `status:in-progress` and the run writes no summary.
 
-Every status label that the harness puts on the issue goes on the pull request
-too, as soon as the pull request exists. Thus a draft pull request shows work
-that the harness has not finished, and a `status:needs-human` pull request shows
-work that waits for a person.
+A status label that the harness puts on the issue goes on the pull request too,
+but only if the pull request exists at that moment. The `status:in-progress`
+label of a fresh issue comes before the pull request, and stays on the issue
+alone. Thus a draft pull request shows work that the harness has not finished,
+and a `status:needs-human` pull request shows work that waits for a person.
 
 The harness runs all git and `gh` commands itself. The commit holds all the
 changes in the worktree, so a setup command that writes a file outside
