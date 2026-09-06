@@ -18,13 +18,12 @@ next-issue
 
 For each open issue, oldest first:
 
-1. Claim the issue only when it holds the `status:todo` label, holds no
-   `status:in-progress` or `status:in-review` label, and has no assignee. A
-   `status:done`, `status:needs-human` or `status:blocked` label always stops
-   the claim, a resume too. An issue with saved state under `.next-issue/`
-   resumes instead, whatever its other labels, unless another person is now the
-   assignee.
-2. Assign the issue to you and add `status:in-progress`.
+1. Claim the issue only when it holds the `status:todo` label and holds no
+   `status:in-progress` or `status:in-review` label. A `status:done`,
+   `status:needs-human` or `status:blocked` label always stops the claim, a
+   resume too. An issue with saved state under `.next-issue/` resumes instead,
+   whatever its other labels.
+2. Add `status:in-progress` to the issue.
 3. Fetch the remote, fast-forward the local copy of the default branch when
    that is safe, then add a git worktree at `../<repo>-issue-<n>` on the
    `issue-<n>` branch. A branch that exists on the remote is the start, and a
@@ -238,10 +237,10 @@ does not know all stop the run, so a typo cannot pass without a word.
 | `labels` | see above | The names of the labels that the harness reads and sets |
 
 An empty `labels.ready` turns the ready requirement off. The harness then
-claims every open issue that no other label and no assignee holds back.
+claims every open issue that no other label holds back.
 
-The log gives the reason for a skipped issue as `stop-label`, `not-ready`,
-`in-flight` or `assigned`.
+The log gives the reason for a skipped issue as `stop-label`, `not-ready` or
+`in-flight`.
 
 A role set to `null`, or with no entry in `models`, uses the default model of
 the SDK.

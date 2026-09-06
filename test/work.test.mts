@@ -17,7 +17,6 @@ const ISSUE: Issue = {
   body: "Please add it.",
   createdAt: "2026-01-01T00:00:00Z",
   labels: ["status:todo"],
-  assignees: [],
 };
 
 const APPROVE: Verdict = { summary: "Good.", findings: [] };
@@ -117,7 +116,6 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
 
   const ports: Ports = {
     addWorktree: async () => ({ path: join(root, "worktree"), baseUpdated: plan.baseUpdated ?? true }),
-    assignIssue: async () => undefined,
     commentOnPr: async (_repo, _pr, body) => {
       state.comments.push(body);
     },
@@ -188,7 +186,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
 
   const recorder = await Recorder.create(root, "quiet");
   t.after(() => recorder.close());
-  state.context = { repo, config, base: "main", login: "me", reset: plan.reset === true, recorder, ports };
+  state.context = { repo, config, base: "main", reset: plan.reset === true, recorder, ports };
   return state;
 }
 
@@ -527,7 +525,7 @@ test("a step that throws gives the error outcome and hands the issue over", asyn
 
 test("a saved state carries on and does not implement again", async (t) => {
   const target = await harness(t, {
-    issue: { ...ISSUE, labels: ["status:in-progress"], assignees: ["me"] },
+    issue: { ...ISSUE, labels: ["status:in-progress"] },
     saved: {
       issue: 7,
       phase: "review",
@@ -557,7 +555,7 @@ const SAVED: IssueState = {
 
 test("--reset puts the budgets back and keeps the resume point", async (t) => {
   const target = await harness(t, {
-    issue: { ...ISSUE, labels: ["status:in-progress"], assignees: ["me"] },
+    issue: { ...ISSUE, labels: ["status:in-progress"] },
     saved: SAVED,
     reset: true,
   });

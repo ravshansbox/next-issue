@@ -9,7 +9,6 @@ const ISSUE: Issue = {
   body: "Please add it.",
   createdAt: "2026-01-01T00:00:00Z",
   labels: [],
-  assignees: [],
 };
 
 const FALLBACK = "fix: fallback";

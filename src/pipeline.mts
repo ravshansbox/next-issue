@@ -16,7 +16,6 @@ import {
   worktreePath,
 } from "./git.mts";
 import {
-  assignIssue,
   commentOnPr,
   createPr,
   failedCheckLogs,
@@ -58,7 +57,6 @@ import {
 
 export type Ports = {
   addWorktree: typeof addWorktree;
-  assignIssue: typeof assignIssue;
   commentOnPr: typeof commentOnPr;
   commitAll: typeof commitAll;
   createPr: typeof createPr;
@@ -86,7 +84,6 @@ export type Ports = {
 
 export const PORTS: Ports = {
   addWorktree,
-  assignIssue,
   commentOnPr,
   commitAll,
   createPr,
@@ -112,7 +109,6 @@ export type Context = {
   repo: Repo;
   config: Config;
   base: string;
-  login: string;
   reset: boolean;
   recorder: Recorder;
   ports: Ports;
@@ -142,7 +138,7 @@ type Run = {
   noChecks: boolean;
 };
 
-export type Skip = "stop-label" | "not-ready" | "in-flight" | "assigned";
+export type Skip = "stop-label" | "not-ready" | "in-flight";
 
 type Gate = { done: true; report: IssueReport } | { done: false; fixed: boolean };
 
@@ -150,19 +146,14 @@ type Round = { done: true; report: IssueReport } | { done: false };
 
 type Fix = { committed: true } | { committed: false; unrelated?: string };
 
-export function skipReason(
-  issue: Issue,
-  config: Config,
-  login: string,
-  resuming: boolean,
-): Skip | undefined {
+export function skipReason(issue: Issue, config: Config, resuming: boolean): Skip | undefined {
   const labels = new Set(issue.labels);
   const names = config.labels;
   if (labels.has(names.done) || labels.has(names.needsHuman) || labels.has(names.skip)) {
     return "stop-label";
   }
   if (resuming) {
-    return issue.assignees.every((name) => name === login) ? undefined : "assigned";
+    return undefined;
   }
   if (names.ready.length > 0 && !labels.has(names.ready)) {
     return "not-ready";
@@ -170,14 +161,14 @@ export function skipReason(
   if (labels.has(names.inProgress) || labels.has(names.inReview)) {
     return "in-flight";
   }
-  return issue.assignees.length === 0 ? undefined : "assigned";
+  return undefined;
 }
 
 export async function processIssue(context: Context, issue: Issue): Promise<IssueReport> {
   const started = Date.now();
   const log = context.recorder.scope({ issue: issue.number });
   const saved = await readState(context.repo, issue.number);
-  const skip = skipReason(issue, context.config, context.login, saved !== undefined);
+  const skip = skipReason(issue, context.config, saved !== undefined);
   if (skip !== undefined) {
     log.event("issue.skip", { title: issue.title, reason: skip });
     return { issue: issue.number, outcome: "skipped", ciFixes: 0, reviewRounds: 0, ms: 0 };
@@ -229,7 +220,6 @@ async function work(
   const branch = state.branch;
 
   await log.step("claim", { label: config.labels.inProgress }, async () => {
-    await ports.assignIssue(repo, issue.number, context.login);
     await setStatus(context, issue.number, state.pr, config.labels.inProgress);
     await writeState(repo, state);
   });
