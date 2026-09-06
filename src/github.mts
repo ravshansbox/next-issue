@@ -83,7 +83,7 @@ export async function assignIssue(repo: Repo, issue: number, login: string): Pro
   await gh(repo, ["issue", "edit", String(issue), "--add-assignee", login]);
 }
 
-export async function labelsOf(repo: Repo, kind: Kind, number: number): Promise<string[]> {
+async function labelsOf(repo: Repo, kind: Kind, number: number): Promise<string[]> {
   const raw = await gh(repo, [kind, "view", String(number), "--json", "labels"]);
   const parsed = JSON.parse(raw) as { labels: Array<{ name: string }> };
   return parsed.labels.map((label) => label.name);
@@ -109,7 +109,7 @@ export async function setLabel(
   await gh(repo, [kind, "edit", String(number), ...labelArgs(add, remove, current)]);
 }
 
-export async function ensureLabel(repo: Repo, label: string): Promise<void> {
+async function ensureLabel(repo: Repo, label: string): Promise<void> {
   let known = KNOWN_LABELS.get(slug(repo));
   if (known === undefined) {
     const raw = await gh(repo, ["label", "list", "--limit", "1000", "--json", "name"]);
