@@ -1,11 +1,28 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
+import { setTimeout as sleep } from "node:timers/promises";
 import { type CommandRecord, must, run, setCommandObserver } from "../src/exec.mts";
 
 const NODE = process.execPath;
 
 function script(body: string): string[] {
   return ["-e", body];
+}
+
+async function gone(pid: number): Promise<boolean> {
+  for (let left = 40; left > 0; left -= 1) {
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return true;
+    }
+    await sleep(50);
+  }
+  process.kill(pid, "SIGKILL");
+  return false;
 }
 
 test("run gives the code, the output and the error output", async () => {
@@ -36,6 +53,17 @@ test("run stops on the time limit even when a grandchild holds the output open",
   const result = await run("bash", ["-lc", "sleep 30 & sleep 30"], { timeoutMs: 300 });
   assert.equal(result.timedOut, true);
   assert.ok(Date.now() - started < 10_000);
+});
+
+test("run kills a grandchild that outlives its parent on the time limit", async () => {
+  const file = join(await mkdtemp(join(tmpdir(), "next-issue-")), "pid");
+  const result = await run("bash", ["-lc", `sleep 30 & echo $! > ${file}; sleep 30`], {
+    timeoutMs: 300,
+  });
+  assert.equal(result.timedOut, true);
+  const pid = Number((await readFile(file, "utf8")).trim());
+  assert.ok(pid > 0);
+  assert.equal(await gone(pid), true);
 });
 
 test("run keeps only the tail of a long output", async () => {

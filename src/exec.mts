@@ -45,6 +45,7 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
+      detached: true,
       stdio: [
         options.input === undefined ? "ignore" : "pipe",
         options.show === true ? 2 : "pipe",
@@ -71,7 +72,15 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
     });
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill("SIGKILL");
+      const pid = child.pid;
+      try {
+        if (pid === undefined) {
+          throw new Error("The child has no id.");
+        }
+        process.kill(-pid, "SIGKILL");
+      } catch {
+        child.kill("SIGKILL");
+      }
     }, limit);
     let done = false;
     const settle = (code: number | null): void => {
