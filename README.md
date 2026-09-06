@@ -193,7 +193,11 @@ does not know all stop the run, so a typo cannot pass without a word.
   "diffMaxChars": 60000,
   "keepRunDays": 7,
   "draftPullRequest": true,
-  "models": {},
+  "models": {
+    "implementer": null,
+    "reviewer": null,
+    "fixer": null
+  },
   "labels": {
     "ready": "status:todo",
     "inProgress": "status:in-progress",
@@ -222,7 +226,7 @@ does not know all stop the run, so a typo cannot pass without a word.
 | `keepRunDays` | `7` | The number of days to keep the run files; `0` keeps them all |
 | `draftPullRequest` | `true` | Open the pull request as a draft, until the review approves |
 | `setupCommand` | from the lock file | A shell command to run in a new worktree, before the implementer |
-| `models` | `{}` | The model per agent role |
+| `models` | `null` per role | The model per agent role: `implementer`, `reviewer`, `fixer` |
 | `labels` | see above | The names of the labels that the harness reads and sets |
 
 An empty `labels.ready` turns the ready requirement off. The harness then
@@ -231,7 +235,8 @@ claims every open issue that no other label and no assignee holds back.
 The log gives the reason for a skipped issue as `stop-label`, `not-ready`,
 `in-flight` or `assigned`.
 
-A role without an entry in `models` uses the default model of the SDK.
+A role set to `null`, or with no entry in `models`, uses the default model of
+the SDK.
 
 Without a `setupCommand`, the harness looks in the new worktree for a lock file
 and runs the install command that goes with it:

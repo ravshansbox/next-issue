@@ -80,12 +80,19 @@ const MODEL_ROLES = ["implementer", "reviewer", "fixer"] as const;
 
 const LABEL_NAMES = ["ready", "inProgress", "inReview", "done", "needsHuman", "skip"] as const;
 
+const FILE_DEFAULTS = {
+  ...DEFAULTS,
+  models: Object.fromEntries(MODEL_ROLES.map((role) => [role, null])),
+};
+
 export const CONFIG_FILE = "next-issue.config.json";
 
 export async function writeDefaultConfig(root: string, force: boolean): Promise<string> {
   const path = join(root, CONFIG_FILE);
   try {
-    await writeFile(path, `${JSON.stringify(DEFAULTS, null, 2)}\n`, { flag: force ? "w" : "wx" });
+    await writeFile(path, `${JSON.stringify(FILE_DEFAULTS, null, 2)}\n`, {
+      flag: force ? "w" : "wx",
+    });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "EEXIST") {
       throw new Error(`${CONFIG_FILE} exists already. Use --force to replace it.`);
@@ -148,7 +155,7 @@ export function parseConfig(value: unknown): Config {
       }
     }
     for (const role of MODEL_ROLES) {
-      if (models[role] !== undefined) {
+      if (models[role] !== undefined && models[role] !== null) {
         config.models[role] = text(models[role], `models.${role}`, false);
       }
     }
