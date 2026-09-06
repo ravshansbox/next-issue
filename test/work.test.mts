@@ -57,7 +57,7 @@ type Plan = {
   setupTimedOut?: boolean;
   selfCommit?: boolean;
   fail?: keyof Ports;
-  fixerText?: string;
+  fixerText?: string | string[];
   saved?: IssueState;
   reset?: boolean;
   reviewerWrites?: boolean;
@@ -96,6 +96,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
   const checks = [...(plan.checks ?? ["pass"])];
   const verdicts = [...(plan.verdicts ?? [APPROVE])];
   const commits = [...(plan.commits ?? [])];
+  const fixerTexts = Array.isArray(plan.fixerText) ? [...plan.fixerText] : [];
   let head = 0;
   const state: Harness = {
     context: undefined as unknown as Context,
@@ -157,7 +158,10 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
         return result("reviewed", verdicts.shift());
       }
       if (request.name === "fixer" && plan.fixerText !== undefined) {
-        return result(plan.fixerText);
+        const next = Array.isArray(plan.fixerText) ? fixerTexts.shift() : plan.fixerText;
+        if (next !== undefined) {
+          return result(next);
+        }
       }
       if (plan.selfCommit === true) {
         head += 1;
@@ -278,14 +282,45 @@ test("a fixer that reports an unrelated failure hands over without a commit", as
   assert.match(target.comments.at(-1)!, /a reason this change did not cause: product-inventories fails on main too/);
 });
 
-test("the fixer may only plead unrelated about the checks", async (t) => {
+test("a fixer that disputes a finding keeps the round going", async (t) => {
   const target = await harness(t, {
-    verdicts: [changes("The count is wrong.")],
-    fixerText: "unrelated: not my problem",
+    verdicts: [changes("The count is wrong."), APPROVE],
+    fixerText: ["unrelated: the count follows the convention in CONTRIBUTING.md"],
   });
   const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.deepEqual(roles(target), ["implementer", "reviewer", "fixer", "reviewer"]);
+  assert.match(target.comments[1]!, /### Fixer: no change\n\nthe count follows the convention/);
+});
+
+test("the next reviewer reads the dispute of the fixer", async (t) => {
+  const target = await harness(t, {
+    verdicts: [changes("The count is wrong."), APPROVE],
+    fixerText: ["unrelated: the count follows the convention in CONTRIBUTING.md"],
+  });
+  await target.run();
+  const second = target.prompts.filter((entry) => entry.role === "reviewer")[1]!.prompt;
+  assert.match(second, /The fixer disputed this: the count follows the convention in CONTRIBUTING\.md/);
+});
+
+test("a reviewer that holds to a disputed finding hands the issue to a person", async (t) => {
+  const target = await harness(t, {
+    verdicts: [changes("The count is wrong."), changes("The count is wrong.")],
+    fixerText: ["unrelated: the count follows the convention in CONTRIBUTING.md"],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "needs-human");
+  assert.equal(report.reason, "repeated findings");
+});
+
+test("a fixer that changes nothing and says nothing hands the issue to a person", async (t) => {
+  const target = await harness(t, {
+    verdicts: [changes("The count is wrong.")],
+    commits: [true, false],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "needs-human");
   assert.equal(report.reason, "no fix commit");
-  assert.doesNotMatch(target.prompts.at(-1)!.prompt, /unrelated: /);
 });
 
 test("the check budget hands the issue to a person", async (t) => {

@@ -20,6 +20,7 @@ export type ReviewRound = {
   round: number;
   fingerprint: string;
   findings: string;
+  dispute?: string;
 };
 
 function dir(repo: Repo): string {

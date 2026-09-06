@@ -72,6 +72,12 @@ const UNRELATED_RULE = [
   "A person then reads it. Do not weaken, skip or re-record a test to make the checks pass.",
 ].join("\n");
 
+const DISPUTE_RULE = [
+  "A finding can be wrong: it can miss a convention of this repository, ask for work that the issue does not want, or describe behaviour that the code does not have.",
+  "Establish that before you change anything. If you must not fix the findings, change nothing and end your final message with one line in the form `unrelated: <one sentence on which finding is wrong and why>`.",
+  "The reviewer reads that line in the next round. Do not make a change that you hold to be wrong only to end the round.",
+].join("\n");
+
 export function fixPrompt(
   issue: Issue,
   reason: string,
@@ -92,7 +98,7 @@ export function fixPrompt(
       : "",
     "## Rules",
     "Fix the cause, not the symptom. Keep the change minimal.",
-    kind === "checks" ? UNRELATED_RULE : "",
+    kind === "checks" ? UNRELATED_RULE : DISPUTE_RULE,
     COMMIT_RULES,
   ]
     .filter((part) => part.length > 0)

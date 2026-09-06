@@ -456,8 +456,14 @@ async function reviewRound(job: Run): Promise<Round> {
     "review",
   );
   if (!fix.committed) {
-    await escalate(job, "The fixer added no commit for the review findings.");
-    return { done: true, report: await finish(job, "needs-human", "no fix commit") };
+    const note = fix.unrelated;
+    if (note === undefined) {
+      await escalate(job, "The fixer added no commit for the review findings.");
+      return { done: true, report: await finish(job, "needs-human", "no fix commit") };
+    }
+    state.reviewLog.at(-1)!.dispute = note;
+    await writeState(repo, state);
+    await ports.commentOnPr(repo, pr, `### Fixer: no change\n\n${note}`);
   }
   return { done: false };
 }
@@ -572,5 +578,8 @@ async function setStatus(
 }
 
 function history(rounds: ReviewRound[]): string[] {
-  return rounds.map((round) => `Round ${round.round}:\n${round.findings}`);
+  return rounds.map((round) => {
+    const head = `Round ${round.round}:\n${round.findings}`;
+    return round.dispute === undefined ? head : `${head}\nThe fixer disputed this: ${round.dispute}`;
+  });
 }
