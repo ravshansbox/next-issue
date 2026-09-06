@@ -43,8 +43,11 @@ For each open issue, oldest first:
    reviewer reads files and runs commands in the worktree, so it can prove a
    finding with the tests or the type check. The harness then throws away every
    change that the reviewer left, so no such change can reach a later commit.
-   The reviewer returns a structured verdict that rates each finding `blocking`
-   or `minor`. The harness puts the result on the pull request.
+   The reviewer returns a structured verdict: a summary and one entry per
+   finding, each rated `blocking` or `minor`. The findings are the only ground
+   truth. The reviewer gives no approve or reject field, because such a field
+   can contradict the findings. The harness puts the result on the pull
+   request.
 9. An open finding is any finding, blocking or minor, while a review round is
    left. In the last round, only a blocking finding stays open: a minor finding
    there goes on the pull request but starts no fix, because a fix in the last
@@ -52,8 +55,9 @@ For each open issue, oldest first:
    finding.
 10. No open finding means approval: mark the pull request ready for review and
     set `status:done`. The merge stays with you. The worktree, the local branch
-    and the state file go away. The remote branch stays. An open finding always
-    stops the approval, even when the reviewer also says approve.
+    and the state file go away. The remote branch stays. A reviewer that leaves
+    a problem out of the findings thus gets an approval: only the findings
+    count.
 11. With an open finding, run the fixer agent and go to step 6 again. The
     budget is `maxReviewRounds`.
 
