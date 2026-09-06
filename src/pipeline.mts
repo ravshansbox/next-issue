@@ -231,9 +231,13 @@ async function work(
   });
 
   const comments = await log.step("comments", {}, () => ports.issueComments(repo, issue.number));
-  const worktree = await log.step("worktree", { branch }, () =>
+  const added = await log.step("worktree", { branch }, () =>
     ports.addWorktree(repo, issue.number, context.base, config.remote),
   );
+  const worktree = added.path;
+  if (!added.baseUpdated) {
+    log.event("base.behind", { base: context.base }, "quiet");
+  }
   const job: Run = { context, issue, log, state, branch, worktree, comments };
   const escalate = (reason: string): Promise<void> =>
     handOver(context, log, issue.number, state, reason);

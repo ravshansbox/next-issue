@@ -35,16 +35,26 @@ export async function detectRepo(cwd: string, remote: string): Promise<Repo> {
   return { owner, name, root };
 }
 
+export type Worktree = {
+  path: string;
+  baseUpdated: boolean;
+};
+
 export function worktreePath(repo: Repo, issue: number): string {
   return join(dirname(repo.root), `${basename(repo.root)}-issue-${issue}`);
 }
 
-export async function addWorktree(repo: Repo, issue: number, base: string, remote: string): Promise<string> {
+export async function addWorktree(
+  repo: Repo,
+  issue: number,
+  base: string,
+  remote: string,
+): Promise<Worktree> {
   const path = worktreePath(repo, issue);
   const branch = branchName(issue);
   const upstream = `${remote}/${branch}`;
   await must("git", ["fetch", remote], { cwd: repo.root });
-  await updateBase(repo, base, remote);
+  const baseUpdated = await updateBase(repo, base, remote);
   await must("git", ["worktree", "prune"], { cwd: repo.root });
   const pushed = await hasBranch(repo, upstream, "--remotes");
   if (!(await hasWorktree(repo, path))) {
@@ -56,7 +66,7 @@ export async function addWorktree(repo: Repo, issue: number, base: string, remot
   if (pushed) {
     await run("git", ["merge", "--ff-only", upstream], { cwd: path });
   }
-  return path;
+  return { path, baseUpdated };
 }
 
 async function hasBranch(repo: Repo, name: string, ...flags: string[]): Promise<boolean> {

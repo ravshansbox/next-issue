@@ -84,7 +84,7 @@ test("addWorktree takes a branch that exists only on the remote", async () => {
   await git(other, "checkout", "-q", "-b", "issue-3");
   const pushed = await commit(other, "b.txt");
   await git(other, "push", "-q", "origin", "issue-3");
-  const path = await addWorktree(repo, 3, "main", "origin");
+  const { path } = await addWorktree(repo, 3, "main", "origin");
   assert.equal(await revision(path), pushed);
 });
 
@@ -94,19 +94,30 @@ test("addWorktree fast-forwards a local branch that the remote left behind", asy
   await git(other, "checkout", "-q", "-b", "issue-3");
   const pushed = await commit(other, "b.txt");
   await git(other, "push", "-q", "origin", "issue-3");
-  const path = await addWorktree(repo, 3, "main", "origin");
+  const { path } = await addWorktree(repo, 3, "main", "origin");
   assert.equal(await revision(path), pushed);
 });
 
 test("addWorktree starts a new branch from the base", async () => {
   const { repo } = await clones();
-  const path = await addWorktree(repo, 3, "main", "origin");
+  const { path, baseUpdated } = await addWorktree(repo, 3, "main", "origin");
   assert.equal(await revision(path), await revision(repo.root));
+  assert.equal(baseUpdated, true);
+});
+
+test("addWorktree reports a base that it cannot fast-forward", async () => {
+  const { repo, other } = await clones();
+  await commit(repo.root, "local.txt");
+  await commit(other, "remote.txt");
+  await git(other, "push", "-q", "origin", "main");
+  const { path, baseUpdated } = await addWorktree(repo, 3, "main", "origin");
+  assert.equal(baseUpdated, false);
+  assert.equal(await revision(path), await git(repo.root, "rev-parse", "origin/main"));
 });
 
 test("discardChanges puts back a tracked file and removes a new one", async () => {
   const { repo } = await clones();
-  const path = await addWorktree(repo, 3, "main", "origin");
+  const { path } = await addWorktree(repo, 3, "main", "origin");
   const head = await revision(path);
   await writeFile(join(path, "a.txt"), "the reviewer wrote this\n");
   await writeFile(join(path, "notes.md"), "scratch\n");
@@ -120,7 +131,7 @@ test("discardChanges puts back a tracked file and removes a new one", async () =
 
 test("discardChanges throws away a change that the index holds", async () => {
   const { repo } = await clones();
-  const path = await addWorktree(repo, 3, "main", "origin");
+  const { path } = await addWorktree(repo, 3, "main", "origin");
   const head = await revision(path);
   await writeFile(join(path, "a.txt"), "tampered\n");
   await git(path, "add", "a.txt");
@@ -135,7 +146,7 @@ test("discardChanges throws away a change that the index holds", async () => {
 
 test("discardChanges keeps an ignored file and reports a clean worktree", async () => {
   const { repo } = await clones();
-  const path = await addWorktree(repo, 3, "main", "origin");
+  const { path } = await addWorktree(repo, 3, "main", "origin");
   await writeFile(join(path, ".gitignore"), "deps/\n");
   await git(path, "add", ".gitignore");
   await git(path, "commit", "-q", "-m", "ignore deps");
