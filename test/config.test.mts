@@ -78,6 +78,11 @@ test("a budget of zero and an empty ready label are allowed", async () => {
   assert.equal(config.labels.ready, "");
 });
 
+test("a model role of null uses the default model", async () => {
+  const config = await parse({ models: { implementer: null, reviewer: null, fixer: "m" } });
+  assert.deepEqual(config.models, { fixer: "m" });
+});
+
 test("managedLabels holds every label the harness sets", async () => {
   const config = await loadConfig(await root());
   assert.deepEqual(managedLabels(config), [
@@ -95,6 +100,11 @@ test("writeDefaultConfig writes a file that gives the defaults", async () => {
   assert.equal(path, join(dir, CONFIG_FILE));
   assert.deepEqual(await loadConfig(dir), await loadConfig(await root()));
   assert.match(await readFile(path, "utf8"), /\n$/);
+  assert.deepEqual(JSON.parse(await readFile(path, "utf8")).models, {
+    implementer: null,
+    reviewer: null,
+    fixer: null,
+  });
 });
 
 test("writeDefaultConfig keeps an existing file without force", async () => {
