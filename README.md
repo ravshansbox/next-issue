@@ -188,8 +188,8 @@ does not know all stop the run, so a typo cannot pass without a word.
 {
   "remote": "origin",
   "issueLimit": 100,
-  "maxCiFixes": 3,
-  "maxReviewRounds": 3,
+  "maxCiFixes": 5,
+  "maxReviewRounds": 5,
   "checkIntervalSeconds": 15,
   "checkGraceSeconds": 60,
   "checkTimeoutMinutes": 60,
@@ -220,8 +220,8 @@ does not know all stop the run, so a typo cannot pass without a word.
 | --- | --- | --- |
 | `remote` | `origin` | The git remote for the repository and the branches |
 | `issueLimit` | `100` | The maximum number of open issues to read |
-| `maxCiFixes` | `3` | The budget for check fixes per issue |
-| `maxReviewRounds` | `3` | The budget for review rounds per issue |
+| `maxCiFixes` | `5` | The budget for check fixes per issue |
+| `maxReviewRounds` | `5` | The budget for review rounds per issue |
 | `checkIntervalSeconds` | `15` | The time between two check states |
 | `checkGraceSeconds` | `60` | The time to wait for the first check to show |
 | `checkTimeoutMinutes` | `60` | The limit for one check wait |

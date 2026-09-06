@@ -36,8 +36,8 @@ export type Config = {
 const DEFAULTS: Config = {
   remote: "origin",
   issueLimit: 100,
-  maxCiFixes: 3,
-  maxReviewRounds: 3,
+  maxCiFixes: 5,
+  maxReviewRounds: 5,
   checkIntervalSeconds: 15,
   checkGraceSeconds: 60,
   checkTimeoutMinutes: 60,

@@ -20,7 +20,7 @@ async function root(content?: string): Promise<string> {
 test("a missing file gives the defaults", async () => {
   const config = await loadConfig(await root());
   assert.equal(config.remote, "origin");
-  assert.equal(config.maxCiFixes, 3);
+  assert.equal(config.maxCiFixes, 5);
   assert.equal(config.draftPullRequest, true);
   assert.equal(config.agentTimeoutMinutes, 30);
   assert.equal(config.setupTimeoutMinutes, 15);
@@ -52,7 +52,7 @@ test("the file merges into the defaults", async () => {
   );
   assert.equal(config.maxCiFixes, 1);
   assert.equal(config.draftPullRequest, false);
-  assert.equal(config.maxReviewRounds, 3);
+  assert.equal(config.maxReviewRounds, 5);
   assert.deepEqual(config.models, { fixer: "m" });
   assert.equal(config.labels.done, "shipped");
   assert.equal(config.labels.needsHuman, "status:needs-human");
@@ -122,5 +122,5 @@ test("writeDefaultConfig keeps an existing file without force", async () => {
   await assert.rejects(writeDefaultConfig(dir, false), /exists already/);
   assert.equal((await loadConfig(dir)).maxCiFixes, 9);
   await writeDefaultConfig(dir, true);
-  assert.equal((await loadConfig(dir)).maxCiFixes, 3);
+  assert.equal((await loadConfig(dir)).maxCiFixes, 5);
 });
