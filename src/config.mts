@@ -107,7 +107,7 @@ export async function loadConfig(root: string): Promise<Config> {
   try {
     raw = await readFile(join(root, CONFIG_FILE), "utf8");
   } catch {
-    return DEFAULTS;
+    return { ...DEFAULTS, models: { ...DEFAULTS.models }, labels: { ...DEFAULTS.labels } };
   }
   let parsed: unknown;
   try {

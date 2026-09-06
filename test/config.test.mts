@@ -29,6 +29,16 @@ test("a missing file gives the defaults", async () => {
   assert.deepEqual(config.models, {});
 });
 
+test("a change to a loaded config leaves the next load alone", async () => {
+  const dir = await root();
+  const first = await loadConfig(dir);
+  first.labels.done = "shipped";
+  first.models.fixer = "m";
+  const second = await loadConfig(dir);
+  assert.equal(second.labels.done, "status:done");
+  assert.deepEqual(second.models, {});
+});
+
 test("the file merges into the defaults", async () => {
   const config = await loadConfig(
     await root(
