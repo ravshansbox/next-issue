@@ -122,7 +122,7 @@ export async function loadConfig(root: string): Promise<Config> {
   return parseConfig(parsed);
 }
 
-export function parseConfig(value: unknown): Config {
+function parseConfig(value: unknown): Config {
   const file = record(value, "the file");
   for (const key of Object.keys(file)) {
     if (!FIELDS.includes(key)) {
