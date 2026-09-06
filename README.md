@@ -30,7 +30,7 @@ For each open issue, oldest first:
    `issue-<n>` branch. A branch that exists on the remote is the start, and a
    local branch that fell behind the remote is fast-forwarded. A fast-forward
    of the base that is not safe leaves the local base branch as it is and
-   writes a `base.behind` event. The worktree starts from the remote base.
+   writes a `base.behind` event. A new branch then starts from the remote base.
 4. Let the implementer agent do the work, then commit and push.
 5. Open a draft pull request that closes the issue.
 6. Wait for the checks, once the pull request shows the pushed commit. A
