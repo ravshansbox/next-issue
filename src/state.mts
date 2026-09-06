@@ -11,7 +11,6 @@ export type IssueState = {
   phase: Phase;
   branch: string;
   pr?: number;
-  handedOver?: boolean;
   ciFixes: number;
   reviewRounds: number;
   reviewLog: ReviewRound[];
@@ -40,9 +39,7 @@ export async function readState(repo: Repo, issue: number): Promise<IssueState |
 }
 
 export function resetState(state: IssueState): IssueState {
-  const next: IssueState = { ...state, ciFixes: 0, reviewRounds: 0, reviewLog: [] };
-  delete next.handedOver;
-  return next;
+  return { ...state, ciFixes: 0, reviewRounds: 0, reviewLog: [] };
 }
 
 export async function writeState(repo: Repo, state: IssueState): Promise<void> {

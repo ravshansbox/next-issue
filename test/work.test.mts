@@ -285,7 +285,6 @@ test("the check budget hands the issue to a person", async (t) => {
   assert.equal(report.ciFixes, 1);
   assert.equal(target.labels.at(-1)?.label, "status:needs-human");
   assert.match(target.comments.at(-1)!, /needs help: The limit of 1 check fixes/);
-  assert.equal((await target.state())?.handedOver, true);
   assert.equal((await target.state())?.phase, "review");
 });
 
@@ -510,7 +509,6 @@ test("a step that throws gives the error outcome and hands the issue over", asyn
   assert.equal(report.outcome, "error");
   assert.match(report.reason!, /the port broke/);
   assert.equal(target.labels.at(-1)?.label, "status:needs-human");
-  assert.equal((await target.state())?.handedOver, true);
   assert.equal((await target.state())?.phase, "implemented");
 });
 
@@ -534,12 +532,11 @@ test("a saved state carries on and does not implement again", async (t) => {
   assert.deepEqual(roles(target), ["reviewer"]);
 });
 
-const HANDED_OVER: IssueState = {
+const SAVED: IssueState = {
   issue: 7,
   phase: "review",
   branch: "issue-7",
   pr: 101,
-  handedOver: true,
   ciFixes: 2,
   reviewRounds: 1,
   reviewLog: [{ round: 1, fingerprint: "old", findings: "- old" }],
@@ -548,7 +545,7 @@ const HANDED_OVER: IssueState = {
 test("--reset puts the budgets back and keeps the resume point", async (t) => {
   const target = await harness(t, {
     issue: { ...ISSUE, labels: ["status:in-progress"], assignees: ["me"] },
-    saved: HANDED_OVER,
+    saved: SAVED,
     reset: true,
   });
   const report = await target.run();
@@ -561,12 +558,12 @@ test("--reset puts the budgets back and keeps the resume point", async (t) => {
 test("--reset leaves the state of a skipped issue alone", async (t) => {
   const target = await harness(t, {
     issue: { ...ISSUE, labels: ["status:needs-human"] },
-    saved: HANDED_OVER,
+    saved: SAVED,
     reset: true,
   });
   const report = await target.run();
   assert.equal(report.outcome, "skipped");
-  assert.deepEqual(await target.state(), HANDED_OVER);
+  assert.deepEqual(await target.state(), SAVED);
 });
 
 test("a skipped issue does nothing", async (t) => {
