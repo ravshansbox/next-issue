@@ -11,6 +11,7 @@ import { message, pruneRuns, Recorder } from "./observe.mts";
 import { type Context, type IssueReport, PORTS, processIssue } from "./pipeline.mts";
 import { STATE_DIR, takeStop } from "./state.mts";
 import { formatSummary, type RunSummary } from "./summary.mts";
+import { packageVersion } from "./version.mts";
 
 function write(stream: NodeJS.WriteStream, text: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -76,7 +77,13 @@ async function handle(
   const context: Context = { repo, config, base, login, reset: args.reset, recorder, ports: PORTS };
   recorder.event(
     "run.start",
-    { repo: `${repo.owner}/${repo.name}`, base, login, log: recorder.logFile },
+    {
+      version: await packageVersion(),
+      repo: `${repo.owner}/${repo.name}`,
+      base,
+      login,
+      log: recorder.logFile,
+    },
     "quiet",
   );
 
