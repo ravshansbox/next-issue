@@ -116,5 +116,11 @@ test("failedCheckLogs tells the fixer when the log read fails", async (t) => {
   const dir = await fakeChecksGh(t, 'echo "gone" >&2; exit 3');
   const report = await failedCheckLogs({ owner: "acme", name: "tool", root: dir }, "issue-1", 1000);
   assert.match(report, /## build\nthe job failed/);
-  assert.match(report, /The log read failed with code 3\./);
+  assert.match(report, /The log read failed with code 3\. gone/);
+});
+
+test("failedCheckLogs keeps the partial logs when the read fails", async (t) => {
+  const dir = await fakeChecksGh(t, 'echo "boom"; echo "gone" >&2; exit 3');
+  const report = await failedCheckLogs({ owner: "acme", name: "tool", root: dir }, "issue-1", 1000);
+  assert.match(report, /boom\nThe log read failed with code 3\. gone/);
 });

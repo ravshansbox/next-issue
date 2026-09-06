@@ -327,7 +327,14 @@ export async function failedCheckLogs(repo: Repo, branch: string, maxChars: numb
       cwd: repo.root,
       tailChars: share,
     });
-    parts.push(logs.code === 0 ? logs.stdout : `The log read failed with code ${logs.code}.`);
+    if (logs.code === 0) {
+      parts.push(logs.stdout);
+      continue;
+    }
+    const reason = [`The log read failed with code ${logs.code}.`, logs.stderr.trim()]
+      .filter((line) => line !== "")
+      .join(" ");
+    parts.push([logs.stdout.trim(), reason].filter((line) => line !== "").join("\n"));
   }
   return parts.join("\n\n");
 }
