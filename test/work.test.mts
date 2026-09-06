@@ -64,6 +64,7 @@ type Plan = {
   reviewerWrites?: boolean;
   detected?: string;
   issue?: Issue;
+  baseUpdated?: boolean;
 };
 
 type Harness = {
@@ -115,7 +116,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
   };
 
   const ports: Ports = {
-    addWorktree: async () => join(root, "worktree"),
+    addWorktree: async () => ({ path: join(root, "worktree"), baseUpdated: plan.baseUpdated ?? true }),
     assignIssue: async () => undefined,
     commentOnPr: async (_repo, _pr, body) => {
       state.comments.push(body);
@@ -209,6 +210,18 @@ test("a clean run implements, reviews and finishes", async (t) => {
   assert.equal(await target.state(), undefined);
   assert.deepEqual(target.deleted, ["issue-7"]);
   assert.match(target.comments[0]!, /Review: approved/);
+});
+
+test("a base that stays behind goes to the log", async (t) => {
+  const target = await harness(t, { baseUpdated: false });
+  await target.run();
+  assert.equal(target.context.recorder.summary().counts["base.behind"], 1);
+});
+
+test("a base that the harness fast-forwards writes no such event", async (t) => {
+  const target = await harness(t);
+  await target.run();
+  assert.equal(target.context.recorder.summary().counts["base.behind"], undefined);
 });
 
 test("the status labels go to the issue and to the pull request", async (t) => {
