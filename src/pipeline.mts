@@ -325,7 +325,7 @@ async function work(
     if (gate.fixed) {
       continue;
     }
-    const round = await reviewRound(job, pr);
+    const round = await reviewRound(job);
     if (round.done) {
       return round.report;
     }
@@ -385,9 +385,10 @@ async function checkGate(job: Run): Promise<Gate> {
   return { done: false, fixed: true };
 }
 
-async function reviewRound(job: Run, pr: number): Promise<Round> {
+async function reviewRound(job: Run): Promise<Round> {
   const { context, issue, log, state, worktree, comments } = job;
   const { repo, config, ports } = context;
+  const pr = state.pr!;
   if (state.reviewRounds >= config.maxReviewRounds) {
     await escalate(job, `The limit of ${config.maxReviewRounds} review rounds was reached.`);
     return { done: true, report: await finish(job, "needs-human", "review budget") };
