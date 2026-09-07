@@ -62,9 +62,10 @@ For each open issue, oldest first:
 11. With an open finding, run the fixer agent and go to step 6 again. The
     budget is `maxReviewRounds`. A fixer that holds every finding to be wrong
     changes nothing and gives its reason instead. The reason goes on the pull
-    request and into the next round, where the reviewer withdraws the finding
-    or repeats it. With only some findings wrong, the fixer fixes the correct
-    ones, and the next round holds the rest.
+    request and into the next round, where it answers every finding of its own
+    round, so the reviewer withdraws them all or repeats them all. With only
+    some findings wrong, the fixer fixes the correct ones, and the next round
+    holds the rest.
 
 ## Stops for a loop
 

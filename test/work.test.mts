@@ -326,7 +326,10 @@ test("the next reviewer reads the dispute of the fixer", async (t) => {
   });
   await target.run();
   const second = target.prompts.filter((entry) => entry.role === "reviewer")[1]!.prompt;
-  assert.match(second, /The fixer disputed this: the count follows the convention in CONTRIBUTING\.md/);
+  assert.match(
+    second,
+    /The fixer disputed every finding of this round: the count follows the convention in CONTRIBUTING\.md/,
+  );
 });
 
 test("a reviewer that holds to a disputed finding hands the issue to a person", async (t) => {

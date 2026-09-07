@@ -588,6 +588,8 @@ async function setStatus(
 function history(rounds: ReviewRound[]): string[] {
   return rounds.map((round) => {
     const head = `Round ${round.round}:\n${round.findings}`;
-    return round.dispute === undefined ? head : `${head}\nThe fixer disputed this: ${round.dispute}`;
+    return round.dispute === undefined
+      ? head
+      : `${head}\nThe fixer disputed every finding of this round: ${round.dispute}`;
   });
 }

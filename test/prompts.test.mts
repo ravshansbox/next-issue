@@ -74,8 +74,12 @@ test("reviewPrompt narrows a later round to the earlier findings", () => {
   assert.doesNotMatch(prompt, /Check correctness/);
 });
 
-test("a later reviewer is told to withdraw a finding that a dispute answers", () => {
-  const earlier = ["Round 1:\n- The count is wrong.\nThe fixer disputed this: the count follows CONTRIBUTING.md"];
-  assert.match(reviewPrompt(ISSUE, [], "diff", earlier), /Withdraw that finding if the dispute is correct\./);
-  assert.doesNotMatch(reviewPrompt(ISSUE, [], "diff", []), /Withdraw that finding/);
+test("a later reviewer is told that a dispute answers every finding of its round", () => {
+  const earlier = [
+    "Round 1:\n- The count is wrong.\n- The name is wrong.\nThe fixer disputed every finding of this round: both follow CONTRIBUTING.md",
+  ];
+  const prompt = reviewPrompt(ISSUE, [], "diff", earlier);
+  assert.match(prompt, /answers all of the findings of that round, not one of them\./);
+  assert.match(prompt, /Withdraw every finding of that round if the dispute is correct\./);
+  assert.doesNotMatch(reviewPrompt(ISSUE, [], "diff", []), /Withdraw every finding/);
 });

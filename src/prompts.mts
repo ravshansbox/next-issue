@@ -45,7 +45,8 @@ export function reviewPrompt(
           "This is a later round. Judge two things only:",
           "whether the earlier findings below are now fixed, and whether the new commits broke something.",
           "Do not raise a new point of taste. Do not repeat a finding that is fixed.",
-          "A `The fixer disputed this` line answers a finding. Withdraw that finding if the dispute is correct. Repeat it if the dispute is wrong.",
+          "A `The fixer disputed every finding of this round` line answers all of the findings of that round, not one of them.",
+          "Withdraw every finding of that round if the dispute is correct. Repeat them all if the dispute is wrong.",
           `## Earlier findings\n${earlier.join("\n")}`,
         ].join("\n");
   return [
