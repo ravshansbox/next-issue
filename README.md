@@ -77,6 +77,10 @@ when:
    such as a test already broken on the base branch or one that fails only under
    load. It changes nothing and the reason reaches the pull request, rather than
    the fixer spending its whole budget on a failure it cannot fix;
+- a fixer disputes the findings and leaves a change behind, either in the
+   worktree or in a commit of its own. A dispute carries a reason, not a diff,
+   so the harness keeps the change for the person to read rather than throwing
+   it away;
 - the reviewer repeats a finding set from an earlier round, which shows a
    ping-pong between the fixer and the reviewer, or a finding that the fixer
    disputed and the reviewer holds to. The person then decides;

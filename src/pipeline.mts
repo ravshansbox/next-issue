@@ -9,6 +9,7 @@ import {
   diff,
   discardChanges,
   hasWorktree,
+  isDirty,
   push,
   removeWorktree,
   type Repo,
@@ -67,6 +68,7 @@ export type Ports = {
   failedCheckLogs: typeof failedCheckLogs;
   findPr: typeof findPr;
   hasWorktree: typeof hasWorktree;
+  isDirty: typeof isDirty;
   issueComments: typeof issueComments;
   markPrReady: typeof markPrReady;
   push: typeof push;
@@ -94,6 +96,7 @@ export const PORTS: Ports = {
   failedCheckLogs,
   findPr,
   hasWorktree,
+  isDirty,
   issueComments,
   markPrReady,
   push,
@@ -144,7 +147,7 @@ type Gate = { done: true; report: IssueReport } | { done: false; fixed: boolean 
 
 type Round = { done: true; report: IssueReport } | { done: false };
 
-type Fix = { committed: true } | { committed: false; unrelated?: string };
+type Fix = { committed: true } | { committed: false; unrelated?: string; stray?: boolean };
 
 export function skipReason(issue: Issue, config: Config, resuming: boolean): Skip | undefined {
   const labels = new Set(issue.labels);
@@ -461,11 +464,12 @@ async function reviewRound(job: Run): Promise<Round> {
       await escalate(job, "The fixer added no commit for the review findings.");
       return { done: true, report: await finish(job, "needs-human", "no fix commit") };
     }
+    if (fix.stray === true) {
+      await escalate(job, "The fixer disputed the findings and left a change behind.");
+      return { done: true, report: await finish(job, "needs-human", "dispute with changes") };
+    }
     state.reviewLog.at(-1)!.dispute = note;
     await writeState(repo, state);
-    if (await ports.discardChanges(worktree)) {
-      log.event("fix.discard", { round: state.reviewRounds }, "quiet");
-    }
     await ports.commentOnPr(repo, pr, `### Fixer: no change\n\n${note}`);
   }
   return { done: false };
@@ -518,8 +522,9 @@ async function fixRound(
   );
   const unrelated = parseUnrelated(result.text);
   if (unrelated !== undefined) {
-    log.event("fix.unrelated", { reason, note: unrelated }, "quiet");
-    return { committed: false, unrelated };
+    const stray = (await ports.revision(worktree)) !== before || (await ports.isDirty(worktree));
+    log.event("fix.unrelated", { reason, note: unrelated, stray }, "quiet");
+    return { committed: false, unrelated, stray };
   }
   const subject = parseCommitSubject(result.text, `fix: address feedback on issue #${issue.number}`);
   if (!(await commitWork(job, before, subject))) {

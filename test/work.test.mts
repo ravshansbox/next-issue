@@ -61,6 +61,7 @@ type Plan = {
   saved?: IssueState;
   reset?: boolean;
   reviewerWrites?: boolean;
+  fixerWrites?: boolean;
   detected?: string;
   issue?: Issue;
   baseUpdated?: boolean;
@@ -141,6 +142,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     failedCheckLogs: async () => "the failed job logs",
     findPr: async () => undefined,
     hasWorktree: async () => false,
+    isDirty: async () => plan.fixerWrites === true,
     issueComments: async () => [],
     markPrReady: async (_repo, pr) => {
       state.ready.push(pr);
@@ -157,14 +159,14 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       if (request.name === "reviewer") {
         return result("reviewed", verdicts.shift());
       }
+      if (plan.selfCommit === true) {
+        head += 1;
+      }
       if (request.name === "fixer" && plan.fixerText !== undefined) {
         const next = Array.isArray(plan.fixerText) ? fixerTexts.shift() : plan.fixerText;
         if (next !== undefined) {
           return result(next);
         }
-      }
-      if (plan.selfCommit === true) {
-        head += 1;
       }
       return result(`commit: fix: work on #${issue.number}`);
     },
@@ -293,15 +295,28 @@ test("a fixer that disputes a finding keeps the round going", async (t) => {
   assert.match(target.comments[1]!, /### Fixer: no change\n\nthe count follows the convention/);
 });
 
-test("a change that a disputing fixer leaves never reaches the next reviewer", async (t) => {
+test("a fixer that disputes and leaves a change hands the issue to a person", async (t) => {
   const target = await harness(t, {
-    reviewerWrites: true,
+    fixerWrites: true,
     verdicts: [changes("The count is wrong."), APPROVE],
     fixerText: ["unrelated: the count follows the convention in CONTRIBUTING.md"],
   });
   const report = await target.run();
-  assert.equal(report.outcome, "done");
-  assert.equal(target.discards, 3);
+  assert.equal(report.outcome, "needs-human");
+  assert.equal(report.reason, "dispute with changes");
+  assert.deepEqual(roles(target), ["implementer", "reviewer", "fixer"]);
+});
+
+test("a fixer that disputes after its own commit hands the issue to a person", async (t) => {
+  const target = await harness(t, {
+    selfCommit: true,
+    verdicts: [changes("The count is wrong."), APPROVE],
+    fixerText: ["unrelated: the count follows the convention in CONTRIBUTING.md"],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "needs-human");
+  assert.equal(report.reason, "dispute with changes");
+  assert.equal(target.pushes, 1);
 });
 
 test("the next reviewer reads the dispute of the fixer", async (t) => {
