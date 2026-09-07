@@ -465,7 +465,7 @@ async function reviewRound(job: Run): Promise<Round> {
       return { done: true, report: await finish(job, "needs-human", "no fix commit") };
     }
     if (fix.stray === true) {
-      await escalate(job, "The fixer disputed the findings and left a change behind.");
+      await escalate(job, `The fixer disputed the findings and left a change behind: ${note}`);
       return { done: true, report: await finish(job, "needs-human", "dispute with changes") };
     }
     state.reviewLog.at(-1)!.dispute = note;

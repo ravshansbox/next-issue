@@ -305,6 +305,7 @@ test("a fixer that disputes and leaves a change hands the issue to a person", as
   assert.equal(report.outcome, "needs-human");
   assert.equal(report.reason, "dispute with changes");
   assert.deepEqual(roles(target), ["implementer", "reviewer", "fixer"]);
+  assert.match(target.comments.at(-1)!, /left a change behind: the count follows the convention/);
 });
 
 test("a fixer that disputes after its own commit hands the issue to a person", async (t) => {
