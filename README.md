@@ -80,8 +80,10 @@ when:
    the fixer spending its whole budget on a failure it cannot fix;
 - a fixer disputes the findings and leaves a change behind, either in the
    worktree or in a commit of its own. A dispute carries a reason, not a diff,
-   so the harness keeps the change for the person to read rather than throwing
-   it away;
+   so the harness throws none of it away: an unclean worktree stays on the
+   disk, and a commit of the fixer stays on the local branch. Neither is
+   pushed, so the pull request shows no such change. It holds the reason of the
+   dispute, and the change is on the machine that ran the harness;
 - the reviewer repeats a finding set from an earlier round, which shows a
    ping-pong between the fixer and the reviewer, or a finding that the fixer
    disputed and the reviewer holds to. The person then decides;
