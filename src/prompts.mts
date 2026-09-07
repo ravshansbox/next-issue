@@ -45,6 +45,8 @@ export function reviewPrompt(
           "This is a later round. Judge two things only:",
           "whether the earlier findings below are now fixed, and whether the new commits broke something.",
           "Do not raise a new point of taste. Do not repeat a finding that is fixed.",
+          "A `The fixer disputed every finding of this round` line answers all of the findings of that round, not one of them.",
+          "Withdraw every finding of that round if the dispute is correct. Repeat them all if the dispute is wrong.",
           `## Earlier findings\n${earlier.join("\n")}`,
         ].join("\n");
   return [
@@ -72,6 +74,13 @@ const UNRELATED_RULE = [
   "A person then reads it. Do not weaken, skip or re-record a test to make the checks pass.",
 ].join("\n");
 
+const DISPUTE_RULE = [
+  "A finding can be wrong: it can miss a convention of this repository, ask for work that the issue does not want, or describe behaviour that the code does not have.",
+  "Establish that before you change anything. If every finding is wrong, change nothing and end your final message with one line in the form `unrelated: <one sentence on why the findings are wrong>`.",
+  "If only some of the findings are wrong, fix the correct ones and change nothing for the wrong ones. Write no `unrelated` line in that round. The next round holds only the findings that are left, and you can dispute them there.",
+  "The reviewer reads that line in the next round. Do not make a change that you hold to be wrong only to end the round.",
+].join("\n");
+
 export function fixPrompt(
   issue: Issue,
   reason: string,
@@ -92,7 +101,7 @@ export function fixPrompt(
       : "",
     "## Rules",
     "Fix the cause, not the symptom. Keep the change minimal.",
-    kind === "checks" ? UNRELATED_RULE : "",
+    kind === "checks" ? UNRELATED_RULE : DISPUTE_RULE,
     COMMIT_RULES,
   ]
     .filter((part) => part.length > 0)

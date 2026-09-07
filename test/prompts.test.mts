@@ -49,11 +49,17 @@ test("parseUnrelated gives undefined without the marker", () => {
   assert.equal(parseUnrelated(""), undefined);
 });
 
-test("only the check fixer is offered the unrelated exit", () => {
+test("each fixer kind is offered the unrelated exit for its own cause", () => {
   const checks = fixPrompt(ISSUE, "The continuous integration checks failed.", "the logs", [], "checks");
   const review = fixPrompt(ISSUE, "The reviewer requested changes.", "the findings", [], "review");
-  assert.match(checks, /unrelated: /);
-  assert.doesNotMatch(review, /unrelated: /);
+  assert.match(checks, /unrelated: <one sentence on what fails/);
+  assert.match(review, /unrelated: <one sentence on why the findings are wrong/);
+});
+
+test("the review fixer is told to dispute only when every finding is wrong", () => {
+  const review = fixPrompt(ISSUE, "The reviewer requested changes.", "the findings", [], "review");
+  assert.match(review, /If every finding is wrong, change nothing/);
+  assert.match(review, /If only some of the findings are wrong, fix the correct ones/);
 });
 
 test("reviewPrompt asks for a full review when no earlier finding exists", () => {
@@ -66,4 +72,14 @@ test("reviewPrompt narrows a later round to the earlier findings", () => {
   const prompt = reviewPrompt(ISSUE, [], "diff", ["Round 1:\n- The count is wrong."]);
   assert.match(prompt, /## Earlier findings\nRound 1:\n- The count is wrong\./);
   assert.doesNotMatch(prompt, /Check correctness/);
+});
+
+test("a later reviewer is told that a dispute answers every finding of its round", () => {
+  const earlier = [
+    "Round 1:\n- The count is wrong.\n- The name is wrong.\nThe fixer disputed every finding of this round: both follow CONTRIBUTING.md",
+  ];
+  const prompt = reviewPrompt(ISSUE, [], "diff", earlier);
+  assert.match(prompt, /answers all of the findings of that round, not one of them\./);
+  assert.match(prompt, /Withdraw every finding of that round if the dispute is correct\./);
+  assert.doesNotMatch(reviewPrompt(ISSUE, [], "diff", []), /Withdraw every finding/);
 });
