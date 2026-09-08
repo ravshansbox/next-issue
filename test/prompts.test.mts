@@ -27,6 +27,26 @@ test("parseCommitSubject falls back without a line", () => {
   assert.equal(parseCommitSubject("", FALLBACK), FALLBACK);
 });
 
+test("parseCommitSubject drops the backticks an agent wrapped the subject in", () => {
+  assert.equal(
+    parseCommitSubject("commit: `fix(ucps): re-probe a batch`", FALLBACK),
+    "fix(ucps): re-probe a batch",
+  );
+  assert.equal(parseCommitSubject("commit: ``build: lint``", FALLBACK), "build: lint");
+  assert.equal(parseCommitSubject("commit: ` ci: deploy `", FALLBACK), "ci: deploy");
+});
+
+test("parseCommitSubject keeps a backtick inside the subject", () => {
+  assert.equal(
+    parseCommitSubject("commit: fix(api): reject a `null` body", FALLBACK),
+    "fix(api): reject a `null` body",
+  );
+});
+
+test("parseCommitSubject falls back when the subject is only backticks", () => {
+  assert.equal(parseCommitSubject("commit: ``", FALLBACK), FALLBACK);
+});
+
 test("capDiff keeps a diff that fits", () => {
   assert.equal(capDiff("abc", 3), "abc");
   assert.equal(capDiff("", 10), "");
