@@ -116,6 +116,9 @@ export function parseUnrelated(text: string): string | undefined {
 
 export function parseCommitSubject(text: string, fallback: string): string {
   const match = /^commit:\s*(.+)$/im.exec(text);
-  const subject = match?.[1]?.trim();
+  const subject = match?.[1]
+    ?.trim()
+    .replace(/^`+|`+$/g, "")
+    .trim();
   return subject && subject.length > 0 ? subject : fallback;
 }
