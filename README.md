@@ -1,7 +1,8 @@
 # next-issue
 
 A small harness that works through the open issues of a GitHub repository with
-the Claude Agent SDK. Run it inside a git repository.
+the Claude Agent SDK, or with [pi](https://pi.dev). Run it inside a git
+repository.
 
 ```bash
 npx -y next-issue@latest
@@ -131,7 +132,8 @@ verdict.
 
 Every agent can run a shell command. The implementer and the fixer run with the
 permission checks off; the reviewer runs with a smaller tool set, but its shell
-has no limit on the commands. They all start in the worktree, but nothing holds
+has no limit on the commands. pi has no permission checks, so with the `pi`
+agent the reviewer only runs without the `edit` and `write` tools. They all start in the worktree, but nothing holds
 them there: they can run any command, with your rights, anywhere on the machine.
 The prompt holds the title, the body and the comments of the issue, which come
 from GitHub.
@@ -186,6 +188,7 @@ Three levels of console output:
 - `gh`, authenticated with write access to the repository
 - Anthropic credentials for the Claude Agent SDK: `ANTHROPIC_API_KEY`, or a
   Claude subscription login
+- With the `pi` agent: `pi` on the `PATH`, set up with a model instead
 
 ## Configuration
 
@@ -206,6 +209,7 @@ does not know all stop the run, so a typo cannot pass without a word.
 
 ```json
 {
+  "agent": "claude",
   "remote": "origin",
   "issueLimit": 100,
   "maxCiFixes": 5,
@@ -238,6 +242,7 @@ does not know all stop the run, so a typo cannot pass without a word.
 
 | Field | Default | Effect |
 | --- | --- | --- |
+| `agent` | `claude` | The agent that does the work: `claude` or `pi` |
 | `remote` | `origin` | The git remote for the repository and the branches |
 | `issueLimit` | `100` | The maximum number of open issues to read |
 | `maxCiFixes` | `5` | The budget for check fixes per issue |
@@ -263,7 +268,23 @@ The log gives the reason for a skipped issue as `stop-label`, `not-ready` or
 `in-flight`.
 
 A role set to `null`, or with no entry in `models`, uses the default model of
-the SDK.
+the agent.
+
+## The pi agent
+
+With `"agent": "pi"` or `--agent pi`, each agent call runs `pi --mode json` in
+the worktree with the prompt on standard input. pi loads your own settings,
+extensions, skills and context files, as it does when you run it yourself. The
+flag wins over the config file.
+
+- The implementer and the fixer use your default pi tools.
+- The reviewer runs with `--tools -edit,-write`, so it keeps `bash`.
+- A model in `models` goes to `pi --model` as it is, so use a name that pi
+  knows.
+- pi has no structured output, so the reviewer is asked to end its reply with
+  a JSON verdict. A reply with no valid verdict hands the issue to a person.
+- A run fails when its last reply ends with an error, when pi exits with an
+  error, or when pi stops before the run settles.
 
 Without a `setupCommand`, the harness looks in the new worktree for a lock file
 and runs the install command that goes with it:
@@ -311,6 +332,7 @@ that a label still holds back stays as it was.
 | `--force` | Replace an existing config file, with `init` |
 | `--once` | Stop after the first handled issue |
 | `--max <n>` | Handle at most n issues |
+| `--agent <a>` | Run the agents with `claude` or `pi`, whatever the config file says |
 | `--reset` | Drop the saved budgets and findings, and keep the rest of the state |
 | `--json` | Print the machine summary instead of the text one |
 | `--verbose` | Show every command and all agent output |
