@@ -8,6 +8,17 @@ test("an empty command line gives the defaults", () => {
   assert.equal(args.level, "normal");
   assert.equal(args.max, undefined);
   assert.equal(args.once, false);
+  assert.equal(args.agent, undefined);
+});
+
+test("a user who passes --agent pi gets pi as the agent", () => {
+  assert.equal(parseArgs(["--agent", "pi"]).agent, "pi");
+  assert.equal(parseArgs(["--agent", "claude"]).agent, "claude");
+});
+
+test("a user who passes an unknown or missing agent gets an error", () => {
+  assert.throws(() => parseArgs(["--agent", "gpt"]), /--agent needs claude or pi/);
+  assert.throws(() => parseArgs(["--agent"]), /--agent needs claude or pi/);
 });
 
 test("the flags set their fields", () => {

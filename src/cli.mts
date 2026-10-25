@@ -30,6 +30,7 @@ async function main(): Promise<number> {
     return init(root, args.force);
   }
   const config = await loadConfig(root);
+  config.agent = args.agent ?? config.agent;
   setDefaultTimeout(config.commandTimeoutMinutes * 60_000);
   const repo = await detectRepo(root, config.remote);
   const recorder = await Recorder.create(repo.root, args.level);

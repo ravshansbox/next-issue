@@ -1,10 +1,13 @@
 import { type PermissionMode, query } from "@anthropic-ai/claude-agent-sdk";
+import type { AgentName } from "./config.mts";
 import { emptyUsage, type Fields, type Recorder, type Usage } from "./observe.mts";
+import { runPi } from "./pi.mts";
 
 export type Profile = {
   tools: string[];
   permissionMode: PermissionMode;
   allowDangerouslySkipPermissions?: boolean;
+  piTools?: string;
 };
 
 export type AgentRequest = {
@@ -13,6 +16,7 @@ export type AgentRequest = {
   prompt: string;
   profile: Profile;
   model?: string;
+  agent?: AgentName;
   outputSchema?: Record<string, unknown>;
   timeoutMs?: number;
 };
@@ -32,6 +36,7 @@ export type AgentResult = {
 const REVIEWING: Profile = {
   tools: ["Read", "Grep", "Glob", "Bash"],
   permissionMode: "dontAsk",
+  piTools: "-edit,-write",
 };
 
 const CODING: Profile = {
@@ -43,6 +48,9 @@ const CODING: Profile = {
 export { CODING, REVIEWING };
 
 export async function runAgent(recorder: Recorder, request: AgentRequest): Promise<AgentResult> {
+  if (request.agent === "pi") {
+    return runPi(recorder, request);
+  }
   const log = recorder.scope({ role: request.name });
   const usage = emptyUsage();
   const toolNames = new Map<string, string>();
@@ -176,7 +184,7 @@ function main(models: Record<string, { outputTokens: number }>): string | undefi
 }
 
 export function toolFields(name: string, input: unknown): Fields {
-  if (name !== "Bash" || typeof input !== "object" || input === null) {
+  if ((name !== "Bash" && name !== "bash") || typeof input !== "object" || input === null) {
     return { tool: name };
   }
   const { command } = input as { command?: unknown };
