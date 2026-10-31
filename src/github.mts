@@ -72,6 +72,24 @@ export async function issueComments(repo: Repo, issue: number): Promise<string[]
   return parsed.comments.map((comment) => `@${comment.author.login}: ${comment.body}`);
 }
 
+export async function openBlockers(repo: Repo, issue: number): Promise<string[]> {
+  const raw = await must(
+    "gh",
+    [
+      "api",
+      "--paginate",
+      `repos/${slug(repo)}/issues/${issue}/dependencies/blocked_by`,
+      "--jq",
+      '.[] | select(.state == "open") | (.repository_url | split("/") | .[-2:] | join("/")) + "#" + (.number | tostring)',
+    ],
+    { cwd: repo.root },
+  );
+  return raw
+    .split("\n")
+    .filter((line) => line.length > 0)
+    .map((ref) => (ref.startsWith(`${slug(repo)}#`) ? ref.slice(slug(repo).length) : ref));
+}
+
 async function labelsOf(repo: Repo, kind: Kind, number: number): Promise<string[]> {
   const raw = await gh(repo, [kind, "view", String(number), "--json", "labels"]);
   const parsed = JSON.parse(raw) as { labels: Array<{ name: string }> };

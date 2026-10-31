@@ -22,8 +22,10 @@ For each open issue, oldest first:
 1. Claim the issue only when it holds the `status:todo` label and holds no
    `status:in-progress` or `status:in-review` label. A `status:done`,
    `status:needs-human` or `status:blocked` label always stops the claim, a
-   resume too. An issue with saved state under `.next-issue/` resumes instead,
-   whatever its other labels.
+   resume too. An issue that GitHub lists as blocked by an open issue waits,
+   because its blocker closes only when the pull request of the blocker merges.
+   An issue with saved state under `.next-issue/` resumes instead, whatever its
+   other labels and blockers.
 2. Add `status:in-progress` to the issue.
 3. Fetch the remote, fast-forward the local copy of the default branch when
    that is safe, then add a git worktree at `../<repo>-issue-<n>` on the
@@ -264,8 +266,8 @@ does not know all stop the run, so a typo cannot pass without a word.
 An empty `labels.ready` turns the ready requirement off. The harness then
 claims every open issue that no other label holds back.
 
-The log gives the reason for a skipped issue as `stop-label`, `not-ready` or
-`in-flight`.
+The log gives the reason for a skipped issue as `stop-label`, `not-ready`,
+`in-flight` or `blocked`, the last one with the open blockers.
 
 A role set to `null`, or with no entry in `models`, uses the default model of
 the agent.
