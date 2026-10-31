@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { type CommandRecord, setCommandObserver } from "../src/exec.mts";
-import { failedCheckLogs, labelArgs, prNumber, setLabel } from "../src/github.mts";
+import { failedCheckLogs, labelArgs, openBlockers, prNumber, setLabel } from "../src/github.mts";
 
 const MANAGED = ["status:todo", "status:in-progress", "status:in-review", "status:done"];
 
@@ -123,4 +123,25 @@ test("failedCheckLogs keeps the partial logs when the read fails", async (t) => 
   const dir = await fakeChecksGh(t, 'echo "boom"; echo "gone" >&2; exit 3');
   const report = await failedCheckLogs({ owner: "acme", name: "tool", root: dir }, "issue-1", 1000);
   assert.match(report, /boom\nThe log read failed with code 3\. gone/);
+});
+
+test("openBlockers lists the open blockers and names those of another repository", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "next-issue-"));
+  const response = JSON.stringify([
+    { number: 3, state: "open", repository_url: "https://api.github.com/repos/acme/tool" },
+    { number: 4, state: "closed", repository_url: "https://api.github.com/repos/acme/tool" },
+    { number: 9, state: "open", repository_url: "https://api.github.com/repos/acme/other" },
+  ]);
+  await writeFile(join(dir, "response.json"), response);
+  const script = `#!/bin/sh
+[ "$1 $2 $3" = "api --paginate repos/acme/tool/issues/7/dependencies/blocked_by" ] || { echo "unexpected: $*" >&2; exit 1; }
+jq -r "$5" "${join(dir, "response.json")}"
+`;
+  await writeFile(join(dir, "gh"), script, { mode: 0o755 });
+  const path = process.env.PATH;
+  process.env.PATH = `${dir}:${path}`;
+  t.after(() => {
+    process.env.PATH = path;
+  });
+  assert.deepEqual(await openBlockers({ owner: "acme", name: "tool", root: dir }, 7), ["#3", "acme/other#9"]);
 });

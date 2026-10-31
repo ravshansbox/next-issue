@@ -24,6 +24,7 @@ import {
   type Issue,
   issueComments,
   markPrReady,
+  openBlockers,
   setLabel,
   waitForChecks,
 } from "./github.mts";
@@ -71,6 +72,7 @@ export type Ports = {
   isDirty: typeof isDirty;
   issueComments: typeof issueComments;
   markPrReady: typeof markPrReady;
+  openBlockers: typeof openBlockers;
   push: typeof push;
   removeWorktree: typeof removeWorktree;
   revision: typeof revision;
@@ -99,6 +101,7 @@ export const PORTS: Ports = {
   isDirty,
   issueComments,
   markPrReady,
+  openBlockers,
   push,
   removeWorktree,
   revision,
@@ -174,7 +177,20 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
   const skip = skipReason(issue, context.config, saved !== undefined);
   if (skip !== undefined) {
     log.event("issue.skip", { title: issue.title, reason: skip });
-    return { issue: issue.number, outcome: "skipped", ciFixes: 0, reviewRounds: 0, ms: 0 };
+    return skipped(issue);
+  }
+  if (saved === undefined) {
+    let blockers: string[];
+    try {
+      blockers = await context.ports.openBlockers(context.repo, issue.number);
+    } catch (error) {
+      log.event("issue.error", { error: message(error), ms: Date.now() - started }, "quiet");
+      return { ...skipped(issue), outcome: "error", reason: message(error), ms: Date.now() - started };
+    }
+    if (blockers.length > 0) {
+      log.event("issue.skip", { title: issue.title, reason: "blocked", blockers });
+      return skipped(issue);
+    }
   }
   log.event("issue.start", { title: issue.title, createdAt: issue.createdAt }, "quiet");
 
@@ -210,6 +226,10 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
       ms: Date.now() - started,
     };
   }
+}
+
+function skipped(issue: Issue): IssueReport {
+  return { issue: issue.number, outcome: "skipped", ciFixes: 0, reviewRounds: 0, ms: 0 };
 }
 
 async function work(
