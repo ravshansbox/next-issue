@@ -97,7 +97,10 @@ when:
    because branch protection asks for a human approval;
 - an agent does not finish in `agentTimeoutMinutes`;
 - the setup command fails, or does not finish in `setupTimeoutMinutes`;
-- a step of the run fails with an error.
+- a step of the run fails with an error. A `gh` call that is safe to repeat,
+   such as a read or a label edit, is tried up to three times first when the
+   network fails. A `gh pr create` or `gh pr comment` is tried once, so a lost
+   reply never makes a duplicate.
 
 The fixer sees the findings of all earlier rounds, not only the last one, with
 its own disputes next to them. From round two, the reviewer judges only the
