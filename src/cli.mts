@@ -75,7 +75,7 @@ async function handle(
   recorder: Recorder,
 ): Promise<number> {
   const base = await defaultBranch(repo);
-  const context: Context = { repo, config, base, reset: args.reset, recorder, ports: PORTS };
+  const context: Context = { repo, config, base, reset: args.reset, merge: args.merge, recorder, ports: PORTS };
   recorder.event(
     "run.start",
     {

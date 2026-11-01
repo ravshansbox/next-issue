@@ -58,8 +58,10 @@ For each open issue, oldest first:
    round gets no review. Thus `maxReviewRounds` of `1` never fixes a minor
    finding.
 10. No open finding means approval: mark the pull request ready for review and
-    set `status:done`. The merge stays with you. The worktree, the local branch
-    and the state file go away. The remote branch stays. A problem that the
+    set `status:done`. The merge stays with you, unless you pass `--merge`:
+    then the harness squash-merges the pull request and deletes the remote
+    branch. The worktree, the local branch and the state file go away. Without
+    `--merge`, the remote branch stays. A problem that the
     reviewer leaves out of the findings thus gets an approval: only the findings
     count.
 11. With an open finding, run the fixer agent and go to step 6 again. The
@@ -91,6 +93,8 @@ when:
    ping-pong between the fixer and the reviewer, or a finding that the fixer
    disputed and the reviewer holds to. The person then decides;
 - the reviewer gives no verdict, or the checks do not finish in time;
+- with `--merge`, the merge of an approved pull request fails, for example
+   because branch protection asks for a human approval;
 - an agent does not finish in `agentTimeoutMinutes`;
 - the setup command fails, or does not finish in `setupTimeoutMinutes`;
 - a step of the run fails with an error.
@@ -335,6 +339,7 @@ that a label still holds back stays as it was.
 | `--once` | Stop after the first handled issue |
 | `--max <n>` | Handle at most n issues |
 | `--agent <a>` | Run the agents with `claude` or `pi`, whatever the config file says |
+| `--merge` | Squash-merge the pull request after the approval, and delete the remote branch |
 | `--reset` | Drop the saved budgets and findings, and keep the rest of the state |
 | `--json` | Print the machine summary instead of the text one |
 | `--verbose` | Show every command and all agent output |
