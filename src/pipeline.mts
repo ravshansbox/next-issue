@@ -120,11 +120,12 @@ export type Context = {
   base: string;
   reset: boolean;
   merge: boolean;
+  stopAfterRound: () => boolean;
   recorder: Recorder;
   ports: Ports;
 };
 
-export type Outcome = "done" | "needs-human" | "skipped" | "error";
+export type Outcome = "done" | "needs-human" | "skipped" | "error" | "stopped";
 
 export type IssueReport = {
   issue: number;
@@ -314,6 +315,9 @@ async function work(
     state.phase = "implemented";
     await writeState(repo, state);
   }
+  if (context.stopAfterRound()) {
+    return stop(job);
+  }
 
   await log.step("push", { branch }, () => ports.push(worktree, config.remote, branch));
   const pr = await log.step("pull-request", { branch }, async () => {
@@ -336,12 +340,18 @@ async function work(
   log.event("pull-request.ready", { pr }, "quiet");
 
   for (;;) {
+    if (context.stopAfterRound()) {
+      return stop(job);
+    }
     const gate = await checkGate(job);
     if (gate.done) {
       return gate.report;
     }
     if (gate.fixed) {
       continue;
+    }
+    if (context.stopAfterRound()) {
+      return stop(job);
     }
     const round = await reviewRound(job);
     if (round.done) {
@@ -507,6 +517,19 @@ async function reviewRound(job: Run): Promise<Round> {
 
 function escalate(job: Run, reason: string): Promise<void> {
   return handOver(job.context, job.log, job.issue.number, job.state, reason);
+}
+
+function stop(job: Run): IssueReport {
+  const { issue, log, state } = job;
+  log.event("issue.stop", { phase: state.phase }, "quiet");
+  return {
+    issue: issue.number,
+    outcome: "stopped",
+    pr: state.pr,
+    ciFixes: state.ciFixes,
+    reviewRounds: state.reviewRounds,
+    ms: Date.now() - job.started,
+  };
 }
 
 async function finish(job: Run, outcome: Outcome, reason?: string): Promise<IssueReport> {

@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { once } from "node:events";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
 import { type CommandRecord, must, run, setCommandObserver } from "../src/exec.mts";
 
@@ -86,21 +86,80 @@ test("run kills a grandchild that outlives its parent on the time limit", async 
   }
 });
 
-test("an interrupt of the harness kills the child and stops the harness", async () => {
+async function interrupted(t: TestContext): Promise<{ harness: ChildProcess; pid: number; line: (count: number) => Promise<string> }> {
   const dir = await mkdtemp(join(tmpdir(), "next-issue-"));
   const file = join(dir, "pid");
   const exec = new URL("../src/exec.mts", import.meta.url).href;
-  const inner = `import { run } from ${JSON.stringify(exec)}; await run("bash", ["-lc", "echo $$ > ${file}; sleep 30"]);`;
-  const harness = spawn(NODE, ["--input-type=module", "-e", inner], { stdio: "ignore" });
-  try {
-    const pid = await written(file);
-    harness.kill("SIGINT");
-    assert.deepEqual(await once(harness, "exit"), [null, "SIGINT"]);
-    assert.equal(await gone(pid), true);
-  } finally {
+  const interrupt = new URL("../src/interrupt.mts", import.meta.url).href;
+  const inner = [
+    `import { run } from ${JSON.stringify(exec)};`,
+    `import { listenForInterrupts } from ${JSON.stringify(interrupt)};`,
+    "const interrupts = listenForInterrupts((text) => process.stdout.write(`${text} ${interrupts.afterIssue()} ${interrupts.afterRound()}\\n`));",
+    `await run("bash", ["-lc", "echo $$ > ${file}; sleep 30"]);`,
+  ].join("\n");
+  const harness = spawn(NODE, ["--input-type=module", "-e", inner], { stdio: ["ignore", "pipe", "ignore"] });
+  let output = "";
+  harness.stdout!.setEncoding("utf8");
+  harness.stdout!.on("data", (chunk: string) => {
+    output += chunk;
+  });
+  t.after(async () => {
     harness.kill("SIGKILL");
     await rm(dir, { force: true, recursive: true });
+  });
+  const pid = await written(file);
+  const line = async (count: number): Promise<string> => {
+    for (let left = 100; left > 0; left -= 1) {
+      const lines = output.split("\n").filter((entry) => entry !== "");
+      if (lines.length >= count) {
+        return lines[count - 1]!;
+      }
+      await sleep(50);
+    }
+    throw new Error(`The harness printed ${output}`);
+  };
+  return { harness, pid, line };
+}
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
   }
+}
+
+test("a user who presses Ctrl-C once is told the run stops after the issue, and the command runs on", async (t) => {
+  const { harness, pid, line } = await interrupted(t);
+  harness.kill("SIGINT");
+  assert.equal(
+    await line(1),
+    "Stopping after this issue. Press Ctrl-C again to stop after this round. true false",
+  );
+  assert.equal(alive(pid), true);
+  assert.equal(harness.exitCode, null);
+});
+
+test("a user who presses Ctrl-C twice is told the run stops after the round, and the command runs on", async (t) => {
+  const { harness, pid, line } = await interrupted(t);
+  harness.kill("SIGINT");
+  await line(1);
+  harness.kill("SIGINT");
+  assert.equal(await line(2), "Stopping after this round. Press Ctrl-C again to stop now. true true");
+  assert.equal(alive(pid), true);
+  assert.equal(harness.exitCode, null);
+});
+
+test("a user who presses Ctrl-C three times kills the command and the run", async (t) => {
+  const { harness, pid, line } = await interrupted(t);
+  harness.kill("SIGINT");
+  await line(1);
+  harness.kill("SIGINT");
+  await line(2);
+  harness.kill("SIGINT");
+  assert.deepEqual(await once(harness, "exit"), [null, "SIGINT"]);
+  assert.equal(await gone(pid), true);
 });
 
 test("run keeps only the tail of a long output", async () => {

@@ -22,7 +22,7 @@ function loop(outcomes: Record<number, Outcome>, stops: boolean[] = []): Fake {
       fake.processed.push(target.number);
       return report(target.number, outcomes[target.number]!);
     },
-    stop: async () => stops.shift() ?? false,
+    stop: () => stops.shift() ?? false,
   };
   return fake;
 }
@@ -49,23 +49,17 @@ test("--once stops after the first handled issue", async () => {
   assert.deepEqual(fake.processed, [1, 2]);
 });
 
-test("a stop flag ends the run after the current issue", async () => {
-  const fake = loop({ 1: "done", 2: "done", 3: "done" }, [false, false, true]);
+test("a user who asks to stop ends the run after the current issue", async () => {
+  const fake = loop({ 1: "done", 2: "done", 3: "done" }, [false, true]);
   const result = await runIssues(ARGS, fake);
   assert.deepEqual(fake.processed, [1, 2]);
   assert.equal(result.stoppedAt, 2);
-});
-
-test("a stop flag from an earlier run is dropped at the start", async () => {
-  const fake = loop({ 1: "done", 2: "done" }, [true]);
-  const result = await runIssues(ARGS, fake);
-  assert.deepEqual(fake.processed, [1, 2]);
-  assert.equal(result.stoppedAt, undefined);
 });
 
 test("the exit code is 1 only when an issue needs a person or failed", () => {
   assert.equal(exitCode([report(1, "done"), report(2, "skipped")]), 0);
   assert.equal(exitCode([report(1, "needs-human")]), 1);
   assert.equal(exitCode([report(1, "error")]), 1);
+  assert.equal(exitCode([report(1, "stopped")]), 0);
   assert.equal(exitCode([]), 0);
 });

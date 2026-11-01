@@ -48,15 +48,6 @@ export async function writeState(repo: Repo, state: IssueState): Promise<void> {
   await writeFile(file(repo, state.issue), `${JSON.stringify(state, null, 2)}\n`);
 }
 
-export async function takeStop(repo: Repo): Promise<boolean> {
-  try {
-    await rm(join(dir(repo), "stop"));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export async function dropState(repo: Repo, issue: number): Promise<void> {
   await rm(file(repo, issue), { force: true });
 }

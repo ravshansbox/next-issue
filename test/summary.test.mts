@@ -31,7 +31,7 @@ const SUMMARY: RunSummary = {
 test("formatSummary counts every outcome", () => {
   const lines = formatSummary(SUMMARY).split("\n");
   assert.equal(lines[0], "run 2026-08-24T10-00-00-000Z");
-  assert.equal(lines[1], "issues 3: 1 done, 1 needs-human, 0 error, 1 skipped");
+  assert.equal(lines[1], "issues 3: 1 done, 1 needs-human, 0 error, 1 skipped, 0 stopped");
 });
 
 test("formatSummary drops the empty fields of an issue", () => {
@@ -50,6 +50,6 @@ test("formatSummary shortens the token totals", () => {
 
 test("formatSummary handles a run without issues", () => {
   const empty = formatSummary({ ...SUMMARY, roles: {}, issues: [], total: emptyUsage() });
-  assert.equal(empty.split("\n")[1], "issues 0: 0 done, 0 needs-human, 0 error, 0 skipped");
+  assert.equal(empty.split("\n")[1], "issues 0: 0 done, 0 needs-human, 0 error, 0 skipped, 0 stopped");
   assert.match(empty, /\ntokens 0\n/);
 });
