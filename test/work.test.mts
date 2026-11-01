@@ -68,6 +68,7 @@ type Plan = {
   blockers?: string[];
   merge?: boolean;
   mergeFails?: boolean;
+  pressDuring?: string;
 };
 
 type Harness = {
@@ -103,6 +104,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
   const commits = [...(plan.commits ?? [])];
   const fixerTexts = Array.isArray(plan.fixerText) ? [...plan.fixerText] : [];
   let head = 0;
+  let pressed = false;
   const state: Harness = {
     context: undefined as unknown as Context,
     profiles: [],
@@ -165,6 +167,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     revision: async () => String(head),
     runAgent: async (_recorder, request: AgentRequest) => {
       state.prompts.push({ role: request.name, prompt: request.prompt });
+      pressed ||= request.name === plan.pressDuring;
       state.profiles.push({ role: request.name, tools: request.profile.tools, agent: request.agent });
       if (request.name === "reviewer") {
         return result("reviewed", verdicts.shift());
@@ -202,7 +205,16 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
 
   const recorder = await Recorder.create(root, "quiet");
   t.after(() => recorder.close());
-  state.context = { repo, config, base: "main", reset: plan.reset === true, merge: plan.merge === true, recorder, ports };
+  state.context = {
+    repo,
+    config,
+    base: "main",
+    reset: plan.reset === true,
+    merge: plan.merge === true,
+    stopAfterRound: () => pressed,
+    recorder,
+    ports,
+  };
   return state;
 }
 
@@ -634,6 +646,33 @@ test("a step that throws gives the error outcome and hands the issue over", asyn
   assert.match(report.reason!, /the port broke/);
   assert.equal(target.labels.at(-1)?.label, "status:needs-human");
   assert.equal((await target.state())?.phase, "implemented");
+});
+
+test("a user who asks to stop during the implementation gets the run stopped before the push, with the state kept", async (t) => {
+  const target = await harness(t, { pressDuring: "implementer" });
+  const report = await target.run();
+  assert.equal(report.outcome, "stopped");
+  assert.deepEqual(roles(target), ["implementer"]);
+  assert.equal(target.pushes, 0);
+  assert.equal((await target.state())?.phase, "implemented");
+  assert.equal(target.labels.at(-1)?.label, "status:in-progress");
+});
+
+test("a user who asks to stop during a checks round gets the fix and no review", async (t) => {
+  const target = await harness(t, { pressDuring: "fixer", checks: ["fail", "pass"] });
+  const report = await target.run();
+  assert.equal(report.outcome, "stopped");
+  assert.deepEqual(roles(target), ["implementer", "fixer"]);
+  assert.equal((await target.state())?.ciFixes, 1);
+});
+
+test("a user who asks to stop during a review round gets the fix and no next review", async (t) => {
+  const target = await harness(t, { pressDuring: "reviewer", verdicts: [changes("Rename it."), APPROVE] });
+  const report = await target.run();
+  assert.equal(report.outcome, "stopped");
+  assert.deepEqual(roles(target), ["implementer", "reviewer", "fixer"]);
+  assert.equal((await target.state())?.reviewRounds, 1);
+  assert.equal(target.labels.at(-1)?.label, "status:in-review");
 });
 
 test("a saved state carries on and does not implement again", async (t) => {

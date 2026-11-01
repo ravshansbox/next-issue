@@ -6,10 +6,11 @@ import { type Config, loadConfig, writeDefaultConfig } from "./config.mts";
 import { setCommandObserver, setDefaultTimeout } from "./exec.mts";
 import { detectRepo, ensureIgnored, type Repo, repoRoot } from "./git.mts";
 import { defaultBranch, openIssues } from "./github.mts";
+import { listenForInterrupts } from "./interrupt.mts";
 import { exitCode, runIssues } from "./loop.mts";
 import { message, pruneRuns, Recorder } from "./observe.mts";
 import { type Context, type IssueReport, PORTS, processIssue } from "./pipeline.mts";
-import { STATE_DIR, takeStop } from "./state.mts";
+import { STATE_DIR } from "./state.mts";
 import { formatSummary, type RunSummary } from "./summary.mts";
 import { packageVersion } from "./version.mts";
 
@@ -74,8 +75,18 @@ async function handle(
   repo: Repo,
   recorder: Recorder,
 ): Promise<number> {
+  const interrupts = listenForInterrupts((text) => void write(process.stderr, `${text}\n`));
   const base = await defaultBranch(repo);
-  const context: Context = { repo, config, base, reset: args.reset, merge: args.merge, recorder, ports: PORTS };
+  const context: Context = {
+    repo,
+    config,
+    base,
+    reset: args.reset,
+    merge: args.merge,
+    stopAfterRound: interrupts.afterRound,
+    recorder,
+    ports: PORTS,
+  };
   recorder.event(
     "run.start",
     {
@@ -93,7 +104,7 @@ async function handle(
   const { reports, stoppedAt } = await runIssues(args, {
     issues,
     process: (issue) => processIssue(context, issue),
-    stop: () => takeStop(repo),
+    stop: interrupts.afterIssue,
   });
   if (stoppedAt !== undefined) {
     recorder.event("run.stop", { issue: stoppedAt }, "quiet");

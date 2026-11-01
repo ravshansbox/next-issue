@@ -1,4 +1,7 @@
-import { type PermissionMode, query } from "@anthropic-ai/claude-agent-sdk";
+import { type PermissionMode, query, type SpawnOptions } from "@anthropic-ai/claude-agent-sdk";
+import { type ChildProcessByStdio, spawn } from "node:child_process";
+import type { Readable, Writable } from "node:stream";
+import { track } from "./exec.mts";
 import type { AgentName } from "./config.mts";
 import { emptyUsage, type Fields, type Recorder, type Usage } from "./observe.mts";
 import { runPi } from "./pi.mts";
@@ -84,6 +87,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
         allowDangerouslySkipPermissions: request.profile.allowDangerouslySkipPermissions,
         systemPrompt: { type: "preset", preset: "claude_code" },
         abortController: controller,
+        spawnClaudeCodeProcess: spawnClaude,
         outputFormat:
           request.outputSchema === undefined
             ? undefined
@@ -189,4 +193,16 @@ export function toolFields(name: string, input: unknown): Fields {
   }
   const { command } = input as { command?: unknown };
   return typeof command === "string" ? { tool: name, command } : { tool: name };
+}
+
+export function spawnClaude(options: SpawnOptions): ChildProcessByStdio<Writable, Readable, null> {
+  const child = spawn(options.command, options.args, {
+    cwd: options.cwd,
+    env: options.env,
+    signal: options.signal,
+    detached: true,
+    stdio: ["pipe", "pipe", "ignore"],
+  });
+  track(child);
+  return child;
 }

@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 
 export type RunResult = {
   code: number;
@@ -34,28 +34,24 @@ const STDERR_TAIL = 200_000;
 
 const groups = new Set<number>();
 
-function forward(signal: NodeJS.Signals): void {
+export function stopChildren(signal: NodeJS.Signals): void {
   for (const pid of groups) {
     try {
       process.kill(-pid, signal);
     } catch {}
   }
   groups.clear();
-  process.off("SIGINT", onInterrupt);
   process.off("SIGTERM", onTerminate);
   process.kill(process.pid, signal);
 }
 
-const onInterrupt = (): void => forward("SIGINT");
-
-const onTerminate = (): void => forward("SIGTERM");
+const onTerminate = (): void => stopChildren("SIGTERM");
 
 function watch(pid: number | undefined): void {
   if (pid === undefined) {
     return;
   }
   if (groups.size === 0) {
-    process.on("SIGINT", onInterrupt);
     process.on("SIGTERM", onTerminate);
   }
   groups.add(pid);
@@ -67,9 +63,14 @@ function unwatch(pid: number | undefined): void {
   }
   groups.delete(pid);
   if (groups.size === 0) {
-    process.off("SIGINT", onInterrupt);
     process.off("SIGTERM", onTerminate);
   }
+}
+
+export function track(child: ChildProcess): void {
+  watch(child.pid);
+  child.on("close", () => unwatch(child.pid));
+  child.on("error", () => unwatch(child.pid));
 }
 
 export function setCommandObserver(next: (record: CommandRecord) => void): void {

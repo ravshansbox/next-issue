@@ -10,7 +10,7 @@ export type RunSummary = {
   issues: IssueReport[];
 };
 
-const OUTCOMES: Outcome[] = ["done", "needs-human", "error", "skipped"];
+const OUTCOMES: Outcome[] = ["done", "needs-human", "error", "skipped", "stopped"];
 
 export function formatSummary(summary: RunSummary): string {
   const tally = OUTCOMES.map(

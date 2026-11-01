@@ -5,13 +5,12 @@ import type { IssueReport } from "./pipeline.mts";
 export type Loop = {
   issues: Issue[];
   process: (issue: Issue) => Promise<IssueReport>;
-  stop: () => Promise<boolean>;
+  stop: () => boolean;
 };
 
 export type LoopResult = { reports: IssueReport[]; stoppedAt?: number };
 
 export async function runIssues(args: Pick<Args, "max" | "once">, loop: Loop): Promise<LoopResult> {
-  await loop.stop();
   const reports: IssueReport[] = [];
   for (const issue of loop.issues) {
     if (args.max !== undefined && handled(reports) >= args.max) {
@@ -19,7 +18,7 @@ export async function runIssues(args: Pick<Args, "max" | "once">, loop: Loop): P
     }
     const report = await loop.process(issue);
     reports.push(report);
-    if (await loop.stop()) {
+    if (loop.stop()) {
       return { reports, stoppedAt: issue.number };
     }
     if (args.once && report.outcome !== "skipped") {

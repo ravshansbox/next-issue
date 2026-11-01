@@ -113,17 +113,24 @@ not the author, tells them apart. The agents read the comments of the issue, not
 of the pull request, so a comment of an agent never returns to a prompt: the
 dispute of the fixer reaches the reviewer through the state file.
 
-## Stop after the current issue
+## Stop a run
 
-Run `touch .next-issue/stop` in a second terminal. The harness reads the file
-only between two issues, finishes the issue that it holds, deletes the file and
-then writes the summary as usual. A file from an earlier run is dropped at the
-start, so it stops nothing.
+Press `Ctrl-C` to stop the run step by step:
 
-`Ctrl-C` is different: the harness passes the signal on to the command that runs
-and to every child of it, so the run dies in the middle of a step. The saved
-state lets the next run continue the issue, but the issue keeps
-`status:in-progress` and the run writes no summary.
+1. The first press stops the run after the current issue. The harness finishes
+   the issue that it holds and then writes the summary as usual.
+2. The second press stops the run after the current round: the implementation,
+   one checks round (wait, then fix) or one review round (review, then fix). The
+   issue ends as `stopped`. Its state, worktree and labels stay, so the next run
+   carries on from that point.
+3. The third press kills the command that runs and every child of it, so the run
+   dies in the middle of a step. The saved state lets the next run continue the
+   issue, but the issue keeps `status:in-progress` and the run writes no
+   summary.
+
+Each of the first two presses prints a line that says what happens next. The
+agents and commands run in a process group of their own, so a press reaches only
+the harness.
 
 A status label that the harness puts on the issue goes on the pull request too,
 but only if the pull request exists at that moment. The `status:in-progress`
