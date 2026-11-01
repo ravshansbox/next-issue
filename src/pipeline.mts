@@ -24,6 +24,7 @@ import {
   type Issue,
   issueComments,
   markPrReady,
+  mergePr,
   openBlockers,
   setLabel,
   waitForChecks,
@@ -72,6 +73,7 @@ export type Ports = {
   isDirty: typeof isDirty;
   issueComments: typeof issueComments;
   markPrReady: typeof markPrReady;
+  mergePr: typeof mergePr;
   openBlockers: typeof openBlockers;
   push: typeof push;
   removeWorktree: typeof removeWorktree;
@@ -101,6 +103,7 @@ export const PORTS: Ports = {
   isDirty,
   issueComments,
   markPrReady,
+  mergePr,
   openBlockers,
   push,
   removeWorktree,
@@ -116,6 +119,7 @@ export type Context = {
   config: Config;
   base: string;
   reset: boolean;
+  merge: boolean;
   recorder: Recorder;
   ports: Ports;
 };
@@ -459,6 +463,10 @@ async function reviewRound(job: Run): Promise<Round> {
     }
     if (config.draftPullRequest && !(await ports.markPrReady(repo, pr))) {
       log.event("pull-request.undraft.fail", { pr }, "quiet");
+    }
+    if (context.merge && !(await ports.mergePr(repo, pr))) {
+      await escalate(job, "The merge of the pull request failed.");
+      return { done: true, report: await finish(job, "needs-human", "merge failed") };
     }
     await setStatus(context, issue.number, pr, config.labels.done);
     return { done: true, report: await finish(job, "done") };

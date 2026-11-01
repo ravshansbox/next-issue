@@ -11,6 +11,7 @@ export type Args = {
   json: boolean;
   reset: boolean;
   force: boolean;
+  merge: boolean;
   level: Level;
   agent?: AgentName;
 };
@@ -22,6 +23,7 @@ export const USAGE = `next-issue [command] [options]
   --once       stop after the first handled issue
   --max <n>    handle at most n issues
   --agent <a>  run the agents with claude or pi
+  --merge      squash-merge the pull request after the approval
   --reset      drop the saved budgets and findings first
   --json       print the machine summary instead of the text one
   --force      replace an existing config file, with init
@@ -38,6 +40,7 @@ export function parseArgs(argv: string[]): Args {
     json: false,
     reset: false,
     force: false,
+    merge: false,
     level: "normal",
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -53,6 +56,8 @@ export function parseArgs(argv: string[]): Args {
       args.json = true;
     } else if (arg === "--help") {
       args.help = true;
+    } else if (arg === "--merge") {
+      args.merge = true;
     } else if (arg === "--reset") {
       args.reset = true;
     } else if (arg === "--once") {

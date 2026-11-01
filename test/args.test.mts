@@ -9,6 +9,11 @@ test("an empty command line gives the defaults", () => {
   assert.equal(args.max, undefined);
   assert.equal(args.once, false);
   assert.equal(args.agent, undefined);
+  assert.equal(args.merge, false);
+});
+
+test("a user who passes --merge asks for the merge", () => {
+  assert.equal(parseArgs(["--merge"]).merge, true);
 });
 
 test("a user who passes --agent pi gets pi as the agent", () => {

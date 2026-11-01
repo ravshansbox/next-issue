@@ -353,6 +353,15 @@ export async function markPrReady(repo: Repo, pr: number): Promise<boolean> {
   return result.code === 0;
 }
 
+export async function mergePr(repo: Repo, pr: number): Promise<boolean> {
+  const result = await run(
+    "gh",
+    ["pr", "merge", String(pr), "--squash", "--delete-branch", "--repo", slug(repo)],
+    { cwd: repo.root },
+  );
+  return result.code === 0;
+}
+
 export async function commentOnPr(repo: Repo, pr: number, body: string): Promise<void> {
   await gh(repo, ["pr", "comment", String(pr), "--body-file", "-"], body);
 }
