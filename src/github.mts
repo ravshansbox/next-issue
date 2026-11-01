@@ -1,4 +1,4 @@
-import { must, run } from "./exec.mts";
+import { must, run, type RunOptions } from "./exec.mts";
 import type { Repo } from "./git.mts";
 
 export type Issue = {
@@ -15,6 +15,8 @@ export type CheckState = "pass" | "fail" | "pending" | "none" | "timeout";
 
 const CHECK_PENDING_CODE = 8;
 const READ_TRIES = 3;
+const NETWORK_TRIES = 3;
+const NETWORK_FAULT = /unexpected EOF|connection reset|connection refused|i\/o timeout|TLS handshake timeout|HTTP 50[234]/i;
 const KNOWN_LABELS = new Map<string, Set<string>>();
 const NO_CHECKS = /no checks reported/i;
 
@@ -24,12 +26,29 @@ function slug(repo: Repo): string {
   return `${repo.owner}/${repo.name}`;
 }
 
-async function gh(repo: Repo, args: string[], input?: string): Promise<string> {
+async function repeatable(args: string[], options: RunOptions): Promise<string> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await must("gh", args, options);
+    } catch (error) {
+      if (attempt >= NETWORK_TRIES || !(error instanceof Error) || !NETWORK_FAULT.test(error.message)) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+    }
+  }
+}
+
+async function gh(repo: Repo, args: string[]): Promise<string> {
+  return repeatable([...args, "--repo", slug(repo)], { cwd: repo.root });
+}
+
+async function ghOnce(repo: Repo, args: string[], input?: string): Promise<string> {
   return must("gh", [...args, "--repo", slug(repo)], { cwd: repo.root, input });
 }
 
 export async function defaultBranch(repo: Repo): Promise<string> {
-  const raw = await must("gh", ["repo", "view", slug(repo), "--json", "defaultBranchRef"], {
+  const raw = await repeatable( ["repo", "view", slug(repo), "--json", "defaultBranchRef"], {
     cwd: repo.root,
   });
   return JSON.parse(raw).defaultBranchRef.name as string;
@@ -73,8 +92,7 @@ export async function issueComments(repo: Repo, issue: number): Promise<string[]
 }
 
 export async function openBlockers(repo: Repo, issue: number): Promise<string[]> {
-  const raw = await must(
-    "gh",
+  const raw = await repeatable(
     [
       "api",
       "--paginate",
@@ -155,7 +173,7 @@ export async function createPr(
   body: string,
   draft: boolean,
 ): Promise<number> {
-  const created = await gh(repo, [
+  const created = await ghOnce(repo, [
     "pr",
     "create",
     "--head",
@@ -354,5 +372,5 @@ export async function markPrReady(repo: Repo, pr: number): Promise<boolean> {
 }
 
 export async function commentOnPr(repo: Repo, pr: number, body: string): Promise<void> {
-  await gh(repo, ["pr", "comment", String(pr), "--body-file", "-"], body);
+  await ghOnce(repo, ["pr", "comment", String(pr), "--body-file", "-"], body);
 }
