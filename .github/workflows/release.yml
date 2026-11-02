@@ -62,7 +62,8 @@ jobs:
           last=${{ steps.bump.outputs.last }}
           base=${last#v}
           npm version --no-git-tag-version --allow-same-version "${base:-0.0.0}"
-          tag=$(npm version --no-git-tag-version "${{ steps.bump.outputs.bump }}")
+          npm version --no-git-tag-version "${{ steps.bump.outputs.bump }}" > /dev/null
+          tag="v$(node -p "require('./package.json').version")"
           npm publish
           git tag "$tag"
           git push origin "$tag"
