@@ -418,8 +418,11 @@ major. Any other type releases nothing.
 The workflow then bumps the version and publishes the package to npm with a
 [trusted publish](https://docs.npmjs.com/trusted-publishers), so no token is
 stored. Only after the publish does it push the tag and make the GitHub release,
-so a failed publish leaves no half-release behind. A manual run of the workflow
-checks out the last tag and publishes that commit under the tag version, and
-changes nothing else. This repairs a release that reached GitHub but not npm.
-The release job stays on a GitHub runner, because npm takes provenance only
-from a GitHub runner.
+so a failed publish leaves no half-release behind. Last, it points the npm
+`latest` tag at the new version, because npm can leave `latest` on an older
+version when it records a publish late. This needs **Allow npm dist-tag** turned
+on for the trusted publisher in the npm package settings. A manual run of the
+workflow checks out the last tag and publishes that commit under the tag
+version, and changes nothing else. This repairs a release that reached GitHub
+but not npm. The release job stays on a GitHub runner, because npm takes
+provenance only from a GitHub runner.
