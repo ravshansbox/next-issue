@@ -33,10 +33,20 @@ function file(repo: Repo, issue: number): string {
 }
 
 export async function readState(repo: Repo, issue: number): Promise<IssueState | undefined> {
+  const path = file(repo, issue);
+  let text: string;
   try {
-    return JSON.parse(await readFile(file(repo, issue), "utf8")) as IssueState;
+    text = await readFile(path, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return undefined;
+    }
+    throw error;
+  }
+  try {
+    return JSON.parse(text) as IssueState;
   } catch {
-    return undefined;
+    throw new Error(`the state file ${path} is not valid JSON`);
   }
 }
 

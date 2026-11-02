@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -8,7 +8,7 @@ import { type Config, loadConfig } from "../src/config.mts";
 import type { CheckState, Issue, WaitOptions } from "../src/github.mts";
 import { Recorder } from "../src/observe.mts";
 import { type Context, type IssueReport, type Ports, processIssue } from "../src/pipeline.mts";
-import { type IssueState, readState, writeState } from "../src/state.mts";
+import { type IssueState, readState, STATE_DIR, writeState } from "../src/state.mts";
 import type { Verdict } from "../src/verdict.mts";
 
 const ISSUE: Issue = {
@@ -647,6 +647,17 @@ test("a commit that keeps failing in a hook hands the issue to a person once max
   assert.deepEqual(roles(target), ["implementer", "implementer"]);
   assert.equal(target.labels.at(-1)?.label, "status:needs-human");
   assert.equal((await target.state())?.commitFixes, 1);
+});
+
+test("a run that finds a corrupt state file reports an error that names the file and starts no agent", async (t) => {
+  const target = await harness(t, { issue: { ...ISSUE, labels: ["status:todo", "status:in-progress"] } });
+  const folder = join(target.context.repo.root, STATE_DIR);
+  await mkdir(folder, { recursive: true });
+  await writeFile(join(folder, "7.json"), '{ "issue": 7');
+  const report = await target.run();
+  assert.equal(report.outcome, "error");
+  assert.match(report.reason!, /7\.json is not valid JSON/);
+  assert.deepEqual(roles(target), []);
 });
 
 test("a fixer that changes nothing hands the issue to a person", async (t) => {

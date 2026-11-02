@@ -196,7 +196,13 @@ export function skipReason(issue: Issue, config: Config, resuming: boolean): Ski
 export async function processIssue(context: Context, issue: Issue): Promise<IssueReport> {
   const started = Date.now();
   const log = context.recorder.scope({ issue: issue.number });
-  const saved = await readState(context.repo, issue.number);
+  let saved: IssueState | undefined;
+  try {
+    saved = await readState(context.repo, issue.number);
+  } catch (error) {
+    log.event("issue.error", { error: message(error), ms: Date.now() - started }, "quiet");
+    return { ...skipped(issue), outcome: "error", reason: message(error), ms: Date.now() - started };
+  }
   const skip = skipReason(issue, context.config, saved !== undefined);
   if (skip !== undefined) {
     log.event("issue.skip", { title: issue.title, reason: skip });
