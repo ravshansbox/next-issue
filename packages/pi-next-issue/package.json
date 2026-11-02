@@ -6,11 +6,12 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ravshansbox/pi-next-issue.git"
+    "url": "git+https://github.com/ravshansbox/next-issue.git",
+    "directory": "packages/pi-next-issue"
   },
-  "homepage": "https://github.com/ravshansbox/pi-next-issue#readme",
+  "homepage": "https://github.com/ravshansbox/next-issue/tree/main/packages/pi-next-issue#readme",
   "bugs": {
-    "url": "https://github.com/ravshansbox/pi-next-issue/issues"
+    "url": "https://github.com/ravshansbox/next-issue/issues"
   },
   "keywords": [
     "pi-package",

@@ -10,11 +10,12 @@
     "automation",
     "cli"
   ],
-  "homepage": "https://github.com/ravshansbox/next-issue#readme",
+  "homepage": "https://github.com/ravshansbox/next-issue/tree/main/packages/next-issue#readme",
   "bugs": "https://github.com/ravshansbox/next-issue/issues",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ravshansbox/next-issue.git"
+    "url": "git+https://github.com/ravshansbox/next-issue.git",
+    "directory": "packages/next-issue"
   },
   "license": "MIT",
   "author": "ravshansbox",

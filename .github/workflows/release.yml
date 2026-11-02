@@ -31,11 +31,10 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - if: github.event_name == 'workflow_dispatch'
-        working-directory: packages/next-issue
         run: |
           last=$(git describe --tags --exact-match --match 'v*')
-          npm version --no-git-tag-version --allow-same-version "${last#v}"
-          npm publish
+          npm version --no-git-tag-version --allow-same-version --workspaces "${last#v}" > /dev/null
+          npm publish --workspaces
       - if: github.event_name == 'push'
         id: bump
         run: |
@@ -55,16 +54,17 @@ jobs:
           echo "bump=$bump" >> "$GITHUB_OUTPUT"
           echo "The bump since ${last:-the first commit} is ${bump:-none}."
       - if: github.event_name == 'push' && steps.bump.outputs.bump != ''
-        working-directory: packages/next-issue
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           last=${{ steps.bump.outputs.last }}
           base=${last#v}
-          npm version --no-git-tag-version --allow-same-version "${base:-0.0.0}"
-          npm version --no-git-tag-version "${{ steps.bump.outputs.bump }}" > /dev/null
-          tag="v$(node -p "require('./package.json').version")"
-          npm publish
+          npm version --no-git-tag-version --allow-same-version -w next-issue "${base:-0.0.0}" > /dev/null
+          npm version --no-git-tag-version -w next-issue "${{ steps.bump.outputs.bump }}" > /dev/null
+          version=$(node -p "require('./packages/next-issue/package.json').version")
+          npm version --no-git-tag-version --allow-same-version --workspaces "$version" > /dev/null
+          tag="v$version"
+          npm publish --workspaces
           git tag "$tag"
           git push origin "$tag"
           gh release create "$tag" --title "$tag" --generate-notes
