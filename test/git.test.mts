@@ -122,7 +122,7 @@ test("discardChanges puts back a tracked file and removes a new one", async () =
   await writeFile(join(path, "a.txt"), "the reviewer wrote this\n");
   await writeFile(join(path, "notes.md"), "scratch\n");
   assert.equal(await isDirty(path), true);
-  assert.equal(await discardChanges(path), true);
+  assert.equal(await discardChanges(path, head), true);
   assert.equal(await isDirty(path), false);
   assert.equal(await readFile(join(path, "a.txt"), "utf8"), "a.txt\n");
   assert.equal(existsSync(join(path, "notes.md")), false);
@@ -137,11 +137,23 @@ test("discardChanges throws away a change that the index holds", async () => {
   await git(path, "add", "a.txt");
   await writeFile(join(path, "notes.md"), "scratch\n");
   await git(path, "add", "notes.md");
-  assert.equal(await discardChanges(path), true);
+  assert.equal(await discardChanges(path, head), true);
   assert.equal(await isDirty(path), false);
   assert.equal(await readFile(join(path, "a.txt"), "utf8"), "a.txt\n");
   assert.equal(existsSync(join(path, "notes.md")), false);
   assert.equal(await revision(path), head);
+});
+
+test("discardChanges undoes a commit that the reviewer made", async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, "main", "origin");
+  const head = await revision(path);
+  await writeFile(join(path, "a.txt"), "the reviewer committed this\n");
+  await git(path, "commit", "-q", "-am", "reviewer commit");
+  assert.equal(await isDirty(path), false);
+  assert.equal(await discardChanges(path, head), true);
+  assert.equal(await revision(path), head);
+  assert.equal(await readFile(join(path, "a.txt"), "utf8"), "a.txt\n");
 });
 
 test("discardChanges keeps an ignored file and reports a clean worktree", async () => {
@@ -152,6 +164,6 @@ test("discardChanges keeps an ignored file and reports a clean worktree", async 
   await git(path, "commit", "-q", "-m", "ignore deps");
   await mkdir(join(path, "deps"));
   await writeFile(join(path, "deps", "pkg.txt"), "installed\n");
-  assert.equal(await discardChanges(path), false);
+  assert.equal(await discardChanges(path, await revision(path)), false);
   assert.equal(existsSync(join(path, "deps", "pkg.txt")), true);
 });
