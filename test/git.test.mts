@@ -11,6 +11,7 @@ import {
   ensureIgnored,
   isDirty,
   parseRemote,
+  push,
   type Repo,
   revision,
 } from "../src/git.mts";
@@ -113,6 +114,18 @@ test("addWorktree reports a base that it cannot fast-forward", async () => {
   const { path, baseUpdated } = await addWorktree(repo, 3, "main", "origin");
   assert.equal(baseUpdated, false);
   assert.equal(await revision(path), await git(repo.root, "rev-parse", "origin/main"));
+});
+
+test("a forced push replaces a remote branch that the base reset left behind", async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, "main", "origin");
+  await commit(path, "old.txt");
+  await push(path, "origin", "issue-3");
+  await git(path, "reset", "-q", "--hard", "origin/main");
+  const fixed = await commit(path, "fix.txt");
+  await assert.rejects(push(path, "origin", "issue-3"));
+  await push(path, "origin", "issue-3", true);
+  assert.equal(await git(repo.root, "ls-remote", "origin", "refs/heads/issue-3"), `${fixed}\trefs/heads/issue-3`);
 });
 
 test("discardChanges puts back a tracked file and removes a new one", async () => {

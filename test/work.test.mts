@@ -87,6 +87,7 @@ type Harness = {
   setups: string[];
   waits: WaitOptions[];
   pushes: number;
+  forcedPushes: number;
   ready: number[];
   deleted: string[];
   merged: number[];
@@ -128,6 +129,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     setups: [],
     waits: [],
     pushes: 0,
+    forcedPushes: 0,
     ready: [],
     deleted: [],
     merged: [],
@@ -187,8 +189,11 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     },
     mergeCommit: async (_repo, pr) => (plan.mergeQueued === true ? undefined : `merge-of-${pr}`),
     openBlockers: async () => plan.blockers ?? [],
-    push: async () => {
+    push: async (_worktree, _remote, _branch, force) => {
       state.pushes += 1;
+      if (force === true) {
+        state.forcedPushes += 1;
+      }
     },
     removeWorktree: async () => true,
     reopenIssue: async (_repo, number) => {
@@ -342,6 +347,7 @@ test("a user whose checks on main fail after the merge gets the fix merged throu
   assert.deepEqual(target.baseWaits, ["merge-of-101", "merge-of-102"]);
   assert.deepEqual(target.reopened, [7]);
   assert.equal(target.resets, 1);
+  assert.equal(target.forcedPushes, 1);
   assert.deepEqual(roles(target), ["implementer", "reviewer", "fixer", "reviewer"]);
   assert.match(target.prompts[2]!.prompt, /The checks on main failed after the merge/);
   assert.match(target.prompts[2]!.prompt, /the failed main logs/);
