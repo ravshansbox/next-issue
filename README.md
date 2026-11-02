@@ -383,8 +383,8 @@ it. Each wait prints a line on standard error with the minutes until the next
 pass.
 
 After each pass that handled an issue, the harness prints the summary of that
-pass. The token totals in it cover the whole run so far. The exit code at the
-end covers all passes. `--max <n>` counts the handled issues across all passes,
+pass. The token totals in it cover that pass only. The exit code at the end
+covers all passes. `--max <n>` counts the handled issues across all passes,
 and `--once` is the same as `--max 1`.
 
 The watch stops:

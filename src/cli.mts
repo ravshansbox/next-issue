@@ -109,18 +109,18 @@ async function handle(
     process: (issue) => processIssue(context, issue),
     stop: interrupts.afterIssue,
   };
-  const print = (issues: IssueReport[]): Promise<void> => {
-    const summary: RunSummary = { ...recorder.summary(), issues };
-    return write(process.stdout, args.json ? `${JSON.stringify(summary, null, 2)}\n` : formatSummary(summary));
-  };
+  const print = (summary: RunSummary): Promise<void> =>
+    write(process.stdout, args.json ? `${JSON.stringify(summary, null, 2)}\n` : formatSummary(summary));
+  let passStart = recorder.summary();
   const { reports, stoppedAt, error } = args.watch
     ? await watchIssues(args, {
         ...loop,
         wait: (minutes) => {
           recorder.event("watch.wait", { minutes }, "quiet");
+          passStart = recorder.summary();
           return interrupts.sleep(minutes * 60_000);
         },
-        passEnd: print,
+        passEnd: (issues) => print({ ...recorder.summary(passStart), issues }),
       })
     : await runIssues(args, loop);
   if (stoppedAt !== undefined) {
@@ -145,7 +145,7 @@ async function handle(
   const summaryFile = join(repo.root, STATE_DIR, "runs", `${recorder.runId}.summary.json`);
   await writeFile(summaryFile, `${JSON.stringify(summary, null, 2)}\n`);
   if (!args.watch) {
-    await print(reports);
+    await print(summary);
   }
   return error === undefined ? exitCode(reports) : 1;
 }

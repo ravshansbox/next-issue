@@ -87,6 +87,24 @@ test("the summary counts the events and adds the tokens per role", async () => {
   await target.close();
 });
 
+test("a summary since an earlier one holds only the tokens and events after it", async () => {
+  const target = await recorder();
+  const usage = { input: 10, output: 5, cacheRead: 2, cacheWrite: 1, total: 18 };
+  target.usage("implementer", usage, 100);
+  target.event("commit", {}, "verbose");
+  const earlier = target.summary();
+  target.usage("implementer", usage, 50);
+  target.usage("reviewer", usage, 20);
+  const summary = target.summary(earlier);
+  assert.equal(summary.roles.implementer!.calls, 1);
+  assert.equal(summary.roles.implementer!.total, 18);
+  assert.equal(summary.roles.implementer!.ms, 50);
+  assert.equal(summary.roles.reviewer!.calls, 1);
+  assert.equal(summary.total.total, 36);
+  assert.deepEqual(summary.counts, { usage: 2 });
+  await target.close();
+});
+
 test("addUsage adds every field", () => {
   const target = emptyUsage();
   addUsage(target, { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, total: 10 });

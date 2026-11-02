@@ -20,6 +20,12 @@ export type RoleTotals = Usage & {
   ms: number;
 };
 
+export type Totals = {
+  roles: Record<string, RoleTotals>;
+  counts: Record<string, number>;
+  total: Usage;
+};
+
 const VISIBILITY: Record<Level, number> = { quiet: 0, normal: 1, verbose: 2 };
 
 export function emptyUsage(): Usage {
@@ -32,6 +38,16 @@ export function addUsage(target: Usage, source: Usage): void {
   target.cacheRead += source.cacheRead;
   target.cacheWrite += source.cacheWrite;
   target.total += source.total;
+}
+
+function negate(usage: Usage): Usage {
+  return {
+    input: -usage.input,
+    output: -usage.output,
+    cacheRead: -usage.cacheRead,
+    cacheWrite: -usage.cacheWrite,
+    total: -usage.total,
+  };
 }
 
 class Sink {
@@ -137,20 +153,27 @@ export class Recorder {
     }
   }
 
-  summary(): { runId: string; logFile: string; roles: Record<string, RoleTotals>; counts: Record<string, number>; total: Usage } {
+  summary(since?: Totals): Totals & { runId: string; logFile: string } {
     const total = emptyUsage();
     const roles: Record<string, RoleTotals> = {};
     for (const [role, value] of this.sink.totals) {
-      roles[role] = value;
-      addUsage(total, value);
+      const earlier = since?.roles[role] ?? { ...emptyUsage(), calls: 0, ms: 0 };
+      if (value.calls === earlier.calls) {
+        continue;
+      }
+      const usage = { ...value, calls: value.calls - earlier.calls, ms: value.ms - earlier.ms };
+      addUsage(usage, negate(earlier));
+      roles[role] = usage;
+      addUsage(total, usage);
     }
-    return {
-      runId: this.runId,
-      logFile: this.sink.file,
-      roles,
-      counts: Object.fromEntries(this.sink.counts),
-      total,
-    };
+    const counts: Record<string, number> = {};
+    for (const [kind, value] of this.sink.counts) {
+      const count = value - (since?.counts[kind] ?? 0);
+      if (count > 0) {
+        counts[kind] = count;
+      }
+    }
+    return { runId: this.runId, logFile: this.sink.file, roles, counts, total };
   }
 
   async close(): Promise<void> {
