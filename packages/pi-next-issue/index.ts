@@ -1,19 +1,24 @@
-import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { loadConfig } from './src/config.ts';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  type ExtensionAPI,
+  type ExtensionContext,
+  getAgentDir,
+} from '@earendil-works/pi-coding-agent';
 import { repoRoot } from './src/git.ts';
-import { createPorts } from './src/ports.ts';
-import { type Progress, Runner } from './src/runner.ts';
+import { type Progress, spawnWorker, WorkerClient, type WorkerEvent } from './src/worker.ts';
 
-type Launch = (cwd: string) => Promise<Runner>;
-
-type Holder = { runner?: Runner; launching?: boolean };
+export type Options = {
+  client: () => WorkerClient;
+  root: (cwd: string) => Promise<string>;
+};
 
 const KEY = Symbol.for('pi-next-issue');
 const STATUS_KEY = 'next-issue';
 
-function holder(): Holder {
-  const store = globalThis as Record<symbol, Holder | undefined>;
-  store[KEY] ??= {};
+function shared(create: () => WorkerClient): WorkerClient {
+  const store = globalThis as Record<symbol, WorkerClient | undefined>;
+  store[KEY] ??= create();
   return store[KEY];
 }
 
@@ -24,19 +29,23 @@ function duration(ms: number): string {
 }
 
 function outcomes(progress: Progress): string {
-  const merged = progress.handled.filter((item) => item.outcome === 'merged').length;
-  const human = progress.handled.length - merged;
-  const parts = [`${merged} merged`];
+  const done = progress.handled.filter((item) => item.outcome === 'done').length;
+  const human = progress.handled.filter((item) => item.outcome === 'needs-human').length;
+  const failed = progress.handled.filter((item) => item.outcome === 'error').length;
+  const parts = [`${done} done`];
   if (human > 0) {
     parts.push(`${human} needs a human`);
+  }
+  if (failed > 0) {
+    parts.push(`${failed} failed`);
   }
   return parts.join(', ');
 }
 
+const OUTCOME_NOTES = { done: 'done', 'needs-human': 'needs a human', error: 'failed' } as const;
+
 export function formatStatus(progress: Progress, now: number): string {
   switch (progress.status) {
-    case 'idle':
-      return 'next-issue · starting';
     case 'running': {
       if (progress.issue === undefined) {
         return 'next-issue · looking for issues';
@@ -59,39 +68,58 @@ export function formatStatus(progress: Progress, now: number): string {
   }
 }
 
-const launchFromRepo: Launch = async (cwd) => {
-  const root = await repoRoot(cwd);
-  const config = await loadConfig(root);
-  return new Runner(await createPorts(root, config), config);
+function packageVersion(): string {
+  const raw = readFileSync(join(import.meta.dirname, 'package.json'), 'utf8');
+  return (JSON.parse(raw) as { version: string }).version;
+}
+
+const fromMachine: Options = {
+  client: () => {
+    const agentDir = getAgentDir();
+    return new WorkerClient({
+      socketPath: join(agentDir, 'next-issue.sock'),
+      version: packageVersion(),
+      spawnWorker: () => spawnWorker(agentDir),
+    });
+  },
+  root: repoRoot,
 };
 
-export function createExtension(launch: Launch) {
+export function createExtension(options: Options) {
   return (pi: ExtensionAPI) => {
     let ui: ExtensionContext['ui'] | undefined;
     let coloured = false;
+    let root: string | undefined;
     let timer: ReturnType<typeof setInterval> | undefined;
     let unsubscribe: (() => void) | undefined;
     let handled = 0;
     let status: Progress['status'] | undefined;
 
+    const current = (): Progress | undefined =>
+      root === undefined ? undefined : shared(options.client).runs[root];
+
     const render = () => {
-      const runner = holder().runner;
-      if (ui === undefined || runner === undefined) {
+      const progress = current();
+      if (ui === undefined || progress === undefined) {
         return;
       }
-      const progress = runner.progress;
-      const theme = ui.theme;
-      const dim = (text: string) => (coloured ? theme.fg('dim', text) : text);
+      const dim = (text: string) => (coloured ? ui!.theme.fg('dim', text) : text);
       ui.setStatus(STATUS_KEY, dim(formatStatus(progress, Date.now())));
       const active = progress.status === 'running' && progress.lastTool !== undefined;
       ui.setWidget(STATUS_KEY, active ? [dim(`↳ ${progress.lastTool}`)] : undefined);
     };
 
-    const onChange = (progress: Progress) => {
+    const onProgress = (progress: Progress | undefined) => {
+      if (progress === undefined) {
+        return;
+      }
+      if (progress.handled.length < handled) {
+        handled = 0;
+      }
       for (const item of progress.handled.slice(handled)) {
         ui?.notify(
-          `next-issue: #${item.issue} ${item.outcome === 'merged' ? 'merged' : 'needs a human'}`,
-          item.outcome === 'merged' ? 'info' : 'warning',
+          `next-issue: #${item.issue} ${OUTCOME_NOTES[item.outcome]}`,
+          item.outcome === 'done' ? 'info' : 'warning',
         );
       }
       handled = progress.handled.length;
@@ -108,15 +136,44 @@ export function createExtension(launch: Launch) {
       render();
     };
 
-    const follow = (runner: Runner) => {
+    const onEvent = (event: WorkerEvent) => {
+      if (event.type === 'runs') {
+        onProgress(root === undefined ? undefined : event.runs[root]);
+      } else if (event.root === root) {
+        ui?.notify(`next-issue cannot start: ${event.message}`, 'error');
+      }
+    };
+
+    const follow = () => {
       unsubscribe?.();
-      handled = runner.progress.handled.length;
-      status = runner.progress.status;
-      unsubscribe = runner.subscribe(onChange);
+      const progress = current();
+      handled = progress?.handled.length ?? 0;
+      status = progress?.status;
+      unsubscribe = shared(options.client).subscribe(onEvent);
       render();
     };
 
-    const detach = () => {
+    const show = (ctx: ExtensionContext) => {
+      ui = ctx.ui;
+      coloured = ctx.mode === 'tui';
+      timer ??= setInterval(render, 1000);
+      timer.unref?.();
+    };
+
+    pi.on('session_start', async (_event, ctx) => {
+      if (!ctx.hasUI) {
+        return;
+      }
+      show(ctx);
+      root = await options.root(ctx.cwd).catch(() => undefined);
+      if (root === undefined) {
+        return;
+      }
+      follow();
+      await shared(options.client).attach();
+    });
+
+    pi.on('session_shutdown', async () => {
       unsubscribe?.();
       unsubscribe = undefined;
       if (timer !== undefined) {
@@ -124,66 +181,34 @@ export function createExtension(launch: Launch) {
         timer = undefined;
       }
       ui = undefined;
-    };
-
-    pi.on('session_start', async (_event, ctx) => {
-      if (!ctx.hasUI) {
-        return;
-      }
-      ui = ctx.ui;
-      coloured = ctx.mode === 'tui';
-      timer ??= setInterval(render, 1000);
-      timer.unref?.();
-      const runner = holder().runner;
-      if (runner !== undefined) {
-        follow(runner);
-      }
-    });
-
-    pi.on('session_shutdown', async (event) => {
-      detach();
-      if (event.reason === 'quit') {
-        holder().runner?.stop();
-      }
     });
 
     pi.registerCommand('next-issue', {
       description: 'Start or stop working through the GitHub issues of this repository',
       handler: async (_args, ctx) => {
-        const current = holder().runner;
-        const busy =
-          current?.progress.status === 'running' || current?.progress.status === 'stopping';
-        if (busy) {
-          current?.stop();
-          return;
-        }
-        if (holder().launching) {
-          ctx.ui.notify('next-issue is starting already', 'warning');
-          return;
-        }
-        holder().launching = true;
-        let runner: Runner;
         try {
-          runner = await launch(ctx.cwd);
+          root = await options.root(ctx.cwd);
+          if (ctx.hasUI) {
+            show(ctx);
+            follow();
+          }
+          const client = shared(options.client);
+          await client.ensure();
+          const progress = client.runs[root];
+          if (progress?.status === 'running' || progress?.status === 'stopping') {
+            client.send({ type: 'stop', root });
+          } else {
+            client.send({ type: 'start', root, merge: true });
+          }
         } catch (error) {
           ctx.ui.notify(
             `next-issue cannot start: ${error instanceof Error ? error.message : String(error)}`,
             'error',
           );
-          return;
-        } finally {
-          holder().launching = false;
         }
-        holder().runner = runner;
-        if (ctx.hasUI) {
-          ui = ctx.ui;
-          coloured = ctx.mode === 'tui';
-          follow(runner);
-        }
-        void runner.run();
       },
     });
   };
 }
 
-export default createExtension(launchFromRepo);
+export default createExtension(fromMachine);
