@@ -213,8 +213,12 @@ export async function pendingIssues(context: Context): Promise<Issue[]> {
       continue;
     }
     const saved = await readState(repo, number).catch(() => undefined);
-    if (saved?.pr !== undefined && (await ports.prMerged(repo, saved.pr))) {
-      issues.push(await ports.viewIssue(repo, number));
+    if (saved === undefined) {
+      continue;
+    }
+    const { open, ...issue } = await ports.viewIssue(repo, number);
+    if (open || (saved.pr !== undefined && (await ports.prMerged(repo, saved.pr)))) {
+      issues.push(issue);
     }
   }
   return issues.sort((a, b) => a.createdAt.localeCompare(b.createdAt));

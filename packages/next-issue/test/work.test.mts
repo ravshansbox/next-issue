@@ -74,6 +74,7 @@ type Plan = {
   alreadyMerged?: boolean;
   open?: Issue[];
   closed?: Issue[];
+  unlisted?: Issue[];
   baseChecks?: CheckState[];
   pressDuring?: string;
 };
@@ -247,7 +248,10 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     setLabel: async (_repo, kind, number, label) => {
       state.labels.push({ kind, number, label });
     },
-    viewIssue: async (_repo, number) => (plan.closed ?? []).find((entry) => entry.number === number)!,
+    viewIssue: async (_repo, number) => {
+      const closed = (plan.closed ?? []).find((entry) => entry.number === number);
+      return closed === undefined ? { ...(plan.unlisted ?? []).find((entry) => entry.number === number)!, open: true } : { ...closed, open: false };
+    },
     waitForBaseChecks: async (_repo, sha) => {
       state.baseWaits.push(sha);
       return baseChecks.shift() ?? "pass";
@@ -1011,6 +1015,12 @@ test("a user who resumes after a merge that closed the issue gets the closed iss
 test("a user whose closed issue has a saved state but no merged pull request does not get it back in the list", async (t) => {
   const target = await harness(t, { saved: SAVED, alreadyMerged: false, open: [], closed: [ISSUE] });
   assert.deepEqual(await pendingIssues(target.context), []);
+});
+
+test("a user whose open issue has a saved state but lost its status label gets it back in the list", async (t) => {
+  const target = await harness(t, { saved: SAVED, alreadyMerged: false, open: [], unlisted: [{ ...ISSUE, labels: [] }] });
+  const issues = await pendingIssues(target.context);
+  assert.deepEqual(issues.map((entry) => entry.number), [7]);
 });
 
 test("a user with a ready label gets only the ready, in-progress and in-review issues asked for", async (t) => {

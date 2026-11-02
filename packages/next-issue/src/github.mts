@@ -96,9 +96,10 @@ export async function openIssues(repo: Repo, limit: number, labels: string[]): P
   return parsed.map(toIssue).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-export async function viewIssue(repo: Repo, issue: number): Promise<Issue> {
-  const raw = await gh(repo, ["issue", "view", String(issue), "--json", ISSUE_FIELDS]);
-  return toIssue(JSON.parse(raw) as RawIssue);
+export async function viewIssue(repo: Repo, issue: number): Promise<Issue & { open: boolean }> {
+  const raw = await gh(repo, ["issue", "view", String(issue), "--json", `${ISSUE_FIELDS},state`]);
+  const parsed = JSON.parse(raw) as RawIssue & { state: string };
+  return { ...toIssue(parsed), open: parsed.state === "OPEN" };
 }
 
 export async function issueComments(repo: Repo, issue: number): Promise<string[]> {
