@@ -62,18 +62,44 @@ export async function readState(repo: Repo, issue: number): Promise<IssueState |
   return parsed;
 }
 
-function isState(value: unknown): value is IssueState {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-  const state = value as Record<string, unknown>;
+const PHASES: readonly unknown[] = ["claimed", "implemented", "review"];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isOptional(value: unknown, type: "number" | "string"): boolean {
+  return value === undefined || typeof value === type;
+}
+
+function isBaseFix(value: unknown): value is BaseFix {
+  return isRecord(value) && typeof value.sha === "string" && typeof value.head === "string";
+}
+
+function isReviewRound(value: unknown): value is ReviewRound {
   return (
-    typeof state.issue === "number" &&
-    typeof state.phase === "string" &&
-    typeof state.branch === "string" &&
-    typeof state.ciFixes === "number" &&
-    typeof state.reviewRounds === "number" &&
-    Array.isArray(state.reviewLog)
+    isRecord(value) &&
+    typeof value.round === "number" &&
+    typeof value.fingerprint === "string" &&
+    typeof value.findings === "string" &&
+    isOptional(value.dispute, "string")
+  );
+}
+
+function isState(value: unknown): value is IssueState {
+  return (
+    isRecord(value) &&
+    typeof value.issue === "number" &&
+    PHASES.includes(value.phase) &&
+    typeof value.branch === "string" &&
+    isOptional(value.pr, "number") &&
+    isOptional(value.title, "string") &&
+    typeof value.ciFixes === "number" &&
+    isOptional(value.commitFixes, "number") &&
+    (value.baseFix === undefined || isBaseFix(value.baseFix)) &&
+    typeof value.reviewRounds === "number" &&
+    Array.isArray(value.reviewLog) &&
+    value.reviewLog.every(isReviewRound)
   );
 }
 

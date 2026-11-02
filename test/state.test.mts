@@ -38,7 +38,19 @@ test("a caller that reads a broken state gets an error that names the file", asy
   await assert.rejects(readState(target, 7), { message: `the state file ${path} is not valid JSON` });
 });
 
-for (const text of ["null", "{}", '{ "issue": 7, "phase": "review" }']) {
+const VALID = '"issue": 7, "branch": "issue-7", "ciFixes": 0, "reviewRounds": 0';
+for (const text of [
+  "null",
+  "{}",
+  '{ "issue": 7, "phase": "review" }',
+  `{ ${VALID}, "phase": "done", "reviewLog": [] }`,
+  `{ ${VALID}, "phase": "review", "pr": "12", "reviewLog": [] }`,
+  `{ ${VALID}, "phase": "review", "title": 1, "reviewLog": [] }`,
+  `{ ${VALID}, "phase": "review", "commitFixes": "1", "reviewLog": [] }`,
+  `{ ${VALID}, "phase": "review", "baseFix": { "sha": "a" }, "reviewLog": [] }`,
+  `{ ${VALID}, "phase": "review", "reviewLog": [null] }`,
+  `{ ${VALID}, "phase": "review", "reviewLog": [{ "round": 1, "fingerprint": "f", "findings": "x", "dispute": 2 }] }`,
+]) {
   test(`a caller that reads a state file holding ${text} gets an error that names the file`, async () => {
     const target = await repo();
     await writeState(target, STATE);
