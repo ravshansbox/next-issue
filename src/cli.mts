@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { type Args, parseArgs, USAGE } from "./args.mts";
 import { type Config, loadConfig, writeDefaultConfig } from "./config.mts";
 import { setCommandObserver, setDefaultTimeout } from "./exec.mts";
-import { detectRepo, ensureIgnored, type Repo, repoRoot } from "./git.mts";
+import { detectRepo, ensureIgnored, type Repo, repoRoot, WORKTREE_DIR } from "./git.mts";
 import { defaultBranch } from "./github.mts";
 import { listenForInterrupts } from "./interrupt.mts";
 import { exitCode, runIssues } from "./loop.mts";
@@ -64,6 +64,9 @@ async function init(root: string, force: boolean): Promise<number> {
   await write(process.stdout, `wrote ${path}\n`);
   if (await ensureIgnored(root, `${STATE_DIR}/`)) {
     await write(process.stdout, `added ${STATE_DIR}/ to .gitignore\n`);
+  }
+  if (await ensureIgnored(root, `${WORKTREE_DIR}/`)) {
+    await write(process.stdout, `added ${WORKTREE_DIR}/ to .gitignore\n`);
   }
   return 0;
 }

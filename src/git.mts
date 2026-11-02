@@ -1,5 +1,5 @@
 import { appendFile, readFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { join } from "node:path";
 import { must, run } from "./exec.mts";
 
 export type Repo = {
@@ -40,18 +40,20 @@ export type Worktree = {
   baseUpdated: boolean;
 };
 
+export const WORKTREE_DIR = ".worktrees";
+
 export function worktreePath(repo: Repo, issue: number): string {
-  return join(dirname(repo.root), `${basename(repo.root)}-issue-${issue}`);
+  return join(repo.root, WORKTREE_DIR, String(issue));
 }
 
 export async function addWorktree(
   repo: Repo,
   issue: number,
+  branch: string,
   base: string,
   remote: string,
 ): Promise<Worktree> {
   const path = worktreePath(repo, issue);
-  const branch = branchName(issue);
   const upstream = `${remote}/${branch}`;
   await must("git", ["fetch", remote], { cwd: repo.root });
   const baseUpdated = await updateBase(repo, base, remote);
@@ -111,7 +113,7 @@ export async function ensureIgnored(root: string, entry: string): Promise<boolea
 }
 
 export function branchName(issue: number): string {
-  return `issue-${issue}`;
+  return String(issue);
 }
 
 export async function isDirty(cwd: string): Promise<boolean> {

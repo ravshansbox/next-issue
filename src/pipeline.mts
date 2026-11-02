@@ -304,7 +304,7 @@ async function work(
 
   const comments = await log.step("comments", {}, () => ports.issueComments(repo, issue.number));
   const added = await log.step("worktree", { branch }, () =>
-    ports.addWorktree(repo, issue.number, context.base, config.remote),
+    ports.addWorktree(repo, issue.number, branch, context.base, config.remote),
   );
   const worktree = added.path;
   if (!added.baseUpdated) {
