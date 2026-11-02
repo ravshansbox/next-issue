@@ -1013,6 +1013,29 @@ test("a user whose closed issue has a saved state but no merged pull request doe
   assert.deepEqual(await pendingIssues(target.context), []);
 });
 
+test("a user with a ready label gets only the ready, in-progress and in-review issues asked for", async (t) => {
+  const target = await harness(t);
+  const asked: string[][] = [];
+  target.context.ports.openIssues = async (_repo, _limit, labels) => {
+    asked.push(labels);
+    return [];
+  };
+  await pendingIssues(target.context);
+  assert.deepEqual(asked, [["status:todo", "status:in-progress", "status:in-review"]]);
+});
+
+test("a user with no ready label gets every open issue asked for", async (t) => {
+  const target = await harness(t);
+  target.context.config.labels.ready = "";
+  const asked: string[][] = [];
+  target.context.ports.openIssues = async (_repo, _limit, labels) => {
+    asked.push(labels);
+    return [];
+  };
+  await pendingIssues(target.context);
+  assert.deepEqual(asked, [[]]);
+});
+
 test("a user who resumes without --merge a pull request that a person merged gets the issue done without a wait on main", async (t) => {
   const target = await harness(t, {
     issue: { ...ISSUE, labels: ["status:in-review"] },
