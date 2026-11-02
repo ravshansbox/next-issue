@@ -50,11 +50,31 @@ export async function readState(repo: Repo, issue: number): Promise<IssueState |
     }
     throw error;
   }
+  let parsed: unknown;
   try {
-    return JSON.parse(text) as IssueState;
+    parsed = JSON.parse(text);
   } catch {
     throw new Error(`the state file ${path} is not valid JSON`);
   }
+  if (!isState(parsed)) {
+    throw new Error(`the state file ${path} does not hold a valid state`);
+  }
+  return parsed;
+}
+
+function isState(value: unknown): value is IssueState {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const state = value as Record<string, unknown>;
+  return (
+    typeof state.issue === "number" &&
+    typeof state.phase === "string" &&
+    typeof state.branch === "string" &&
+    typeof state.ciFixes === "number" &&
+    typeof state.reviewRounds === "number" &&
+    Array.isArray(state.reviewLog)
+  );
 }
 
 export async function savedIssues(repo: Repo): Promise<number[]> {

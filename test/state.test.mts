@@ -38,6 +38,16 @@ test("a caller that reads a broken state gets an error that names the file", asy
   await assert.rejects(readState(target, 7), { message: `the state file ${path} is not valid JSON` });
 });
 
+for (const text of ["null", "{}", '{ "issue": 7, "phase": "review" }']) {
+  test(`a caller that reads a state file holding ${text} gets an error that names the file`, async () => {
+    const target = await repo();
+    await writeState(target, STATE);
+    const path = join(target.root, STATE_DIR, "7.json");
+    await writeFile(path, text);
+    await assert.rejects(readState(target, 7), { message: `the state file ${path} does not hold a valid state` });
+  });
+}
+
 test("resetState drops the budgets and keeps the resume point", () => {
   assert.deepEqual(resetState(STATE), {
     ...STATE,
