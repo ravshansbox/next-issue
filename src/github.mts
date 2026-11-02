@@ -168,15 +168,8 @@ async function ensureLabel(repo: Repo, label: string): Promise<void> {
 }
 
 export async function findPr(repo: Repo, branch: string): Promise<number | undefined> {
-  const result = await run(
-    "gh",
-    ["pr", "list", "--head", branch, "--state", "open", "--json", "number", "--repo", slug(repo)],
-    { cwd: repo.root },
-  );
-  if (result.code !== 0) {
-    return undefined;
-  }
-  const parsed = JSON.parse(result.stdout) as Array<{ number: number }>;
+  const raw = await gh(repo, ["pr", "list", "--head", branch, "--state", "open", "--json", "number"]);
+  const parsed = JSON.parse(raw) as Array<{ number: number }>;
   return parsed[0]?.number;
 }
 

@@ -8,6 +8,7 @@ import {
   commentOnPr,
   failedBaseLogs,
   failedCheckLogs,
+  findPr,
   labelArgs, mergeCommit, openBlockers,
   prNumber,
   setLabel,
@@ -100,6 +101,9 @@ case "$1 $2" in
   "issue edit"|"pr comment")
     cat > /dev/null
     if [ "$(grep -c -- "$1 $2" "${calls}")" -le ${failures} ]; then echo '${error}' >&2; exit 1; fi ;;
+  "pr list")
+    if [ "$(grep -c -- "$1 $2" "${calls}")" -le ${failures} ]; then echo '${error}' >&2; exit 1; fi
+    echo '[{"number":5}]' ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `;
@@ -147,6 +151,18 @@ test("commentOnPr posts once and fails when the network fails, so no comment is 
   const dir = await flakyGh(t, 1, NETWORK_FAULT);
   await assert.rejects(commentOnPr({ owner: "acme", name: "comment", root: dir }, 2, "hi"), /unexpected EOF/);
   assert.equal(await callsOf(dir, "pr comment"), 1);
+});
+
+test("findPr looks up the pull request again and finds it when the network fails once", async (t) => {
+  const dir = await flakyGh(t, 1, NETWORK_FAULT);
+  assert.equal(await findPr({ owner: "acme", name: "flaky", root: dir }, "issue-1"), 5);
+  assert.equal(await callsOf(dir, "pr list"), 2);
+});
+
+test("findPr reports the gh error when the lookup fails for a reason other than the network", async (t) => {
+  const dir = await flakyGh(t, 1, "HTTP 401: Bad credentials");
+  await assert.rejects(findPr({ owner: "acme", name: "denied", root: dir }, "issue-1"), /Bad credentials/);
+  assert.equal(await callsOf(dir, "pr list"), 1);
 });
 
 test("prNumber reads the number from the pull request URL", () => {
