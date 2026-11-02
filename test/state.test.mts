@@ -41,6 +41,7 @@ test("resetState drops the budgets and keeps the resume point", () => {
   assert.deepEqual(resetState(STATE), {
     ...STATE,
     ciFixes: 0,
+    commitFixes: 0,
     reviewRounds: 0,
     reviewLog: [],
   });

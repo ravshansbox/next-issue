@@ -51,7 +51,7 @@ type Plan = {
   config?: Partial<Config>;
   checks?: CheckState[];
   verdicts?: Verdict[];
-  commits?: boolean[];
+  commits?: Array<boolean | string>;
   diff?: string;
   setupCode?: number;
   setupTimedOut?: boolean;
@@ -138,6 +138,9 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     },
     commitAll: async () => {
       const committed = commits.shift() ?? true;
+      if (typeof committed === "string") {
+        throw new Error(committed);
+      }
       if (committed) {
         head += 1;
       }
@@ -560,6 +563,34 @@ test("an implementer that changes nothing hands the issue to a person", async (t
   assert.equal(report.reason, "no implementation commit");
   assert.equal(report.pr, undefined);
   assert.equal(target.pushes, 0);
+});
+
+test("an implementer whose commit fails in a hook gets the hook output and commits the fix", async (t) => {
+  const target = await harness(t, { commits: ["oxlint: publicProcedure is never used", true] });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.deepEqual(roles(target), ["implementer", "implementer", "reviewer"]);
+  assert.match(target.prompts[1]!.prompt, /oxlint: publicProcedure is never used/);
+  assert.equal(target.pushes, 1);
+  assert.equal(report.ciFixes, 0);
+});
+
+test("a fixer whose commit fails in a hook gets the hook output and commits the fix", async (t) => {
+  const target = await harness(t, { verdicts: [changes("Rename it."), APPROVE], commits: [true, "oxlint: x is never used", true] });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.deepEqual(roles(target), ["implementer", "reviewer", "fixer", "fixer", "reviewer"]);
+  assert.match(target.prompts[3]!.prompt, /oxlint: x is never used/);
+});
+
+test("a commit that keeps failing in a hook hands the issue to a person once maxCommitFixes runs out", async (t) => {
+  const target = await harness(t, { config: { maxCommitFixes: 1 }, commits: ["lint fails", "lint fails"] });
+  const report = await target.run();
+  assert.equal(report.outcome, "error");
+  assert.match(report.reason!, /lint fails/);
+  assert.deepEqual(roles(target), ["implementer", "implementer"]);
+  assert.equal(target.labels.at(-1)?.label, "status:needs-human");
+  assert.equal((await target.state())?.commitFixes, 1);
 });
 
 test("a fixer that changes nothing hands the issue to a person", async (t) => {
