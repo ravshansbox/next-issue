@@ -29,6 +29,7 @@ import {
   mergeCommit,
   mergePr,
   openBlockers,
+  prMerged,
   reopenIssue,
   setLabel,
   waitForBaseChecks,
@@ -83,6 +84,7 @@ export type Ports = {
   mergeCommit: typeof mergeCommit;
   mergePr: typeof mergePr;
   openBlockers: typeof openBlockers;
+  prMerged: typeof prMerged;
   push: typeof push;
   removeWorktree: typeof removeWorktree;
   reopenIssue: typeof reopenIssue;
@@ -118,6 +120,7 @@ export const PORTS: Ports = {
   mergeCommit,
   mergePr,
   openBlockers,
+  prMerged,
   push,
   removeWorktree,
   reopenIssue,
@@ -343,9 +346,17 @@ async function work(
     return stop(job);
   }
 
-  await log.step("push", { branch }, () => ports.push(worktree, config.remote, branch));
-  state.phase = "review";
-  await openPr(job);
+  if (state.phase === "review" && state.pr !== undefined && (await ports.prMerged(repo, state.pr))) {
+    log.event("pull-request.merged", { pr: state.pr }, "quiet");
+    const landed = await afterMerge(job);
+    if (landed.done) {
+      return landed.report;
+    }
+  } else {
+    await log.step("push", { branch }, () => ports.push(worktree, config.remote, branch));
+    state.phase = "review";
+    await openPr(job);
+  }
 
   for (;;) {
     if (context.stopAfterRound()) {
@@ -509,13 +520,7 @@ async function reviewRound(job: Run): Promise<Round> {
         await escalate(job, "The merge of the pull request failed.");
         return { done: true, report: await finish(job, "needs-human", "merge failed") };
       }
-      const watched = await watchBase(job);
-      if (watched.done) {
-        return { done: true, report: watched.report };
-      }
-      if (watched.fixed) {
-        return { done: false };
-      }
+      return afterMerge(job);
     }
     await setStatus(context, issue.number, pr, config.labels.done);
     return { done: true, report: await finish(job, "done") };
@@ -552,6 +557,19 @@ async function reviewRound(job: Run): Promise<Round> {
     await ports.commentOnPr(repo, pr, `### Fixer: no change\n\n${note}`);
   }
   return { done: false };
+}
+
+async function afterMerge(job: Run): Promise<Round> {
+  const { context, issue, state } = job;
+  const watched = await watchBase(job);
+  if (watched.done) {
+    return { done: true, report: watched.report };
+  }
+  if (watched.fixed) {
+    return { done: false };
+  }
+  await setStatus(context, issue.number, state.pr, context.config.labels.done);
+  return { done: true, report: await finish(job, "done") };
 }
 
 async function watchBase(job: Run): Promise<Gate> {

@@ -71,6 +71,7 @@ type Plan = {
   merge?: boolean;
   mergeFails?: boolean;
   mergeQueued?: boolean;
+  alreadyMerged?: boolean;
   baseChecks?: CheckState[];
   pressDuring?: string;
 };
@@ -189,6 +190,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     },
     mergeCommit: async (_repo, pr) => (plan.mergeQueued === true ? undefined : `merge-of-${pr}`),
     openBlockers: async () => plan.blockers ?? [],
+    prMerged: async () => plan.alreadyMerged === true,
     push: async (_worktree, _remote, _branch, force) => {
       state.pushes += 1;
       if (force === true) {
@@ -928,6 +930,42 @@ const SAVED: IssueState = {
   reviewRounds: 1,
   reviewLog: [{ round: 1, fingerprint: "old", findings: "- old" }],
 };
+
+test("a user who resumes a run that died after the merge gets the merge carried on without a second pull request", async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: ["status:in-review"] },
+    saved: SAVED,
+    merge: true,
+    alreadyMerged: true,
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.equal(report.pr, 101);
+  assert.deepEqual(target.titles, []);
+  assert.equal(target.pushes, 0);
+  assert.deepEqual(target.merged, []);
+  assert.deepEqual(roles(target), []);
+  assert.deepEqual(target.baseWaits, ["merge-of-101"]);
+  assert.equal(target.labels.at(-1)!.label, "status:done");
+  assert.equal(await target.state(), undefined);
+});
+
+test("a user who resumes a merged run whose checks on main fail gets the fix through a new pull request", async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: ["status:in-review"] },
+    saved: SAVED,
+    merge: true,
+    alreadyMerged: true,
+    baseChecks: ["fail", "pass"],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.equal(report.pr, 101);
+  assert.deepEqual(target.baseWaits, ["merge-of-101", "merge-of-101"]);
+  assert.deepEqual(roles(target), ["fixer", "reviewer"]);
+  assert.deepEqual(target.reopened, [7]);
+  assert.equal(target.titles.length, 1);
+});
 
 test("--reset puts the budgets back and keeps the resume point", async (t) => {
   const target = await harness(t, {

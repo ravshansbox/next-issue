@@ -432,6 +432,10 @@ export async function mergePr(repo: Repo, pr: number): Promise<boolean> {
   return result.code === 0;
 }
 
+export async function prMerged(repo: Repo, pr: number): Promise<boolean> {
+  return (await gh(repo, ["pr", "view", String(pr), "--json", "state", "--jq", ".state"])).trim() === "MERGED";
+}
+
 export async function mergeCommit(
   repo: Repo,
   pr: number,

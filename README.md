@@ -66,7 +66,9 @@ For each open issue, oldest first:
     the check budget, and the harness force-pushes the fix, reopens the issue
     and opens a new pull request that goes to step 6 again, with fresh review
     rounds. The next issue waits for this, and a second ctrl-c stops only after
-    it. The worktree, the local branch and the state file go away. Without
+    it. The worktree, the local branch and the state file go away. A resume
+    whose pull request is already merged goes straight to the wait for the
+    checks on the base branch, and opens no new pull request. Without
     `--merge`, the remote branch stays. A problem that the reviewer leaves out
     of the findings thus gets an approval: only the findings count.
 11. With an open finding, run the fixer agent and go to step 6 again. The
