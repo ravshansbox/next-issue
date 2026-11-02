@@ -7,7 +7,7 @@ import type { AgentRequest, AgentResult } from "../src/agents.mts";
 import { type Config, loadConfig } from "../src/config.mts";
 import type { CheckState, Issue, WaitOptions } from "../src/github.mts";
 import { Recorder } from "../src/observe.mts";
-import { type Context, type IssueReport, type Ports, processIssue } from "../src/pipeline.mts";
+import { type Context, type IssueReport, pendingIssues, type Ports, processIssue } from "../src/pipeline.mts";
 import { type IssueState, readState, STATE_DIR, writeState } from "../src/state.mts";
 import type { Verdict } from "../src/verdict.mts";
 
@@ -71,6 +71,9 @@ type Plan = {
   merge?: boolean;
   mergeFails?: boolean;
   mergeQueued?: boolean;
+  alreadyMerged?: boolean;
+  open?: Issue[];
+  closed?: Issue[];
   baseChecks?: CheckState[];
   pressDuring?: string;
 };
@@ -189,6 +192,8 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     },
     mergeCommit: async (_repo, pr) => (plan.mergeQueued === true ? undefined : `merge-of-${pr}`),
     openBlockers: async () => plan.blockers ?? [],
+    openIssues: async () => [...(plan.open ?? [])],
+    prMerged: async () => plan.alreadyMerged === true,
     push: async (_worktree, _remote, _branch, force) => {
       state.pushes += 1;
       if (force === true) {
@@ -232,6 +237,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     setLabel: async (_repo, kind, number, label) => {
       state.labels.push({ kind, number, label });
     },
+    viewIssue: async (_repo, number) => (plan.closed ?? []).find((entry) => entry.number === number)!,
     waitForBaseChecks: async (_repo, sha) => {
       state.baseWaits.push(sha);
       return baseChecks.shift() ?? "pass";
@@ -928,6 +934,91 @@ const SAVED: IssueState = {
   reviewRounds: 1,
   reviewLog: [{ round: 1, fingerprint: "old", findings: "- old" }],
 };
+
+test("a user who resumes a run that died after the merge gets the merge carried on without a second pull request", async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: ["status:in-review"] },
+    saved: SAVED,
+    merge: true,
+    alreadyMerged: true,
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.equal(report.pr, 101);
+  assert.deepEqual(target.titles, []);
+  assert.equal(target.pushes, 0);
+  assert.deepEqual(target.merged, []);
+  assert.deepEqual(roles(target), []);
+  assert.deepEqual(target.baseWaits, ["merge-of-101"]);
+  assert.equal(target.labels.at(-1)!.label, "status:done");
+  assert.equal(await target.state(), undefined);
+});
+
+test("a user who resumes a merged run whose checks on main fail gets the fix through a new pull request", async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: ["status:in-review"] },
+    saved: SAVED,
+    merge: true,
+    alreadyMerged: true,
+    baseChecks: ["fail", "pass"],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.equal(report.pr, 101);
+  assert.deepEqual(target.baseWaits, ["merge-of-101", "merge-of-101"]);
+  assert.deepEqual(roles(target), ["fixer", "reviewer"]);
+  assert.deepEqual(target.reopened, [7]);
+  assert.equal(target.titles.length, 1);
+});
+
+test("a user who resumes after a merge that closed the issue gets the closed issue back in the list", async (t) => {
+  const older: Issue = { ...ISSUE, number: 3, createdAt: "2025-12-01T00:00:00Z" };
+  const later: Issue = { ...ISSUE, number: 9, createdAt: "2026-02-01T00:00:00Z" };
+  const target = await harness(t, { saved: SAVED, alreadyMerged: true, open: [older, later], closed: [ISSUE] });
+  const issues = await pendingIssues(target.context);
+  assert.deepEqual(issues.map((entry) => entry.number), [3, 7, 9]);
+});
+
+test("a user whose closed issue has a saved state but no merged pull request does not get it back in the list", async (t) => {
+  const target = await harness(t, { saved: SAVED, alreadyMerged: false, open: [], closed: [ISSUE] });
+  assert.deepEqual(await pendingIssues(target.context), []);
+});
+
+test("a user who resumes without --merge a pull request that a person merged gets the issue done without a wait on main", async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: ["status:in-review"] },
+    saved: SAVED,
+    alreadyMerged: true,
+    baseChecks: ["fail"],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.deepEqual(target.baseWaits, []);
+  assert.deepEqual(roles(target), []);
+  assert.equal(target.pushes, 0);
+  assert.deepEqual(target.titles, []);
+  assert.deepEqual(target.reopened, []);
+  assert.equal(target.labels.at(-1)!.label, "status:done");
+  assert.equal(await target.state(), undefined);
+});
+
+test("a user who resumes a run that died in the fix of main gets the fix carried on without another check fix", async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: ["status:in-review"] },
+    saved: { ...SAVED, ciFixes: 1, baseFix: { sha: "merge-of-101", head: "-1" } },
+    merge: true,
+    alreadyMerged: true,
+    commits: [false],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.equal(report.ciFixes, 1);
+  assert.equal(target.resets, 0);
+  assert.equal(target.forcedPushes, 1);
+  assert.deepEqual(target.reopened, [7]);
+  assert.equal(target.titles.length, 1);
+  assert.deepEqual(roles(target), ["fixer", "reviewer"]);
+});
 
 test("--reset puts the budgets back and keeps the resume point", async (t) => {
   const target = await harness(t, {

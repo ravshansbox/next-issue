@@ -5,11 +5,11 @@ import { type Args, parseArgs, USAGE } from "./args.mts";
 import { type Config, loadConfig, writeDefaultConfig } from "./config.mts";
 import { setCommandObserver, setDefaultTimeout } from "./exec.mts";
 import { detectRepo, ensureIgnored, type Repo, repoRoot } from "./git.mts";
-import { defaultBranch, openIssues } from "./github.mts";
+import { defaultBranch } from "./github.mts";
 import { listenForInterrupts } from "./interrupt.mts";
 import { exitCode, runIssues } from "./loop.mts";
 import { message, pruneRuns, Recorder } from "./observe.mts";
-import { type Context, type IssueReport, PORTS, processIssue } from "./pipeline.mts";
+import { type Context, type IssueReport, pendingIssues, PORTS, processIssue } from "./pipeline.mts";
 import { STATE_DIR } from "./state.mts";
 import { formatSummary, type RunSummary } from "./summary.mts";
 import { packageVersion } from "./version.mts";
@@ -97,7 +97,7 @@ async function handle(
     "quiet",
   );
 
-  const issues = await openIssues(repo, config.issueLimit);
+  const issues = await pendingIssues(context);
   recorder.event("issues", { open: issues.length }, "quiet");
 
   const { reports, stoppedAt } = await runIssues(args, {
