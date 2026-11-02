@@ -599,7 +599,20 @@ test("an implementer whose hook fix names no subject commits again with the earl
   });
   const report = await target.run();
   assert.equal(report.outcome, "done");
+  assert.match(target.messages[0]!, /^fix: count the issues\n/);
   assert.match(target.messages[1]!, /^fix: count the issues\n/);
+});
+
+test("a fixer whose subject a commit-msg hook rejects commits again with the subject from the fix", async (t) => {
+  const target = await harness(t, {
+    verdicts: [changes("Rename it."), APPROVE],
+    commits: [true, "commitlint: subject may not be empty", true],
+    fixerText: ["commit: Bad subject", "commit: fix: rename the counter"],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.match(target.messages[1]!, /^Bad subject\n/);
+  assert.match(target.messages[2]!, /^fix: rename the counter\n/);
 });
 
 test("a fixer whose commit fails in a hook gets the hook output and commits the fix", async (t) => {
