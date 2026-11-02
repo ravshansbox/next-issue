@@ -171,6 +171,15 @@ test("a user who watches gets a summary for each pass that handled an issue", as
   assert.equal(exitCode(result.reports), 1);
 });
 
+test("a user who watches sees an issue that failed tried only once, with no reset of the wait", async () => {
+  const fake = watcher([["error", "skipped"], ["error", "skipped"], ["error", "skipped"]]);
+  const result = await watchIssues(ARGS, fake);
+  assert.deepEqual(fake.processed, [1, 2, 2, 2]);
+  assert.deepEqual(fake.waits, [1, 2, 3]);
+  assert.deepEqual(fake.passes, [[1, 2]]);
+  assert.equal(exitCode(result.reports), 1);
+});
+
 test("a user who watches with --max stops after n handled issues across passes", async () => {
   const fake = watcher([["done"], ["skipped", "done", "done"]]);
   await watchIssues({ ...ARGS, max: 2 }, fake);
