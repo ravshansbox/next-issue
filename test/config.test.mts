@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -61,6 +61,12 @@ test("the file merges into the defaults", async () => {
 
 test("a broken file stops the run", async () => {
   await assert.rejects(loadConfig(await root("{ oops")), /is not valid JSON/);
+});
+
+test("a config file that cannot be read stops the run", async () => {
+  const dir = await root();
+  await mkdir(join(dir, CONFIG_FILE));
+  await assert.rejects(loadConfig(dir), /next-issue\.config\.json cannot be read: .*EISDIR/);
 });
 
 test("a field of the wrong type stops the run", async () => {
