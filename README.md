@@ -358,6 +358,7 @@ that a label still holds back stays as it was.
 | `--once` | Stop after the first handled issue |
 | `--max <n>` | Handle at most n issues |
 | `--merge` | Squash-merge the pull request after the approval, delete the remote branch and fix a failure of the checks on the base branch |
+| `--watch` | Keep running, and read the open issues again after each pass |
 | `--reset` | Drop the saved budgets and findings, and keep the rest of the state |
 | `--json` | Print the machine summary instead of the text one |
 | `--verbose` | Show every command and all agent output |
@@ -366,6 +367,33 @@ that a label still holds back stays as it was.
 
 The exit code is 1 when an issue needs a person or failed, and 0 when it does
 not, so a cron job or a CI step can read the result of the run.
+
+## Watch for new issues
+
+A run without `--watch` ends when no unseen issue is left. With `--watch`, the
+harness then waits, reads the open issues again and runs another pass, so it
+picks up an issue that someone opens during the run, or one whose blocker
+merges. Each pass tries every open issue again, also one that an earlier pass
+skipped.
+
+The waits follow a fixed back-off in minutes: 1, 2, 3, 5, 10, then 10 from then
+on. A pass that handles an issue, with any outcome other than `skipped`, resets
+the back-off to 1 minute. A pass where every issue is skipped does not reset
+it. Each wait prints a line on standard error with the minutes until the next
+pass.
+
+After each pass that handled an issue, the harness prints the summary of that
+pass. The token totals in it cover that pass only. The exit code at the end
+covers all passes. `--max <n>` counts the handled issues across all passes,
+and `--once` is the same as `--max 1`.
+
+The watch stops:
+
+- at the first `Ctrl-C` during a wait, at once;
+- at the first `Ctrl-C` during an issue, after that issue;
+- after a pass that halts the run, for example when the base branch is broken
+  after `--merge`;
+- when the open issues cannot be read.
 
 ## Development
 
