@@ -233,7 +233,8 @@ adds `.next-issue/` to `.gitignore`. It stops when the config file is there
 already; `--force` replaces it. The file holds no `setupCommand`, because the
 harness deduces one from the lock file of the project.
 
-A field that is not in the file keeps its default. A file that is not valid
+With no file, every field keeps its default. A field that is not in the file
+keeps its default. A file that cannot be read, a file that is not valid
 JSON, a field with a value of the wrong type and a field name that the harness
 does not know all stop the run, so a typo cannot pass without a word.
 

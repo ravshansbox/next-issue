@@ -113,8 +113,11 @@ export async function loadConfig(root: string): Promise<Config> {
   let raw: string;
   try {
     raw = await readFile(join(root, CONFIG_FILE), "utf8");
-  } catch {
-    return defaults();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return defaults();
+    }
+    throw new Error(`${CONFIG_FILE} cannot be read: ${message(error)}`);
   }
   let parsed: unknown;
   try {
