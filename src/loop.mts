@@ -8,13 +8,19 @@ export type Loop = {
   stop: () => boolean;
 };
 
-export type LoopResult = { reports: IssueReport[]; stoppedAt?: number };
+export type LoopResult = { reports: IssueReport[]; stoppedAt?: number; error?: unknown };
 
 export async function runIssues(args: Pick<Args, "max" | "once">, loop: Loop): Promise<LoopResult> {
   const reports: IssueReport[] = [];
   const seen = new Set<number>();
   while (args.max === undefined || handled(reports) < args.max) {
-    const issue = (await loop.issues()).find((candidate) => !seen.has(candidate.number));
+    let issues: Issue[];
+    try {
+      issues = await loop.issues();
+    } catch (error) {
+      return { reports, error };
+    }
+    const issue = issues.find((candidate) => !seen.has(candidate.number));
     if (issue === undefined) {
       break;
     }

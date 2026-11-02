@@ -103,6 +103,22 @@ test("each issue is handled with the details fetched just before it", async () =
   assert.deepEqual(handled, [issue(1), changed]);
 });
 
+test("a run that cannot fetch the open issues ends with the reports of the issues it handled", async () => {
+  const fake = loop({ 1: "done", 2: "done" });
+  const failure = new Error("gh failed");
+  const lists = [[issue(1), issue(2)]];
+  fake.issues = async () => {
+    const next = lists.shift();
+    if (next === undefined) {
+      throw failure;
+    }
+    return next;
+  };
+  const result = await runIssues(ARGS, fake);
+  assert.deepEqual(result.reports.map((entry) => entry.issue), [1]);
+  assert.equal(result.error, failure);
+});
+
 test("the exit code is 1 only when an issue needs a person or failed", () => {
   assert.equal(exitCode([report(1, "done"), report(2, "skipped")]), 0);
   assert.equal(exitCode([report(1, "needs-human")]), 1);

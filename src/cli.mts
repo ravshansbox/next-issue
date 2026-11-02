@@ -100,7 +100,7 @@ async function handle(
     "quiet",
   );
 
-  const { reports, stoppedAt } = await runIssues(args, {
+  const { reports, stoppedAt, error } = await runIssues(args, {
     issues: async () => {
       const issues = await pendingIssues(context);
       recorder.event("issues", { open: issues.length }, "quiet");
@@ -111,6 +111,9 @@ async function handle(
   });
   if (stoppedAt !== undefined) {
     recorder.event("run.stop", { issue: stoppedAt }, "quiet");
+  }
+  if (error !== undefined) {
+    recorder.event("issues.fail", { error: message(error) }, "quiet");
   }
 
   recorder.event(
@@ -128,7 +131,7 @@ async function handle(
   const summaryFile = join(repo.root, STATE_DIR, "runs", `${recorder.runId}.summary.json`);
   await writeFile(summaryFile, `${JSON.stringify(summary, null, 2)}\n`);
   await write(process.stdout, args.json ? `${JSON.stringify(summary, null, 2)}\n` : formatSummary(summary));
-  return exitCode(reports);
+  return error === undefined ? exitCode(reports) : 1;
 }
 
 function count(reports: IssueReport[], outcome: IssueReport["outcome"]): number {
