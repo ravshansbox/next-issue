@@ -168,3 +168,21 @@ test("a check read that keeps failing passes the error on", async () => {
   await assert.rejects(pollChecks(target, { ...OPTIONS, head: "new" }, time), /network/);
   assert.equal(time.time, 20_000);
 });
+
+test("a person who pushes to the pull request during the wait stops the wait with moved", async () => {
+  const heads = ["new", "theirs"];
+  const base = probe(["some"], ["pending", "pass"]);
+  const target: ChecksProbe = { list: base.list, watch: base.watch, head: async () => heads.shift() ?? "theirs" };
+  const time = clock();
+  assert.equal(await pollChecks(target, { ...OPTIONS, head: "new" }, time), "moved");
+  assert.equal(time.time, 10_000);
+});
+
+test("a person who pushes before the pull request shows the pushed commit stops the wait with moved", async () => {
+  const heads = ["old", "theirs"];
+  const base = probe(["some"], ["pass"]);
+  const target: ChecksProbe = { list: base.list, watch: base.watch, head: async () => heads.shift() ?? "theirs" };
+  const time = clock();
+  assert.equal(await pollChecks(target, { ...OPTIONS, head: "new" }, time), "moved");
+  assert.equal(base.polls, 0);
+});

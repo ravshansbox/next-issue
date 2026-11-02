@@ -11,7 +11,7 @@ export type Issue = {
 
 export type Kind = "issue" | "pr";
 
-export type CheckState = "pass" | "fail" | "pending" | "none" | "timeout";
+export type CheckState = "pass" | "fail" | "pending" | "none" | "timeout" | "moved";
 
 const CHECK_PENDING_CODE = 8;
 const READ_TRIES = 3;
@@ -292,12 +292,23 @@ export async function pollChecks(
   const deadline = clock.now() + options.timeoutMs;
   const rest = (): number => Math.max(0, deadline - clock.now());
   let shown: number | undefined;
+  let seen: string | undefined;
   let failures = 0;
   for (;;) {
     if (rest() === 0) {
       return "timeout";
     }
-    const state = await read(probe, options.head, rest(), () => (shown ??= clock.now()));
+    const state = await read(
+      probe,
+      options.head,
+      rest(),
+      () => (shown ??= clock.now()),
+      (head) => {
+        const moved = seen !== undefined && head !== seen && head !== options.head;
+        seen = head;
+        return moved;
+      },
+    );
     if (state instanceof Error) {
       failures += 1;
       if (failures >= READ_TRIES) {
@@ -321,10 +332,17 @@ async function read(
   head: string | undefined,
   timeoutMs: number,
   shown: () => void,
+  moved: (head: string) => boolean,
 ): Promise<CheckState | "none" | "behind" | Error> {
   try {
-    if (head !== undefined && (await probe.head()) !== head) {
-      return "behind";
+    if (head !== undefined) {
+      const current = await probe.head();
+      if (moved(current)) {
+        return "moved";
+      }
+      if (current !== head) {
+        return "behind";
+      }
     }
     shown();
     if ((await probe.list()) === "none") {

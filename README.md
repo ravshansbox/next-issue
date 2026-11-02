@@ -111,6 +111,8 @@ when:
    ping-pong between the fixer and the reviewer, or a finding that the fixer
    disputed and the reviewer holds to. The person then decides;
 - the reviewer gives no verdict, or the checks do not finish in time;
+- someone else pushes to the pull request while the harness waits for the
+   checks;
 - with `--merge`, the merge of an approved pull request fails, for example
    because branch protection asks for a human approval;
 - with `--merge`, a queued merge does not finish in `checkTimeoutMinutes`, or

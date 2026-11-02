@@ -452,6 +452,10 @@ async function checkGate(job: Run): Promise<Gate> {
     await escalate(job, "The checks did not finish in time.");
     return { done: true, report: await finish(job, "needs-human", "checks timeout") };
   }
+  if (checks === "moved") {
+    await escalate(job, "Someone pushed to the pull request while the checks ran.");
+    return { done: true, report: await finish(job, "needs-human", "pull request moved") };
+  }
   if (checks !== "fail") {
     return { done: false, fixed: false };
   }
