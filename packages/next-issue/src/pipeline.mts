@@ -204,7 +204,9 @@ export function skipReason(issue: Issue, config: Config, resuming: boolean): Ski
 
 export async function pendingIssues(context: Context): Promise<Issue[]> {
   const { repo, config, ports } = context;
-  const issues = await ports.openIssues(repo, config.issueLimit);
+  const { ready, inProgress, inReview } = config.labels;
+  const labels = ready.length === 0 ? [] : [ready, inProgress, inReview];
+  const issues = await ports.openIssues(repo, config.issueLimit, labels);
   const listed = new Set(issues.map((issue) => issue.number));
   for (const number of await savedIssues(repo)) {
     if (listed.has(number)) {

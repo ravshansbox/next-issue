@@ -78,14 +78,15 @@ function toIssue(item: RawIssue): Issue {
   };
 }
 
-export async function openIssues(repo: Repo, limit: number): Promise<Issue[]> {
+export async function openIssues(repo: Repo, limit: number, labels: string[]): Promise<Issue[]> {
+  const filter = labels.length === 0 ? "" : ` label:${labels.map((label) => `"${label}"`).join(",")}`;
   const raw = await gh(repo, [
     "issue",
     "list",
     "--state",
     "open",
     "--search",
-    "sort:created-asc",
+    `sort:created-asc${filter}`,
     "--limit",
     String(limit),
     "--json",
