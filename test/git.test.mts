@@ -10,9 +10,11 @@ import {
   branchName,
   discardChanges,
   ensureIgnored,
+  findWorktree,
   isDirty,
   parseRemote,
   push,
+  removeWorktree,
   type Repo,
   revision,
 } from "../src/git.mts";
@@ -118,6 +120,27 @@ test("a user who resumes issue 3 on a saved branch gets that branch in the workt
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, "issue-3", "main", "origin");
   assert.equal(await git(path, "branch", "--show-current"), "issue-3");
+});
+
+test("a user who resumes issue 3 while its old worktree holds the saved branch works in that worktree", async () => {
+  const { repo } = await clones();
+  const old = join(repo.root, "..", "tool-issue-3");
+  await git(repo.root, "worktree", "add", "-q", "-b", "issue-3", old, "origin/main");
+  const { path } = await addWorktree(repo, 3, "issue-3", "main", "origin");
+  assert.equal(path, await findWorktree(repo, "issue-3"));
+  assert.equal(await git(path, "branch", "--show-current"), "issue-3");
+  assert.equal(existsSync(join(repo.root, ".worktrees", "3")), false);
+});
+
+test("a user whose issue ends gets the worktree that holds its branch removed", async () => {
+  const { repo } = await clones();
+  const old = join(repo.root, "..", "tool-issue-3");
+  await git(repo.root, "worktree", "add", "-q", "-b", "issue-3", old, "origin/main");
+  const path = await findWorktree(repo, "issue-3");
+  assert.notEqual(path, undefined);
+  assert.equal(await removeWorktree(repo, path!), true);
+  assert.equal(existsSync(old), false);
+  assert.equal(await findWorktree(repo, "issue-3"), undefined);
 });
 
 test("addWorktree reports a base that it cannot fast-forward", async () => {

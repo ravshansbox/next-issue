@@ -184,7 +184,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     failedCheckLogs: async () => "the failed job logs",
     failedBaseLogs: async () => "the failed main logs",
     findPr: async () => undefined,
-    hasWorktree: async () => false,
+    findWorktree: async () => undefined,
     isDirty: async () => plan.fixerWrites === true,
     issueComments: async () => [],
     markPrReady: async (_repo, pr) => {

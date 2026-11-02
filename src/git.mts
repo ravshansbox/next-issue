@@ -53,13 +53,14 @@ export async function addWorktree(
   base: string,
   remote: string,
 ): Promise<Worktree> {
-  const path = worktreePath(repo, issue);
   const upstream = `${remote}/${branch}`;
   await must("git", ["fetch", remote], { cwd: repo.root });
   const baseUpdated = await updateBase(repo, base, remote);
   await must("git", ["worktree", "prune"], { cwd: repo.root });
   const pushed = await hasBranch(repo, upstream, "--remotes");
-  if (!(await hasWorktree(repo, path))) {
+  const existing = await findWorktree(repo, branch);
+  const path = existing ?? worktreePath(repo, issue);
+  if (existing === undefined) {
     const args = (await hasBranch(repo, branch))
       ? ["worktree", "add", path, branch]
       : ["worktree", "add", "-b", branch, path, pushed ? upstream : `${remote}/${base}`];
@@ -86,13 +87,17 @@ export async function updateBase(repo: Repo, base: string, remote: string): Prom
   return result.code === 0;
 }
 
-export async function hasWorktree(repo: Repo, path: string): Promise<boolean> {
+export async function findWorktree(repo: Repo, branch: string): Promise<string | undefined> {
   const list = await must("git", ["worktree", "list", "--porcelain"], { cwd: repo.root });
-  return list.split("\n").some((line) => line.trim() === `worktree ${path}`);
+  const entry = list
+    .split("\n\n")
+    .map((block) => block.split("\n"))
+    .find((lines) => lines.includes(`branch refs/heads/${branch}`));
+  return entry?.find((line) => line.startsWith("worktree "))?.slice("worktree ".length);
 }
 
-export async function removeWorktree(repo: Repo, issue: number): Promise<boolean> {
-  const result = await run("git", ["worktree", "remove", worktreePath(repo, issue)], { cwd: repo.root });
+export async function removeWorktree(repo: Repo, path: string): Promise<boolean> {
+  const result = await run("git", ["worktree", "remove", path], { cwd: repo.root });
   return result.code === 0;
 }
 

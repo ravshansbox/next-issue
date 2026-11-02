@@ -8,14 +8,13 @@ import {
   deleteBranch,
   diff,
   discardChanges,
-  hasWorktree,
+  findWorktree,
   isDirty,
   push,
   removeWorktree,
   type Repo,
   resetToBase,
   revision,
-  worktreePath,
 } from "./git.mts";
 import {
   commentOnPr,
@@ -80,7 +79,7 @@ export type Ports = {
   failedBaseLogs: typeof failedBaseLogs;
   failedCheckLogs: typeof failedCheckLogs;
   findPr: typeof findPr;
-  hasWorktree: typeof hasWorktree;
+  findWorktree: typeof findWorktree;
   isDirty: typeof isDirty;
   issueComments: typeof issueComments;
   markPrReady: typeof markPrReady;
@@ -118,7 +117,7 @@ export const PORTS: Ports = {
   failedBaseLogs,
   failedCheckLogs,
   findPr,
-  hasWorktree,
+  findWorktree,
   isDirty,
   issueComments,
   markPrReady,
@@ -270,7 +269,7 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
     } catch (failure) {
       log.event("hand-over.error", { error: message(failure) }, "quiet");
     }
-    await cleanUp(context, log, issue.number);
+    await cleanUp(context, log, state.branch);
     return {
       issue: issue.number,
       outcome: "error",
@@ -691,7 +690,7 @@ function stop(job: Run): IssueReport {
 async function finish(job: Run, outcome: Outcome, reason?: string): Promise<IssueReport> {
   const { context, issue, log, state, branch } = job;
   const { repo, ports } = context;
-  await cleanUp(context, log, issue.number);
+  await cleanUp(context, log, branch);
   if (outcome === "done") {
     if (!(await ports.deleteBranch(repo, branch))) {
       log.event("branch.kept", { branch }, "quiet");
@@ -789,13 +788,13 @@ async function commitWork(
   }
 }
 
-async function cleanUp(context: Context, log: Recorder, issue: number): Promise<void> {
-  const path = worktreePath(context.repo, issue);
+async function cleanUp(context: Context, log: Recorder, branch: string): Promise<void> {
   try {
-    if (!(await context.ports.hasWorktree(context.repo, path))) {
+    const path = await context.ports.findWorktree(context.repo, branch);
+    if (path === undefined) {
       return;
     }
-    if (!(await context.ports.removeWorktree(context.repo, issue))) {
+    if (!(await context.ports.removeWorktree(context.repo, path))) {
       log.event("worktree.kept", { path }, "quiet");
     }
   } catch (error) {
