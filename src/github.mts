@@ -22,6 +22,10 @@ const NO_CHECKS = /no checks reported/i;
 
 type CheckSummary = { name: string; bucket: string; link: string; description: string };
 
+type BaseRun = { databaseId: number; name: string; status: string; conclusion: string };
+
+const FAILED_CONCLUSIONS = new Set(["failure", "timed_out", "startup_failure"]);
+
 function slug(repo: Repo): string {
   return `${repo.owner}/${repo.name}`;
 }
@@ -339,12 +343,54 @@ export async function failedCheckLogs(repo: Repo, branch: string, maxChars: numb
   if (checks === "none") {
     return "The checks failed, but gh reports no check for the branch.";
   }
-  const failed = checks.filter((check) => check.bucket === "fail");
+  const failed = checks
+    .filter((check) => check.bucket === "fail")
+    .map((check) => ({
+      heading: `## ${check.name}\n${check.description}`,
+      runId: /\/actions\/runs\/(\d+)/.exec(check.link)?.[1],
+    }));
+  return runLogs(repo, failed, maxChars);
+}
+
+async function baseRuns(repo: Repo, sha: string): Promise<BaseRun[]> {
+  const raw = await gh(repo, ["run", "list", "--commit", sha, "--json", "databaseId,name,status,conclusion"]);
+  return JSON.parse(raw) as BaseRun[];
+}
+
+function baseState(runs: BaseRun[]): CheckState {
+  if (runs.some((entry) => entry.status === "completed" && FAILED_CONCLUSIONS.has(entry.conclusion))) {
+    return "fail";
+  }
+  return runs.every((entry) => entry.status === "completed") ? "pass" : "pending";
+}
+
+export function waitForBaseChecks(repo: Repo, sha: string, options: PollOptions): Promise<CheckState> {
+  return pollChecks(
+    {
+      head: async () => sha,
+      list: async () => ((await baseRuns(repo, sha)).length === 0 ? "none" : "some"),
+      watch: async () => baseState(await baseRuns(repo, sha)),
+    },
+    options,
+  );
+}
+
+export async function failedBaseLogs(repo: Repo, sha: string, maxChars: number): Promise<string> {
+  const failed = (await baseRuns(repo, sha))
+    .filter((entry) => entry.status === "completed" && FAILED_CONCLUSIONS.has(entry.conclusion))
+    .map((entry) => ({ heading: `## ${entry.name}`, runId: String(entry.databaseId) }));
+  return runLogs(repo, failed, maxChars);
+}
+
+async function runLogs(
+  repo: Repo,
+  failed: Array<{ heading: string; runId: string | undefined }>,
+  maxChars: number,
+): Promise<string> {
   const share = Math.max(1, Math.floor(maxChars / Math.max(1, failed.length)));
   const parts: string[] = [];
-  for (const check of failed) {
-    parts.push(`## ${check.name}\n${check.description}`);
-    const runId = /\/actions\/runs\/(\d+)/.exec(check.link)?.[1];
+  for (const { heading, runId } of failed) {
+    parts.push(heading);
     if (runId === undefined) {
       continue;
     }
@@ -378,6 +424,14 @@ export async function mergePr(repo: Repo, pr: number): Promise<boolean> {
     { cwd: repo.root },
   );
   return result.code === 0;
+}
+
+export async function mergeCommit(repo: Repo, pr: number): Promise<string> {
+  return gh(repo, ["pr", "view", String(pr), "--json", "mergeCommit", "--jq", ".mergeCommit.oid"]);
+}
+
+export async function reopenIssue(repo: Repo, issue: number): Promise<void> {
+  await gh(repo, ["issue", "reopen", String(issue)]);
 }
 
 export async function commentOnPr(repo: Repo, pr: number, body: string): Promise<void> {

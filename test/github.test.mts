@@ -4,7 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { type CommandRecord, setCommandObserver } from "../src/exec.mts";
-import { commentOnPr, failedCheckLogs, labelArgs, openBlockers, prNumber, setLabel } from "../src/github.mts";
+import {
+  commentOnPr,
+  failedBaseLogs,
+  failedCheckLogs,
+  labelArgs, openBlockers,
+  prNumber,
+  setLabel,
+  waitForBaseChecks,
+} from "../src/github.mts";
 
 const MANAGED = ["status:todo", "status:in-progress", "status:in-review", "status:done"];
 
@@ -184,6 +192,59 @@ test("failedCheckLogs keeps the partial logs when the read fails", async (t) => 
   const dir = await fakeChecksGh(t, 'echo "boom"; echo "gone" >&2; exit 3');
   const report = await failedCheckLogs({ owner: "acme", name: "tool", root: dir }, "issue-1", 1000);
   assert.match(report, /boom\nThe log read failed with code 3\. gone/);
+});
+
+async function fakeRunsGh(t: TestContext, runs: unknown[]): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "next-issue-"));
+  const script = `#!/bin/sh
+case "$1 $2" in
+  "run list") [ "$3 $4" = "--commit abc" ] || { echo "unexpected: $*" >&2; exit 1; }; echo '${JSON.stringify(runs)}' ;;
+  "run view") echo "boom in $3" ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+`;
+  await writeFile(join(dir, "gh"), script, { mode: 0o755 });
+  const path = process.env.PATH;
+  process.env.PATH = `${dir}:${path}`;
+  t.after(() => {
+    process.env.PATH = path;
+  });
+  return dir;
+}
+
+const BASE_WAIT = { intervalSeconds: 1, graceMs: 0, timeoutMs: 10_000 };
+
+test("waitForBaseChecks passes when every run on the commit ends without a failure, a cancelled one included", async (t) => {
+  const dir = await fakeRunsGh(t, [
+    { databaseId: 1, name: "CI", status: "completed", conclusion: "success" },
+    { databaseId: 2, name: "Deploy", status: "completed", conclusion: "cancelled" },
+    { databaseId: 3, name: "Docs", status: "completed", conclusion: "skipped" },
+  ]);
+  assert.equal(await waitForBaseChecks({ owner: "acme", name: "tool", root: dir }, "abc", BASE_WAIT), "pass");
+});
+
+test("waitForBaseChecks fails as soon as one run on the commit fails", async (t) => {
+  const dir = await fakeRunsGh(t, [
+    { databaseId: 1, name: "CI", status: "completed", conclusion: "failure" },
+    { databaseId: 2, name: "Deploy", status: "in_progress", conclusion: "" },
+  ]);
+  assert.equal(await waitForBaseChecks({ owner: "acme", name: "tool", root: dir }, "abc", BASE_WAIT), "fail");
+});
+
+test("waitForBaseChecks reports none when the commit starts no run", async (t) => {
+  const dir = await fakeRunsGh(t, []);
+  assert.equal(await waitForBaseChecks({ owner: "acme", name: "tool", root: dir }, "abc", BASE_WAIT), "none");
+});
+
+test("failedBaseLogs gives the logs of the failed runs on the commit only", async (t) => {
+  const dir = await fakeRunsGh(t, [
+    { databaseId: 1, name: "CI", status: "completed", conclusion: "failure" },
+    { databaseId: 2, name: "Docs", status: "completed", conclusion: "success" },
+  ]);
+  const report = await failedBaseLogs({ owner: "acme", name: "tool", root: dir }, "abc", 1000);
+  assert.match(report, /## CI/);
+  assert.match(report, /boom in 1/);
+  assert.doesNotMatch(report, /Docs|boom in 2/);
 });
 
 test("openBlockers lists the open blockers and names those of another repository", async (t) => {

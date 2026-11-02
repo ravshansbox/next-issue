@@ -59,9 +59,15 @@ For each open issue, oldest first:
    finding.
 10. No open finding means approval: mark the pull request ready for review and
     set `status:done`. The merge stays with you, unless you pass `--merge`:
-    then the harness squash-merges the pull request and deletes the remote
-    branch. The worktree, the local branch and the state file go away. Without
-    `--merge`, the remote branch stays. A problem that the
+    then the harness squash-merges the pull request, deletes the remote
+    branch and waits for the checks that the merge commit starts on the base
+    branch. A cancelled run there is no failure. When those checks fail, the
+    fixer gets their logs on a branch reset to the base branch, from the check
+    budget, and the harness reopens the issue and opens a new pull request that
+    goes to step 6 again, with fresh review rounds. The next issue waits for
+    this, and a second ctrl-c stops only after it. The worktree, the local
+    branch and the state file go away. Without `--merge`, the remote branch
+    stays. A problem that the
     reviewer leaves out of the findings thus gets an approval: only the findings
     count.
 11. With an open finding, run the fixer agent and go to step 6 again. The
@@ -95,6 +101,9 @@ when:
 - the reviewer gives no verdict, or the checks do not finish in time;
 - with `--merge`, the merge of an approved pull request fails, for example
    because branch protection asks for a human approval;
+- with `--merge`, the checks on the base branch fail after the merge and the
+   fixer cannot fix them, or they do not finish in time. The base branch is
+   then broken, so the run stops after this issue;
 - an agent does not finish in `agentTimeoutMinutes`;
 - the setup command fails, or does not finish in `setupTimeoutMinutes`;
 - a step of the run fails with an error. A `gh` call that is safe to repeat,
@@ -349,7 +358,7 @@ that a label still holds back stays as it was.
 | `--once` | Stop after the first handled issue |
 | `--max <n>` | Handle at most n issues |
 | `--agent <a>` | Run the agents with `claude` or `pi`, whatever the config file says |
-| `--merge` | Squash-merge the pull request after the approval, and delete the remote branch |
+| `--merge` | Squash-merge the pull request after the approval, delete the remote branch and fix a failure of the checks on the base branch |
 | `--reset` | Drop the saved budgets and findings, and keep the rest of the state |
 | `--json` | Print the machine summary instead of the text one |
 | `--verbose` | Show every command and all agent output |
