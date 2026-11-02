@@ -120,13 +120,13 @@ export function fixPrompt(
 }
 
 export function parseUnrelated(text: string): string | undefined {
-  const match = /^unrelated:\s*(.+)$/im.exec(text);
+  const match = [...text.matchAll(/^unrelated:\s*(.+)$/gim)].at(-1);
   const note = match?.[1]?.trim();
   return note !== undefined && note.length > 0 ? note : undefined;
 }
 
 export function parseCommitSubject(text: string, fallback: string): string {
-  const match = /^commit:\s*(.+)$/im.exec(text);
+  const match = [...text.matchAll(/^commit:\s*(.+)$/gim)].at(-1);
   const subject = match?.[1]
     ?.trim()
     .replace(/^`+|`+$/g, "")
