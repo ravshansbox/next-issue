@@ -141,8 +141,8 @@ export async function discardChanges(cwd: string, target: string): Promise<boole
   return true;
 }
 
-export async function push(cwd: string, remote: string, branch: string): Promise<void> {
-  await must("git", ["push", "-u", remote, branch], { cwd });
+export async function push(cwd: string, remote: string, branch: string, force = false): Promise<void> {
+  await must("git", ["push", "-u", ...(force ? ["--force"] : []), remote, branch], { cwd });
 }
 
 export async function resetToBase(cwd: string, base: string, remote: string): Promise<void> {

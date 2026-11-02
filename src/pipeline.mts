@@ -590,7 +590,7 @@ async function watchBase(job: Run): Promise<Gate> {
   await ports.resetToBase(worktree, context.base, config.remote);
   const logs = await ports.failedBaseLogs(repo, sha, config.logMaxChars);
   log.event("main-checks.logs", { chars: logs.length });
-  const fix = await fixRound(job, "The checks on main failed after the merge.", logs, [], "checks");
+  const fix = await fixRound(job, "The checks on main failed after the merge.", logs, [], "checks", true);
   if (!fix.committed) {
     const note = fix.unrelated;
     await escalate(
@@ -656,6 +656,7 @@ async function fixRound(
   detail: string,
   earlier: string[],
   kind: FixKind,
+  force = false,
 ): Promise<Fix> {
   const { context, issue, log, worktree, branch } = job;
   const { ports } = context;
@@ -681,7 +682,7 @@ async function fixRound(
     log.event("commit.empty", { reason }, "quiet");
     return { committed: false };
   }
-  await ports.push(worktree, context.config.remote, branch);
+  await ports.push(worktree, context.config.remote, branch, force);
   return { committed: true };
 }
 
