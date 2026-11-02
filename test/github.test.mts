@@ -176,6 +176,7 @@ async function fakeChecksGh(t: TestContext, runView: string): Promise<string> {
   const checks =
     '[{"name":"build","bucket":"fail","link":"https://github.com/acme/tool/actions/runs/7","description":"the job failed"}]';
   const script = `#!/bin/sh
+[ "$1 $2" != "pr checks" ] || [ "$3" = 42 ] || { echo "unexpected: $*" >&2; exit 1; }
 case "$1 $2" in
   "pr checks") echo '${checks}' ;;
   "run view") ${runView} ;;
@@ -193,21 +194,21 @@ esac
 
 test("failedCheckLogs gives the job logs when the read works", async (t) => {
   const dir = await fakeChecksGh(t, 'echo "boom"');
-  const report = await failedCheckLogs({ owner: "acme", name: "tool", root: dir }, "issue-1", 1000);
+  const report = await failedCheckLogs({ owner: "acme", name: "tool", root: dir }, 42, 1000);
   assert.match(report, /## build\nthe job failed/);
   assert.match(report, /boom/);
 });
 
 test("failedCheckLogs tells the fixer when the log read fails", async (t) => {
   const dir = await fakeChecksGh(t, 'echo "gone" >&2; exit 3');
-  const report = await failedCheckLogs({ owner: "acme", name: "tool", root: dir }, "issue-1", 1000);
+  const report = await failedCheckLogs({ owner: "acme", name: "tool", root: dir }, 42, 1000);
   assert.match(report, /## build\nthe job failed/);
   assert.match(report, /The log read failed with code 3\. gone/);
 });
 
 test("failedCheckLogs keeps the partial logs when the read fails", async (t) => {
   const dir = await fakeChecksGh(t, 'echo "boom"; echo "gone" >&2; exit 3');
-  const report = await failedCheckLogs({ owner: "acme", name: "tool", root: dir }, "issue-1", 1000);
+  const report = await failedCheckLogs({ owner: "acme", name: "tool", root: dir }, 42, 1000);
   assert.match(report, /boom\nThe log read failed with code 3\. gone/);
 });
 
@@ -216,6 +217,7 @@ async function fakeWatchGh(t: TestContext, bucket: string, watches: number[]): P
   const checks = `[{"name":"build","bucket":"${bucket}","link":"","description":""}]`;
   await writeFile(join(dir, "watches"), watches.join("\n") + "\n");
   const script = `#!/bin/sh
+[ "$1" != pr ] || [ "$3" = 42 ] || { echo "unexpected: $*" >&2; exit 1; }
 case "$1 $2 $4" in
   "pr checks --watch")
     code=$(head -n 1 "${join(dir, "watches")}")
@@ -223,6 +225,7 @@ case "$1 $2 $4" in
     [ "$code" = 0 ] || echo "error connecting to api.github.com" >&2
     exit "$code" ;;
   "pr checks --json") echo '${checks}' ;;
+  "pr view --json") echo "abc" ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `;
@@ -239,18 +242,26 @@ const PR_WAIT = { intervalSeconds: 0, graceMs: 0, timeoutMs: 10_000, show: false
 
 test("waitForChecks reports a failure when the watch fails and a check is in the fail bucket", async (t) => {
   const dir = await fakeWatchGh(t, "fail", [1]);
-  assert.equal(await waitForChecks({ owner: "acme", name: "tool", root: dir }, "issue-1", PR_WAIT), "fail");
+  assert.equal(await waitForChecks({ owner: "acme", name: "tool", root: dir }, 42, PR_WAIT), "fail");
+});
+
+test("waitForChecks reads the head and checks of the pull request by its number", async (t) => {
+  const dir = await fakeWatchGh(t, "pass", [0]);
+  assert.equal(
+    await waitForChecks({ owner: "acme", name: "tool", root: dir }, 42, { ...PR_WAIT, head: "abc" }),
+    "pass",
+  );
 });
 
 test("waitForChecks retries the watch when gh fails but no check failed", async (t) => {
   const dir = await fakeWatchGh(t, "pending", [1, 0]);
-  assert.equal(await waitForChecks({ owner: "acme", name: "tool", root: dir }, "issue-1", PR_WAIT), "pass");
+  assert.equal(await waitForChecks({ owner: "acme", name: "tool", root: dir }, 42, PR_WAIT), "pass");
 });
 
 test("waitForChecks throws the gh error when the watch keeps failing and no check failed", async (t) => {
   const dir = await fakeWatchGh(t, "pending", [1, 1, 1]);
   await assert.rejects(
-    waitForChecks({ owner: "acme", name: "tool", root: dir }, "issue-1", PR_WAIT),
+    waitForChecks({ owner: "acme", name: "tool", root: dir }, 42, PR_WAIT),
     /no check failed: error connecting to api\.github\.com/,
   );
 });
