@@ -2,12 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { message } from "./observe.mts";
 
-export type AgentName = "claude" | "pi";
-
-export const AGENT_NAMES: string[] = ["claude", "pi"];
-
 export type Config = {
-  agent: AgentName;
   remote: string;
   issueLimit: number;
   maxCiFixes: number;
@@ -40,7 +35,6 @@ export type Config = {
 };
 
 const DEFAULTS: Config = {
-  agent: "claude",
   remote: "origin",
   issueLimit: 100,
   maxCiFixes: 5,
@@ -139,12 +133,6 @@ function parseConfig(value: unknown): Config {
     }
   }
   const config: Config = defaults();
-  if (file.agent !== undefined) {
-    if (typeof file.agent !== "string" || !AGENT_NAMES.includes(file.agent)) {
-      throw new Error(`${CONFIG_FILE}: agent must be claude or pi.`);
-    }
-    config.agent = file.agent as AgentName;
-  }
   if (file.remote !== undefined) {
     config.remote = text(file.remote, "remote", false);
   }

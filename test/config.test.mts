@@ -24,7 +24,6 @@ test("a missing file gives the defaults", async () => {
   assert.equal(config.maxCommitFixes, 10);
   assert.equal(config.draftPullRequest, true);
   assert.equal(config.agentTimeoutMinutes, 30);
-  assert.equal(config.agent, "claude");
   assert.equal(config.setupTimeoutMinutes, 15);
   assert.equal(config.commandTimeoutMinutes, 10);
   assert.equal(config.diffMaxChars, 60000);
@@ -77,12 +76,8 @@ test("a field of the wrong type stops the run", async () => {
   await assert.rejects(parse({ models: { fixer: "" } }), /models.fixer must be text that is not empty/);
 });
 
-test("a user who sets agent to pi in the file gets pi", async () => {
-  assert.equal((await parse({ agent: "pi" })).agent, "pi");
-});
-
-test("a user who sets an unknown agent in the file gets an error", async () => {
-  await assert.rejects(parse({ agent: "gpt" }), /agent must be claude or pi/);
+test("a user who sets agent in the file gets an unknown field error", async () => {
+  await assert.rejects(parse({ agent: "claude" }), /unknown field: agent/);
 });
 
 test("an unknown field stops the run", async () => {
@@ -120,7 +115,7 @@ test("writeDefaultConfig writes a file that gives the defaults", async () => {
   assert.equal(path, join(dir, CONFIG_FILE));
   assert.deepEqual(await loadConfig(dir), await loadConfig(await root()));
   assert.match(await readFile(path, "utf8"), /\n$/);
-  assert.equal(JSON.parse(await readFile(path, "utf8")).agent, "claude");
+  assert.equal(JSON.parse(await readFile(path, "utf8")).agent, undefined);
   assert.deepEqual(JSON.parse(await readFile(path, "utf8")).models, {
     implementer: null,
     reviewer: null,

@@ -322,7 +322,6 @@ async function work(
         prompt: implementPrompt(issue, comments),
         profile: CODING,
         model: config.models.implementer,
-        agent: config.agent,
         timeoutMs: config.agentTimeoutMinutes * 60_000,
       }),
     );
@@ -464,7 +463,6 @@ async function reviewRound(job: Run): Promise<Round> {
       prompt: reviewPrompt(issue, comments, patch, history(state.reviewLog)),
       profile: REVIEWING,
       model: config.models.reviewer,
-      agent: config.agent,
       timeoutMs: config.agentTimeoutMinutes * 60_000,
       outputSchema: VERDICT_SCHEMA,
     }),
@@ -655,7 +653,6 @@ async function fixRound(
       prompt: fixPrompt(issue, reason, detail, earlier, kind),
       profile: CODING,
       model: context.config.models.fixer,
-      agent: context.config.agent,
       timeoutMs: context.config.agentTimeoutMinutes * 60_000,
     }),
   );
@@ -704,7 +701,6 @@ async function commitWork(
           prompt: hookPrompt(issue, comments, role, output),
           profile: CODING,
           model: config.models[role],
-          agent: config.agent,
           timeoutMs: config.agentTimeoutMinutes * 60_000,
         }),
       );
