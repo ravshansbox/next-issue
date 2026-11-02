@@ -45,6 +45,8 @@ const CODING: Profile = {
 
 export { CODING, REVIEWING };
 
+const STDERR_TAIL = 2000;
+
 export async function runAgent(recorder: Recorder, request: AgentRequest): Promise<AgentResult> {
   const log = recorder.scope({ role: request.name });
   const usage = emptyUsage();
@@ -56,6 +58,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
   let model = request.model;
   let sessionId: string | undefined;
   let structured: unknown;
+  let stderr = "";
 
   const started = Date.now();
   log.event("agent.start", { model: request.model, timeoutMs: request.timeoutMs }, "normal");
@@ -79,7 +82,10 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
         allowDangerouslySkipPermissions: request.profile.allowDangerouslySkipPermissions,
         systemPrompt: { type: "preset", preset: "claude_code" },
         abortController: controller,
-        spawnClaudeCodeProcess: spawnClaude,
+        spawnClaudeCodeProcess: (options) =>
+          spawnClaude(options, (chunk) => {
+            stderr = (stderr + chunk).slice(-STDERR_TAIL);
+          }),
         outputFormat:
           request.outputSchema === undefined
             ? undefined
@@ -138,7 +144,10 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
       }
     }
   } catch (error) {
-    throw controller.signal.aborted ? late() : error;
+    if (controller.signal.aborted) {
+      throw late();
+    }
+    throw withStderr(error, stderr);
   } finally {
     clearTimeout(timer);
   }
@@ -187,14 +196,27 @@ export function toolFields(name: string, input: unknown): Fields {
   return typeof command === "string" ? { tool: name, command } : { tool: name };
 }
 
-export function spawnClaude(options: SpawnOptions): ChildProcessByStdio<Writable, Readable, null> {
+export function withStderr(error: unknown, stderr: string): unknown {
+  const tail = stderr.trim();
+  if (tail.length === 0 || !(error instanceof Error)) {
+    return error;
+  }
+  return new Error(`${error.message}\nClaude CLI stderr:\n${tail}`, { cause: error });
+}
+
+export function spawnClaude(
+  options: SpawnOptions,
+  onStderr: (chunk: string) => void = () => undefined,
+): ChildProcessByStdio<Writable, Readable, Readable> {
   const child = spawn(options.command, options.args, {
     cwd: options.cwd,
     env: options.env,
     signal: options.signal,
     detached: true,
-    stdio: ["pipe", "pipe", "ignore"],
+    stdio: ["pipe", "pipe", "pipe"],
   });
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", onStderr);
   track(child);
   return child;
 }

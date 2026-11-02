@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { test } from "node:test";
-import { spawnClaude, toolFields } from "../src/agents.mts";
+import { spawnClaude, toolFields, withStderr } from "../src/agents.mts";
 
 test("a Bash call records the command", () => {
   assert.deepEqual(toolFields("Bash", { command: "npm test" }), {
@@ -35,4 +35,34 @@ test("the Claude agent runs in its own process group, so a Ctrl-C in the termina
   });
   await once(child, "close");
   assert.equal(Number(output.trim()), child.pid);
+});
+
+test("the harness receives what the Claude CLI writes to stderr", async () => {
+  let stderr = "";
+  const child = spawnClaude(
+    {
+      command: "sh",
+      args: ["-c", "echo 'not logged in' >&2; exit 1"],
+      env: process.env,
+      signal: new AbortController().signal,
+    },
+    (chunk) => {
+      stderr += chunk;
+    },
+  );
+  child.stdout.resume();
+  await once(child, "close");
+  assert.equal(stderr, "not logged in\n");
+});
+
+test("an agent error shows the Claude CLI stderr tail", () => {
+  const original = new Error("Claude Code process exited with code 1");
+  const error = withStderr(original, "not logged in\n") as Error;
+  assert.equal(error.message, "Claude Code process exited with code 1\nClaude CLI stderr:\nnot logged in");
+  assert.equal(error.cause, original);
+});
+
+test("an agent error stays the same when the Claude CLI wrote nothing to stderr", () => {
+  const original = new Error("Claude Code process exited with code 1");
+  assert.equal(withStderr(original, " \n"), original);
 });
