@@ -246,7 +246,13 @@ async function watchOnce(
   if (watch.code === CHECK_PENDING_CODE) {
     return "pending";
   }
-  return "fail";
+  const checks = await readChecks(repo, branch);
+  if (checks !== "none" && checks.some((check) => check.bucket === "fail")) {
+    return "fail";
+  }
+  throw new Error(
+    `gh pr checks ${branch} --watch failed with code ${watch.code} and no check failed: ${watch.stderr.trim()}`,
+  );
 }
 
 export type ChecksProbe = {

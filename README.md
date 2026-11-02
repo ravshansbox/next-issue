@@ -33,7 +33,8 @@ For each open issue, oldest first:
 5. Open a draft pull request that closes the issue.
 6. Wait for the checks, once the pull request shows the pushed commit. A
    pending state waits again, up to `checkTimeoutMinutes`. A read that fails
-   is tried three times before the run stops. A repository that reports no
+   is tried three times before the run stops. A watch that exits with an error
+   while no check failed counts as such a read, not as a red build. A repository that reports no
    check keeps asking for `checkGraceSeconds`, because a new pull request often
    shows no check yet, and only then goes straight to the review. The later
    gates of the same issue ask once.
