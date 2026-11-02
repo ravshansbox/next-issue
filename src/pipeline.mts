@@ -556,8 +556,8 @@ async function watchBase(job: Run): Promise<Gate> {
     timeoutMs: config.checkTimeoutMinutes * 60_000,
   });
   if (sha === undefined) {
-    await escalate(job, "The pull request did not merge in time.");
-    return { done: true, report: await finish(job, "needs-human", "merge pending") };
+    await escalate(job, "The pull request did not merge in time, or it closed without a merge.");
+    return { done: true, report: await finish(job, "needs-human", "not merged") };
   }
   const checks = await log.step("main-checks", { pr: state.pr, sha }, () =>
     ports.waitForBaseChecks(repo, sha, {

@@ -301,9 +301,9 @@ test("a user whose queued merge does not finish in time gets the issue handed ov
   const target = await harness(t, { merge: true, mergeQueued: true });
   const report = await target.run();
   assert.equal(report.outcome, "needs-human");
-  assert.equal(report.reason, "merge pending");
+  assert.equal(report.reason, "not merged");
   assert.deepEqual(target.baseWaits, []);
-  assert.match(target.comments.at(-1)!, /needs help: The pull request did not merge in time/);
+  assert.match(target.comments.at(-1)!, /needs help: The pull request did not merge in time, or it closed without a merge/);
 });
 
 test("a user who passes --merge gets no merge while the build fails after the approval", async (t) => {

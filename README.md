@@ -59,15 +59,14 @@ For each open issue, oldest first:
     then the harness squash-merges the pull request, deletes the remote
     branch, waits until the pull request is merged, for example through a
     merge queue, and then waits for the checks that the merge commit starts on
-    the base branch. A cancelled run there is no failure. When those checks fail, the
-    fixer gets their logs on a branch reset to the base branch, from the check
-    budget, and the harness reopens the issue and opens a new pull request that
-    goes to step 6 again, with fresh review rounds. The next issue waits for
-    this, and a second ctrl-c stops only after it. The worktree, the local
-    branch and the state file go away. Without `--merge`, the remote branch
-    stays. A problem that the
-    reviewer leaves out of the findings thus gets an approval: only the findings
-    count.
+    the base branch. A cancelled run there is no failure. When those checks
+    fail, the fixer gets their logs on a branch reset to the base branch, from
+    the check budget, and the harness reopens the issue and opens a new pull
+    request that goes to step 6 again, with fresh review rounds. The next
+    issue waits for this, and a second ctrl-c stops only after it. The
+    worktree, the local branch and the state file go away. Without `--merge`,
+    the remote branch stays. A problem that the reviewer leaves out of the
+    findings thus gets an approval: only the findings count.
 11. With an open finding, run the fixer agent and go to step 6 again. The
     budget is `maxReviewRounds`. A fixer that holds every finding to be wrong
     changes nothing and gives its reason instead. The reason goes on the pull
