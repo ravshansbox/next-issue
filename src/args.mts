@@ -1,4 +1,4 @@
-import { AGENT_NAMES, type AgentName, CONFIG_FILE } from "./config.mts";
+import { CONFIG_FILE } from "./config.mts";
 import type { Level } from "./observe.mts";
 
 export type Command = "run" | "init";
@@ -13,7 +13,6 @@ export type Args = {
   force: boolean;
   merge: boolean;
   level: Level;
-  agent?: AgentName;
 };
 
 export const USAGE = `next-issue [command] [options]
@@ -22,7 +21,6 @@ export const USAGE = `next-issue [command] [options]
 
   --once       stop after the first handled issue
   --max <n>    handle at most n issues
-  --agent <a>  run the agents with claude or pi
   --merge      squash-merge the pull request after the approval
   --reset      drop the saved budgets and findings first
   --json       print the machine summary instead of the text one
@@ -66,12 +64,6 @@ export function parseArgs(argv: string[]): Args {
       args.level = "verbose";
     } else if (arg === "--quiet") {
       args.level = "quiet";
-    } else if (arg === "--agent") {
-      const value = argv[++index];
-      if (value === undefined || !AGENT_NAMES.includes(value)) {
-        throw new Error("--agent needs claude or pi");
-      }
-      args.agent = value as AgentName;
     } else if (arg === "--max") {
       args.max = whole(argv[++index], arg);
     } else {

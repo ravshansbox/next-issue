@@ -74,7 +74,7 @@ type Plan = {
 
 type Harness = {
   context: Context;
-  profiles: Array<{ role: string; tools: string[]; agent?: string }>;
+  profiles: Array<{ role: string; tools: string[] }>;
   labels: Array<{ kind: string; number: number; label: string }>;
   prompts: Array<{ role: string; prompt: string }>;
   comments: string[];
@@ -187,7 +187,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     runAgent: async (_recorder, request: AgentRequest) => {
       state.prompts.push({ role: request.name, prompt: request.prompt });
       pressed ||= request.name === plan.pressDuring;
-      state.profiles.push({ role: request.name, tools: request.profile.tools, agent: request.agent });
+      state.profiles.push({ role: request.name, tools: request.profile.tools });
       if (request.name === "reviewer") {
         return result("reviewed", verdicts.shift());
       }
@@ -640,15 +640,6 @@ test("the reviewer can run commands in the worktree", async (t) => {
   const reviewer = target.profiles.find((entry) => entry.role === "reviewer")!;
   assert.equal(reviewer.tools.includes("Bash"), true);
   assert.match(target.prompts.at(-1)!.prompt, /run commands to prove what you say/);
-});
-
-test("the harness runs every role with the agent from the config", async (t) => {
-  const target = await harness(t, { config: { agent: "pi" }, verdicts: [changes("x"), APPROVE] });
-  await target.run();
-  assert.deepEqual(
-    target.profiles.map((entry) => entry.agent),
-    ["pi", "pi", "pi", "pi"],
-  );
 });
 
 test("a change that the reviewer leaves never reaches a commit", async (t) => {
