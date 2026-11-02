@@ -56,15 +56,23 @@ class Sink {
   private readonly stream: WriteStream;
   readonly level: Level;
   readonly file: string;
+  private readonly listener: ((record: Fields) => void) | undefined;
 
-  constructor(stream: WriteStream, level: Level, file: string) {
+  constructor(
+    stream: WriteStream,
+    level: Level,
+    file: string,
+    listener?: (record: Fields) => void,
+  ) {
     this.stream = stream;
     this.level = level;
     this.file = file;
+    this.listener = listener;
   }
 
   write(record: Fields): void {
     this.stream.write(`${JSON.stringify(record)}\n`);
+    this.listener?.(record);
   }
 
   count(kind: string): void {
@@ -95,12 +103,16 @@ export class Recorder {
     this.runId = runId;
   }
 
-  static async create(root: string, level: Level): Promise<Recorder> {
+  static async create(
+    root: string,
+    level: Level,
+    listener?: (record: Fields) => void,
+  ): Promise<Recorder> {
     const runId = new Date().toISOString().replace(/[:.]/g, "-");
     const dir = join(root, STATE_DIR, "runs");
     await mkdir(dir, { recursive: true });
     const file = join(dir, `${runId}.jsonl`);
-    const sink = new Sink(createWriteStream(file, { flags: "a" }), level, file);
+    const sink = new Sink(createWriteStream(file, { flags: "a" }), level, file, listener);
     return new Recorder(sink, {}, runId);
   }
 

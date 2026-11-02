@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -50,4 +50,23 @@ esac
   );
   assert.match(stderr, /Stopping now\./);
   assert.equal(stdout, "");
+});
+
+test("a user who stops the worker with SIGTERM sees it exit and remove its socket and lock files", async () => {
+  const agentDir = await mkdtemp(join(tmpdir(), "next-issue-"));
+  const child = spawn(process.execPath, [CLI, "serve"], {
+    env: { ...process.env, PI_CODING_AGENT_DIR: agentDir },
+  });
+  let stderr = "";
+  child.stderr.on("data", (chunk) => (stderr += chunk));
+  const exited = new Promise<NodeJS.Signals | null>((resolve) =>
+    child.on("exit", (_code, signal) => resolve(signal)),
+  );
+  for (let left = 100; left > 0 && !stderr.includes("listening"); left -= 1) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.match(stderr, /worker listening on .*next-issue\.sock/);
+  child.kill("SIGTERM");
+  assert.equal(await exited, "SIGTERM");
+  assert.deepEqual(await readdir(agentDir), []);
 });

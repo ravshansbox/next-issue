@@ -1,18 +1,13 @@
 #!/usr/bin/env node
-import { writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { type Args, parseArgs, USAGE } from "./args.mts";
-import { type Config, loadConfig, writeDefaultConfig } from "./config.mts";
-import { setCommandObserver, setDefaultTimeout } from "./exec.mts";
-import { detectRepo, ensureIgnored, type Repo, repoRoot, WORKTREE_DIR } from "./git.mts";
-import { defaultBranch } from "./github.mts";
+import { parseArgs, USAGE } from "./args.mts";
+import { writeDefaultConfig } from "./config.mts";
+import { ensureIgnored, repoRoot, WORKTREE_DIR } from "./git.mts";
 import { listenForInterrupts } from "./interrupt.mts";
-import { exitCode, type Loop, runIssues, watchIssues } from "./loop.mts";
-import { message, pruneRuns, Recorder } from "./observe.mts";
-import { type Context, type IssueReport, pendingIssues, PORTS, processIssue } from "./pipeline.mts";
+import { message } from "./observe.mts";
+import { runRepo } from "./run.mts";
+import { serve } from "./serve.mts";
 import { STATE_DIR } from "./state.mts";
-import { formatSummary, type RunSummary } from "./summary.mts";
-import { packageVersion } from "./version.mts";
+import { formatSummary } from "./summary.mts";
 
 function write(stream: NodeJS.WriteStream, text: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -26,37 +21,19 @@ async function main(): Promise<number> {
     await write(process.stdout, USAGE);
     return 0;
   }
+  if (args.command === "serve") {
+    return serve();
+  }
   const root = await repoRoot(process.cwd());
   if (args.command === "init") {
     return init(root, args.force);
   }
-  const config = await loadConfig(root);
-  setDefaultTimeout(config.commandTimeoutMinutes * 60_000);
-  const repo = await detectRepo(root, config.remote);
-  const recorder = await Recorder.create(repo.root, args.level);
-  const pruned = await pruneRuns(repo.root, config.keepRunDays);
-  if (pruned > 0) {
-    recorder.event("runs.pruned", { files: pruned, keepDays: config.keepRunDays }, "verbose");
-  }
-  setCommandObserver((record) => {
-    recorder.event(
-      record.code === 0 ? "command" : "command.fail",
-      {
-        cmd: `${record.command} ${record.args.join(" ")}`,
-        code: record.code,
-        ms: record.ms,
-        stderr: record.stderr.length > 0 ? record.stderr : undefined,
-        timedOut: record.timedOut ? true : undefined,
-      },
-      record.code === 0 ? "verbose" : "quiet",
-    );
+  const interrupts = listenForInterrupts((text) => void write(process.stderr, `${text}\n`));
+  return runRepo(root, args, {
+    interrupts,
+    print: (summary) =>
+      write(process.stdout, args.json ? `${JSON.stringify(summary, null, 2)}\n` : formatSummary(summary)),
   });
-
-  try {
-    return await handle(args, config, repo, recorder);
-  } finally {
-    await recorder.close();
-  }
 }
 
 async function init(root: string, force: boolean): Promise<number> {
@@ -69,89 +46,6 @@ async function init(root: string, force: boolean): Promise<number> {
     await write(process.stdout, `added ${WORKTREE_DIR}/ to .gitignore\n`);
   }
   return 0;
-}
-
-async function handle(
-  args: Args,
-  config: Config,
-  repo: Repo,
-  recorder: Recorder,
-): Promise<number> {
-  const interrupts = listenForInterrupts((text) => void write(process.stderr, `${text}\n`));
-  const base = await defaultBranch(repo);
-  const context: Context = {
-    repo,
-    config,
-    base,
-    reset: args.reset,
-    merge: args.merge,
-    stopAfterRound: interrupts.afterRound,
-    recorder,
-    ports: PORTS,
-  };
-  recorder.event(
-    "run.start",
-    {
-      version: await packageVersion(),
-      repo: `${repo.owner}/${repo.name}`,
-      base,
-      log: recorder.logFile,
-    },
-    "quiet",
-  );
-
-  const loop: Loop = {
-    issues: async () => {
-      const issues = await pendingIssues(context);
-      recorder.event("issues", { open: issues.length }, "quiet");
-      return issues;
-    },
-    process: (issue) => processIssue(context, issue),
-    stop: interrupts.afterIssue,
-  };
-  const print = (summary: RunSummary): Promise<void> =>
-    write(process.stdout, args.json ? `${JSON.stringify(summary, null, 2)}\n` : formatSummary(summary));
-  let passStart = recorder.summary();
-  const { reports, stoppedAt, error } = args.watch
-    ? await watchIssues(args, {
-        ...loop,
-        wait: (minutes) => {
-          recorder.event("watch.wait", { minutes }, "quiet");
-          passStart = recorder.summary();
-          return interrupts.sleep(minutes * 60_000);
-        },
-        passEnd: (issues) => print({ ...recorder.summary(passStart), issues }),
-      })
-    : await runIssues(args, loop);
-  if (stoppedAt !== undefined) {
-    recorder.event("run.stop", { issue: stoppedAt }, "quiet");
-  }
-  if (error !== undefined) {
-    recorder.event("issues.fail", { error: message(error) }, "quiet");
-  }
-
-  recorder.event(
-    "run.end",
-    {
-      done: count(reports, "done"),
-      needsHuman: count(reports, "needs-human"),
-      failed: count(reports, "error"),
-      skipped: count(reports, "skipped"),
-      tokens: recorder.summary().total.total,
-    },
-    "quiet",
-  );
-  const summary: RunSummary = { ...recorder.summary(), issues: reports };
-  const summaryFile = join(repo.root, STATE_DIR, "runs", `${recorder.runId}.summary.json`);
-  await writeFile(summaryFile, `${JSON.stringify(summary, null, 2)}\n`);
-  if (!args.watch) {
-    await print(summary);
-  }
-  return error === undefined ? exitCode(reports) : 1;
-}
-
-function count(reports: IssueReport[], outcome: IssueReport["outcome"]): number {
-  return reports.filter((report) => report.outcome === outcome).length;
 }
 
 main().then(
