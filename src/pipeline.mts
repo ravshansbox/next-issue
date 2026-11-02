@@ -15,6 +15,7 @@ import {
   type Repo,
   resetToBase,
   revision,
+  setAside,
 } from "./git.mts";
 import {
   commentOnPr,
@@ -94,6 +95,7 @@ export type Ports = {
   resetToBase: typeof resetToBase;
   revision: typeof revision;
   runAgent: typeof runAgent;
+  setAside: typeof setAside;
   runSetup: (
     command: string,
     cwd: string,
@@ -133,6 +135,7 @@ export const PORTS: Ports = {
   revision,
   runAgent,
   runSetup: async (command, cwd, timeoutMs) => run("bash", ["-lc", command], { cwd, timeoutMs }),
+  setAside,
   setLabel,
   viewIssue,
   waitForBaseChecks,
@@ -182,7 +185,7 @@ type Gate = { done: true; report: IssueReport } | { done: false; fixed: boolean 
 
 type Round = { done: true; report: IssueReport } | { done: false };
 
-type Fix = { committed: true } | { committed: false; unrelated?: string; stray?: boolean };
+type Fix = { committed: true } | { committed: false; unrelated?: string; aside?: string };
 
 export function skipReason(issue: Issue, config: Config, resuming: boolean): Skip | undefined {
   const labels = new Set(issue.labels);
@@ -580,8 +583,11 @@ async function reviewRound(job: Run): Promise<Round> {
       await escalate(job, "The fixer added no commit for the review findings.");
       return { done: true, report: await finish(job, "needs-human", "no fix commit") };
     }
-    if (fix.stray === true) {
-      await escalate(job, `The fixer disputed the findings and left a change behind: ${note}`);
+    if (fix.aside !== undefined) {
+      await escalate(
+        job,
+        `The fixer disputed the findings and left a change behind on the local branch ${fix.aside}: ${note}`,
+      );
       return { done: true, report: await finish(job, "needs-human", "dispute with changes") };
     }
     state.reviewLog.at(-1)!.dispute = note;
@@ -734,8 +740,9 @@ async function fixRound(
   const unrelated = parseUnrelated(result.text);
   if (unrelated !== undefined) {
     const stray = (await ports.revision(worktree)) !== before || (await ports.isDirty(worktree));
-    log.event("fix.unrelated", { reason, note: unrelated, stray }, "quiet");
-    return { committed: false, unrelated, stray };
+    const aside = stray ? await ports.setAside(worktree, branch, before) : undefined;
+    log.event("fix.unrelated", { reason, note: unrelated, aside }, "quiet");
+    return { committed: false, unrelated, aside };
   }
   const subject = parseCommitSubject(result.text, `fix: address feedback on issue #${issue.number}`);
   if (!(await commitWork(job, before, subject, "fixer"))) {

@@ -148,6 +148,18 @@ export async function discardChanges(cwd: string, target: string): Promise<boole
   return true;
 }
 
+export async function setAside(cwd: string, branch: string, target: string): Promise<string> {
+  if (await isDirty(cwd)) {
+    await must("git", ["add", "-A"], { cwd });
+    await must("git", ["commit", "--no-verify", "-m", "chore: keep the disputed change"], { cwd });
+  }
+  const head = await revision(cwd);
+  const aside = `${branch}-dispute-${head.slice(0, 7)}`;
+  await must("git", ["branch", "--force", aside, head], { cwd });
+  await must("git", ["reset", "--hard", target], { cwd });
+  return aside;
+}
+
 export async function push(cwd: string, remote: string, branch: string, force = false): Promise<void> {
   await must("git", ["push", "-u", ...(force ? ["--force"] : []), remote, branch], { cwd });
 }

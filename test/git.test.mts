@@ -17,6 +17,7 @@ import {
   removeWorktree,
   type Repo,
   revision,
+  setAside,
 } from "../src/git.mts";
 
 test("parseRemote reads every remote form", () => {
@@ -216,4 +217,31 @@ test("discardChanges keeps an ignored file and reports a clean worktree", async 
   await writeFile(join(path, "deps", "pkg.txt"), "installed\n");
   assert.equal(await discardChanges(path, await revision(path)), false);
   assert.equal(existsSync(join(path, "deps", "pkg.txt")), true);
+});
+
+test("a disputed commit and change move to their own branch and leave the issue branch at the pushed commit", async (t) => {
+  const identity = { GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
+  const saved = { ...process.env };
+  Object.assign(process.env, identity);
+  t.after(() => {
+    for (const name of Object.keys(identity)) {
+      if (saved[name] === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = saved[name];
+      }
+    }
+  });
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, "3", "main", "origin");
+  const head = await revision(path);
+  await commit(path, "b.txt");
+  await writeFile(join(path, "c.txt"), "c.txt\n");
+  const aside = await setAside(path, "3", head);
+  assert.match(aside, /^3-dispute-[0-9a-f]{7}$/);
+  assert.equal(await revision(path), head);
+  assert.equal(await isDirty(path), false);
+  assert.equal(existsSync(join(path, "b.txt")), false);
+  assert.equal(await git(path, "show", `${aside}:b.txt`), "b.txt");
+  assert.equal(await git(path, "show", `${aside}:c.txt`), "c.txt");
 });

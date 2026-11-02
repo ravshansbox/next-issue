@@ -90,6 +90,8 @@ type Harness = {
   setups: string[];
   waits: WaitOptions[];
   pushes: number;
+  pushedHeads: string[];
+  asides: string[];
   forcedPushes: number;
   ready: number[];
   deleted: string[];
@@ -133,6 +135,8 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     setups: [],
     waits: [],
     pushes: 0,
+    pushedHeads: [],
+    asides: [],
     forcedPushes: 0,
     ready: [],
     deleted: [],
@@ -201,6 +205,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     prMerged: async () => plan.alreadyMerged === true,
     push: async (_worktree, _remote, _branch, force) => {
       state.pushes += 1;
+      state.pushedHeads.push(String(head));
       if (force === true) {
         state.forcedPushes += 1;
       }
@@ -213,6 +218,12 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       state.resets += 1;
     },
     revision: async () => String(head),
+    setAside: async (_worktree, branch, target) => {
+      const aside = `${branch}-dispute-${head}`;
+      state.asides.push(aside);
+      head = Number(target);
+      return aside;
+    },
     runAgent: async (_recorder, request: AgentRequest) => {
       state.prompts.push({ role: request.name, prompt: request.prompt });
       pressed ||= request.name === plan.pressDuring;
@@ -527,7 +538,7 @@ test("a fixer that disputes and leaves a change hands the issue to a person", as
   assert.equal(report.outcome, "needs-human");
   assert.equal(report.reason, "dispute with changes");
   assert.deepEqual(roles(target), ["implementer", "reviewer", "fixer"]);
-  assert.match(target.comments.at(-1)!, /left a change behind: the count follows the convention/);
+  assert.match(target.comments.at(-1)!, /left a change behind on the local branch 7-dispute-\d+: the count follows the convention/);
 });
 
 test("a fixer that disputes after its own commit hands the issue to a person", async (t) => {
@@ -540,6 +551,18 @@ test("a fixer that disputes after its own commit hands the issue to a person", a
   assert.equal(report.outcome, "needs-human");
   assert.equal(report.reason, "dispute with changes");
   assert.equal(target.pushes, 1);
+});
+
+test("a fixer that disputes after its own commit has the commit moved off the branch of the pull request", async (t) => {
+  const target = await harness(t, {
+    selfCommit: true,
+    verdicts: [changes("The count is wrong."), APPROVE],
+    fixerText: ["unrelated: the count follows the convention in CONTRIBUTING.md"],
+  });
+  await target.run();
+  assert.equal(await target.context.ports.revision("worktree"), target.pushedHeads.at(-1));
+  assert.deepEqual(target.asides, ["7-dispute-3"]);
+  assert.match(target.comments.at(-1)!, /left a change behind on the local branch 7-dispute-3: the count follows/);
 });
 
 test("the next reviewer reads the dispute of the fixer", async (t) => {
