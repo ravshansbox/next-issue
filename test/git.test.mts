@@ -116,7 +116,7 @@ test("addWorktree reports a base that it cannot fast-forward", async () => {
   assert.equal(await revision(path), await git(repo.root, "rev-parse", "origin/main"));
 });
 
-test("a forced push replaces a remote branch that the base reset left behind", async () => {
+test("push with force replaces a remote branch that the base reset left behind", async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, "main", "origin");
   await commit(path, "old.txt");
