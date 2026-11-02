@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 import { createExtension, formatStatus } from '../index.ts';
-import { Runner } from '../src/runner.ts';
-import { CONFIG, fake, issue } from './fake.ts';
+import { type Progress, WorkerClient } from '../src/worker.ts';
+import { type FakeWorker, running, socketPath, startFakeWorker, until } from './fake-worker.ts';
 
 type Handler = (event: unknown, ctx: unknown) => unknown;
 
-function host(mode = 'tui') {
+function host(mode = 'tui', cwd = '/repo') {
   const commands = new Map<string, (args: string, ctx: unknown) => Promise<void>>();
   const handlers = new Map<string, Handler[]>();
   const pi = {
@@ -25,7 +25,7 @@ function host(mode = 'tui') {
   const ctx = {
     hasUI: true,
     mode,
-    cwd: '/repo',
+    cwd,
     ui: {
       theme: { fg: (color: string, text: string) => `<${color}>${text}</${color}>` },
       setStatus: (_key: string, text: string | undefined) => {
@@ -45,233 +45,278 @@ function host(mode = 'tui') {
   return { pi, ctx, status, painted, widgets, notes, emit, command };
 }
 
-function settle(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 10));
+const KEY = Symbol.for('pi-next-issue');
+const workers: FakeWorker[] = [];
+
+afterEach(async () => {
+  const store = globalThis as Record<symbol, WorkerClient | undefined>;
+  store[KEY]?.close();
+  delete store[KEY];
+  await Promise.all(workers.splice(0).map((worker) => worker.close()));
+});
+
+function setup(options: { version?: string; spawn?: (path: string) => Promise<void> } = {}) {
+  const path = socketPath();
+  const spawns: number[] = [];
+  const extension = createExtension({
+    client: () =>
+      new WorkerClient({
+        socketPath: path,
+        version: options.version ?? '1.0.0',
+        spawnWorker: () => {
+          spawns.push(Date.now());
+          void options.spawn?.(path);
+        },
+        startTimeoutMs: 2000,
+        reconnectMs: 50,
+      }),
+    root: async (cwd) => {
+      if (cwd === '/outside') {
+        throw new Error('not a git repository');
+      }
+      return cwd;
+    },
+  });
+  return { path, spawns, extension };
 }
 
-const KEY = Symbol.for('pi-next-issue');
+async function worker(path: string, version = '1.0.0') {
+  const started = await startFakeWorker(path, version);
+  workers.push(started);
+  return started;
+}
 
-afterEach(() => {
-  delete (globalThis as Record<symbol, unknown>)[KEY];
-});
-
-test('a user who runs /next-issue sees the run in the footer and a note per merged issue', async () => {
-  const { ports } = fake({ issues: [issue(7)] });
-  const extension = createExtension(async () => new Runner(ports, CONFIG));
-  const { pi, status, notes, emit, command } = host();
-  extension(pi as never);
-  await emit('session_start');
-  await command();
-  await settle();
-  assert.ok(status.some((text) => text?.startsWith('next-issue #7 · review 1/2')));
-  assert.ok(notes.includes('next-issue: #7 merged'));
-  assert.equal(status.at(-1), 'next-issue · finished: 1 merged');
-  await emit('session_shutdown', { reason: 'quit' });
-});
-
-test('a user who runs /next-issue sees the footer status and the last tool line in the dim colour of the theme', async () => {
-  let release = () => {};
-  const { ports } = fake({
-    issues: [issue(7)],
-    onWork: (task) => {
-      task.onTool('bash npm test');
-      return new Promise<void>((resolve) => (release = resolve));
+test('a user who runs /next-issue with no worker going starts one and asks it to run this repository with merge on', async () => {
+  let started: FakeWorker | undefined;
+  const { spawns, extension } = setup({
+    spawn: async (path) => {
+      started = await worker(path);
     },
   });
-  const extension = createExtension(async () => new Runner(ports, CONFIG));
-  const { pi, painted, widgets, emit, command } = host();
-  extension(pi as never);
-  await emit('session_start');
-  await command();
-  await settle();
-  assert.match(painted.at(-1) ?? '', /^<dim>next-issue #7 · implement · 1 tools · \d+s<\/dim>$/);
-  assert.deepEqual(widgets.at(-1), ['<dim>↳ bash npm test</dim>']);
-  release();
-  await settle();
-  assert.equal(painted.at(-1), '<dim>next-issue · finished: 1 merged</dim>');
-  await emit('session_shutdown', { reason: 'quit' });
-});
-
-test('a user of an rpc client who runs /next-issue gets the footer status and the last tool line without colour codes', async () => {
-  let release = () => {};
-  const { ports } = fake({
-    issues: [issue(7)],
-    onWork: (task) => {
-      task.onTool('bash npm test');
-      return new Promise<void>((resolve) => (release = resolve));
-    },
-  });
-  const extension = createExtension(async () => new Runner(ports, CONFIG));
-  const { pi, painted, widgets, emit, command } = host('rpc');
-  extension(pi as never);
-  await emit('session_start');
-  await command();
-  await settle();
-  assert.match(painted.at(-1) ?? '', /^next-issue #7 · implement · 1 tools · \d+s$/);
-  assert.deepEqual(widgets.at(-1), ['↳ bash npm test']);
-  release();
-  await settle();
-  assert.equal(painted.at(-1), 'next-issue · finished: 1 merged');
-  await emit('session_shutdown', { reason: 'quit' });
-});
-
-test('a user who runs /next-issue while a run is going stops it and keeps the summary in the footer', async () => {
-  let release = () => {};
-  let launches = 0;
-  const { ports, states } = fake({
-    issues: [issue(7)],
-    onWork: () => new Promise<void>((resolve) => (release = resolve)),
-  });
-  const extension = createExtension(async () => {
-    launches += 1;
-    return new Runner(ports, CONFIG);
-  });
-  const { pi, status, notes, emit, command } = host();
-  extension(pi as never);
-  await emit('session_start');
-  await command();
-  await settle();
-  await command();
-  assert.equal(status.at(-1), 'next-issue #7 · stopping');
-  await command();
-  release();
-  await settle();
-  assert.equal(launches, 1);
-  assert.ok(notes.includes('next-issue stopped'));
-  assert.equal(status.at(-1), 'next-issue · stopped: 0 merged');
-  assert.equal(states.get(7)?.phase, 'implement');
-});
-
-test('a user who runs /next-issue after a run has stopped starts a new run', async () => {
-  let release = () => {};
-  let launches = 0;
-  const { ports } = fake({
-    issues: [issue(7)],
-    onWork: () => new Promise<void>((resolve) => (release = resolve)),
-  });
-  const extension = createExtension(async () => {
-    launches += 1;
-    return new Runner(ports, CONFIG);
-  });
-  const { pi, status, emit, command } = host();
-  extension(pi as never);
-  await emit('session_start');
-  await command();
-  await settle();
-  await command();
-  release();
-  await settle();
-  await command();
-  await settle();
-  assert.equal(launches, 2);
-  assert.ok(status.at(-1)?.startsWith('next-issue #7 · implement'));
-  release();
-  await settle();
-  await emit('session_shutdown', { reason: 'quit' });
-});
-
-test('a user who starts a second run while the first is still launching is told so', async () => {
-  const pending: Array<() => void> = [];
-  let launches = 0;
-  const { ports } = fake({ issues: [] });
-  const extension = createExtension(async () => {
-    launches += 1;
-    await new Promise<void>((resolve) => pending.push(resolve));
-    return new Runner(ports, CONFIG);
-  });
-  const { pi, notes, emit, command } = host();
-  extension(pi as never);
-  await emit('session_start');
-  const first = command();
-  const second = command();
-  await settle();
-  for (const finishLaunch of pending) finishLaunch();
-  await Promise.all([first, second]);
-  await settle();
-  assert.equal(launches, 1);
-  assert.ok(notes.includes('next-issue is starting already'));
-  await emit('session_shutdown', { reason: 'quit' });
-});
-
-test('a run keeps going in a new session and shows up there', async () => {
-  let release = () => {};
-  const { ports } = fake({
-    issues: [issue(7)],
-    onWork: () => new Promise<void>((resolve) => (release = resolve)),
-  });
-  const extension = createExtension(async () => new Runner(ports, CONFIG));
-  const first = host();
-  extension(first.pi as never);
-  await first.emit('session_start');
-  await first.command();
-  await settle();
-  await first.emit('session_shutdown', { reason: 'new' });
-  const second = host();
-  extension(second.pi as never);
-  await second.emit('session_start');
-  assert.ok(second.status.at(-1)?.startsWith('next-issue #7 · implement'));
-  release();
-  await settle();
-  assert.equal(second.status.at(-1), 'next-issue · finished: 1 merged');
-  await second.emit('session_shutdown', { reason: 'quit' });
-});
-
-test('a user who quits pi stops the run', async () => {
-  let release = () => {};
-  const { ports, states } = fake({
-    issues: [issue(7)],
-    onWork: () => new Promise<void>((resolve) => (release = resolve)),
-  });
-  let runner: Runner | undefined;
-  const extension = createExtension(async () => (runner = new Runner(ports, CONFIG)));
   const { pi, emit, command } = host();
   extension(pi as never);
   await emit('session_start');
   await command();
-  await settle();
-  await emit('session_shutdown', { reason: 'quit' });
-  release();
-  await settle();
-  assert.equal(runner?.progress.status, 'stopped');
-  assert.equal(states.get(7)?.phase, 'implement');
+  assert.equal(spawns.length, 1);
+  await until(() => started?.received.some((message) => message.type === 'start') === true);
+  assert.deepEqual(
+    started!.received.find((message) => message.type === 'start'),
+    { type: 'start', root: '/repo', merge: true },
+  );
 });
 
-test('a user sees why a run could not start', async () => {
-  const extension = createExtension(async () => {
-    throw new Error('not a git repository');
+test('a user who opens pi with no worker going does not start one', async () => {
+  const { spawns, extension } = setup();
+  const { pi, emit, status } = host();
+  extension(pi as never);
+  await emit('session_start');
+  assert.equal(spawns.length, 0);
+  assert.deepEqual(status, []);
+});
+
+test('a user sees the run of this repository in the footer and the last tool line in the dim colour of the theme', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  const { pi, emit, painted, widgets } = host();
+  extension(pi as never);
+  await emit('session_start');
+  fake.update('/other', running({ issue: 1 }));
+  fake.update(
+    '/repo',
+    running({
+      issue: 7,
+      stage: 'implement',
+      tools: 1,
+      lastTool: 'bash npm test',
+      issueStartedAt: Date.now(),
+    }),
+  );
+  await until(() => painted.at(-1)?.includes('#7') === true);
+  assert.match(painted.at(-1) ?? '', /^<dim>next-issue #7 · implement · 1 tools · \d+s<\/dim>$/);
+  assert.deepEqual(widgets.at(-1), ['<dim>↳ bash npm test</dim>']);
+});
+
+test('a user of an rpc client sees the footer status and the last tool line without colour codes', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  const { pi, emit, painted, widgets } = host('rpc');
+  extension(pi as never);
+  await emit('session_start');
+  fake.update('/repo', running({ issue: 7, stage: 'review 1', tools: 3, lastTool: 'read a.ts' }));
+  await until(() => painted.at(-1) === 'next-issue #7 · review 1 · 3 tools');
+  assert.deepEqual(widgets.at(-1), ['↳ read a.ts']);
+});
+
+test('a user sees a note per handled issue and a note when the run finishes, with the summary in the footer', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  const { pi, emit, notes, status } = host();
+  extension(pi as never);
+  await emit('session_start');
+  fake.update('/repo', running({ issue: 7 }));
+  await until(() => status.length > 0);
+  fake.update('/repo', running({ handled: [{ issue: 7, outcome: 'done' }] }));
+  fake.update('/repo', {
+    status: 'finished',
+    tools: 0,
+    handled: [
+      { issue: 7, outcome: 'done' },
+      { issue: 8, outcome: 'needs-human' },
+    ],
   });
-  const { pi, notes, emit, command } = host();
+  await until(() => notes.includes('next-issue finished'));
+  assert.deepEqual(notes, [
+    'next-issue: #7 done',
+    'next-issue: #8 needs a human',
+    'next-issue finished',
+  ]);
+  assert.equal(status.at(-1), 'next-issue · finished: 1 done, 1 needs a human');
+});
+
+test('a user who runs /next-issue while a run is going asks the worker to stop it', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({ issue: 7 });
+  const { pi, emit, command } = host();
   extension(pi as never);
   await emit('session_start');
   await command();
-  assert.ok(notes.includes('next-issue cannot start: not a git repository'));
+  await until(() => fake.received.some((message) => message.type === 'stop'));
+  assert.deepEqual(fake.received.at(-1), { type: 'stop', root: '/repo' });
 });
+
+test('a user who runs /next-issue after a run has stopped starts a new run', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = { status: 'stopped', tools: 0, handled: [] };
+  const { pi, emit, command } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command();
+  await until(() => fake.received.some((message) => message.type === 'start'));
+});
+
+test('a user who quits pi leaves the run going', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  const { pi, emit, command } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command();
+  await until(() => fake.received.some((message) => message.type === 'start'));
+  await emit('session_shutdown', { reason: 'quit' });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(
+    fake.received.some((message) => message.type === 'stop'),
+    false,
+  );
+});
+
+test('a user in a second pi sees the run that the first pi started', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({ issue: 9, stage: 'checks' });
+  const { pi, emit, status } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await until(() => status.at(-1) === 'next-issue #9 · checks · 0 tools');
+});
+
+test('a user sees why the worker could not start a run in this repository', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  const { pi, emit, command, notes } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command();
+  fake.reply({ type: 'error', root: '/other', message: 'not this one' });
+  fake.reply({
+    type: 'error',
+    root: '/repo',
+    message: 'a run is going in this repository already',
+  });
+  await until(() => notes.length > 0);
+  assert.deepEqual(notes, ['next-issue cannot start: a run is going in this repository already']);
+});
+
+test('a user outside a git repository sees why a run could not start', async () => {
+  const { extension } = setup();
+  const { pi, command, notes } = host('tui', '/outside');
+  extension(pi as never);
+  await command();
+  assert.deepEqual(notes, ['next-issue cannot start: not a git repository']);
+});
+
+test('a user sees why a run could not start when the worker does not come up', async () => {
+  const { extension } = setup();
+  const { pi, command, notes } = host();
+  extension(pi as never);
+  await command();
+  assert.match(notes[0] ?? '', /^next-issue cannot start: the next-issue worker did not start/);
+});
+
+test('a user with a newer extension gets a new worker once the old idle worker closes', async () => {
+  let fresh: FakeWorker | undefined;
+  const { path, spawns, extension } = setup({
+    version: '2.0.0',
+    spawn: async (socket) => {
+      fresh = await worker(socket, '2.0.0');
+    },
+  });
+  const old = await startFakeWorker(path, '1.0.0', (self, message) => {
+    if (message.type === 'hello') {
+      void self.close();
+    }
+  });
+  workers.push(old);
+  const { pi, command } = host();
+  extension(pi as never);
+  await command();
+  assert.equal(spawns.length, 1);
+  await until(() => fresh?.received.some((message) => message.type === 'start') === true);
+  assert.equal(
+    old.received.some((message) => message.type === 'start'),
+    false,
+  );
+});
+
+const now = 1_000_000;
+
+function progress(fields: Partial<Progress>): Progress {
+  return { status: 'running', tools: 0, handled: [], ...fields };
+}
 
 test('a user sees the issue, the stage, the tool count and the time spent in the footer', () => {
-  const text = formatStatus(
-    { status: 'running', issue: 12, stage: 'checks', tools: 37, issueStartedAt: 0, handled: [] },
-    252_000,
+  assert.equal(
+    formatStatus(
+      progress({ issue: 12, stage: 'review 1', tools: 37, issueStartedAt: now - 252_000 }),
+      now,
+    ),
+    'next-issue #12 · review 1 · 37 tools · 4m12s',
   );
-  assert.equal(text, 'next-issue #12 · checks · 37 tools · 4m12s');
+  assert.equal(formatStatus(progress({}), now), 'next-issue · looking for issues');
 });
 
-test('a user sees a finished run summed up by outcome in the footer', () => {
-  const text = formatStatus(
-    {
-      status: 'finished',
-      tools: 0,
-      handled: [
-        { issue: 1, outcome: 'merged' },
-        { issue: 2, outcome: 'needs-human' },
-        { issue: 3, outcome: 'merged' },
-      ],
-    },
-    0,
+test('a user sees a finished or stopped run summed up by outcome in the footer', () => {
+  const handled = [
+    { issue: 1, outcome: 'done' as const },
+    { issue: 2, outcome: 'needs-human' as const },
+    { issue: 3, outcome: 'error' as const },
+  ];
+  assert.equal(
+    formatStatus(progress({ status: 'finished', handled }), now),
+    'next-issue · finished: 1 done, 1 needs a human, 1 failed',
   );
-  assert.equal(text, 'next-issue · finished: 2 merged, 1 needs a human');
+  assert.equal(formatStatus(progress({ status: 'stopped' }), now), 'next-issue · stopped: 0 done');
+  assert.equal(
+    formatStatus(progress({ status: 'stopping', issue: 4 }), now),
+    'next-issue #4 · stopping',
+  );
 });
 
 test('a user sees the error of a failed run in the footer', () => {
-  const text = formatStatus({ status: 'failed', tools: 0, handled: [], error: 'gh is missing' }, 0);
-  assert.equal(text, 'next-issue · failed: gh is missing');
+  assert.equal(
+    formatStatus(progress({ status: 'failed', error: 'gh failed' }), now),
+    'next-issue · failed: gh failed',
+  );
 });
