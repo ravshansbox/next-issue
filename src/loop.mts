@@ -18,7 +18,7 @@ export async function runIssues(args: Pick<Args, "max" | "once">, loop: Loop): P
     }
     const report = await loop.process(issue);
     reports.push(report);
-    if (loop.stop()) {
+    if (loop.stop() || report.halt === true) {
       return { reports, stoppedAt: issue.number };
     }
     if (args.once && report.outcome !== "skipped") {

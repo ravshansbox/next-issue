@@ -13,20 +13,25 @@ import {
   push,
   removeWorktree,
   type Repo,
+  resetToBase,
   revision,
   worktreePath,
 } from "./git.mts";
 import {
   commentOnPr,
   createPr,
+  failedBaseLogs,
   failedCheckLogs,
   findPr,
   type Issue,
   issueComments,
   markPrReady,
+  mergeCommit,
   mergePr,
   openBlockers,
+  reopenIssue,
   setLabel,
+  waitForBaseChecks,
   waitForChecks,
 } from "./github.mts";
 import { message, type Recorder } from "./observe.mts";
@@ -67,16 +72,20 @@ export type Ports = {
   detectSetupCommand: typeof detectSetupCommand;
   diff: typeof diff;
   discardChanges: typeof discardChanges;
+  failedBaseLogs: typeof failedBaseLogs;
   failedCheckLogs: typeof failedCheckLogs;
   findPr: typeof findPr;
   hasWorktree: typeof hasWorktree;
   isDirty: typeof isDirty;
   issueComments: typeof issueComments;
   markPrReady: typeof markPrReady;
+  mergeCommit: typeof mergeCommit;
   mergePr: typeof mergePr;
   openBlockers: typeof openBlockers;
   push: typeof push;
   removeWorktree: typeof removeWorktree;
+  reopenIssue: typeof reopenIssue;
+  resetToBase: typeof resetToBase;
   revision: typeof revision;
   runAgent: typeof runAgent;
   runSetup: (
@@ -85,6 +94,7 @@ export type Ports = {
     timeoutMs: number,
   ) => Promise<{ code: number; stderr: string; timedOut?: boolean }>;
   setLabel: typeof setLabel;
+  waitForBaseChecks: typeof waitForBaseChecks;
   waitForChecks: typeof waitForChecks;
 };
 
@@ -97,20 +107,25 @@ export const PORTS: Ports = {
   detectSetupCommand,
   diff,
   discardChanges,
+  failedBaseLogs,
   failedCheckLogs,
   findPr,
   hasWorktree,
   isDirty,
   issueComments,
   markPrReady,
+  mergeCommit,
   mergePr,
   openBlockers,
   push,
   removeWorktree,
+  reopenIssue,
+  resetToBase,
   revision,
   runAgent,
   runSetup: async (command, cwd, timeoutMs) => run("bash", ["-lc", command], { cwd, timeoutMs }),
   setLabel,
+  waitForBaseChecks,
   waitForChecks,
 };
 
@@ -135,6 +150,7 @@ export type IssueReport = {
   ciFixes: number;
   reviewRounds: number;
   ms: number;
+  halt?: boolean;
 };
 
 type Run = {
@@ -147,6 +163,7 @@ type Run = {
   comments: string[];
   started: number;
   noChecks: boolean;
+  mainBroken: boolean;
 };
 
 export type Skip = "stop-label" | "not-ready" | "in-flight";
@@ -270,6 +287,7 @@ async function work(
     comments,
     started,
     noChecks: false,
+    mainBroken: false,
   };
 
   const setupCommand = config.setupCommand ?? (await ports.detectSetupCommand(worktree));
@@ -320,24 +338,8 @@ async function work(
   }
 
   await log.step("push", { branch }, () => ports.push(worktree, config.remote, branch));
-  const pr = await log.step("pull-request", { branch }, async () => {
-    const existing = await ports.findPr(repo, branch);
-    return (
-      existing ??
-      ports.createPr(
-        repo,
-        branch,
-        context.base,
-        issue.title,
-        `Closes #${issue.number}\n\nOpened by next-issue.`,
-        config.draftPullRequest,
-      )
-    );
-  });
-  state.pr = pr;
   state.phase = "review";
-  await writeState(repo, state);
-  log.event("pull-request.ready", { pr }, "quiet");
+  await openPr(job);
 
   for (;;) {
     if (context.stopAfterRound()) {
@@ -358,6 +360,28 @@ async function work(
       return round.report;
     }
   }
+}
+
+async function openPr(job: Run): Promise<void> {
+  const { context, issue, log, state, branch } = job;
+  const { repo, config, ports } = context;
+  const pr = await log.step("pull-request", { branch }, async () => {
+    const existing = await ports.findPr(repo, branch);
+    return (
+      existing ??
+      ports.createPr(
+        repo,
+        branch,
+        context.base,
+        issue.title,
+        `Closes #${issue.number}\n\nOpened by next-issue.`,
+        config.draftPullRequest,
+      )
+    );
+  });
+  state.pr = pr;
+  await writeState(repo, state);
+  log.event("pull-request.ready", { pr }, "quiet");
 }
 
 async function checkGate(job: Run): Promise<Gate> {
@@ -474,9 +498,18 @@ async function reviewRound(job: Run): Promise<Round> {
     if (config.draftPullRequest && !(await ports.markPrReady(repo, pr))) {
       log.event("pull-request.undraft.fail", { pr }, "quiet");
     }
-    if (context.merge && !(await ports.mergePr(repo, pr))) {
-      await escalate(job, "The merge of the pull request failed.");
-      return { done: true, report: await finish(job, "needs-human", "merge failed") };
+    if (context.merge) {
+      if (!(await ports.mergePr(repo, pr))) {
+        await escalate(job, "The merge of the pull request failed.");
+        return { done: true, report: await finish(job, "needs-human", "merge failed") };
+      }
+      const watched = await watchBase(job);
+      if (watched.done) {
+        return { done: true, report: watched.report };
+      }
+      if (watched.fixed) {
+        return { done: false };
+      }
     }
     await setStatus(context, issue.number, pr, config.labels.done);
     return { done: true, report: await finish(job, "done") };
@@ -515,6 +548,56 @@ async function reviewRound(job: Run): Promise<Round> {
   return { done: false };
 }
 
+async function watchBase(job: Run): Promise<Gate> {
+  const { context, issue, log, state, worktree } = job;
+  const { repo, config, ports } = context;
+  const sha = await ports.mergeCommit(repo, state.pr!);
+  const checks = await log.step("main-checks", { pr: state.pr, sha }, () =>
+    ports.waitForBaseChecks(repo, sha, {
+      intervalSeconds: config.checkIntervalSeconds,
+      graceMs: config.checkGraceSeconds * 1000,
+      timeoutMs: config.checkTimeoutMinutes * 60_000,
+    }),
+  );
+  log.event("main-checks.state", { state: checks });
+  if (checks === "pass" || checks === "none") {
+    return { done: false, fixed: false };
+  }
+  job.mainBroken = true;
+  if (checks !== "fail") {
+    await escalate(job, "The checks on main did not finish in time.");
+    return { done: true, report: await finish(job, "needs-human", "main checks timeout") };
+  }
+  if (state.ciFixes >= config.maxCiFixes) {
+    await escalate(job, `The checks on main failed and the limit of ${config.maxCiFixes} check fixes was reached.`);
+    return { done: true, report: await finish(job, "needs-human", "check budget") };
+  }
+  state.ciFixes += 1;
+  await writeState(repo, state);
+  await ports.resetToBase(worktree, context.base, config.remote);
+  const logs = await ports.failedBaseLogs(repo, sha, config.logMaxChars);
+  log.event("main-checks.logs", { chars: logs.length });
+  const fix = await fixRound(job, "The checks on main failed after the merge.", logs, [], "checks");
+  if (!fix.committed) {
+    const note = fix.unrelated;
+    await escalate(
+      job,
+      note === undefined
+        ? "The fixer added no commit for the failed checks on main."
+        : `The checks on main fail for a reason this change did not cause: ${note}`,
+    );
+    return {
+      done: true,
+      report: await finish(job, "needs-human", note === undefined ? "no fix commit" : "unrelated failure"),
+    };
+  }
+  await ports.reopenIssue(repo, issue.number);
+  state.reviewRounds = 0;
+  state.reviewLog = [];
+  await openPr(job);
+  return { done: false, fixed: true };
+}
+
 function escalate(job: Run, reason: string): Promise<void> {
   return handOver(job.context, job.log, job.issue.number, job.state, reason);
 }
@@ -550,6 +633,7 @@ async function finish(job: Run, outcome: Outcome, reason?: string): Promise<Issu
     ciFixes: state.ciFixes,
     reviewRounds: state.reviewRounds,
     ms: Date.now() - job.started,
+    ...(job.mainBroken && outcome !== "done" ? { halt: true } : {}),
   };
 }
 

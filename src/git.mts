@@ -145,6 +145,11 @@ export async function push(cwd: string, remote: string, branch: string): Promise
   await must("git", ["push", "-u", remote, branch], { cwd });
 }
 
+export async function resetToBase(cwd: string, base: string, remote: string): Promise<void> {
+  await must("git", ["fetch", remote, base], { cwd });
+  await must("git", ["reset", "--hard", `${remote}/${base}`], { cwd });
+}
+
 export async function revision(cwd: string): Promise<string> {
   return must("git", ["rev-parse", "HEAD"], { cwd });
 }

@@ -56,6 +56,17 @@ test("a user who asks to stop ends the run after the current issue", async () =>
   assert.equal(result.stoppedAt, 2);
 });
 
+test("a run ends after an issue that leaves main broken", async () => {
+  const fake = loop({ 1: "needs-human", 2: "done" });
+  fake.process = async (target) => {
+    fake.processed.push(target.number);
+    return { ...report(target.number, "needs-human"), halt: true };
+  };
+  const result = await runIssues(ARGS, fake);
+  assert.deepEqual(fake.processed, [1]);
+  assert.equal(result.stoppedAt, 1);
+});
+
 test("the exit code is 1 only when an issue needs a person or failed", () => {
   assert.equal(exitCode([report(1, "done"), report(2, "skipped")]), 0);
   assert.equal(exitCode([report(1, "needs-human")]), 1);

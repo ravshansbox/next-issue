@@ -68,6 +68,7 @@ type Plan = {
   blockers?: string[];
   merge?: boolean;
   mergeFails?: boolean;
+  baseChecks?: CheckState[];
   pressDuring?: string;
 };
 
@@ -85,6 +86,9 @@ type Harness = {
   ready: number[];
   deleted: string[];
   merged: number[];
+  baseWaits: string[];
+  reopened: number[];
+  resets: number;
   run: () => Promise<IssueReport>;
   state: () => Promise<IssueState | undefined>;
 };
@@ -100,6 +104,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
   }
 
   const checks = [...(plan.checks ?? ["pass"])];
+  const baseChecks = [...(plan.baseChecks ?? [])];
   const verdicts = [...(plan.verdicts ?? [APPROVE])];
   const commits = [...(plan.commits ?? [])];
   const fixerTexts = Array.isArray(plan.fixerText) ? [...plan.fixerText] : [];
@@ -119,6 +124,9 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     ready: [],
     deleted: [],
     merged: [],
+    baseWaits: [],
+    reopened: [],
+    resets: 0,
     run: () => processIssue(state.context, issue),
     state: () => readState(repo, issue.number),
   };
@@ -135,7 +143,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       }
       return committed;
     },
-    createPr: async () => 101,
+    createPr: async () => 101 + state.merged.length,
     detectSetupCommand: async () => plan.detected,
     deleteBranch: async (_repo, branch) => {
       state.deleted.push(branch);
@@ -147,6 +155,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       return plan.reviewerWrites === true;
     },
     failedCheckLogs: async () => "the failed job logs",
+    failedBaseLogs: async () => "the failed main logs",
     findPr: async () => undefined,
     hasWorktree: async () => false,
     isDirty: async () => plan.fixerWrites === true,
@@ -159,11 +168,18 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       state.merged.push(pr);
       return plan.mergeFails !== true;
     },
+    mergeCommit: async (_repo, pr) => `merge-of-${pr}`,
     openBlockers: async () => plan.blockers ?? [],
     push: async () => {
       state.pushes += 1;
     },
     removeWorktree: async () => true,
+    reopenIssue: async (_repo, number) => {
+      state.reopened.push(number);
+    },
+    resetToBase: async () => {
+      state.resets += 1;
+    },
     revision: async () => String(head),
     runAgent: async (_recorder, request: AgentRequest) => {
       state.prompts.push({ role: request.name, prompt: request.prompt });
@@ -189,6 +205,10 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     },
     setLabel: async (_repo, kind, number, label) => {
       state.labels.push({ kind, number, label });
+    },
+    waitForBaseChecks: async (_repo, sha) => {
+      state.baseWaits.push(sha);
+      return baseChecks.shift() ?? "pass";
     },
     waitForChecks: async (_repo, _branch, options) => {
       state.waits.push(options);
@@ -265,6 +285,75 @@ test("a user who passes --merge gets no merge while the build fails after the ap
   const target = await harness(t, { merge: true, config: { maxCiFixes: 0 }, checks: ["pass", "fail"] });
   await target.run();
   assert.deepEqual(target.merged, []);
+});
+
+test("a user who passes --merge gets the issue done only after the checks on main pass", async (t) => {
+  const target = await harness(t, { merge: true });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.deepEqual(target.baseWaits, ["merge-of-101"]);
+  assert.equal(report.halt, undefined);
+});
+
+test("a user who leaves out --merge gets no wait for the checks on main", async (t) => {
+  const target = await harness(t);
+  await target.run();
+  assert.deepEqual(target.baseWaits, []);
+});
+
+test("a user whose checks on main fail after the merge gets the fix merged through a new pull request", async (t) => {
+  const target = await harness(t, { merge: true, baseChecks: ["fail", "pass"], verdicts: [APPROVE, APPROVE] });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.equal(report.ciFixes, 1);
+  assert.equal(report.reviewRounds, 1);
+  assert.equal(report.pr, 102);
+  assert.deepEqual(target.merged, [101, 102]);
+  assert.deepEqual(target.baseWaits, ["merge-of-101", "merge-of-102"]);
+  assert.deepEqual(target.reopened, [7]);
+  assert.equal(target.resets, 1);
+  assert.deepEqual(roles(target), ["implementer", "reviewer", "fixer", "reviewer"]);
+  assert.match(target.prompts[2]!.prompt, /The checks on main failed after the merge/);
+  assert.match(target.prompts[2]!.prompt, /the failed main logs/);
+});
+
+test("a user whose checks on main fail for an unrelated reason gets the issue handed over and the run halted", async (t) => {
+  const target = await harness(t, {
+    merge: true,
+    baseChecks: ["fail"],
+    fixerText: "unrelated: the server does not mount the release",
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "needs-human");
+  assert.equal(report.reason, "unrelated failure");
+  assert.equal(report.halt, true);
+  assert.deepEqual(target.merged, [101]);
+  assert.match(target.comments.at(-1)!, /needs help: The checks on main fail for a reason this change did not cause/);
+  assert.equal(target.labels.at(-1)!.label, "status:needs-human");
+});
+
+test("a user whose checks on main fail with no check fix left gets the issue handed over and the run halted", async (t) => {
+  const target = await harness(t, { merge: true, config: { maxCiFixes: 0 }, baseChecks: ["fail"] });
+  const report = await target.run();
+  assert.equal(report.outcome, "needs-human");
+  assert.equal(report.reason, "check budget");
+  assert.equal(report.halt, true);
+  assert.deepEqual(roles(target), ["implementer", "reviewer"]);
+});
+
+test("a user whose checks on main do not finish in time gets the issue handed over and the run halted", async (t) => {
+  const target = await harness(t, { merge: true, baseChecks: ["timeout"] });
+  const report = await target.run();
+  assert.equal(report.outcome, "needs-human");
+  assert.equal(report.reason, "main checks timeout");
+  assert.equal(report.halt, true);
+});
+
+test("a user who asks to stop after the round while main is watched gets the watch finished first", async (t) => {
+  const target = await harness(t, { merge: true, pressDuring: "reviewer" });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.deepEqual(target.baseWaits, ["merge-of-101"]);
 });
 
 test("a base that stays behind goes to the log", async (t) => {
