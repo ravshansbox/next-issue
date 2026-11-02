@@ -942,7 +942,7 @@ test("a repository without checks pays the grace time once", async (t) => {
   assert.deepEqual(target.waits.map((options) => options.graceMs), [60_000, 0]);
 });
 
-test("a commit that the reviewer makes is undone before the fixer commits", async (t) => {
+test("a commit that the reviewer makes does not stay on the branch", async (t) => {
   const target = await harness(t, {
     reviewerCommits: true,
     verdicts: [changes("The count is wrong."), APPROVE],
