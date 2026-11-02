@@ -7,6 +7,7 @@ import type { AgentRequest, AgentResult } from "../src/agents.mts";
 import { type Config, loadConfig } from "../src/config.mts";
 import type { CheckState, Issue, WaitOptions } from "../src/github.mts";
 import { Recorder } from "../src/observe.mts";
+import { HookError } from "../src/git.mts";
 import { type Context, type IssueReport, pendingIssues, type Ports, processIssue } from "../src/pipeline.mts";
 import { type IssueState, readState, STATE_DIR, writeState } from "../src/state.mts";
 import type { Verdict } from "../src/verdict.mts";
@@ -51,7 +52,7 @@ type Plan = {
   config?: Partial<Config>;
   checks?: CheckState[];
   verdicts?: Verdict[];
-  commits?: Array<boolean | string>;
+  commits?: Array<boolean | string | Error>;
   diff?: string;
   setupCode?: number;
   setupTimedOut?: boolean;
@@ -158,7 +159,10 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       state.messages.push(commitMessage);
       const committed = commits.shift() ?? true;
       if (typeof committed === "string") {
-        throw new Error(committed);
+        throw new HookError(committed);
+      }
+      if (committed instanceof Error) {
+        throw committed;
       }
       if (committed) {
         head += 1;
@@ -704,6 +708,16 @@ test("a commit that keeps failing in a hook hands the issue to a person once max
   assert.deepEqual(roles(target), ["implementer", "implementer"]);
   assert.equal(target.labels.at(-1)?.label, "status:needs-human");
   assert.equal((await target.state())?.commitFixes, 1);
+});
+
+test("an implementer whose commit fails outside a hook hands the issue to a person without a commit fix", async (t) => {
+  const target = await harness(t, { commits: [new Error("git commit failed with code 128: fatal: empty ident name")] });
+  const report = await target.run();
+  assert.equal(report.outcome, "error");
+  assert.match(report.reason!, /empty ident name/);
+  assert.deepEqual(roles(target), ["implementer"]);
+  assert.equal(target.labels.at(-1)?.label, "status:needs-human");
+  assert.equal((await target.state())?.commitFixes ?? 0, 0);
 });
 
 test("a run that finds a corrupt state file reports an error that names the file and starts no agent", async (t) => {

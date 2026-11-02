@@ -9,6 +9,7 @@ import {
   diff,
   discardChanges,
   findWorktree,
+  HookError,
   isDirty,
   push,
   removeWorktree,
@@ -766,7 +767,7 @@ async function commitWork(
       return true;
     } catch (error) {
       const used = state.commitFixes ?? 0;
-      if (used >= config.maxCommitFixes) {
+      if (!(error instanceof HookError) || used >= config.maxCommitFixes) {
         throw error;
       }
       state.commitFixes = used + 1;

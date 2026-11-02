@@ -130,12 +130,25 @@ export async function diff(cwd: string, base: string, remote: string): Promise<s
   return must("git", ["diff", `${remote}/${base}...HEAD`], { cwd });
 }
 
+export class HookError extends Error {
+  override name = "HookError";
+}
+
 export async function commitAll(cwd: string, message: string): Promise<boolean> {
   if (!(await isDirty(cwd))) {
     return false;
   }
   await must("git", ["add", "-A"], { cwd });
-  await must("git", ["commit", "-m", message], { cwd });
+  const result = await run("git", ["commit", "-m", message], { cwd });
+  if (result.timedOut) {
+    throw new Error("git commit did not finish in time.");
+  }
+  if (result.code === 1) {
+    throw new HookError(`git commit failed in a hook: ${result.stderr.trim()}`);
+  }
+  if (result.code !== 0) {
+    throw new Error(`git commit failed with code ${result.code}: ${result.stderr.trim()}`);
+  }
   return true;
 }
 

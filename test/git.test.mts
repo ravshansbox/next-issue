@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -8,9 +8,11 @@ import { must } from "../src/exec.mts";
 import {
   addWorktree,
   branchName,
+  commitAll,
   discardChanges,
   ensureIgnored,
   findWorktree,
+  HookError,
   isDirty,
   parseRemote,
   push,
@@ -216,4 +218,37 @@ test("discardChanges keeps an ignored file and reports a clean worktree", async 
   await writeFile(join(path, "deps", "pkg.txt"), "installed\n");
   assert.equal(await discardChanges(path, await revision(path)), false);
   assert.equal(existsSync(join(path, "deps", "pkg.txt")), true);
+});
+
+async function hooked(hook: string): Promise<string> {
+  const path = await mkdtemp(join(tmpdir(), "next-issue-"));
+  await git(path, "init", "-q");
+  await git(path, "config", "user.name", "t");
+  await git(path, "config", "user.email", "t@t");
+  await git(path, "config", "core.hooksPath", "hooks");
+  await mkdir(join(path, "hooks"));
+  await writeFile(join(path, "hooks", "pre-commit"), hook);
+  await chmod(join(path, "hooks", "pre-commit"), 0o755);
+  await writeFile(join(path, "a.txt"), "a\n");
+  return path;
+}
+
+test("commitAll reports a failing pre-commit hook as a hook failure with the hook output", async () => {
+  const path = await hooked("#!/bin/sh\necho lint broke >&2\nexit 1\n");
+  await assert.rejects(commitAll(path, "feat: a"), (error: unknown) => {
+    assert.ok(error instanceof HookError);
+    assert.match(error.message, /lint broke/);
+    return true;
+  });
+});
+
+test("commitAll reports a git failure that no hook caused as a plain error", async () => {
+  const path = await hooked("#!/bin/sh\nexit 0\n");
+  await git(path, "config", "commit.gpgsign", "true");
+  await git(path, "config", "gpg.program", "false");
+  await assert.rejects(commitAll(path, "feat: a"), (error: unknown) => {
+    assert.ok(!(error instanceof HookError));
+    assert.match((error as Error).message, /gpg failed to sign/);
+    return true;
+  });
 });
