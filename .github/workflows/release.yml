@@ -31,6 +31,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - if: github.event_name == 'workflow_dispatch'
+        working-directory: packages/next-issue
         run: |
           last=$(git describe --tags --exact-match --match 'v*')
           npm version --no-git-tag-version --allow-same-version "${last#v}"
@@ -54,6 +55,7 @@ jobs:
           echo "bump=$bump" >> "$GITHUB_OUTPUT"
           echo "The bump since ${last:-the first commit} is ${bump:-none}."
       - if: github.event_name == 'push' && steps.bump.outputs.bump != ''
+        working-directory: packages/next-issue
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
