@@ -1,6 +1,8 @@
 import { type PermissionMode, query, type SpawnOptions } from "@anthropic-ai/claude-agent-sdk";
 import { type ChildProcessByStdio, spawn } from "node:child_process";
+import { once } from "node:events";
 import type { Readable, Writable } from "node:stream";
+import { setTimeout as delay } from "node:timers/promises";
 import { track } from "./exec.mts";
 import { emptyUsage, type Fields, type Recorder, type Usage } from "./observe.mts";
 
@@ -47,6 +49,7 @@ const CODING: Profile = {
 export { CODING, REVIEWING };
 
 const STDERR_TAIL = 2000;
+const STDERR_GRACE_MS = 500;
 
 export async function runAgent(recorder: Recorder, request: AgentRequest): Promise<AgentResult> {
   const log = recorder.scope({ role: request.name });
@@ -60,6 +63,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
   let sessionId: string | undefined;
   let structured: unknown;
   let stderr = "";
+  let stderrClosed: Promise<unknown> = Promise.resolve();
 
   const started = Date.now();
   log.event("agent.start", { model: request.model, timeoutMs: request.timeoutMs }, "normal");
@@ -84,10 +88,13 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
         systemPrompt: { type: "preset", preset: "claude_code" },
         abortController: controller,
         pathToClaudeCodeExecutable: request.executable,
-        spawnClaudeCodeProcess: (options) =>
-          spawnClaude(options, (chunk) => {
+        spawnClaudeCodeProcess: (options) => {
+          const child = spawnClaude(options, (chunk) => {
             stderr = (stderr + chunk).slice(-STDERR_TAIL);
-          }),
+          });
+          stderrClosed = once(child.stderr, "close").catch(() => undefined);
+          return child;
+        },
         outputFormat:
           request.outputSchema === undefined
             ? undefined
@@ -149,6 +156,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     if (controller.signal.aborted) {
       throw late();
     }
+    await Promise.race([stderrClosed, delay(STDERR_GRACE_MS, undefined, { ref: false })]);
     throw withStderr(error, stderr);
   } finally {
     clearTimeout(timer);

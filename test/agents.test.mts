@@ -109,3 +109,13 @@ test("the harness reports a timeout without the Claude CLI stderr when the agent
     message: "The coder agent did not finish in 200 ms.",
   });
 });
+
+test("the harness shows Claude CLI stderr that arrives after the Claude CLI process exits", async () => {
+  const { recorder, executable } = await fakeClaude(
+    "(sleep 0.1; echo 'late detail' >&2) </dev/null >/dev/null & exit 1",
+  );
+  await assert.rejects(runAgent(recorder, request(executable)), (error: Error) => {
+    assert.match(error.message, /\nClaude CLI stderr:\nlate detail$/);
+    return true;
+  });
+});
