@@ -2,6 +2,7 @@
 - Never make a change on the main worktree.
 - Never switch the main worktree branch.
 - Before making any change pick an existing github issue or create a new one.
+- Add the `status:todo` label when you create an issue.
 - Enter a git worktree before you make a change.
 - Name the worktree folder and branch name after the issue number.
 - A task is complete only when its pull request passes ci and its body links a github issue with `Closes #<issue>`.
