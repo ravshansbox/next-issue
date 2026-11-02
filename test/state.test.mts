@@ -30,11 +30,12 @@ test("a missing state gives undefined", async () => {
   assert.equal(await readState(await repo(), 7), undefined);
 });
 
-test("a broken state gives undefined instead of a throw", async () => {
+test("a caller that reads a broken state gets an error that names the file", async () => {
   const target = await repo();
   await writeState(target, STATE);
-  await writeFile(join(target.root, STATE_DIR, "7.json"), '{ "issue": 7');
-  assert.equal(await readState(target, 7), undefined);
+  const path = join(target.root, STATE_DIR, "7.json");
+  await writeFile(path, '{ "issue": 7');
+  await assert.rejects(readState(target, 7), { message: `the state file ${path} is not valid JSON` });
 });
 
 test("resetState drops the budgets and keeps the resume point", () => {

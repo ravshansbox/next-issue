@@ -317,7 +317,8 @@ A `setupCommand` that fails, or that does not finish in `setupTimeoutMinutes`,
 hands the issue to a person. The wait for the checks has its own limit, so
 `commandTimeoutMinutes` holds for every other `git` and `gh` command. State per
 issue goes to `.next-issue/<issue>.json`, so a new run continues where the last
-run stopped.
+run stopped. A state file that is not valid JSON gives the issue an `error`
+outcome that names the file, rather than a silent skip.
 
 ## Retry an issue that waits for a person
 
