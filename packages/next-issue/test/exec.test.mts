@@ -86,13 +86,16 @@ test("run kills a grandchild that outlives its parent on the time limit", async 
   }
 });
 
-async function interrupted(t: TestContext): Promise<{ harness: ChildProcess; pid: number; line: (count: number) => Promise<string> }> {
+async function interrupted(t: TestContext): Promise<{ harness: ChildProcess; pid: number; line: (count: number) => Promise<string>; stopped: () => Promise<boolean> }> {
   const dir = await mkdtemp(join(tmpdir(), "next-issue-"));
   const file = join(dir, "pid");
+  const agentFile = join(dir, "agent");
   const exec = new URL("../src/exec.mts", import.meta.url).href;
   const interrupt = new URL("../src/interrupt.mts", import.meta.url).href;
   const inner = [
-    `import { run } from ${JSON.stringify(exec)};`,
+    `import { writeFileSync } from "node:fs";`,
+    `import { onStop, run } from ${JSON.stringify(exec)};`,
+    `onStop(() => writeFileSync(${JSON.stringify(agentFile)}, "stopped"));`,
     `import { listenForInterrupts } from ${JSON.stringify(interrupt)};`,
     "const interrupts = listenForInterrupts((text) => process.stdout.write(`${text} ${interrupts.afterIssue()} ${interrupts.afterRound()}\\n`));",
     `await run("bash", ["-lc", "echo $$ > ${file}; sleep 30"]);`,
@@ -118,7 +121,9 @@ async function interrupted(t: TestContext): Promise<{ harness: ChildProcess; pid
     }
     throw new Error(`The harness printed ${output}`);
   };
-  return { harness, pid, line };
+  const stopped = async (): Promise<boolean> =>
+    (await readFile(agentFile, "utf8").catch(() => "")) === "stopped";
+  return { harness, pid, line, stopped };
 }
 
 function alive(pid: number): boolean {
@@ -141,18 +146,19 @@ test("a user who presses Ctrl-C once is told the run stops after the issue, and 
   assert.equal(harness.exitCode, null);
 });
 
-test("a user who presses Ctrl-C twice is told the run stops after the round, and the command runs on", async (t) => {
-  const { harness, pid, line } = await interrupted(t);
+test("a user who presses Ctrl-C twice is told the run stops after the round, and the command and the agents run on", async (t) => {
+  const { harness, pid, line, stopped } = await interrupted(t);
   harness.kill("SIGINT");
   await line(1);
   harness.kill("SIGINT");
   assert.equal(await line(2), "Stopping after this round. Press Ctrl-C again to stop now. true true");
   assert.equal(alive(pid), true);
+  assert.equal(await stopped(), false);
   assert.equal(harness.exitCode, null);
 });
 
-test("a user who presses Ctrl-C three times kills the command and the run", async (t) => {
-  const { harness, pid, line } = await interrupted(t);
+test("a user who presses Ctrl-C three times kills the command, stops every agent and ends the run", async (t) => {
+  const { harness, pid, line, stopped } = await interrupted(t);
   harness.kill("SIGINT");
   await line(1);
   harness.kill("SIGINT");
@@ -160,6 +166,7 @@ test("a user who presses Ctrl-C three times kills the command and the run", asyn
   harness.kill("SIGINT");
   assert.deepEqual(await once(harness, "exit"), [null, "SIGINT"]);
   assert.equal(await gone(pid), true);
+  assert.equal(await stopped(), true);
 });
 
 test("run keeps only the tail of a long output", async () => {

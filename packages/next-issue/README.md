@@ -1,7 +1,7 @@
 # next-issue
 
 A small harness that works through the open issues of a GitHub repository with
-the Claude Agent SDK. Run it inside a git repository.
+the [pi](https://github.com/earendil-works/pi) SDK. Run it inside a git repository.
 
 ```bash
 npx -y next-issue@latest
@@ -54,7 +54,7 @@ and exits with code 1. For each issue:
    reviewer reads files and runs commands in the worktree, so it can prove a
    finding with the tests or the type check. The harness then throws away every
    change that the reviewer left, so no such change can reach a later commit.
-   The reviewer returns a structured verdict: a summary and one entry per
+   The reviewer returns its verdict with a `submit_result` tool: a summary and one entry per
    finding, each rated `blocking` or `minor`. The findings are the only ground
    truth. The reviewer gives no approve or reject field, because such a field
    can contradict the findings. The harness puts the result on the pull
@@ -146,14 +146,14 @@ Press `Ctrl-C` to stop the run step by step:
    one checks round (wait, then fix) or one review round (review, then fix). The
    issue ends as `stopped`. Its state, worktree and labels stay, so the next run
    carries on from that point.
-3. The third press kills the command that runs and every child of it, so the run
-   dies in the middle of a step. The saved state lets the next run continue the
+3. The third press stops every agent, kills the command that runs and every
+   child of it, so the run dies in the middle of a step. The saved state lets the next run continue the
    issue, but the issue keeps `status:in-progress` and the run writes no
    summary.
 
 Each of the first two presses prints a line that says what happens next. The
-agents and commands run in a process group of their own, so a press reaches only
-the harness.
+agents run inside the harness, and their commands and the harness commands run
+in a process group of their own, so a press reaches only the harness.
 
 A status label that the harness puts on the issue goes on the pull request too,
 but only if the pull request exists at that moment. The `status:in-progress`
@@ -202,10 +202,9 @@ Recorded for each step: `claim`, `comments`, `worktree`, `setup`, `implement`,
 `push`, `pull-request`, `checks`, `review` and `fix`, each with a `.start`,
 `.end` or `.error` event and a duration in `ms`. Every `git` and `gh` command
 is recorded with its exit code and duration. A `tool` event holds the tool
-name, and for a `Bash` tool the command too. Each agent call adds a `usage`
+name, and for a `bash` tool the command too. Each agent call adds a `usage`
 event with the tokens, the cost estimate in dollars, the turn count, the
-tool-call count, the model and the session id, so you can open the session
-again and read the full transcript.
+tool-call count, the model and the session id.
 
 ```bash
 jq -r 'select(.kind=="usage") | [.issue,.role,.turns,.total] | @tsv' \
@@ -224,8 +223,11 @@ Three levels of console output:
 
 - Node 24 or later
 - `gh`, authenticated with write access to the repository
-- Anthropic credentials for the Claude Agent SDK: `ANTHROPIC_API_KEY`, or a
-  Claude subscription login
+- pi, logged in to a model provider. The agents use the model, the thinking
+  level and the extensions from your pi settings, except the `pi-next-issue`
+  extension. The implementer and the fixer get the `read`, `bash`, `edit`,
+  `write`, `grep`, `find` and `ls` tools, and the reviewer gets all of them
+  except `edit` and `write`.
 
 ## Configuration
 
@@ -297,7 +299,7 @@ does not know all stop the run, so a typo cannot pass without a word.
 | `keepRunDays` | `7` | The number of days to keep the run files; `0` keeps them all |
 | `draftPullRequest` | `true` | Open the pull request as a draft, until the review approves |
 | `setupCommand` | from the lock file | A shell command to run in a new worktree, before the implementer |
-| `models` | `null` per role | The model per agent role: `implementer`, `reviewer`, `fixer` |
+| `models` | `null` per role | The pi model per agent role, as `provider/model`: `implementer`, `reviewer`, `fixer` |
 | `labels` | see above | The names of the labels that the harness reads and sets |
 
 An empty `labels.ready` turns the ready requirement off. The harness then
@@ -307,7 +309,7 @@ The log gives the reason for a skipped issue as `stop-label`, `not-ready`,
 `in-flight` or `blocked`, the last one with the open blockers.
 
 A role set to `null`, or with no entry in `models`, uses the default model of
-the agent.
+your pi settings.
 
 Without a `setupCommand`, the harness looks in the new worktree for a lock file
 and runs the install command that goes with it:

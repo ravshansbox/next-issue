@@ -34,7 +34,18 @@ const STDERR_TAIL = 200_000;
 
 const groups = new Set<number>();
 
+const stoppers = new Set<() => void>();
+
+export function onStop(stopper: () => void): () => void {
+  stoppers.add(stopper);
+  return () => stoppers.delete(stopper);
+}
+
 export function stopChildren(signal: NodeJS.Signals): void {
+  for (const stopper of stoppers) {
+    stopper();
+  }
+  stoppers.clear();
   for (const pid of groups) {
     try {
       process.kill(-pid, signal);

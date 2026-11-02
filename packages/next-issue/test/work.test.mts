@@ -773,7 +773,7 @@ test("the reviewer can run commands in the worktree", async (t) => {
   const target = await harness(t);
   await target.run();
   const reviewer = target.profiles.find((entry) => entry.role === "reviewer")!;
-  assert.equal(reviewer.tools.includes("Bash"), true);
+  assert.equal(reviewer.tools.includes("bash"), true);
   assert.match(target.prompts.at(-1)!.prompt, /run commands to prove what you say/);
 });
 

@@ -1,15 +1,27 @@
-import { type PermissionMode, query, type SpawnOptions } from "@anthropic-ai/claude-agent-sdk";
-import { type ChildProcessByStdio, spawn } from "node:child_process";
-import { once } from "node:events";
-import type { Readable, Writable } from "node:stream";
-import { setTimeout as delay } from "node:timers/promises";
-import { track } from "./exec.mts";
+import { join, sep } from "node:path";
+import {
+  type AgentSessionEvent,
+  createAgentSession,
+  DefaultResourceLoader,
+  defineTool,
+  getAgentDir,
+  ModelRuntime,
+  SessionManager,
+  type SettingsManager,
+  type ToolDefinition,
+} from "@earendil-works/pi-coding-agent";
+import type { TSchema } from "typebox";
+import { onStop } from "./exec.mts";
 import { emptyUsage, type Fields, type Recorder, type Usage } from "./observe.mts";
 
 export type Profile = {
   tools: string[];
-  permissionMode: PermissionMode;
-  allowDangerouslySkipPermissions?: boolean;
+};
+
+export type Runtime = {
+  agentDir?: string;
+  modelRuntime?: ModelRuntime;
+  settingsManager?: SettingsManager;
 };
 
 export type AgentRequest = {
@@ -20,7 +32,7 @@ export type AgentRequest = {
   model?: string;
   outputSchema?: Record<string, unknown>;
   timeoutMs?: number;
-  executable?: string;
+  runtime?: Runtime;
 };
 
 export type AgentResult = {
@@ -36,197 +48,162 @@ export type AgentResult = {
 };
 
 const REVIEWING: Profile = {
-  tools: ["Read", "Grep", "Glob", "Bash"],
-  permissionMode: "dontAsk",
+  tools: ["read", "bash", "grep", "find", "ls"],
 };
 
 const CODING: Profile = {
-  tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
-  permissionMode: "bypassPermissions",
-  allowDangerouslySkipPermissions: true,
+  tools: ["read", "bash", "edit", "write", "grep", "find", "ls"],
 };
 
 export { CODING, REVIEWING };
 
-const STDERR_TAIL = 2000;
-const STDERR_GRACE_MS = 500;
+export const SUBMIT_TOOL = "submit_result";
+
+export function isOwnExtension(path: string): boolean {
+  return path.split(sep).includes("pi-next-issue");
+}
 
 export async function runAgent(recorder: Recorder, request: AgentRequest): Promise<AgentResult> {
   const log = recorder.scope({ role: request.name });
-  const usage = emptyUsage();
-  const toolNames = new Map<string, string>();
-  let text = "";
-  let toolCalls = 0;
-  let turns = 0;
-  let costUsd = 0;
-  let model = request.model;
-  let sessionId: string | undefined;
-  let structured: unknown;
-  let stderr = "";
-  let stderrClosed: Promise<unknown> = Promise.resolve();
-
+  const runtime = request.runtime ?? {};
+  const agentDir = runtime.agentDir ?? getAgentDir();
   const started = Date.now();
   log.event("agent.start", { model: request.model, timeoutMs: request.timeoutMs }, "normal");
-  const controller = new AbortController();
+
+  let structured: unknown;
+  const customTools: ToolDefinition[] = [];
+  if (request.outputSchema !== undefined) {
+    customTools.push(
+      defineTool({
+        name: SUBMIT_TOOL,
+        label: "Submit result",
+        description: "Give the result. Call it once, as your last action.",
+        parameters: request.outputSchema as unknown as TSchema,
+        async execute(_toolCallId, params) {
+          structured = params;
+          return {
+            content: [{ type: "text", text: "Result saved." }],
+            details: {},
+            terminate: true,
+          };
+        },
+      }) as unknown as ToolDefinition,
+    );
+  }
+
+  const resourceLoader = new DefaultResourceLoader({
+    cwd: request.cwd,
+    agentDir,
+    extensionsOverride: (base) => ({
+      ...base,
+      extensions: base.extensions.filter((extension) => !isOwnExtension(extension.resolvedPath)),
+    }),
+  });
+  await resourceLoader.reload();
+  const modelRuntime = runtime.modelRuntime ?? (await ModelRuntime.create({
+      authPath: join(agentDir, "auth.json"),
+      modelsPath: join(agentDir, "models.json"),
+    }));
+  const model =
+    request.model === undefined ? undefined : await findModel(modelRuntime, request.model);
+  const { session, modelFallbackMessage } = await createAgentSession({
+    cwd: request.cwd,
+    agentDir,
+    resourceLoader,
+    sessionManager: SessionManager.inMemory(request.cwd),
+    tools: [...request.profile.tools, ...customTools.map((tool) => tool.name)],
+    customTools,
+    modelRuntime,
+    ...(runtime.settingsManager === undefined ? {} : { settingsManager: runtime.settingsManager }),
+    ...(model === undefined ? {} : { model }),
+  });
+  if (modelFallbackMessage !== undefined) {
+    log.event("agent.model", { note: modelFallbackMessage }, "quiet");
+  }
+
+  let timedOut = false;
   const timer =
     request.timeoutMs === undefined
       ? undefined
-      : setTimeout(() => controller.abort(), request.timeoutMs);
-  const late = (): Error =>
-    new Error(`The ${request.name} agent did not finish in ${request.timeoutMs} ms.`);
-
+      : setTimeout(() => {
+          timedOut = true;
+          void session.abort();
+        }, request.timeoutMs);
+  const unsubscribe = session.subscribe((event) => observe(log, event));
+  const release = onStop(() => void session.abort());
   try {
-    const stream = query({
-      prompt: request.prompt,
-      options: {
-        cwd: request.cwd,
-        model: request.model,
-        tools: request.profile.tools,
-        allowedTools: request.profile.tools,
-        permissionMode: request.profile.permissionMode,
-        allowDangerouslySkipPermissions: request.profile.allowDangerouslySkipPermissions,
-        systemPrompt: { type: "preset", preset: "claude_code" },
-        abortController: controller,
-        pathToClaudeCodeExecutable: request.executable,
-        spawnClaudeCodeProcess: (options) => {
-          const child = spawnClaude(options, (chunk) => {
-            stderr = (stderr + chunk).slice(-STDERR_TAIL);
-          });
-          stderrClosed = once(child.stderr, "close").catch(() => undefined);
-          return child;
-        },
-        outputFormat:
-          request.outputSchema === undefined
-            ? undefined
-            : { type: "json_schema", schema: request.outputSchema },
-      },
+    await session.bindExtensions({});
+    await session.prompt(request.prompt, { expandPromptTemplates: false });
+    if (timedOut) {
+      throw new Error(`The ${request.name} agent did not finish in ${request.timeoutMs} ms.`);
+    }
+    const last = session.messages.findLast((message) => message.role === "assistant");
+    if (last !== undefined && "stopReason" in last && last.stopReason === "error") {
+      throw new Error(
+        `The ${request.name} agent failed: ${last.errorMessage ?? "no reason given"}`,
+      );
+    }
+    const stats = session.getSessionStats();
+    const usage: Usage = { ...emptyUsage(), ...stats.tokens };
+    const name =
+      session.model === undefined ? undefined : `${session.model.provider}/${session.model.id}`;
+    const ms = Date.now() - started;
+    recorder.usage(request.name, usage, ms, {
+      turns: stats.assistantMessages,
+      toolCalls: stats.toolCalls,
+      model: name,
+      session: stats.sessionId,
+      costUsd: stats.cost,
     });
-
-    for await (const message of stream) {
-      if (message.type === "assistant") {
-        for (const block of message.message.content) {
-          if (block.type === "tool_use") {
-            toolCalls += 1;
-            toolNames.set(block.id, block.name);
-            log.event("tool", toolFields(block.name, block.input));
-          }
-          if (block.type === "text") {
-            text += block.text;
-            if (log.level === "verbose") {
-              process.stderr.write(block.text);
-            }
-          }
-        }
-      }
-      if (message.type === "user" && Array.isArray(message.message.content)) {
-        for (const block of message.message.content) {
-          if (block.type === "tool_result" && block.is_error === true) {
-            log.event("tool.error", { tool: toolNames.get(block.tool_use_id) }, "quiet");
-          }
-        }
-      }
-      if (message.type === "result") {
-        sessionId = message.session_id;
-        turns = message.num_turns;
-        costUsd = message.total_cost_usd;
-        model = main(message.modelUsage) ?? model;
-        for (const entry of Object.values(message.modelUsage)) {
-          usage.input += entry.inputTokens;
-          usage.output += entry.outputTokens;
-          usage.cacheRead += entry.cacheReadInputTokens;
-          usage.cacheWrite += entry.cacheCreationInputTokens;
-          usage.total +=
-            entry.inputTokens +
-            entry.outputTokens +
-            entry.cacheReadInputTokens +
-            entry.cacheCreationInputTokens;
-        }
-        if (message.subtype === "error_during_execution") {
-          throw new Error(`The ${request.name} agent failed: ${message.errors.join("; ")}`);
-        }
-        if (message.subtype === "success") {
-          text = message.result.length > 0 ? message.result : text;
-          structured = message.structured_output;
-        } else {
-          log.event("agent.incomplete", { subtype: message.subtype }, "quiet");
-        }
-      }
-    }
-  } catch (error) {
-    if (controller.signal.aborted) {
-      throw late();
-    }
-    await Promise.race([stderrClosed, delay(STDERR_GRACE_MS, undefined, { ref: false })]);
-    throw withStderr(error, stderr);
+    return {
+      text: (session.getLastAssistantText() ?? "").trim(),
+      usage,
+      turns: stats.assistantMessages,
+      toolCalls: stats.toolCalls,
+      ms,
+      costUsd: stats.cost,
+      model: name,
+      sessionId: stats.sessionId,
+      structured,
+    };
   } finally {
     clearTimeout(timer);
+    release();
+    unsubscribe();
+    session.dispose();
   }
-  if (controller.signal.aborted) {
-    throw late();
-  }
-
-  const ms = Date.now() - started;
-  recorder.usage(request.name, usage, ms, {
-    turns,
-    toolCalls,
-    model,
-    session: sessionId,
-    costUsd,
-  });
-  return {
-    text: text.trim(),
-    usage,
-    turns,
-    toolCalls,
-    ms,
-    costUsd,
-    model,
-    sessionId,
-    structured,
-  };
 }
 
-function main(models: Record<string, { outputTokens: number }>): string | undefined {
-  let name: string | undefined;
-  let output = -1;
-  for (const [id, entry] of Object.entries(models)) {
-    if (entry.outputTokens > output) {
-      output = entry.outputTokens;
-      name = id;
-    }
+async function findModel(modelRuntime: ModelRuntime, name: string) {
+  const slash = name.indexOf("/");
+  if (slash <= 0) {
+    throw new Error(`The model ${name} is not in the form provider/model.`);
   }
-  return name;
+  const found = modelRuntime.getModel(name.slice(0, slash), name.slice(slash + 1));
+  if (found === undefined) {
+    throw new Error(`The model ${name} is not known to pi.`);
+  }
+  return found;
+}
+
+function observe(log: Recorder, event: AgentSessionEvent): void {
+  if (event.type === "tool_execution_start") {
+    log.event("tool", toolFields(event.toolName, event.args));
+  } else if (event.type === "tool_execution_end" && event.isError) {
+    log.event("tool.error", { tool: event.toolName }, "quiet");
+  } else if (
+    event.type === "message_update" &&
+    event.assistantMessageEvent.type === "text_delta" &&
+    log.level === "verbose"
+  ) {
+    process.stderr.write(event.assistantMessageEvent.delta);
+  }
 }
 
 export function toolFields(name: string, input: unknown): Fields {
-  if (name !== "Bash" || typeof input !== "object" || input === null) {
+  if (name !== "bash" || typeof input !== "object" || input === null) {
     return { tool: name };
   }
   const { command } = input as { command?: unknown };
   return typeof command === "string" ? { tool: name, command } : { tool: name };
-}
-
-export function withStderr(error: unknown, stderr: string): unknown {
-  const tail = stderr.trim();
-  if (tail.length === 0 || !(error instanceof Error)) {
-    return error;
-  }
-  return new Error(`${error.message}\nClaude CLI stderr:\n${tail}`, { cause: error });
-}
-
-export function spawnClaude(
-  options: SpawnOptions,
-  onStderr: (chunk: string) => void = () => undefined,
-): ChildProcessByStdio<Writable, Readable, Readable> {
-  const child = spawn(options.command, options.args, {
-    cwd: options.cwd,
-    env: options.env,
-    signal: options.signal,
-    detached: true,
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-  child.stderr.setEncoding("utf8");
-  child.stderr.on("data", onStderr);
-  track(child);
-  return child;
 }
