@@ -7,13 +7,6 @@ the Claude Agent SDK. Run it inside a git repository.
 npx -y next-issue@latest
 ```
 
-Or install it once:
-
-```bash
-npm install -g next-issue@latest
-next-issue
-```
-
 ## What it does
 
 For each open issue, oldest first:
