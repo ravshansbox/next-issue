@@ -18,6 +18,7 @@ export type AgentRequest = {
   model?: string;
   outputSchema?: Record<string, unknown>;
   timeoutMs?: number;
+  executable?: string;
 };
 
 export type AgentResult = {
@@ -82,6 +83,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
         allowDangerouslySkipPermissions: request.profile.allowDangerouslySkipPermissions,
         systemPrompt: { type: "preset", preset: "claude_code" },
         abortController: controller,
+        pathToClaudeCodeExecutable: request.executable,
         spawnClaudeCodeProcess: (options) =>
           spawnClaude(options, (chunk) => {
             stderr = (stderr + chunk).slice(-STDERR_TAIL);
