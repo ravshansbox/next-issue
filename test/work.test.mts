@@ -98,6 +98,7 @@ type Harness = {
   reopened: number[];
   resets: number;
   titles: string[];
+  branches: string[];
   run: () => Promise<IssueReport>;
   state: () => Promise<IssueState | undefined>;
 };
@@ -140,12 +141,16 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     reopened: [],
     resets: 0,
     titles: [],
+    branches: [],
     run: () => processIssue(state.context, issue),
     state: () => readState(repo, issue.number),
   };
 
   const ports: Ports = {
-    addWorktree: async () => ({ path: join(root, "worktree"), baseUpdated: plan.baseUpdated ?? true }),
+    addWorktree: async (_repo, _issue, branch) => {
+      state.branches.push(branch);
+      return { path: join(root, "worktree"), baseUpdated: plan.baseUpdated ?? true };
+    },
     commentOnPr: async (_repo, _pr, body) => {
       state.comments.push(body);
     },
@@ -179,7 +184,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     failedCheckLogs: async () => "the failed job logs",
     failedBaseLogs: async () => "the failed main logs",
     findPr: async () => undefined,
-    hasWorktree: async () => false,
+    findWorktree: async () => undefined,
     isDirty: async () => plan.fixerWrites === true,
     issueComments: async () => [],
     markPrReady: async (_repo, pr) => {
@@ -286,7 +291,7 @@ test("a clean run implements, reviews and finishes", async (t) => {
   assert.equal(target.pushes, 1);
   assert.deepEqual(target.ready, [101]);
   assert.equal(await target.state(), undefined);
-  assert.deepEqual(target.deleted, ["issue-7"]);
+  assert.deepEqual(target.deleted, ["7"]);
   assert.match(target.comments[0]!, /Review: approved/);
 });
 
@@ -934,6 +939,7 @@ test("a saved state carries on and does not implement again", async (t) => {
   assert.equal(report.ciFixes, 2);
   assert.equal(report.reviewRounds, 2);
   assert.deepEqual(roles(target), ["reviewer"]);
+  assert.deepEqual(target.branches, ["issue-7"]);
 });
 
 const SAVED: IssueState = {

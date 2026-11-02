@@ -1,5 +1,5 @@
 import { appendFile, readFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { join } from "node:path";
 import { must, run } from "./exec.mts";
 
 export type Repo = {
@@ -40,24 +40,27 @@ export type Worktree = {
   baseUpdated: boolean;
 };
 
+export const WORKTREE_DIR = ".worktrees";
+
 export function worktreePath(repo: Repo, issue: number): string {
-  return join(dirname(repo.root), `${basename(repo.root)}-issue-${issue}`);
+  return join(repo.root, WORKTREE_DIR, String(issue));
 }
 
 export async function addWorktree(
   repo: Repo,
   issue: number,
+  branch: string,
   base: string,
   remote: string,
 ): Promise<Worktree> {
-  const path = worktreePath(repo, issue);
-  const branch = branchName(issue);
   const upstream = `${remote}/${branch}`;
   await must("git", ["fetch", remote], { cwd: repo.root });
   const baseUpdated = await updateBase(repo, base, remote);
   await must("git", ["worktree", "prune"], { cwd: repo.root });
   const pushed = await hasBranch(repo, upstream, "--remotes");
-  if (!(await hasWorktree(repo, path))) {
+  const existing = await findWorktree(repo, branch);
+  const path = existing ?? worktreePath(repo, issue);
+  if (existing === undefined) {
     const args = (await hasBranch(repo, branch))
       ? ["worktree", "add", path, branch]
       : ["worktree", "add", "-b", branch, path, pushed ? upstream : `${remote}/${base}`];
@@ -84,13 +87,17 @@ export async function updateBase(repo: Repo, base: string, remote: string): Prom
   return result.code === 0;
 }
 
-export async function hasWorktree(repo: Repo, path: string): Promise<boolean> {
+export async function findWorktree(repo: Repo, branch: string): Promise<string | undefined> {
   const list = await must("git", ["worktree", "list", "--porcelain"], { cwd: repo.root });
-  return list.split("\n").some((line) => line.trim() === `worktree ${path}`);
+  const entry = list
+    .split("\n\n")
+    .map((block) => block.split("\n"))
+    .find((lines) => lines.includes(`branch refs/heads/${branch}`));
+  return entry?.find((line) => line.startsWith("worktree "))?.slice("worktree ".length);
 }
 
-export async function removeWorktree(repo: Repo, issue: number): Promise<boolean> {
-  const result = await run("git", ["worktree", "remove", worktreePath(repo, issue)], { cwd: repo.root });
+export async function removeWorktree(repo: Repo, path: string): Promise<boolean> {
+  const result = await run("git", ["worktree", "remove", path], { cwd: repo.root });
   return result.code === 0;
 }
 
@@ -111,7 +118,7 @@ export async function ensureIgnored(root: string, entry: string): Promise<boolea
 }
 
 export function branchName(issue: number): string {
-  return `issue-${issue}`;
+  return String(issue);
 }
 
 export async function isDirty(cwd: string): Promise<boolean> {

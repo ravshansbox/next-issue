@@ -21,11 +21,14 @@ For each open issue, oldest first:
    closed, if its pull request is merged.
 2. Add `status:in-progress` to the issue.
 3. Fetch the remote, fast-forward the local copy of the default branch when
-   that is safe, then add a git worktree at `../<repo>-issue-<n>` on the
-   `issue-<n>` branch. A branch that exists on the remote is the start, and a
-   local branch that fell behind the remote is fast-forwarded. A fast-forward
-   of the base that is not safe leaves the local base branch as it is and
-   writes a `base.behind` event. A new branch then starts from the remote base.
+   that is safe, then add a git worktree at `.worktrees/<n>` in the
+   repository root on the `<n>` branch. An issue that resumes from saved
+   state keeps the branch name that the state holds, and a worktree that
+   holds that branch already stays in use. A branch that exists on the
+   remote is the start, and a local branch that fell behind the remote is
+   fast-forwarded. A fast-forward of the base that is not safe leaves the
+   local base branch as it is and writes a `base.behind` event. A new branch
+   then starts from the remote base.
 4. Let the implementer agent do the work, then commit and push. When a git
    hook stops a commit, the agent that made the change gets the hook output,
    fixes it, and the harness commits again. A `commit:` line in the reply of
@@ -229,9 +232,10 @@ npx -y next-issue@latest init
 ```
 
 The command writes `next-issue.config.json` in the root of the repository and
-adds `.next-issue/` to `.gitignore`. It stops when the config file is there
-already; `--force` replaces it. The file holds no `setupCommand`, because the
-harness deduces one from the lock file of the project.
+adds `.next-issue/` and `.worktrees/` to `.gitignore`. It stops when the
+config file is there already; `--force` replaces it. The file holds no
+`setupCommand`, because the harness deduces one from the lock file of the
+project.
 
 With no file, every field keeps its default. A field that is not in the file
 keeps its default. A file that cannot be read, a file that is not valid
