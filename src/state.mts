@@ -12,6 +12,7 @@ export type IssueState = {
   branch: string;
   pr?: number;
   ciFixes: number;
+  commitFixes?: number;
   reviewRounds: number;
   reviewLog: ReviewRound[];
 };
@@ -40,7 +41,7 @@ export async function readState(repo: Repo, issue: number): Promise<IssueState |
 }
 
 export function resetState(state: IssueState): IssueState {
-  return { ...state, ciFixes: 0, reviewRounds: 0, reviewLog: [] };
+  return { ...state, ciFixes: 0, commitFixes: 0, reviewRounds: 0, reviewLog: [] };
 }
 
 export async function writeState(repo: Repo, state: IssueState): Promise<void> {

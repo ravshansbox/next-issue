@@ -21,6 +21,7 @@ test("a missing file gives the defaults", async () => {
   const config = await loadConfig(await root());
   assert.equal(config.remote, "origin");
   assert.equal(config.maxCiFixes, 5);
+  assert.equal(config.maxCommitFixes, 10);
   assert.equal(config.draftPullRequest, true);
   assert.equal(config.agentTimeoutMinutes, 30);
   assert.equal(config.agent, "claude");

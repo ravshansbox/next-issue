@@ -39,6 +39,7 @@ import {
   capDiff,
   type FixKind,
   fixPrompt,
+  hookPrompt,
   implementPrompt,
   parseCommitSubject,
   parseUnrelated,
@@ -326,7 +327,7 @@ async function work(
       }),
     );
     const subject = parseCommitSubject(result.text, `fix: resolve issue #${issue.number}`);
-    if (!(await commitWork(job, before, subject))) {
+    if (!(await commitWork(job, before, subject, "implementer"))) {
       await escalate(job, "The implementer produced no change.");
       return finish(job, "needs-human", "no implementation commit");
     }
@@ -665,7 +666,7 @@ async function fixRound(
     return { committed: false, unrelated, stray };
   }
   const subject = parseCommitSubject(result.text, `fix: address feedback on issue #${issue.number}`);
-  if (!(await commitWork(job, before, subject))) {
+  if (!(await commitWork(job, before, subject, "fixer"))) {
     log.event("commit.empty", { reason }, "quiet");
     return { committed: false };
   }
@@ -673,12 +674,42 @@ async function fixRound(
   return { committed: true };
 }
 
-async function commitWork(job: Run, before: string, subject: string): Promise<boolean> {
-  const { context, issue, log, worktree } = job;
-  if (await context.ports.commitAll(worktree, `${subject}\n\nRefs #${issue.number}`)) {
-    log.event("commit", { subject });
+async function commitWork(
+  job: Run,
+  before: string,
+  subject: string,
+  role: "implementer" | "fixer",
+): Promise<boolean> {
+  const { context, issue, log, state, worktree, comments } = job;
+  const { repo, config, ports } = context;
+  for (;;) {
+    try {
+      if (await ports.commitAll(worktree, `${subject}\n\nRefs #${issue.number}`)) {
+        log.event("commit", { subject });
+      }
+      return (await ports.revision(worktree)) !== before;
+    } catch (error) {
+      const used = state.commitFixes ?? 0;
+      if (used >= config.maxCommitFixes) {
+        throw error;
+      }
+      state.commitFixes = used + 1;
+      await writeState(repo, state);
+      const output = message(error).slice(-config.logMaxChars);
+      log.event("commit.fail", { role, output }, "quiet");
+      await log.step("commit-fix", { role }, () =>
+        ports.runAgent(log, {
+          name: role,
+          cwd: worktree,
+          prompt: hookPrompt(issue, comments, role, output),
+          profile: CODING,
+          model: config.models[role],
+          agent: config.agent,
+          timeoutMs: config.agentTimeoutMinutes * 60_000,
+        }),
+      );
+    }
   }
-  return (await context.ports.revision(worktree)) !== before;
 }
 
 async function cleanUp(context: Context, log: Recorder, issue: number): Promise<void> {

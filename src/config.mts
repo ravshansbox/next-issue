@@ -11,6 +11,7 @@ export type Config = {
   remote: string;
   issueLimit: number;
   maxCiFixes: number;
+  maxCommitFixes: number;
   maxReviewRounds: number;
   checkIntervalSeconds: number;
   checkGraceSeconds: number;
@@ -43,6 +44,7 @@ const DEFAULTS: Config = {
   remote: "origin",
   issueLimit: 100,
   maxCiFixes: 5,
+  maxCommitFixes: 10,
   maxReviewRounds: 5,
   checkIntervalSeconds: 15,
   checkGraceSeconds: 60,
@@ -74,6 +76,7 @@ const FIELDS: string[] = [...Object.keys(DEFAULTS), "setupCommand"];
 const WHOLE_FIELDS: Array<[keyof Config, number]> = [
   ["issueLimit", 1],
   ["maxCiFixes", 0],
+  ["maxCommitFixes", 0],
   ["maxReviewRounds", 1],
   ["checkIntervalSeconds", 1],
   ["checkGraceSeconds", 0],

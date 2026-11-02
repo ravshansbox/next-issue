@@ -33,7 +33,9 @@ For each open issue, oldest first:
    local branch that fell behind the remote is fast-forwarded. A fast-forward
    of the base that is not safe leaves the local base branch as it is and
    writes a `base.behind` event. A new branch then starts from the remote base.
-4. Let the implementer agent do the work, then commit and push.
+4. Let the implementer agent do the work, then commit and push. When a git
+   hook stops a commit, the agent that made the change gets the hook output,
+   fixes it, and the harness commits again. The budget is `maxCommitFixes`.
 5. Open a draft pull request that closes the issue.
 6. Wait for the checks, once the pull request shows the pushed commit. A
    pending state waits again, up to `checkTimeoutMinutes`. A read that fails
@@ -238,6 +240,7 @@ does not know all stop the run, so a typo cannot pass without a word.
   "remote": "origin",
   "issueLimit": 100,
   "maxCiFixes": 5,
+  "maxCommitFixes": 10,
   "maxReviewRounds": 5,
   "checkIntervalSeconds": 15,
   "checkGraceSeconds": 60,
@@ -271,6 +274,7 @@ does not know all stop the run, so a typo cannot pass without a word.
 | `remote` | `origin` | The git remote for the repository and the branches |
 | `issueLimit` | `100` | The maximum number of open issues to read |
 | `maxCiFixes` | `5` | The budget for check fixes per issue |
+| `maxCommitFixes` | `10` | The budget for fixes of a commit that a git hook stopped, per issue |
 | `maxReviewRounds` | `5` | The budget for review rounds per issue |
 | `checkIntervalSeconds` | `15` | The time between two check states |
 | `checkGraceSeconds` | `60` | The time to wait for the first check to show |
