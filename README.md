@@ -9,7 +9,11 @@ npx -y next-issue@latest
 
 ## What it does
 
-For each open issue, oldest first:
+Before each issue, fetch the open issues again and take the oldest one not yet
+seen in this run. An issue seen once in a run, also a skipped or failed one, is
+not tried again in that run. The run ends when no unseen issue is left. When
+the fetch fails, the run ends there, writes the summary of the issues it handled
+and exits with code 1. For each issue:
 
 1. Claim the issue only when it holds the `status:todo` label and holds no
    `status:in-progress` or `status:in-review` label. A `status:done`,
