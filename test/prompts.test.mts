@@ -17,6 +17,13 @@ test("parseCommitSubject reads the last line of the agent text", () => {
   assert.equal(parseCommitSubject("Done.\ncommit: feat: add a flag", FALLBACK), "feat: add a flag");
 });
 
+test("parseCommitSubject reads the last commit line when the agent quoted the rule earlier", () => {
+  assert.equal(
+    parseCommitSubject("I will end with commit: <subject>\ncommit: docs: wrong\nDone.\ncommit: fix: right", FALLBACK),
+    "fix: right",
+  );
+});
+
 test("parseCommitSubject accepts other letter cases and spaces", () => {
   assert.equal(parseCommitSubject("Commit:   fix: trim", FALLBACK), "fix: trim");
 });
@@ -61,6 +68,10 @@ test("capDiff cuts a diff that is too long and says so", () => {
 test("parseUnrelated reads the marker line", () => {
   assert.equal(parseUnrelated("looked at it\nunrelated: the spec fails on main too"), "the spec fails on main too");
   assert.equal(parseUnrelated("UNRELATED:   spaced  "), "spaced");
+});
+
+test("parseUnrelated reads the last marker line when the agent quoted the rule earlier", () => {
+  assert.equal(parseUnrelated("unrelated: <one sentence>\nchecked\nunrelated: main fails too"), "main fails too");
 });
 
 test("parseUnrelated gives undefined without the marker", () => {
