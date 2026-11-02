@@ -93,6 +93,7 @@ type Harness = {
   baseWaits: string[];
   reopened: number[];
   resets: number;
+  titles: string[];
   run: () => Promise<IssueReport>;
   state: () => Promise<IssueState | undefined>;
 };
@@ -133,6 +134,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     baseWaits: [],
     reopened: [],
     resets: 0,
+    titles: [],
     run: () => processIssue(state.context, issue),
     state: () => readState(repo, issue.number),
   };
@@ -153,7 +155,10 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       }
       return committed;
     },
-    createPr: async () => 101 + state.merged.length,
+    createPr: async (_repo, _branch, _base, title) => {
+      state.titles.push(title);
+      return 101 + state.merged.length;
+    },
     detectSetupCommand: async () => plan.detected,
     deleteBranch: async (_repo, branch) => {
       state.deleted.push(branch);
@@ -340,6 +345,41 @@ test("a user whose checks on main fail after the merge gets the fix merged throu
   assert.deepEqual(roles(target), ["implementer", "reviewer", "fixer", "reviewer"]);
   assert.match(target.prompts[2]!.prompt, /The checks on main failed after the merge/);
   assert.match(target.prompts[2]!.prompt, /the failed main logs/);
+});
+
+test("a user gets the pull request titled with the subject of the implementer's commit", async (t) => {
+  const target = await harness(t, { implementerText: ["Done.\ncommit: feat: add the flag"] });
+  await target.run();
+  assert.deepEqual(target.titles, ["feat: add the flag"]);
+});
+
+test("a user whose checks on main fail after the merge gets the new pull request titled with the subject of the fixer's commit", async (t) => {
+  const target = await harness(t, {
+    merge: true,
+    baseChecks: ["fail", "pass"],
+    verdicts: [APPROVE, APPROVE],
+    fixerText: "Done.\ncommit: fix: repair main",
+  });
+  await target.run();
+  assert.deepEqual(target.titles, ["fix: work on #7", "fix: repair main"]);
+});
+
+test("a user who resumes an implemented issue gets the pull request titled with the saved subject", async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: ["status:in-progress"] },
+    saved: { ...SAVED, phase: "implemented", pr: undefined, title: "feat: add the saved flag" },
+  });
+  await target.run();
+  assert.deepEqual(target.titles, ["feat: add the saved flag"]);
+});
+
+test("a user who resumes from a state file without a title gets a conventional pull request title", async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: ["status:in-progress"] },
+    saved: { ...SAVED, phase: "implemented", pr: undefined },
+  });
+  await target.run();
+  assert.deepEqual(target.titles, ["fix: resolve issue #7"]);
 });
 
 test("a user whose checks on main fail for an unrelated reason gets the issue handed over and the run halted", async (t) => {

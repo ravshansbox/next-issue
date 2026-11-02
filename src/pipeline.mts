@@ -379,7 +379,7 @@ async function openPr(job: Run): Promise<void> {
         repo,
         branch,
         context.base,
-        issue.title,
+        state.title ?? `fix: resolve issue #${issue.number}`,
         `Closes #${issue.number}\n\nOpened by next-issue.`,
         config.draftPullRequest,
       )
@@ -698,7 +698,11 @@ async function commitWork(
       if (await ports.commitAll(worktree, `${subject}\n\nRefs #${issue.number}`)) {
         log.event("commit", { subject });
       }
-      return (await ports.revision(worktree)) !== before;
+      if ((await ports.revision(worktree)) === before) {
+        return false;
+      }
+      state.title = subject;
+      return true;
     } catch (error) {
       const used = state.commitFixes ?? 0;
       if (used >= config.maxCommitFixes) {

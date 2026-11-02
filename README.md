@@ -30,7 +30,9 @@ For each open issue, oldest first:
    fixes it, and the harness commits again. A `commit:` line in the reply of
    the agent replaces the subject, so a hook that rejects the subject can pass.
    The budget is `maxCommitFixes`.
-5. Open a draft pull request that closes the issue.
+5. Open a draft pull request that closes the issue. Its title is the subject
+   of the commit that starts it, so a squash merge gives a conventional
+   commit.
 6. Wait for the checks, once the pull request shows the pushed commit. A
    pending state waits again, up to `checkTimeoutMinutes`. A read that fails
    is tried three times before the run stops. A watch that exits with an error

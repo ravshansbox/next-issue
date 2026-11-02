@@ -11,6 +11,7 @@ export type IssueState = {
   phase: Phase;
   branch: string;
   pr?: number;
+  title?: string;
   ciFixes: number;
   commitFixes?: number;
   reviewRounds: number;
