@@ -100,11 +100,12 @@ async function handle(
     "quiet",
   );
 
-  const issues = await pendingIssues(context);
-  recorder.event("issues", { open: issues.length }, "quiet");
-
   const { reports, stoppedAt } = await runIssues(args, {
-    issues,
+    issues: async () => {
+      const issues = await pendingIssues(context);
+      recorder.event("issues", { open: issues.length }, "quiet");
+      return issues;
+    },
     process: (issue) => processIssue(context, issue),
     stop: interrupts.afterIssue,
   });

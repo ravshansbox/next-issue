@@ -3,7 +3,7 @@ import type { Issue } from "./github.mts";
 import type { IssueReport } from "./pipeline.mts";
 
 export type Loop = {
-  issues: Issue[];
+  issues: () => Promise<Issue[]>;
   process: (issue: Issue) => Promise<IssueReport>;
   stop: () => boolean;
 };
@@ -12,10 +12,13 @@ export type LoopResult = { reports: IssueReport[]; stoppedAt?: number };
 
 export async function runIssues(args: Pick<Args, "max" | "once">, loop: Loop): Promise<LoopResult> {
   const reports: IssueReport[] = [];
-  for (const issue of loop.issues) {
-    if (args.max !== undefined && handled(reports) >= args.max) {
+  const seen = new Set<number>();
+  while (args.max === undefined || handled(reports) < args.max) {
+    const issue = (await loop.issues()).find((candidate) => !seen.has(candidate.number));
+    if (issue === undefined) {
       break;
     }
+    seen.add(issue.number);
     const report = await loop.process(issue);
     reports.push(report);
     if (loop.stop() || report.halt === true) {
