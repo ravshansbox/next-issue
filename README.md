@@ -27,7 +27,9 @@ For each open issue, oldest first:
    writes a `base.behind` event. A new branch then starts from the remote base.
 4. Let the implementer agent do the work, then commit and push. When a git
    hook stops a commit, the agent that made the change gets the hook output,
-   fixes it, and the harness commits again. The budget is `maxCommitFixes`.
+   fixes it, and the harness commits again. A `commit:` line in the reply of
+   the agent replaces the subject, so a hook that rejects the subject can pass.
+   The budget is `maxCommitFixes`.
 5. Open a draft pull request that closes the issue.
 6. Wait for the checks, once the pull request shows the pushed commit. A
    pending state waits again, up to `checkTimeoutMinutes`. A read that fails

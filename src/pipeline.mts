@@ -694,7 +694,7 @@ async function commitWork(
       await writeState(repo, state);
       const output = message(error).slice(-config.logMaxChars);
       log.event("commit.fail", { role, output }, "quiet");
-      await log.step("commit-fix", { role }, () =>
+      const fix = await log.step("commit-fix", { role }, () =>
         ports.runAgent(log, {
           name: role,
           cwd: worktree,
@@ -704,6 +704,7 @@ async function commitWork(
           timeoutMs: config.agentTimeoutMinutes * 60_000,
         }),
       );
+      subject = parseCommitSubject(fix.text, subject);
     }
   }
 }
