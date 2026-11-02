@@ -15,6 +15,11 @@ test("a user who passes --merge asks for the merge", () => {
   assert.equal(parseArgs(["--merge"]).merge, true);
 });
 
+test("a user who passes --watch asks to keep watching", () => {
+  assert.equal(parseArgs([]).watch, false);
+  assert.equal(parseArgs(["--watch"]).watch, true);
+});
+
 test("a user who passes --agent gets an unknown argument error", () => {
   assert.throws(() => parseArgs(["--agent", "pi"]), /Unknown argument: --agent/);
 });

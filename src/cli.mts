@@ -7,7 +7,7 @@ import { setCommandObserver, setDefaultTimeout } from "./exec.mts";
 import { detectRepo, ensureIgnored, type Repo, repoRoot, WORKTREE_DIR } from "./git.mts";
 import { defaultBranch } from "./github.mts";
 import { listenForInterrupts } from "./interrupt.mts";
-import { exitCode, runIssues } from "./loop.mts";
+import { exitCode, type Loop, runIssues, watchIssues } from "./loop.mts";
 import { message, pruneRuns, Recorder } from "./observe.mts";
 import { type Context, type IssueReport, pendingIssues, PORTS, processIssue } from "./pipeline.mts";
 import { STATE_DIR } from "./state.mts";
@@ -100,7 +100,7 @@ async function handle(
     "quiet",
   );
 
-  const { reports, stoppedAt, error } = await runIssues(args, {
+  const loop: Loop = {
     issues: async () => {
       const issues = await pendingIssues(context);
       recorder.event("issues", { open: issues.length }, "quiet");
@@ -108,7 +108,21 @@ async function handle(
     },
     process: (issue) => processIssue(context, issue),
     stop: interrupts.afterIssue,
-  });
+  };
+  const print = (issues: IssueReport[]): Promise<void> => {
+    const summary: RunSummary = { ...recorder.summary(), issues };
+    return write(process.stdout, args.json ? `${JSON.stringify(summary, null, 2)}\n` : formatSummary(summary));
+  };
+  const { reports, stoppedAt, error } = args.watch
+    ? await watchIssues(args, {
+        ...loop,
+        wait: (minutes) => {
+          recorder.event("watch.wait", { minutes }, "quiet");
+          return interrupts.sleep(minutes * 60_000);
+        },
+        passEnd: print,
+      })
+    : await runIssues(args, loop);
   if (stoppedAt !== undefined) {
     recorder.event("run.stop", { issue: stoppedAt }, "quiet");
   }
@@ -130,7 +144,9 @@ async function handle(
   const summary: RunSummary = { ...recorder.summary(), issues: reports };
   const summaryFile = join(repo.root, STATE_DIR, "runs", `${recorder.runId}.summary.json`);
   await writeFile(summaryFile, `${JSON.stringify(summary, null, 2)}\n`);
-  await write(process.stdout, args.json ? `${JSON.stringify(summary, null, 2)}\n` : formatSummary(summary));
+  if (!args.watch) {
+    await print(reports);
+  }
   return error === undefined ? exitCode(reports) : 1;
 }
 

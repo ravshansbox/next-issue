@@ -12,6 +12,7 @@ export type Args = {
   reset: boolean;
   force: boolean;
   merge: boolean;
+  watch: boolean;
   level: Level;
 };
 
@@ -22,6 +23,7 @@ export const USAGE = `next-issue [command] [options]
   --once       stop after the first handled issue
   --max <n>    handle at most n issues
   --merge      squash-merge the pull request after the approval
+  --watch      keep running and read the issues again after each pass
   --reset      drop the saved budgets and findings first
   --json       print the machine summary instead of the text one
   --force      replace an existing config file, with init
@@ -39,6 +41,7 @@ export function parseArgs(argv: string[]): Args {
     reset: false,
     force: false,
     merge: false,
+    watch: false,
     level: "normal",
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -56,6 +59,8 @@ export function parseArgs(argv: string[]): Args {
       args.help = true;
     } else if (arg === "--merge") {
       args.merge = true;
+    } else if (arg === "--watch") {
+      args.watch = true;
     } else if (arg === "--reset") {
       args.reset = true;
     } else if (arg === "--once") {
