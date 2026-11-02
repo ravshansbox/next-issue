@@ -8,7 +8,7 @@ import {
   commentOnPr,
   failedBaseLogs,
   failedCheckLogs,
-  labelArgs, openBlockers,
+  labelArgs, mergeCommit, openBlockers,
   prNumber,
   setLabel,
   waitForBaseChecks,
@@ -311,4 +311,58 @@ jq -r "$5" "${join(dir, "response.json")}"
     process.env.PATH = path;
   });
   assert.deepEqual(await openBlockers({ owner: "acme", name: "tool", root: dir }, 7), ["#3", "acme/other#9"]);
+});
+
+async function fakeMergeGh(t: TestContext, views: string[]): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "next-issue-"));
+  const calls = join(dir, "calls");
+  await writeFile(calls, "");
+  const cases = views.map((view, index) => `  ${index + 1}) echo '${view}' ;;`).join("\n");
+  const script = `#!/bin/sh
+echo "$1 $2" >> "${calls}"
+case "$(grep -c . "${calls}")" in
+${cases}
+  *) echo '${views.at(-1)}' ;;
+esac
+`;
+  await writeFile(join(dir, "gh"), script, { mode: 0o755 });
+  const path = process.env.PATH;
+  process.env.PATH = `${dir}:${path}`;
+  t.after(() => {
+    process.env.PATH = path;
+  });
+  return dir;
+}
+
+function fakeClock(): { now: () => number; sleep: (ms: number) => Promise<void> } {
+  let time = 0;
+  return {
+    now: () => time,
+    sleep: async (ms) => {
+      time += ms;
+    },
+  };
+}
+
+const MERGE_OPTIONS = { intervalSeconds: 10, timeoutMs: 60_000 };
+const QUEUED = '{"state":"OPEN","mergeCommit":null}';
+
+test("mergeCommit waits for a queued merge and gives the merge commit once the pull request is merged", async (t) => {
+  const dir = await fakeMergeGh(t, [QUEUED, QUEUED, '{"state":"MERGED","mergeCommit":{"oid":"abc123"}}']);
+  const repo = { owner: "acme", name: "queue", root: dir };
+  assert.equal(await mergeCommit(repo, 5, MERGE_OPTIONS, fakeClock()), "abc123");
+  assert.equal(await callsOf(dir, "pr view"), 3);
+});
+
+test("mergeCommit gives no merge commit when the queued merge does not finish in time", async (t) => {
+  const dir = await fakeMergeGh(t, [QUEUED]);
+  const repo = { owner: "acme", name: "slow", root: dir };
+  assert.equal(await mergeCommit(repo, 5, MERGE_OPTIONS, fakeClock()), undefined);
+});
+
+test("mergeCommit gives no merge commit when the pull request closes without a merge", async (t) => {
+  const dir = await fakeMergeGh(t, ['{"state":"CLOSED","mergeCommit":null}']);
+  const repo = { owner: "acme", name: "closed", root: dir };
+  assert.equal(await mergeCommit(repo, 5, MERGE_OPTIONS, fakeClock()), undefined);
+  assert.equal(await callsOf(dir, "pr view"), 1);
 });
