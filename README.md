@@ -17,7 +17,8 @@ For each open issue, oldest first:
    resume too. An issue that GitHub lists as blocked by an open issue waits,
    because its blocker closes only when the pull request of the blocker merges.
    An issue with saved state under `.next-issue/` resumes instead, whatever its
-   other labels and blockers.
+   other labels and blockers. Such an issue joins the list also when it is
+   closed, if its pull request is merged.
 2. Add `status:in-progress` to the issue.
 3. Fetch the remote, fast-forward the local copy of the default branch when
    that is safe, then add a git worktree at `../<repo>-issue-<n>` on the
@@ -68,8 +69,11 @@ For each open issue, oldest first:
     rounds. The next issue waits for this, and a second ctrl-c stops only after
     it. The worktree, the local branch and the state file go away. A resume
     whose pull request is already merged goes straight to the wait for the
-    checks on the base branch, and opens no new pull request. Without
-    `--merge`, the remote branch stays. A problem that the reviewer leaves out
+    checks on the base branch, and opens no new pull request. A resume that
+    stopped inside the fix of the base branch carries on with that fix, and
+    uses no more of the check budget. Without `--merge`, the remote branch
+    stays, and a resume whose pull request a person merged sets
+    `status:done` and waits for no check. A problem that the reviewer leaves out
     of the findings thus gets an approval: only the findings count.
 11. With an open finding, run the fixer agent and go to step 6 again. The
     budget is `maxReviewRounds`. A fixer that holds every finding to be wrong

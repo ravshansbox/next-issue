@@ -58,6 +58,26 @@ export async function defaultBranch(repo: Repo): Promise<string> {
   return JSON.parse(raw).defaultBranchRef.name as string;
 }
 
+type RawIssue = {
+  number: number;
+  title: string;
+  body: string | null;
+  createdAt: string;
+  labels: Array<{ name: string }>;
+};
+
+const ISSUE_FIELDS = "number,title,body,createdAt,labels";
+
+function toIssue(item: RawIssue): Issue {
+  return {
+    number: item.number,
+    title: item.title,
+    body: item.body ?? "",
+    createdAt: item.createdAt,
+    labels: item.labels.map((label) => label.name),
+  };
+}
+
 export async function openIssues(repo: Repo, limit: number): Promise<Issue[]> {
   const raw = await gh(repo, [
     "issue",
@@ -69,24 +89,15 @@ export async function openIssues(repo: Repo, limit: number): Promise<Issue[]> {
     "--limit",
     String(limit),
     "--json",
-    "number,title,body,createdAt,labels",
+    ISSUE_FIELDS,
   ]);
-  const parsed = JSON.parse(raw) as Array<{
-    number: number;
-    title: string;
-    body: string | null;
-    createdAt: string;
-    labels: Array<{ name: string }>;
-  }>;
-  return parsed
-    .map((item) => ({
-      number: item.number,
-      title: item.title,
-      body: item.body ?? "",
-      createdAt: item.createdAt,
-      labels: item.labels.map((label) => label.name),
-    }))
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const parsed = JSON.parse(raw) as RawIssue[];
+  return parsed.map(toIssue).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export async function viewIssue(repo: Repo, issue: number): Promise<Issue> {
+  const raw = await gh(repo, ["issue", "view", String(issue), "--json", ISSUE_FIELDS]);
+  return toIssue(JSON.parse(raw) as RawIssue);
 }
 
 export async function issueComments(repo: Repo, issue: number): Promise<string[]> {

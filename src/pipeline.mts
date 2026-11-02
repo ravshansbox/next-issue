@@ -29,9 +29,11 @@ import {
   mergeCommit,
   mergePr,
   openBlockers,
+  openIssues,
   prMerged,
   reopenIssue,
   setLabel,
+  viewIssue,
   waitForBaseChecks,
   waitForChecks,
 } from "./github.mts";
@@ -53,6 +55,7 @@ import {
   readState,
   resetState,
   type ReviewRound,
+  savedIssues,
   writeState,
 } from "./state.mts";
 import {
@@ -84,6 +87,7 @@ export type Ports = {
   mergeCommit: typeof mergeCommit;
   mergePr: typeof mergePr;
   openBlockers: typeof openBlockers;
+  openIssues: typeof openIssues;
   prMerged: typeof prMerged;
   push: typeof push;
   removeWorktree: typeof removeWorktree;
@@ -97,6 +101,7 @@ export type Ports = {
     timeoutMs: number,
   ) => Promise<{ code: number; stderr: string; timedOut?: boolean }>;
   setLabel: typeof setLabel;
+  viewIssue: typeof viewIssue;
   waitForBaseChecks: typeof waitForBaseChecks;
   waitForChecks: typeof waitForChecks;
 };
@@ -120,6 +125,7 @@ export const PORTS: Ports = {
   mergeCommit,
   mergePr,
   openBlockers,
+  openIssues,
   prMerged,
   push,
   removeWorktree,
@@ -129,6 +135,7 @@ export const PORTS: Ports = {
   runAgent,
   runSetup: async (command, cwd, timeoutMs) => run("bash", ["-lc", command], { cwd, timeoutMs }),
   setLabel,
+  viewIssue,
   waitForBaseChecks,
   waitForChecks,
 };
@@ -194,6 +201,22 @@ export function skipReason(issue: Issue, config: Config, resuming: boolean): Ski
     return "in-flight";
   }
   return undefined;
+}
+
+export async function pendingIssues(context: Context): Promise<Issue[]> {
+  const { repo, config, ports } = context;
+  const issues = await ports.openIssues(repo, config.issueLimit);
+  const listed = new Set(issues.map((issue) => issue.number));
+  for (const number of await savedIssues(repo)) {
+    if (listed.has(number)) {
+      continue;
+    }
+    const saved = await readState(repo, number).catch(() => undefined);
+    if (saved?.pr !== undefined && (await ports.prMerged(repo, saved.pr))) {
+      issues.push(await ports.viewIssue(repo, number));
+    }
+  }
+  return issues.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
 export async function processIssue(context: Context, issue: Issue): Promise<IssueReport> {
@@ -346,8 +369,18 @@ async function work(
     return stop(job);
   }
 
-  if (state.phase === "review" && state.pr !== undefined && (await ports.prMerged(repo, state.pr))) {
+  if (state.baseFix !== undefined) {
+    job.mainBroken = true;
+    const fixed = await fixBase(job);
+    if (fixed.done) {
+      return fixed.report;
+    }
+  } else if (state.phase === "review" && state.pr !== undefined && (await ports.prMerged(repo, state.pr))) {
     log.event("pull-request.merged", { pr: state.pr }, "quiet");
+    if (!context.merge) {
+      await setStatus(context, issue.number, state.pr, config.labels.done);
+      return finish(job, "done");
+    }
     const landed = await afterMerge(job);
     if (landed.done) {
       return landed.report;
@@ -573,7 +606,7 @@ async function afterMerge(job: Run): Promise<Round> {
 }
 
 async function watchBase(job: Run): Promise<Gate> {
-  const { context, issue, log, state, worktree } = job;
+  const { context, log, state, worktree } = job;
   const { repo, config, ports } = context;
   const sha = await ports.mergeCommit(repo, state.pr!, {
     intervalSeconds: config.checkIntervalSeconds,
@@ -603,12 +636,20 @@ async function watchBase(job: Run): Promise<Gate> {
     await escalate(job, `The checks on main failed and the limit of ${config.maxCiFixes} check fixes was reached.`);
     return { done: true, report: await finish(job, "needs-human", "check budget") };
   }
-  state.ciFixes += 1;
-  await writeState(repo, state);
   await ports.resetToBase(worktree, context.base, config.remote);
+  state.ciFixes += 1;
+  state.baseFix = { sha, head: await ports.revision(worktree) };
+  await writeState(repo, state);
+  return fixBase(job);
+}
+
+async function fixBase(job: Run): Promise<Gate> {
+  const { context, issue, log, state } = job;
+  const { repo, config, ports } = context;
+  const { sha, head } = state.baseFix!;
   const logs = await ports.failedBaseLogs(repo, sha, config.logMaxChars);
   log.event("main-checks.logs", { chars: logs.length });
-  const fix = await fixRound(job, "The checks on main failed after the merge.", logs, [], "checks", true);
+  const fix = await fixRound(job, "The checks on main failed after the merge.", logs, [], "checks", true, head);
   if (!fix.committed) {
     const note = fix.unrelated;
     await escalate(
@@ -625,6 +666,7 @@ async function watchBase(job: Run): Promise<Gate> {
   await ports.reopenIssue(repo, issue.number);
   state.reviewRounds = 0;
   state.reviewLog = [];
+  state.baseFix = undefined;
   await openPr(job);
   return { done: false, fixed: true };
 }
@@ -675,10 +717,11 @@ async function fixRound(
   earlier: string[],
   kind: FixKind,
   force = false,
+  from?: string,
 ): Promise<Fix> {
   const { context, issue, log, worktree, branch } = job;
   const { ports } = context;
-  const before = await ports.revision(worktree);
+  const before = from ?? (await ports.revision(worktree));
   const result = await log.step("fix", { reason }, () =>
     ports.runAgent(log, {
       name: "fixer",

@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Repo } from "./git.mts";
 
@@ -14,8 +14,14 @@ export type IssueState = {
   title?: string;
   ciFixes: number;
   commitFixes?: number;
+  baseFix?: BaseFix;
   reviewRounds: number;
   reviewLog: ReviewRound[];
+};
+
+export type BaseFix = {
+  sha: string;
+  head: string;
 };
 
 export type ReviewRound = {
@@ -49,6 +55,22 @@ export async function readState(repo: Repo, issue: number): Promise<IssueState |
   } catch {
     throw new Error(`the state file ${path} is not valid JSON`);
   }
+}
+
+export async function savedIssues(repo: Repo): Promise<number[]> {
+  let names: string[];
+  try {
+    names = await readdir(dir(repo));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
+  return names.flatMap((name) => {
+    const match = /^(\d+)\.json$/.exec(name);
+    return match === null ? [] : [Number(match[1])];
+  });
 }
 
 export function resetState(state: IssueState): IssueState {
