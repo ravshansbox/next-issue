@@ -50,10 +50,11 @@ test("a value that is not a whole number of 1 or more stops the run", () => {
   assert.throws(() => parseArgs(["--max"]), /needs a whole number/);
 });
 
-test("init is a command, and only in the first place", () => {
+test("init and serve are commands, and only in the first place", () => {
   assert.equal(parseArgs(["init", "--force"]).command, "init");
   assert.throws(() => parseArgs(["--force", "init"]), /Unknown argument: init/);
   assert.throws(() => parseArgs(["run"]), /Unknown command: run/);
+  assert.equal(parseArgs(["serve"]).command, "serve");
 });
 
 test("an unknown option stops the run", () => {

@@ -356,6 +356,7 @@ that a label still holds back stays as it was.
 | Argument | Effect |
 | --- | --- |
 | `init` | Write the config file with the defaults |
+| `serve` | Run the worker that pi extensions talk to, see [Worker](#worker) |
 | `--force` | Replace an existing config file, with `init` |
 | `--once` | Stop after the first handled issue |
 | `--max <n>` | Handle at most n issues |
@@ -396,6 +397,33 @@ The watch stops:
 - after a pass that halts the run, for example when the base branch is broken
   after `--merge`;
 - when the open issues cannot be read.
+
+## Worker
+
+`next-issue serve` runs one worker for the machine. The
+[`@ravshansbox/pi-next-issue`](../pi-next-issue) extension starts it and talks
+to it. The worker:
+
+- listens with WebSocket on the socket file `~/.pi/agent/next-issue.sock`, or
+  in the folder that `PI_CODING_AGENT_DIR` names. Only your user can open the
+  file. It works on macOS and Linux;
+- holds `next-issue.lock` in the same folder, with its process id, so only one
+  worker runs. A lock whose process is no longer alive is taken over;
+- runs at most one run per repository, and runs in several repositories at
+  once. Each run is like `next-issue` without `--watch`, and the client says
+  whether it merges;
+- sends every client the progress of every run when it connects and on every
+  change: the issue, the step, the tool count, the last tool and the handled
+  issues;
+- stops a run, when a client asks, like a second `Ctrl-C`: after the current
+  round, with the state kept;
+- stays when all clients close;
+- closes once no run is going when a client with a newer version connects, so
+  that the client can start the newer worker;
+- stops every agent and command and exits on `SIGTERM` or `SIGINT`, and
+  removes its socket and lock files.
+
+Stop it by hand with `kill $(cat ~/.pi/agent/next-issue.lock)`.
 
 ## Development
 
