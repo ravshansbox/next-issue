@@ -193,21 +193,21 @@ esac
 
 test("failedCheckLogs gives the job logs when the read works", async (t) => {
   const dir = await fakeChecksGh(t, 'echo "boom"');
-  const report = await failedCheckLogs({ owner: "acme", name: "tool", root: dir }, "issue-1", 1000);
+  const report = await failedCheckLogs({ owner: "acme", name: "tool", root: dir }, 1, 1000);
   assert.match(report, /## build\nthe job failed/);
   assert.match(report, /boom/);
 });
 
 test("failedCheckLogs tells the fixer when the log read fails", async (t) => {
   const dir = await fakeChecksGh(t, 'echo "gone" >&2; exit 3');
-  const report = await failedCheckLogs({ owner: "acme", name: "tool", root: dir }, "issue-1", 1000);
+  const report = await failedCheckLogs({ owner: "acme", name: "tool", root: dir }, 1, 1000);
   assert.match(report, /## build\nthe job failed/);
   assert.match(report, /The log read failed with code 3\. gone/);
 });
 
 test("failedCheckLogs keeps the partial logs when the read fails", async (t) => {
   const dir = await fakeChecksGh(t, 'echo "boom"; echo "gone" >&2; exit 3');
-  const report = await failedCheckLogs({ owner: "acme", name: "tool", root: dir }, "issue-1", 1000);
+  const report = await failedCheckLogs({ owner: "acme", name: "tool", root: dir }, 1, 1000);
   assert.match(report, /boom\nThe log read failed with code 3\. gone/);
 });
 
@@ -239,18 +239,18 @@ const PR_WAIT = { intervalSeconds: 0, graceMs: 0, timeoutMs: 10_000, show: false
 
 test("waitForChecks reports a failure when the watch fails and a check is in the fail bucket", async (t) => {
   const dir = await fakeWatchGh(t, "fail", [1]);
-  assert.equal(await waitForChecks({ owner: "acme", name: "tool", root: dir }, "issue-1", PR_WAIT), "fail");
+  assert.equal(await waitForChecks({ owner: "acme", name: "tool", root: dir }, 1, PR_WAIT), "fail");
 });
 
 test("waitForChecks retries the watch when gh fails but no check failed", async (t) => {
   const dir = await fakeWatchGh(t, "pending", [1, 0]);
-  assert.equal(await waitForChecks({ owner: "acme", name: "tool", root: dir }, "issue-1", PR_WAIT), "pass");
+  assert.equal(await waitForChecks({ owner: "acme", name: "tool", root: dir }, 1, PR_WAIT), "pass");
 });
 
 test("waitForChecks throws the gh error when the watch keeps failing and no check failed", async (t) => {
   const dir = await fakeWatchGh(t, "pending", [1, 1, 1]);
   await assert.rejects(
-    waitForChecks({ owner: "acme", name: "tool", root: dir }, "issue-1", PR_WAIT),
+    waitForChecks({ owner: "acme", name: "tool", root: dir }, 1, PR_WAIT),
     /no check failed: error connecting to api\.github\.com/,
   );
 });
@@ -381,4 +381,53 @@ test("mergeCommit gives no merge commit when the pull request closes without a m
   const repo = { owner: "acme", name: "closed", root: dir };
   assert.equal(await mergeCommit(repo, 5, MERGE_OPTIONS, fakeClock()), undefined);
   assert.equal(await callsOf(dir, "pr view"), 1);
+});
+
+async function recordingGh(t: TestContext): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "next-issue-"));
+  const calls = join(dir, "calls");
+  await writeFile(calls, "");
+  const checks =
+    '[{"name":"build","bucket":"fail","link":"https://github.com/acme/tool/actions/runs/7","description":"the job failed"}]';
+  const script = `#!/bin/sh
+echo "$*" >> "${calls}"
+case "$1 $2" in
+  "pr view") echo "abc" ;;
+  "pr checks") [ "$4" = "--watch" ] && exit 1; echo '${checks}' ;;
+  "run view") echo "boom" ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+`;
+  await writeFile(join(dir, "gh"), script, { mode: 0o755 });
+  const path = process.env.PATH;
+  process.env.PATH = `${dir}:${path}`;
+  t.after(() => {
+    process.env.PATH = path;
+  });
+  return dir;
+}
+
+async function ghCalls(dir: string): Promise<string[]> {
+  return (await readFile(join(dir, "calls"), "utf8")).split("\n").filter((line) => line.length > 0);
+}
+
+test("waitForChecks asks gh about the pull request by its number", async (t) => {
+  const dir = await recordingGh(t);
+  const state = await waitForChecks({ owner: "acme", name: "tool", root: dir }, 42, { ...PR_WAIT, head: "abc" });
+  assert.equal(state, "fail");
+  assert.deepEqual(await ghCalls(dir), [
+    "pr view 42 --json headRefOid --jq .headRefOid --repo acme/tool",
+    "pr checks 42 --json name,bucket,link,description --repo acme/tool",
+    "pr checks 42 --watch --fail-fast --interval 0 --repo acme/tool",
+    "pr checks 42 --json name,bucket,link,description --repo acme/tool",
+  ]);
+});
+
+test("failedCheckLogs asks gh about the pull request by its number", async (t) => {
+  const dir = await recordingGh(t);
+  await failedCheckLogs({ owner: "acme", name: "tool", root: dir }, 42, 1000);
+  const calls = await ghCalls(dir);
+  assert.deepEqual(calls.filter((call) => call.startsWith("pr ")), [
+    "pr checks 42 --json name,bucket,link,description --repo acme/tool",
+  ]);
 });

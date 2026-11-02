@@ -89,6 +89,7 @@ type Harness = {
   discards: number;
   setups: string[];
   waits: WaitOptions[];
+  checkPrs: number[];
   pushes: number;
   forcedPushes: number;
   ready: number[];
@@ -132,6 +133,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     discards: 0,
     setups: [],
     waits: [],
+    checkPrs: [],
     pushes: 0,
     forcedPushes: 0,
     ready: [],
@@ -181,7 +183,10 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       head = Number(target);
       return moved || plan.reviewerWrites === true;
     },
-    failedCheckLogs: async () => "the failed job logs",
+    failedCheckLogs: async (_repo, pr) => {
+      state.checkPrs.push(pr);
+      return "the failed job logs";
+    },
     failedBaseLogs: async () => "the failed main logs",
     findPr: async () => undefined,
     findWorktree: async () => undefined,
@@ -247,7 +252,8 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       state.baseWaits.push(sha);
       return baseChecks.shift() ?? "pass";
     },
-    waitForChecks: async (_repo, _branch, options) => {
+    waitForChecks: async (_repo, pr, options) => {
+      state.checkPrs.push(pr);
       state.waits.push(options);
       const next = checks[Math.min(state.checkReads, checks.length - 1)]!;
       state.checkReads += 1;
@@ -1109,6 +1115,12 @@ test("the checks wait for the commit that was pushed", async (t) => {
   const target = await harness(t, { checks: ["fail", "pass"] });
   await target.run();
   assert.deepEqual(target.waits.map((options) => options.head), ["1", "2", "2"]);
+});
+
+test("the harness reads the checks and their logs by the pull request number", async (t) => {
+  const target = await harness(t, { checks: ["fail", "pass"] });
+  await target.run();
+  assert.deepEqual(target.checkPrs, [101, 101, 101, 101]);
 });
 
 test("a repository without checks pays the grace time once", async (t) => {
