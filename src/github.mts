@@ -432,8 +432,25 @@ export async function mergePr(repo: Repo, pr: number): Promise<boolean> {
   return result.code === 0;
 }
 
-export async function mergeCommit(repo: Repo, pr: number): Promise<string> {
-  return gh(repo, ["pr", "view", String(pr), "--json", "mergeCommit", "--jq", ".mergeCommit.oid"]);
+export async function mergeCommit(
+  repo: Repo,
+  pr: number,
+  options: { intervalSeconds: number; timeoutMs: number },
+  clock: Clock = REAL_CLOCK,
+): Promise<string | undefined> {
+  const deadline = clock.now() + options.timeoutMs;
+  for (;;) {
+    const raw = await gh(repo, ["pr", "view", String(pr), "--json", "state,mergeCommit"]);
+    const view = JSON.parse(raw) as { state: string; mergeCommit: { oid: string } | null };
+    if (view.state === "MERGED" && view.mergeCommit?.oid) {
+      return view.mergeCommit.oid;
+    }
+    const rest = deadline - clock.now();
+    if (view.state === "CLOSED" || rest <= 0) {
+      return undefined;
+    }
+    await clock.sleep(Math.min(options.intervalSeconds * 1000, rest));
+  }
 }
 
 export async function reopenIssue(repo: Repo, issue: number): Promise<void> {

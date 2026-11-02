@@ -70,6 +70,7 @@ type Plan = {
   blockers?: string[];
   merge?: boolean;
   mergeFails?: boolean;
+  mergeQueued?: boolean;
   baseChecks?: CheckState[];
   pressDuring?: string;
 };
@@ -179,7 +180,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       state.merged.push(pr);
       return plan.mergeFails !== true;
     },
-    mergeCommit: async (_repo, pr) => `merge-of-${pr}`,
+    mergeCommit: async (_repo, pr) => (plan.mergeQueued === true ? undefined : `merge-of-${pr}`),
     openBlockers: async () => plan.blockers ?? [],
     push: async () => {
       state.pushes += 1;
@@ -294,6 +295,15 @@ test("a user whose merge fails gets the issue handed over", async (t) => {
   assert.equal(report.reason, "merge failed");
   assert.match(target.comments.at(-1)!, /needs help: The merge of the pull request failed/);
   assert.equal(target.labels.at(-1)!.label, "status:needs-human");
+});
+
+test("a user whose queued merge does not finish in time gets the issue handed over instead of done", async (t) => {
+  const target = await harness(t, { merge: true, mergeQueued: true });
+  const report = await target.run();
+  assert.equal(report.outcome, "needs-human");
+  assert.equal(report.reason, "merge pending");
+  assert.deepEqual(target.baseWaits, []);
+  assert.match(target.comments.at(-1)!, /needs help: The pull request did not merge in time/);
 });
 
 test("a user who passes --merge gets no merge while the build fails after the approval", async (t) => {

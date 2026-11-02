@@ -551,7 +551,14 @@ async function reviewRound(job: Run): Promise<Round> {
 async function watchBase(job: Run): Promise<Gate> {
   const { context, issue, log, state, worktree } = job;
   const { repo, config, ports } = context;
-  const sha = await ports.mergeCommit(repo, state.pr!);
+  const sha = await ports.mergeCommit(repo, state.pr!, {
+    intervalSeconds: config.checkIntervalSeconds,
+    timeoutMs: config.checkTimeoutMinutes * 60_000,
+  });
+  if (sha === undefined) {
+    await escalate(job, "The pull request did not merge in time.");
+    return { done: true, report: await finish(job, "needs-human", "merge pending") };
+  }
   const checks = await log.step("main-checks", { pr: state.pr, sha }, () =>
     ports.waitForBaseChecks(repo, sha, {
       intervalSeconds: config.checkIntervalSeconds,

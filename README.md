@@ -57,8 +57,9 @@ For each open issue, oldest first:
 10. No open finding means approval: mark the pull request ready for review and
     set `status:done`. The merge stays with you, unless you pass `--merge`:
     then the harness squash-merges the pull request, deletes the remote
-    branch and waits for the checks that the merge commit starts on the base
-    branch. A cancelled run there is no failure. When those checks fail, the
+    branch, waits until the pull request is merged, for example through a
+    merge queue, and then waits for the checks that the merge commit starts on
+    the base branch. A cancelled run there is no failure. When those checks fail, the
     fixer gets their logs on a branch reset to the base branch, from the check
     budget, and the harness reopens the issue and opens a new pull request that
     goes to step 6 again, with fresh review rounds. The next issue waits for
@@ -98,6 +99,8 @@ when:
 - the reviewer gives no verdict, or the checks do not finish in time;
 - with `--merge`, the merge of an approved pull request fails, for example
    because branch protection asks for a human approval;
+- with `--merge`, a queued merge does not finish in `checkTimeoutMinutes`, or
+   the pull request closes without a merge;
 - with `--merge`, the checks on the base branch fail after the merge and the
    fixer cannot fix them, or they do not finish in time. The base branch is
    then broken, so the run stops after this issue;
