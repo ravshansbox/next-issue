@@ -12,6 +12,7 @@ import {
   prNumber,
   setLabel,
   waitForBaseChecks,
+  waitForChecks,
 } from "../src/github.mts";
 
 const MANAGED = ["status:todo", "status:in-progress", "status:in-review", "status:done"];
@@ -192,6 +193,50 @@ test("failedCheckLogs keeps the partial logs when the read fails", async (t) => 
   const dir = await fakeChecksGh(t, 'echo "boom"; echo "gone" >&2; exit 3');
   const report = await failedCheckLogs({ owner: "acme", name: "tool", root: dir }, "issue-1", 1000);
   assert.match(report, /boom\nThe log read failed with code 3\. gone/);
+});
+
+async function fakeWatchGh(t: TestContext, bucket: string, watches: number[]): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "next-issue-"));
+  const checks = `[{"name":"build","bucket":"${bucket}","link":"","description":""}]`;
+  await writeFile(join(dir, "watches"), watches.join("\n") + "\n");
+  const script = `#!/bin/sh
+case "$1 $2 $4" in
+  "pr checks --watch")
+    code=$(head -n 1 "${join(dir, "watches")}")
+    tail -n +2 "${join(dir, "watches")}" > "${join(dir, "rest")}"; mv "${join(dir, "rest")}" "${join(dir, "watches")}"
+    [ "$code" = 0 ] || echo "error connecting to api.github.com" >&2
+    exit "$code" ;;
+  "pr checks --json") echo '${checks}' ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+`;
+  await writeFile(join(dir, "gh"), script, { mode: 0o755 });
+  const path = process.env.PATH;
+  process.env.PATH = `${dir}:${path}`;
+  t.after(() => {
+    process.env.PATH = path;
+  });
+  return dir;
+}
+
+const PR_WAIT = { intervalSeconds: 0, graceMs: 0, timeoutMs: 10_000, show: false };
+
+test("waitForChecks reports a failure when the watch fails and a check is in the fail bucket", async (t) => {
+  const dir = await fakeWatchGh(t, "fail", [1]);
+  assert.equal(await waitForChecks({ owner: "acme", name: "tool", root: dir }, "issue-1", PR_WAIT), "fail");
+});
+
+test("waitForChecks retries the watch when gh fails but no check failed", async (t) => {
+  const dir = await fakeWatchGh(t, "pending", [1, 0]);
+  assert.equal(await waitForChecks({ owner: "acme", name: "tool", root: dir }, "issue-1", PR_WAIT), "pass");
+});
+
+test("waitForChecks throws the gh error when the watch keeps failing and no check failed", async (t) => {
+  const dir = await fakeWatchGh(t, "pending", [1, 1, 1]);
+  await assert.rejects(
+    waitForChecks({ owner: "acme", name: "tool", root: dir }, "issue-1", PR_WAIT),
+    /no check failed: error connecting to api\.github\.com/,
+  );
 });
 
 async function fakeRunsGh(t: TestContext, runs: unknown[]): Promise<string> {
