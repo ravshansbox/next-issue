@@ -58,6 +58,7 @@ type Plan = {
   selfCommit?: boolean;
   fail?: keyof Ports;
   fixerText?: string | string[];
+  implementerText?: string[];
   saved?: IssueState;
   reset?: boolean;
   reviewerWrites?: boolean;
@@ -77,6 +78,7 @@ type Harness = {
   profiles: Array<{ role: string; tools: string[] }>;
   labels: Array<{ kind: string; number: number; label: string }>;
   prompts: Array<{ role: string; prompt: string }>;
+  messages: string[];
   comments: string[];
   checkReads: number;
   discards: number;
@@ -108,6 +110,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
   const verdicts = [...(plan.verdicts ?? [APPROVE])];
   const commits = [...(plan.commits ?? [])];
   const fixerTexts = Array.isArray(plan.fixerText) ? [...plan.fixerText] : [];
+  const implementerTexts = [...(plan.implementerText ?? [])];
   let head = 0;
   let pressed = false;
   const state: Harness = {
@@ -115,6 +118,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     profiles: [],
     labels: [],
     prompts: [],
+    messages: [],
     comments: [],
     checkReads: 0,
     discards: 0,
@@ -136,7 +140,8 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     commentOnPr: async (_repo, _pr, body) => {
       state.comments.push(body);
     },
-    commitAll: async () => {
+    commitAll: async (_worktree, commitMessage) => {
+      state.messages.push(commitMessage);
       const committed = commits.shift() ?? true;
       if (typeof committed === "string") {
         throw new Error(committed);
@@ -200,7 +205,8 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
           return result(next);
         }
       }
-      return result(`commit: fix: work on #${issue.number}`);
+      const implementerText = request.name === "implementer" ? implementerTexts.shift() : undefined;
+      return result(implementerText ?? `commit: fix: work on #${issue.number}`);
     },
     runSetup: async (command) => {
       state.setups.push(command);
@@ -573,6 +579,27 @@ test("an implementer whose commit fails in a hook gets the hook output and commi
   assert.match(target.prompts[1]!.prompt, /oxlint: publicProcedure is never used/);
   assert.equal(target.pushes, 1);
   assert.equal(report.ciFixes, 0);
+});
+
+test("an implementer whose subject a commit-msg hook rejects commits again with the subject from the fix", async (t) => {
+  const target = await harness(t, {
+    commits: ["commitlint: subject may not be empty", true],
+    implementerText: ["commit: Bad subject", "commit: fix: count the issues"],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.match(target.messages[0]!, /^Bad subject\n/);
+  assert.match(target.messages[1]!, /^fix: count the issues\n/);
+});
+
+test("an implementer whose hook fix names no subject commits again with the earlier subject", async (t) => {
+  const target = await harness(t, {
+    commits: ["oxlint: x is never used", true],
+    implementerText: ["commit: fix: count the issues", "Fixed the lint error."],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.match(target.messages[1]!, /^fix: count the issues\n/);
 });
 
 test("a fixer whose commit fails in a hook gets the hook output and commits the fix", async (t) => {
