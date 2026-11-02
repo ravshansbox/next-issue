@@ -146,8 +146,8 @@ and a `status:needs-human` pull request shows work that waits for a person.
 The harness runs all git and `gh` commands itself. The commit holds all the
 changes in the worktree, so a setup command that writes a file outside
 `.gitignore` puts that file in the commit. The reviewer is the one agent whose
-changes never get that far: the harness discards them before it reads the
-verdict.
+changes never get that far: the harness discards them, and undoes any commit
+that the reviewer made, before it reads the verdict.
 
 ## Safety
 

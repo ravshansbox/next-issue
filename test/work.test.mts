@@ -62,6 +62,7 @@ type Plan = {
   saved?: IssueState;
   reset?: boolean;
   reviewerWrites?: boolean;
+  reviewerCommits?: boolean;
   fixerWrites?: boolean;
   detected?: string;
   issue?: Issue;
@@ -158,9 +159,11 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       return true;
     },
     diff: async () => plan.diff ?? "the diff",
-    discardChanges: async () => {
+    discardChanges: async (_worktree, target) => {
       state.discards += 1;
-      return plan.reviewerWrites === true;
+      const moved = String(head) !== target;
+      head = Number(target);
+      return moved || plan.reviewerWrites === true;
     },
     failedCheckLogs: async () => "the failed job logs",
     failedBaseLogs: async () => "the failed main logs",
@@ -194,6 +197,9 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       pressed ||= request.name === plan.pressDuring;
       state.profiles.push({ role: request.name, tools: request.profile.tools });
       if (request.name === "reviewer") {
+        if (plan.reviewerCommits === true) {
+          head += 1;
+        }
         return result("reviewed", verdicts.shift());
       }
       if (plan.selfCommit === true) {
@@ -934,4 +940,15 @@ test("a repository without checks pays the grace time once", async (t) => {
   const target = await harness(t, { checks: ["none"] });
   await target.run();
   assert.deepEqual(target.waits.map((options) => options.graceMs), [60_000, 0]);
+});
+
+test("a commit that the reviewer makes is undone before the fixer commits", async (t) => {
+  const target = await harness(t, {
+    reviewerCommits: true,
+    verdicts: [changes("The count is wrong."), APPROVE],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, "done");
+  assert.equal(target.discards, 2);
+  assert.equal(await target.context.ports.revision("worktree"), "2");
 });

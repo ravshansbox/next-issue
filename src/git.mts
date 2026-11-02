@@ -132,11 +132,11 @@ export async function commitAll(cwd: string, message: string): Promise<boolean> 
   return true;
 }
 
-export async function discardChanges(cwd: string): Promise<boolean> {
-  if (!(await isDirty(cwd))) {
+export async function discardChanges(cwd: string, target: string): Promise<boolean> {
+  if (!(await isDirty(cwd)) && (await revision(cwd)) === target) {
     return false;
   }
-  await must("git", ["reset", "--hard", "HEAD"], { cwd });
+  await must("git", ["reset", "--hard", target], { cwd });
   await must("git", ["clean", "-fd"], { cwd });
   return true;
 }

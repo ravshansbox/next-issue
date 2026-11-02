@@ -456,6 +456,7 @@ async function reviewRound(job: Run): Promise<Round> {
     diffChars: full.length,
     cut: full.length > config.diffMaxChars,
   };
+  const before = await ports.revision(worktree);
   const review = await log.step("review", fields, () =>
     ports.runAgent(log, {
       name: "reviewer",
@@ -467,7 +468,7 @@ async function reviewRound(job: Run): Promise<Round> {
       outputSchema: VERDICT_SCHEMA,
     }),
   );
-  if (await ports.discardChanges(worktree)) {
+  if (await ports.discardChanges(worktree, before)) {
     log.event("review.discard", { round: state.reviewRounds }, "quiet");
   }
   const verdict = readVerdict(review.structured);
