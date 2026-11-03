@@ -148,7 +148,7 @@ export async function canWrite(repo: Repo, login: string): Promise<boolean> {
       '--jq',
       '.permission',
     ]);
-    return ['admin', 'write'].includes(permission.trim());
+    return ['admin', 'write'].includes(permission);
   } catch (error) {
     if (error instanceof Error && /HTTP 404/.test(error.message)) {
       return false;
