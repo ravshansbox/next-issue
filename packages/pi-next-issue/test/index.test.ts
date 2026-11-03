@@ -57,14 +57,14 @@ afterEach(async () => {
 
 function setup(options: { version?: string; spawn?: (path: string) => Promise<void> } = {}) {
   const path = socketPath();
-  const spawns: number[] = [];
+  const spawns: string[] = [];
   const extension = createExtension({
     client: () =>
       new WorkerClient({
         socketPath: path,
         version: options.version ?? '1.0.0',
-        spawnWorker: () => {
-          spawns.push(Date.now());
+        spawnWorker: (version) => {
+          spawns.push(version);
           void options.spawn?.(path);
         },
         startTimeoutMs: 2000,
@@ -103,6 +103,15 @@ test('a user who runs /next-issue with no worker going starts one and asks it to
     started!.received.find((message) => message.type === 'start'),
     { type: 'start', root: '/repo', merge: true },
   );
+});
+
+test('a user who runs /next-issue with no worker going starts the worker release that matches the extension version', async () => {
+  const { spawns, extension } = setup({ version: '1.2.3' });
+  const { pi, emit, command } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command().catch(() => {});
+  assert.deepEqual(spawns, ['1.2.3']);
 });
 
 test('a user who opens pi with no worker going does not start one', async () => {

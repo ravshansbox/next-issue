@@ -36,7 +36,7 @@ export type WorkerEvent =
 export type WorkerOptions = {
   socketPath: string;
   version: string;
-  spawnWorker: () => void;
+  spawnWorker: (version: string) => void;
   startTimeoutMs?: number;
   reconnectMs?: number;
 };
@@ -58,7 +58,7 @@ export function isNewer(candidate: string, current: string): boolean {
 }
 
 export function workerArgs(version: string): string[] {
-  return ['-y', `next-issue@${version}`, 'serve'];
+  return ['-y', `next-issue@${version === '0.0.0' ? 'latest' : version}`, 'serve'];
 }
 
 export function spawnWorker(agentDir: string, version: string): void {
@@ -147,7 +147,7 @@ export class WorkerClient {
       await this.open();
       return;
     } catch {
-      this.options.spawnWorker();
+      this.options.spawnWorker(this.options.version);
     }
     const deadline = Date.now() + (this.options.startTimeoutMs ?? START_TIMEOUT_MS);
     for (;;) {

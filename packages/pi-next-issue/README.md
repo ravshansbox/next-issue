@@ -18,7 +18,7 @@ The footer shows the issue, the stage, the number of tool calls and the time spe
 
 ## Worker
 
-The extension does no work itself. On `/next-issue` it connects to the `next-issue` worker on the socket file `~/.pi/agent/next-issue.sock`. When no worker answers, it starts one with `npx -y next-issue@<version> serve`, where `<version>` is the version of the extension, in the background, and writes the output of the worker to `~/.pi/agent/next-issue-worker.log`.
+The extension does no work itself. On `/next-issue` it connects to the `next-issue` worker on the socket file `~/.pi/agent/next-issue.sock`. When no worker answers, it starts one with `npx -y next-issue@<version> serve`, where `<version>` is the version of the extension, or `latest` when the extension runs from a source checkout with version `0.0.0`, in the background, and writes the output of the worker to `~/.pi/agent/next-issue-worker.log`.
 
 - Every pi on the machine shares the one worker, and every pi in a repository shows the run of that repository, whoever started it.
 - Opening pi does not start a worker. It only shows a run when a worker is going.
