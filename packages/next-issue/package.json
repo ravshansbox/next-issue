@@ -34,6 +34,10 @@
     "start": "node src/cli.mts",
     "test": "node --test \"test/**/*.test.mts\"",
     "typecheck": "tsc --noEmit",
+    "lint": "oxlint --deny-warnings",
+    "lint:fix": "oxlint --fix",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "prepack": "npm run build",
     "prepublishOnly": "npm run typecheck && npm test"
   },
@@ -41,6 +45,8 @@
     "@earendil-works/pi-ai": "^1.5.0",
     "@types/node": "^26.6.6",
     "@types/ws": "^8.18.2",
+    "oxfmt": "^0.74.0",
+    "oxlint": "^1.89.0",
     "typescript": "^7.0.2"
   },
   "dependencies": {
