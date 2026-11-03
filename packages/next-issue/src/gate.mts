@@ -1,7 +1,7 @@
 import { secondsToMs } from './config.mts';
 import { conflicts, resolveConflict } from './conflict.mts';
 import { fixRound } from './fix.mts';
-import { escalateAndFinish } from './handover.mts';
+import { escalateAndFinish, escalateCheckFix } from './handover.mts';
 import { checkPolling, type Gate, history, type Run } from './job.mts';
 import { writeState } from './state.mts';
 
@@ -54,19 +54,7 @@ export async function checkGate(job: Run): Promise<Gate> {
     'checks',
   );
   if (!fix.committed) {
-    const note = fix.unrelated;
-    if (note === undefined) {
-      return escalateAndFinish(
-        job,
-        'The fixer added no commit for the failed checks.',
-        'no fix commit',
-      );
-    }
-    return escalateAndFinish(
-      job,
-      `The checks fail for a reason this change did not cause: ${note}`,
-      'unrelated failure',
-    );
+    return escalateCheckFix(job, fix.unrelated, 'checks');
   }
   return { done: false, fixed: true };
 }

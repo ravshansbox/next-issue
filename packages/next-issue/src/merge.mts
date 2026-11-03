@@ -1,6 +1,6 @@
 import { secondsToMs } from './config.mts';
 import { fixRound } from './fix.mts';
-import { escalateAndFinish, finishDone } from './handover.mts';
+import { escalateAndFinish, escalateCheckFix, finishDone } from './handover.mts';
 import { checkPolling, type Gate, openPr, type Round, type Run } from './job.mts';
 import { writeState } from './state.mts';
 
@@ -75,19 +75,7 @@ export async function fixBase(job: Run): Promise<Gate> {
     head,
   );
   if (!fix.committed) {
-    const note = fix.unrelated;
-    if (note === undefined) {
-      return escalateAndFinish(
-        job,
-        'The fixer added no commit for the failed checks on main.',
-        'no fix commit',
-      );
-    }
-    return escalateAndFinish(
-      job,
-      `The checks on main fail for a reason this change did not cause: ${note}`,
-      'unrelated failure',
-    );
+    return escalateCheckFix(job, fix.unrelated, 'checks on main');
   }
   await ports.reopenIssue(repo, issue.number);
   state.reviewRounds = 0;

@@ -115,6 +115,25 @@ export async function escalateAndFinish(
   return { done: true, report: await finish(job, 'needs-human', reason) };
 }
 
+export function escalateCheckFix(
+  job: Run,
+  unrelated: string | undefined,
+  checks: string,
+): Promise<{ done: true; report: IssueReport }> {
+  if (unrelated === undefined) {
+    return escalateAndFinish(
+      job,
+      `The fixer added no commit for the failed ${checks}.`,
+      'no fix commit',
+    );
+  }
+  return escalateAndFinish(
+    job,
+    `The ${checks} fail for a reason this change did not cause: ${unrelated}`,
+    'unrelated failure',
+  );
+}
+
 export async function finishDone(job: Run): Promise<IssueReport> {
   const { context, issue, state } = job;
   await setStatus(context, issue.number, state.pr, context.config.labels.done);
