@@ -1,7 +1,7 @@
 import type { AgentResult, Profile } from './agents.mts';
 import { type Config, managedLabels } from './config.mts';
 import type { Repo } from './git.mts';
-import type { Issue } from './github.mts';
+import type { Issue, Polling } from './github.mts';
 import type { Recorder } from './observe.mts';
 import type { Ports } from './ports.mts';
 import type { IssueState, ReviewRound } from './state.mts';
@@ -66,7 +66,7 @@ export function runRole(
   });
 }
 
-export function checkPolling(config: Config): { intervalSeconds: number; timeoutMs: number } {
+export function checkPolling(config: Config): Polling {
   return {
     intervalSeconds: config.checkIntervalSeconds,
     timeoutMs: config.checkTimeoutMinutes * 60_000,

@@ -342,10 +342,13 @@ export type Clock = {
   sleep: (ms: number) => Promise<void>;
 };
 
-export type PollOptions = {
+export type Polling = {
   intervalSeconds: number;
-  graceMs: number;
   timeoutMs: number;
+};
+
+export type PollOptions = Polling & {
+  graceMs: number;
   head?: string;
 };
 
@@ -531,7 +534,7 @@ export async function mergePr(repo: Repo, pr: number): Promise<boolean> {
 export async function prConflicts(
   repo: Repo,
   pr: number,
-  options: { intervalSeconds: number; timeoutMs: number },
+  options: Polling,
   clock: Clock = REAL_CLOCK,
 ): Promise<boolean> {
   const deadline = clock.now() + options.timeoutMs;
@@ -557,7 +560,7 @@ export async function prMerged(repo: Repo, pr: number): Promise<boolean> {
 export async function mergeCommit(
   repo: Repo,
   pr: number,
-  options: { intervalSeconds: number; timeoutMs: number },
+  options: Polling,
   clock: Clock = REAL_CLOCK,
 ): Promise<string | undefined> {
   const deadline = clock.now() + options.timeoutMs;
