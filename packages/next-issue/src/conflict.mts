@@ -1,16 +1,13 @@
 import { CODING } from './agents.mts';
 import { commitWork } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
-import { type Gate, type Run, runRole } from './job.mts';
+import { checkPolling, type Gate, type Run, runRole } from './job.mts';
 import { fixPrompt, parseCommitSubject } from './prompts.mts';
 import { writeState } from './state.mts';
 
 export async function conflicts(job: Run): Promise<boolean> {
   const { repo, config, ports } = job.context;
-  return ports.prConflicts(repo, job.state.pr!, {
-    intervalSeconds: config.checkIntervalSeconds,
-    timeoutMs: config.checkTimeoutMinutes * 60_000,
-  });
+  return ports.prConflicts(repo, job.state.pr!, checkPolling(config));
 }
 
 export async function resolveConflict(job: Run): Promise<Gate> {

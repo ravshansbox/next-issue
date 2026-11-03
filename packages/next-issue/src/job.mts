@@ -66,6 +66,13 @@ export function runRole(
   });
 }
 
+export function checkPolling(config: Config): { intervalSeconds: number; timeoutMs: number } {
+  return {
+    intervalSeconds: config.checkIntervalSeconds,
+    timeoutMs: config.checkTimeoutMinutes * 60_000,
+  };
+}
+
 const worktreeQueues = new Map<string, Promise<unknown>>();
 
 export function oneAtATime<T>(root: string, work: () => Promise<T>): Promise<T> {

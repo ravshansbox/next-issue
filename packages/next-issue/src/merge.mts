@@ -1,6 +1,6 @@
 import { fixRound } from './fix.mts';
 import { escalateAndFinish, finish } from './handover.mts';
-import { type Gate, openPr, type Round, type Run, setStatus } from './job.mts';
+import { checkPolling, type Gate, openPr, type Round, type Run, setStatus } from './job.mts';
 import { writeState } from './state.mts';
 
 export async function afterMerge(job: Run): Promise<Round> {
@@ -19,10 +19,7 @@ export async function afterMerge(job: Run): Promise<Round> {
 async function watchBase(job: Run): Promise<Gate> {
   const { context, log, state, worktree } = job;
   const { repo, config, ports } = context;
-  const sha = await ports.mergeCommit(repo, state.pr!, {
-    intervalSeconds: config.checkIntervalSeconds,
-    timeoutMs: config.checkTimeoutMinutes * 60_000,
-  });
+  const sha = await ports.mergeCommit(repo, state.pr!, checkPolling(config));
   if (sha === undefined) {
     return escalateAndFinish(
       job,
@@ -32,9 +29,8 @@ async function watchBase(job: Run): Promise<Gate> {
   }
   const checks = await log.step('main-checks', { pr: state.pr, sha }, () =>
     ports.waitForBaseChecks(repo, sha, {
-      intervalSeconds: config.checkIntervalSeconds,
+      ...checkPolling(config),
       graceMs: config.checkGraceSeconds * 1000,
-      timeoutMs: config.checkTimeoutMinutes * 60_000,
     }),
   );
   log.event('main-checks.state', { state: checks });

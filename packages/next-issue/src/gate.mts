@@ -1,7 +1,7 @@
 import { conflicts, resolveConflict } from './conflict.mts';
 import { fixRound } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
-import { type Gate, history, type Run } from './job.mts';
+import { checkPolling, type Gate, history, type Run } from './job.mts';
 import { writeState } from './state.mts';
 
 export async function checkGate(job: Run): Promise<Gate> {
@@ -11,9 +11,8 @@ export async function checkGate(job: Run): Promise<Gate> {
   const checks = await log.step('checks', { pr: state.pr, head }, () =>
     ports.waitForChecks(repo, state.pr!, {
       head,
-      intervalSeconds: config.checkIntervalSeconds,
+      ...checkPolling(config),
       graceMs: job.noChecks ? 0 : config.checkGraceSeconds * 1000,
-      timeoutMs: config.checkTimeoutMinutes * 60_000,
       show: log.level === 'verbose',
     }),
   );
