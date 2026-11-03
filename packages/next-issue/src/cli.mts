@@ -5,7 +5,7 @@ import { ensureIgnored, repoRoot, WORKTREE_DIR } from "./git.mts";
 import { listenForInterrupts } from "./interrupt.mts";
 import { message } from "./observe.mts";
 import { runRepo } from "./run.mts";
-import { serve } from "./serve.mts";
+import { serve, socketPaths, stopWorker } from "./serve.mts";
 import { STATE_DIR } from "./state.mts";
 import { formatSummary } from "./summary.mts";
 
@@ -23,6 +23,14 @@ async function main(): Promise<number> {
   }
   if (args.command === "serve") {
     return serve();
+  }
+  if (args.command === "stop") {
+    const pid = await stopWorker(socketPaths().lockPath);
+    await write(
+      process.stdout,
+      pid === undefined ? "next-issue: no worker is running\n" : `next-issue: stopped the worker with process id ${pid}\n`,
+    );
+    return 0;
   }
   const root = await repoRoot(process.cwd());
   if (args.command === "init") {
