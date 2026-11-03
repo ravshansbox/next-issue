@@ -105,6 +105,8 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   await rm(options.socketPath, { force: true });
   const runs = new Map<string, Run>();
   const roots = new Set<string>();
+  const reads = new Map<string, number>();
+  const delivered = new WeakMap<WebSocket, Map<string, number>>();
   let restart = false;
   let finish: () => void = () => undefined;
   const closed = new Promise<void>((resolve) => {
@@ -128,14 +130,21 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   };
   const sendQuestions = async (root: string, targets: () => Iterable<WebSocket>): Promise<void> => {
     roots.add(root);
+    const read = (reads.get(root) ?? 0) + 1;
+    reads.set(root, read);
     let value: WorkerMessage;
     try {
       value = { type: 'questions', root, questions: await options.questions(root) };
     } catch (error) {
-      value = { type: 'error', root, message: message(error) };
+      value = { type: 'questions-error', root, message: message(error) };
     }
     for (const socket of targets()) {
-      send(socket, value);
+      const seen = delivered.get(socket) ?? new Map<string, number>();
+      if ((seen.get(root) ?? 0) < read) {
+        seen.set(root, read);
+        delivered.set(socket, seen);
+        send(socket, value);
+      }
     }
   };
   const busy = (): boolean =>

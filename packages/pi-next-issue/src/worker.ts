@@ -31,6 +31,7 @@ export type WorkerMessage =
   | { type: 'hello'; version: string }
   | { type: 'runs'; runs: Record<string, Progress> }
   | { type: 'questions'; root: string; questions: Question[] }
+  | { type: 'questions-error'; root: string; message: string }
   | { type: 'error'; root: string; message: string };
 
 export type WorkerEvent =

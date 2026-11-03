@@ -45,17 +45,27 @@ test('the worker lists each open issue that waits for a person with the reason a
     9: [{ author: 'owner', body: 'A plain comment.', url: 'u5' }],
   };
   const labels: string[][] = [];
+  let reading = 0;
+  let mostReading = 0;
   const questions = await waitingQuestions(repo, config, {
     openIssues: async (_repo, _limit, given) => {
       labels.push(given);
       return [issue(7, 'Seven'), issue(8, 'Eight'), issue(9, 'Nine')];
     },
-    threadComments: async (_repo, number) => threads[number] ?? [],
+    threadComments: async (_repo, number) => {
+      reading += 1;
+      mostReading = Math.max(mostReading, reading);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      reading -= 1;
+      return threads[number] ?? [];
+    },
     canWrite: async (_repo, login) => login !== 'stranger',
   });
   assert.deepEqual(labels, [[config.labels.needsHuman]]);
   assert.deepEqual(questions, [
     { issue: 7, title: 'Seven', reason: 'The implementer produced no change.', url: 'u2' },
     { issue: 8, title: 'Eight', reason: 'The reviewer gave no verdict.', url: 'u4' },
+    { issue: 9, title: 'Nine', reason: '', url: '' },
   ]);
+  assert.equal(mostReading, 1);
 });

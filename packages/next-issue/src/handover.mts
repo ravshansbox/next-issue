@@ -38,23 +38,19 @@ export async function waitingQuestions(
 ): Promise<Question[]> {
   const writer = writers(repo, ports);
   const issues = await ports.openIssues(repo, config.issueLimit, [config.labels.needsHuman]);
-  const questions = await Promise.all(
-    issues.map(async (issue): Promise<Question | undefined> => {
-      const pr = (await readState(repo, issue.number))?.pr;
-      const comments = await ports.threadComments(repo, pr ?? issue.number);
-      const comment = comments[await lastHandOver(comments, writer)];
-      if (comment === undefined) {
-        return undefined;
-      }
-      return {
-        issue: issue.number,
-        title: issue.title,
-        reason: comment.body.slice(HAND_OVER.length).trim(),
-        url: comment.url ?? '',
-      };
-    }),
-  );
-  return questions.filter((question) => question !== undefined);
+  const questions: Question[] = [];
+  for (const issue of issues) {
+    const pr = (await readState(repo, issue.number))?.pr;
+    const comments = await ports.threadComments(repo, pr ?? issue.number);
+    const comment = comments[await lastHandOver(comments, writer)];
+    questions.push({
+      issue: issue.number,
+      title: issue.title,
+      reason: comment?.body.slice(HAND_OVER.length).trim() ?? '',
+      url: comment?.url ?? '',
+    });
+  }
+  return questions;
 }
 
 export async function handOverReply(

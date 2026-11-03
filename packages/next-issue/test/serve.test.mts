@@ -304,15 +304,48 @@ test('every client gets the new waiting questions after an issue of a run ends',
   fake.finish();
 });
 
-test('a client whose questions cannot be read gets an error for the repository', async (t) => {
+test('a client whose questions cannot be read gets a questions error for the repository', async (t) => {
   const { socketPath } = await worker(t, fakeRuns(), '2.0.0', async () => {
     throw new Error('gh: not logged in');
   });
   const client = await connect(t, socketPath);
   client.send({ type: 'questions', root: '/repo' });
-  assert.deepEqual(await client.next((value) => value.type === 'error'), {
-    type: 'error',
+  assert.deepEqual(await client.next((value) => value.type === 'questions-error'), {
+    type: 'questions-error',
     root: '/repo',
     message: 'gh: not logged in',
+  });
+});
+
+test('a client that asks twice gets no older list after a newer one', async (t) => {
+  const pending: ((questions: Question[]) => void)[] = [];
+  const { socketPath } = await worker(
+    t,
+    fakeRuns(),
+    '2.0.0',
+    () => new Promise((resolve) => pending.push(resolve)),
+  );
+  const client = await connect(t, socketPath);
+  client.send({ type: 'questions', root: '/repo' });
+  client.send({ type: 'questions', root: '/repo' });
+  while (pending.length < 2) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  pending[1]!([]);
+  assert.deepEqual(await client.next(questionsOf), {
+    type: 'questions',
+    root: '/repo',
+    questions: [],
+  });
+  pending[0]!([QUESTION]);
+  client.send({ type: 'questions', root: '/repo' });
+  while (pending.length < 3) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  pending[2]!([]);
+  assert.deepEqual(await client.next(questionsOf), {
+    type: 'questions',
+    root: '/repo',
+    questions: [],
   });
 });

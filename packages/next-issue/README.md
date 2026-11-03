@@ -473,7 +473,11 @@ to it. The worker:
   from GitHub, so the list is the same after a restart. It sends them when a
   client connects, for each repository it knows, after each issue of a run
   ends, and when a client sends `{ "type": "questions", "root": "<path>" }`.
-  An issue that no longer has the label leaves the list;
+  An issue that no longer has the label leaves the list. An issue with the
+  label but no hand-over comment is in the list with an empty reason and url.
+  The issues are read one at a time. A client never gets an older list after
+  a newer one. When the list cannot be read, the client gets
+  `{ "type": "questions-error", "root": "<path>", "message": "<text>" }`;
 - stops a run, when a client asks, like a second `Ctrl-C`: after the current
   round, with the state kept;
 - stays when all clients close;
