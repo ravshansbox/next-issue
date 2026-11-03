@@ -114,7 +114,7 @@ test('a user who opens pi with no worker going does not start one', async () => 
   assert.deepEqual(status, []);
 });
 
-test('a user sees the run of this repository in the footer and the last tool line in the dim colour of the theme', async () => {
+test('a user sees the run of this repository in the footer in the dim colour of the theme and no line above the editor', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
   const { pi, emit, painted, widgets } = host();
@@ -133,18 +133,17 @@ test('a user sees the run of this repository in the footer and the last tool lin
   );
   await until(() => painted.at(-1)?.includes('#7') === true);
   assert.match(painted.at(-1) ?? '', /^<dim>next-issue #7 · implement · 1 tools · \d+s<\/dim>$/);
-  assert.deepEqual(widgets.at(-1), ['<dim>↳ bash npm test</dim>']);
+  assert.deepEqual(widgets, []);
 });
 
-test('a user of an rpc client sees the footer status and the last tool line without colour codes', async () => {
+test('a user of an rpc client sees the footer status without colour codes', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
-  const { pi, emit, painted, widgets } = host('rpc');
+  const { pi, emit, painted } = host('rpc');
   extension(pi as never);
   await emit('session_start');
   fake.update('/repo', running({ issue: 7, stage: 'review 1', tools: 3, lastTool: 'read a.ts' }));
   await until(() => painted.at(-1) === 'next-issue #7 · review 1 · 3 tools');
-  assert.deepEqual(widgets.at(-1), ['↳ read a.ts']);
 });
 
 test('a user sees a note per handled issue and a note when the run finishes, with the summary in the footer', async () => {

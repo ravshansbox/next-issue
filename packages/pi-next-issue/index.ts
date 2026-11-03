@@ -105,8 +105,6 @@ export function createExtension(options: Options) {
       }
       const dim = (text: string) => (coloured ? ui!.theme.fg('dim', text) : text);
       ui.setStatus(STATUS_KEY, dim(formatStatus(progress, Date.now())));
-      const active = progress.status === 'running' && progress.lastTool !== undefined;
-      ui.setWidget(STATUS_KEY, active ? [dim(`↳ ${progress.lastTool}`)] : undefined);
     };
 
     const onProgress = (progress: Progress | undefined) => {
