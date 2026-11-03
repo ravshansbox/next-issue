@@ -85,9 +85,8 @@ export function formatStatus(progress: Progress, now: number): string {
       return `${issues.length === 0 ? '#?' : issues.join(' ')} · stopping`;
     }
     case 'stopped':
-      return `stopped: ${outcomes(progress)}`;
     case 'finished':
-      return `finished: ${outcomes(progress)}`;
+      return `${progress.status}: ${outcomes(progress)}`;
     case 'failed':
       return `failed: ${progress.error ?? 'unknown error'}`;
   }
@@ -183,10 +182,8 @@ export function createExtension(options: Options) {
       handled = progress.handled.length;
       if (progress.status !== status) {
         status = progress.status;
-        if (status === 'finished') {
-          ui?.notify('next-issue finished', 'info');
-        } else if (status === 'stopped') {
-          ui?.notify('next-issue stopped', 'info');
+        if (status === 'finished' || status === 'stopped') {
+          ui?.notify(`next-issue ${status}`, 'info');
         } else if (status === 'failed') {
           ui?.notify(`next-issue failed: ${progress.error ?? 'unknown error'}`, 'error');
         }
