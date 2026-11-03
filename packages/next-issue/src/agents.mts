@@ -61,6 +61,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
   const runtime = request.runtime ?? {};
   const agentDir = runtime.agentDir ?? getAgentDir();
   const started = Date.now();
+  process.env.GIT_OPTIONAL_LOCKS = '0';
   log.event('agent.start', { model: request.model, timeoutMs: request.timeoutMs }, 'normal');
 
   const resourceLoader = new DefaultResourceLoader({

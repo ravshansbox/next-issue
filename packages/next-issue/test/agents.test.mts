@@ -61,7 +61,7 @@ test('an agent session leaves out the pi-next-issue extension and keeps the othe
   assert.equal(isOwnExtension('/home/me/node_modules/@ravshansbox/pi-statusline/index.ts'), false);
 });
 
-async function markExtension(root: string): Promise<string> {
+async function markExtension(root: string, value = "'yes'"): Promise<string> {
   const mark = join(root, 'marked');
   await mkdir(join(root, 'extensions'), { recursive: true });
   await writeFile(
@@ -74,7 +74,7 @@ export default function (pi) {
     description: 'Leave a mark',
     parameters: { type: 'object', properties: {} },
     async execute() {
-      writeFileSync(${JSON.stringify(mark)}, 'yes');
+      writeFileSync(${JSON.stringify(mark)}, ${value});
       return { content: [{ type: 'text', text: 'marked' }], details: {} };
     },
   });
@@ -92,6 +92,17 @@ test('an implementer can call a tool that a pi extension adds', async () => {
   const mark = await markExtension(request.cwd);
   await runAgent(recorder, request);
   assert.equal(await readFile(mark, 'utf8'), 'yes');
+});
+
+test('a pi extension in an agent session runs git without optional locks', async () => {
+  delete process.env.GIT_OPTIONAL_LOCKS;
+  const { recorder, request } = await fakePi([
+    fauxAssistantMessage([fauxToolCall('mark', {})], { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done'),
+  ]);
+  const mark = await markExtension(request.cwd, 'String(process.env.GIT_OPTIONAL_LOCKS)');
+  await runAgent(recorder, request);
+  assert.equal(await readFile(mark, 'utf8'), '0');
 });
 
 test('a reviewer that calls the write tool leaves no file', async () => {
