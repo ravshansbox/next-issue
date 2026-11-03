@@ -16,15 +16,16 @@ export function formatSummary(summary: RunSummary): string {
   const tally = OUTCOMES.map((outcome) => `${count(summary.issues, outcome)} ${outcome}`).join(
     ', ',
   );
-  const lines = [`run ${summary.runId}`, `issues ${summary.issues.length}: ${tally}`];
-  for (const report of summary.issues) {
-    lines.push(`  ${issueLine(report)}`);
-  }
   const roles = Object.entries(summary.roles)
     .map(([role, totals]) => `${role} ${tokens(totals.total)} in ${totals.calls}`)
     .join(', ');
-  lines.push(`tokens ${tokens(summary.total.total)}${roles.length > 0 ? ` (${roles})` : ''}`);
-  lines.push(`log ${summary.logFile}`);
+  const lines = [
+    `run ${summary.runId}`,
+    `issues ${summary.issues.length}: ${tally}`,
+    ...summary.issues.map((report) => `  ${issueLine(report)}`),
+    `tokens ${tokens(summary.total.total)}${roles.length > 0 ? ` (${roles})` : ''}`,
+    `log ${summary.logFile}`,
+  ];
   return `${lines.join('\n')}\n`;
 }
 
