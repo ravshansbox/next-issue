@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { type CommandRecord, setCommandObserver } from '../src/exec.mts';
 import {
+  commentOnIssue,
   commentOnPr,
   createPr,
   defaultBranch,
@@ -115,7 +116,7 @@ echo "$1 $2" >> "${calls}"
 case "$1 $2" in
   "label list") echo '[{"name":"status:todo"}]' ;;
   "issue view") echo '{"labels":[]}' ;;
-  "issue edit"|"pr comment")
+  "issue edit"|"pr comment"|"issue comment")
     cat > /dev/null
     if [ "$(grep -c -- "$1 $2" "${calls}")" -le ${failures} ]; then echo '${error}' >&2; exit 1; fi ;;
   "pr list")
@@ -171,6 +172,15 @@ test('commentOnPr posts once and fails when the network fails, so no comment is 
     /unexpected EOF/,
   );
   assert.equal(await callsOf(dir, 'pr comment'), 1);
+});
+
+test('commentOnIssue posts once and fails when the network fails, so no comment is doubled', async (t) => {
+  const dir = await flakyGh(t, 1, NETWORK_FAULT);
+  await assert.rejects(
+    commentOnIssue({ owner: 'acme', name: 'comment', root: dir }, 2, 'hi'),
+    /unexpected EOF/,
+  );
+  assert.equal(await callsOf(dir, 'issue comment'), 1);
 });
 
 test('findPr looks up the pull request again and finds it when the network fails once', async (t) => {

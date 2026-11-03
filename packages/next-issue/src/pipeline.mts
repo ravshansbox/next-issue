@@ -20,6 +20,7 @@ import {
   setAside,
 } from './git.mts';
 import {
+  commentOnIssue,
   commentOnPr,
   createPr,
   failedBaseLogs,
@@ -73,6 +74,7 @@ import {
 
 export type Ports = {
   addWorktree: typeof addWorktree;
+  commentOnIssue: typeof commentOnIssue;
   commentOnPr: typeof commentOnPr;
   commitAll: typeof commitAll;
   createPr: typeof createPr;
@@ -114,6 +116,7 @@ export type Ports = {
 
 export const PORTS: Ports = {
   addWorktree,
+  commentOnIssue,
   commentOnPr,
   commitAll,
   createPr,
@@ -898,8 +901,11 @@ async function handOver(
   log.event('hand-over', { reason }, 'quiet');
   await writeState(context.repo, state);
   await setStatus(context, issue, state.pr, context.config.labels.needsHuman);
-  if (state.pr !== undefined) {
-    await context.ports.commentOnPr(context.repo, state.pr, `next-issue needs help: ${reason}`);
+  const body = `next-issue needs help: ${reason}`;
+  if (state.pr === undefined) {
+    await context.ports.commentOnIssue(context.repo, issue, body);
+  } else {
+    await context.ports.commentOnPr(context.repo, state.pr, body);
   }
 }
 
