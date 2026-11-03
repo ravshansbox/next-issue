@@ -5,14 +5,16 @@ const COMMIT_RULES = [
   'End your final message with one line in the form `commit: <conventional commit subject>`.',
 ].join('\n');
 
+function paragraphs(parts: string[]): string {
+  return parts.filter((part) => part.length > 0).join('\n\n');
+}
+
 function issueBlock(issue: Issue, comments: string[]): string {
-  return [
+  return paragraphs([
     `# Issue #${issue.number}: ${issue.title}`,
     issue.body.length > 0 ? issue.body : '(no description)',
     comments.length > 0 ? `## Comments\n${comments.join('\n\n')}` : '',
-  ]
-    .filter((part) => part.length > 0)
-    .join('\n\n');
+  ]);
 }
 
 function replyBlock(reply: string[]): string {
@@ -26,7 +28,7 @@ function replyBlock(reply: string[]): string {
 }
 
 export function implementPrompt(issue: Issue, comments: string[], reply: string[] = []): string {
-  return [
+  return paragraphs([
     'You are the implementer. Solve the issue below in this worktree.',
     issueBlock(issue, comments),
     replyBlock(reply),
@@ -34,9 +36,7 @@ export function implementPrompt(issue: Issue, comments: string[], reply: string[
     'Read the repository conventions first. Keep the change minimal and focused on the issue.',
     'Add or update tests when the repository has a test suite.',
     COMMIT_RULES,
-  ]
-    .filter((part) => part.length > 0)
-    .join('\n\n');
+  ]);
 }
 
 export function hookPrompt(issue: Issue, comments: string[], role: string, output: string): string {
@@ -126,7 +126,7 @@ export function fixPrompt(
   kind: FixKind,
   reply: string[] = [],
 ): string {
-  return [
+  return paragraphs([
     `You are the fixer. Correct the work for issue #${issue.number}: ${issue.title}.`,
     `## Reason\n${reason}`,
     `## Detail\n${detail}`,
@@ -142,9 +142,7 @@ export function fixPrompt(
     'Fix the cause, not the symptom. Keep the change minimal.',
     KIND_RULES[kind],
     COMMIT_RULES,
-  ]
-    .filter((part) => part.length > 0)
-    .join('\n\n');
+  ]);
 }
 
 function lastMatch(text: string, pattern: RegExp): string | undefined {
