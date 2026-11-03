@@ -42,15 +42,13 @@ export type AgentResult = {
   sessionId?: string;
 };
 
-const REVIEWING: Profile = {
+export const REVIEWING: Profile = {
   tools: ['+grep', '+find', '+ls', '-edit', '-write'],
 };
 
-const CODING: Profile = {
+export const CODING: Profile = {
   tools: ['+grep', '+find', '+ls'],
 };
-
-export { CODING, REVIEWING };
 
 export function isOwnResource(path: string): boolean {
   return path.split(sep).includes('pi-next-issue');
