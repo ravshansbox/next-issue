@@ -508,7 +508,9 @@ async function questionWorker(path: string, lists: Question[][], stale?: Questio
       if (stale !== undefined && message.id !== undefined) {
         self.reply({ type: 'questions', root: message.root, questions: stale });
       }
-      list = lists.length > 1 ? lists.shift()! : list;
+      if (message.id !== undefined) {
+        list = lists.length > 1 ? lists.shift()! : list;
+      }
       self.reply({
         type: 'questions',
         root: message.root,
@@ -731,7 +733,12 @@ test('a user sees why the questions could not be read', async () => {
   const { path, extension } = setup();
   const started = await startFakeWorker(path, '1.0.0', (self, message) => {
     if (message.type === 'questions') {
-      self.reply({ type: 'questions-error', root: message.root, message: 'gh failed' });
+      self.reply({
+        type: 'questions-error',
+        root: message.root,
+        message: 'gh failed',
+        ...(message.id === undefined ? {} : { id: message.id }),
+      });
     }
   });
   workers.push(started);
