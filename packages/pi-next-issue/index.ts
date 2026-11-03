@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -6,16 +7,37 @@ import {
   getAgentDir,
 } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
+import { must, type RunOptions } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
-import { type Progress, spawnWorker, WorkerClient, type WorkerEvent } from './src/worker.ts';
+import {
+  type Progress,
+  type Question,
+  spawnWorker,
+  WorkerClient,
+  type WorkerEvent,
+} from './src/worker.ts';
 
 export type Options = {
   client: () => WorkerClient;
   root: (cwd: string) => Promise<string>;
+  gh: (args: string[], options: RunOptions) => Promise<string>;
 };
 
 const KEY = Symbol.for('pi-next-issue');
 const STATUS_KEY = 'next-issue';
+const QUESTIONS_KEY = 'next-issue-questions';
+const QUESTIONS_MS = 60_000;
+const RETRY = 'Retry';
+const GUIDE = 'Retry with guidance';
+const GIVE_UP = 'Give up';
+
+export function formatQuestions(count: number): string {
+  return `${count} ${count === 1 ? 'question' : 'questions'} waiting`;
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 function shared(create: () => WorkerClient): WorkerClient {
   const store = globalThis as Record<symbol, WorkerClient | undefined>;
@@ -84,6 +106,7 @@ const fromMachine: Options = {
     });
   },
   root: repoRoot,
+  gh: (args, options) => must('gh', args, options),
 };
 
 export function createExtension(options: Options) {
@@ -92,6 +115,8 @@ export function createExtension(options: Options) {
     let coloured = false;
     let root: string | undefined;
     let timer: ReturnType<typeof setInterval> | undefined;
+    let poll: ReturnType<typeof setInterval> | undefined;
+    let waiting: number[] | undefined;
     let unsubscribe: (() => void) | undefined;
     let handled = 0;
     let status: Progress['status'] | undefined;
@@ -107,6 +132,34 @@ export function createExtension(options: Options) {
       }
       const dim = (text: string) => (coloured ? ui!.theme.fg('dim', text) : text);
       ui.setStatus(STATUS_KEY, dim(formatStatus(progress, Date.now())));
+    };
+
+    const paintQuestions = () => {
+      if (ui === undefined || waiting === undefined) {
+        return;
+      }
+      const text = formatQuestions(waiting.length);
+      ui.setStatus(
+        QUESTIONS_KEY,
+        waiting.length === 0 ? undefined : coloured ? ui.theme.fg('dim', text) : text,
+      );
+    };
+
+    const onQuestions = (questions: Question[]) => {
+      const known = waiting;
+      waiting = questions.map((question) => question.issue);
+      for (const question of questions) {
+        if (known !== undefined && !known.includes(question.issue)) {
+          ui?.notify(`next-issue: #${question.issue} has a question: ${question.title}`, 'warning');
+        }
+      }
+      paintQuestions();
+    };
+
+    const askQuestions = () => {
+      if (root !== undefined) {
+        shared(options.client).send({ type: 'questions', root });
+      }
     };
 
     const onProgress = (progress: Progress | undefined) => {
@@ -143,8 +196,11 @@ export function createExtension(options: Options) {
         handled = progress?.handled.length ?? 0;
         status = progress?.status;
         render();
+        askQuestions();
       } else if (event.type === 'runs') {
         onProgress(root === undefined ? undefined : event.runs[root]);
+      } else if (event.type === 'questions' && event.root === root) {
+        onQuestions(event.questions);
       } else if (event.type === 'error' && event.root === root) {
         ui?.notify(`next-issue cannot start: ${event.message}`, 'error');
       }
@@ -155,9 +211,17 @@ export function createExtension(options: Options) {
       const progress = current();
       handled = progress?.handled.length ?? 0;
       status = progress?.status;
+      waiting =
+        root === undefined
+          ? undefined
+          : shared(options.client).questions[root]?.map((question) => question.issue);
       baseline = !shared(options.client).connected;
       unsubscribe = shared(options.client).subscribe(onEvent);
       render();
+      paintQuestions();
+      if (!baseline) {
+        askQuestions();
+      }
     };
 
     const show = (ctx: ExtensionContext) => {
@@ -165,6 +229,8 @@ export function createExtension(options: Options) {
       coloured = ctx.mode === 'tui';
       timer ??= setInterval(render, 1000);
       timer.unref?.();
+      poll ??= setInterval(askQuestions, QUESTIONS_MS);
+      poll.unref?.();
     };
 
     pi.on('session_start', async (_event, ctx) => {
@@ -186,6 +252,10 @@ export function createExtension(options: Options) {
       if (timer !== undefined) {
         clearInterval(timer);
         timer = undefined;
+      }
+      if (poll !== undefined) {
+        clearInterval(poll);
+        poll = undefined;
       }
       ui = undefined;
     });
@@ -262,9 +332,92 @@ export function createExtension(options: Options) {
       },
     });
 
+    const fresh = (client: WorkerClient, root: string) =>
+      new Promise<Question[]>((resolve, reject) => {
+        const id = randomUUID();
+        const stop = client.subscribe((event) => {
+          if (event.type === 'questions' && event.root === root && event.id === id) {
+            stop();
+            resolve(event.questions);
+          } else if (event.type === 'questions-error' && event.root === root && event.id === id) {
+            stop();
+            reject(new Error(event.message));
+          } else if (event.type === 'closed') {
+            stop();
+            reject(new Error('the worker closed the connection'));
+          }
+        });
+        client.send({ type: 'questions', root, id });
+      });
+
+    const reply = async (root: string, question: Question, choice: string, guidance: string) => {
+      const threads: Array<[string, number]> = [['issue', question.issue]];
+      if (question.pr !== undefined) {
+        threads.push(['pr', question.pr]);
+      }
+      const repo = ['--repo', question.repo];
+      if (choice === GUIDE) {
+        const [kind, number] = threads.at(-1)!;
+        await options.gh([kind, 'comment', String(number), ...repo, '--body-file', '-'], {
+          cwd: root,
+          input: guidance,
+        });
+      }
+      const labels = ['--remove-label', question.labels.needsHuman];
+      if (choice === GIVE_UP) {
+        labels.push('--add-label', question.labels.skip);
+      }
+      for (const [kind, number] of threads) {
+        await options.gh([kind, 'edit', String(number), ...repo, ...labels], { cwd: root });
+      }
+    };
+
+    const answer = async (ctx: ExtensionContext) => {
+      const { client, root } = await connect(ctx);
+      const passed = new Set<number>();
+      for (;;) {
+        const question = (await fresh(client, root)).find((item) => !passed.has(item.issue));
+        if (question === undefined) {
+          if (passed.size === 0) {
+            ctx.ui.notify('next-issue: no questions waiting', 'info');
+          }
+          return;
+        }
+        passed.add(question.issue);
+        const choice = await ctx.ui.select(
+          `#${question.issue} ${question.title}\n\n${question.reason || 'No reason given.'}`,
+          [RETRY, GUIDE, GIVE_UP],
+        );
+        if (choice === undefined) {
+          return;
+        }
+        let guidance = '';
+        if (choice === GUIDE) {
+          guidance = (await ctx.ui.editor(`Guidance for #${question.issue}`))?.trim() ?? '';
+          if (guidance === '') {
+            return;
+          }
+        }
+        await reply(root, question, choice, guidance);
+        ctx.ui.notify(
+          `next-issue: #${question.issue} ${choice === GIVE_UP ? 'given up' : 'will be retried'}`,
+          'info',
+        );
+      }
+    };
+
     pi.registerCommand('next-issue', {
-      description: 'Start or stop working through the GitHub issues of this repository',
-      handler: async (_args, ctx) => {
+      description:
+        'Start or stop working through the GitHub issues of this repository, or answer the waiting questions with "answer"',
+      handler: async (args, ctx) => {
+        if (args.trim() === 'answer') {
+          try {
+            await answer(ctx);
+          } catch (error) {
+            ctx.ui.notify(`next-issue cannot answer: ${errorText(error)}`, 'error');
+          }
+          return;
+        }
         try {
           const { client, root, progress } = await connect(ctx);
           if (going(progress)) {
@@ -273,10 +426,7 @@ export function createExtension(options: Options) {
             client.send({ type: 'start', root, merge: true });
           }
         } catch (error) {
-          ctx.ui.notify(
-            `next-issue cannot start: ${error instanceof Error ? error.message : String(error)}`,
-            'error',
-          );
+          ctx.ui.notify(`next-issue cannot start: ${errorText(error)}`, 'error');
         }
       },
     });

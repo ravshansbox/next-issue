@@ -17,6 +17,18 @@ Run this in pi, inside a git repository:
 
 The footer shows the issue, the stage, the number of tool calls and the time spent on the issue, for example `next-issue #12 · review 1 · 37 tools · 4m12s`. After a run ends, it keeps the last summary. In the terminal, it uses the dim colour of the theme, like the rest of the footer. A note appears when an issue is done, needs a human or fails while pi is open. Pi does not repeat the notes of a run that ended before it opened.
 
+## Answer questions
+
+When an issue waits for a person, with the `needsHuman` label of the [config](../next-issue/README.md), the footer shows the count, for example `2 questions waiting`, and a note appears once for each new question. Neither interrupts what you do. Pi asks the worker for the list when it connects and every minute, and the worker also sends it after each issue of a run. A question answered on GitHub or in another pi leaves the count with the next list.
+
+Run `/next-issue answer` to go through the waiting questions one at a time. Each shows the issue, the title and the reason of the hand-over. Choose:
+
+- **Retry**: takes the `needsHuman` label off the issue and its pull request, so the next run resumes it.
+- **Retry with guidance**: asks for text, posts it as a comment where the worker reads it, on the pull request of the issue or on the issue when it has none, then takes the `needsHuman` label off.
+- **Give up**: takes the `needsHuman` label off the issue and its pull request and adds the `skip` label.
+
+Press Escape, or leave the guidance empty, to stop. Pi reads the list again before each question, so it skips a question answered elsewhere in the meantime. The worker sends the repository, the pull request and the label names with each question, from `next-issue.config.json` and its `remote`. Pi uses `gh` for the comment and the labels.
+
 ## Create an issue
 
 The package ships the `create-issue` skill. Ask pi to write an issue, or run `/skill:create-issue <problem>`. Pi then:

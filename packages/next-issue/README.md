@@ -471,14 +471,17 @@ to it. The worker:
   issues;
 - sends every client a `questions` message for each repository: the open
   issues with the `needsHuman` label, each with its number, title, the reason
-  of the hand-over and the url of the comment that holds it. It reads them
+  of the hand-over, the url of the comment that holds it, the `owner/name`
+  repository, the pull request when there is one, and the `needsHuman` and
+  `skip` labels. It reads them
   from GitHub, so the list is the same after a restart. It sends them when a
   client connects, for each repository it knows, after each issue of a run
   ends, and when a client sends `{ "type": "questions", "root": "<path>" }`.
   An issue that no longer has the label leaves the list. An issue with the
   label but no hand-over comment is in the list with an empty reason and url.
   The issues are read one at a time. A client never gets an older list after
-  a newer one. When the list cannot be read, the client gets
+  a newer one. When the client adds an `"id"` to its message, the list that
+  answers it carries the same `id` and is read after the message arrived. When the list cannot be read, the client gets
   `{ "type": "questions-error", "root": "<path>", "message": "<text>" }`;
 - stops a run, when a client asks, like a second `Ctrl-C`: after the current
   round, with the state kept;

@@ -19,23 +19,33 @@ export type Progress = {
   error?: string;
 };
 
-export type Question = { issue: number; title: string; reason: string; url: string };
+export type Question = {
+  issue: number;
+  title: string;
+  reason: string;
+  url: string;
+  repo: string;
+  pr?: number;
+  labels: { needsHuman: string; skip: string };
+};
 
 export type ClientMessage =
   | { type: 'hello'; version: string }
   | { type: 'start'; root: string; merge: boolean }
   | { type: 'stop'; root: string }
-  | { type: 'questions'; root: string };
+  | { type: 'questions'; root: string; id?: string };
 
 export type WorkerMessage =
   | { type: 'hello'; version: string }
   | { type: 'runs'; runs: Record<string, Progress> }
-  | { type: 'questions'; root: string; questions: Question[] }
-  | { type: 'questions-error'; root: string; message: string }
+  | { type: 'questions'; root: string; questions: Question[]; id?: string }
+  | { type: 'questions-error'; root: string; message: string; id?: string }
   | { type: 'error'; root: string; message: string };
 
 export type WorkerEvent =
   | { type: 'runs'; runs: Record<string, Progress> }
+  | { type: 'questions'; root: string; questions: Question[]; id?: string }
+  | { type: 'questions-error'; root: string; message: string; id?: string }
   | { type: 'error'; root: string; message: string }
   | { type: 'closed' };
 
@@ -113,6 +123,7 @@ function delay(ms: number): Promise<void> {
 
 export class WorkerClient {
   runs: Record<string, Progress> = {};
+  questions: Record<string, Question[]> = {};
   private socket: WebSocket | undefined;
   private workerVersion: string | undefined;
   private connecting: Promise<void> | undefined;
@@ -222,7 +233,10 @@ export class WorkerClient {
             hello = true;
             resolve();
           }
-        } else if (message.type === 'error') {
+        } else if (message.type === 'questions') {
+          this.questions[message.root] = message.questions;
+          this.emit(message);
+        } else if (message.type === 'error' || message.type === 'questions-error') {
           this.emit(message);
         }
       });
