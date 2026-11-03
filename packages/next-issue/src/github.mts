@@ -81,13 +81,17 @@ type RawIssue = {
 
 const ISSUE_FIELDS = 'number,title,body,createdAt,labels';
 
+function names(items: Array<{ name: string }>): string[] {
+  return items.map((item) => item.name);
+}
+
 function toIssue(item: RawIssue): Issue {
   return {
     number: item.number,
     title: item.title,
     body: item.body ?? '',
     createdAt: item.createdAt,
-    labels: item.labels.map((label) => label.name),
+    labels: names(item.labels),
   };
 }
 
@@ -180,7 +184,7 @@ export async function openBlockers(repo: Repo, issue: number): Promise<string[]>
 async function labelsOf(repo: Repo, kind: Kind, number: number): Promise<string[]> {
   const raw = await gh(repo, [kind, 'view', String(number), '--json', 'labels']);
   const parsed = JSON.parse(raw) as { labels: Array<{ name: string }> };
-  return parsed.labels.map((label) => label.name);
+  return names(parsed.labels);
 }
 
 export function labelArgs(add: string, remove: string[], current: string[]): string[] {
@@ -221,7 +225,7 @@ async function createUnknownLabel(repo: Repo, label: string): Promise<'known' | 
   let known = KNOWN_LABELS.get(repoSlug);
   if (known === undefined) {
     const raw = await gh(repo, ['label', 'list', '--limit', '1000', '--json', 'name']);
-    known = new Set((JSON.parse(raw) as Array<{ name: string }>).map((item) => item.name));
+    known = new Set(names(JSON.parse(raw) as Array<{ name: string }>));
     KNOWN_LABELS.set(repoSlug, known);
   }
   if (known.has(label)) {
