@@ -79,7 +79,7 @@ const fromMachine: Options = {
     return new WorkerClient({
       socketPath: join(agentDir, 'next-issue.sock'),
       version: packageVersion(),
-      spawnWorker: () => spawnWorker(agentDir),
+      spawnWorker: (version) => spawnWorker(agentDir, version),
     });
   },
   root: repoRoot,
