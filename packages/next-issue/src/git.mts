@@ -102,8 +102,7 @@ export async function updateBase(repo: Repo, base: string, remote: string): Prom
     head.code === 0 && head.stdout.trim() === base
       ? ['merge', '--ff-only', `${remote}/${base}`]
       : ['fetch', '.', `${remote}/${base}:${base}`];
-  const result = await run('git', args, { cwd: repo.root });
-  return result.code === 0;
+  return succeeds(repo.root, args);
 }
 
 export async function findWorktree(repo: Repo, branch: string): Promise<string | undefined> {
@@ -116,8 +115,7 @@ export async function findWorktree(repo: Repo, branch: string): Promise<string |
 }
 
 export async function removeWorktree(repo: Repo, path: string): Promise<boolean> {
-  const result = await run('git', ['worktree', 'remove', path], { cwd: repo.root });
-  return result.code === 0;
+  return succeeds(repo.root, ['worktree', 'remove', path]);
 }
 
 export async function ensureIgnored(root: string, entry: string): Promise<boolean> {
@@ -247,8 +245,7 @@ export async function startMerge(
 }
 
 async function merging(cwd: string): Promise<boolean> {
-  const result = await run('git', ['rev-parse', '--quiet', '--verify', 'MERGE_HEAD'], { cwd });
-  return result.code === 0;
+  return succeeds(cwd, ['rev-parse', '--quiet', '--verify', 'MERGE_HEAD']);
 }
 
 const CONFLICT_MARKER = /^(?:<{7}|>{7})(?: |$)/m;
@@ -292,11 +289,14 @@ export async function isAncestor(
   ancestor: string,
   descendant: string,
 ): Promise<boolean> {
-  const result = await run('git', ['merge-base', '--is-ancestor', ancestor, descendant], { cwd });
-  return result.code === 0;
+  return succeeds(cwd, ['merge-base', '--is-ancestor', ancestor, descendant]);
 }
 
 export async function deleteBranch(repo: Repo, branch: string): Promise<boolean> {
-  const result = await run('git', ['branch', '-D', branch], { cwd: repo.root });
+  return succeeds(repo.root, ['branch', '-D', branch]);
+}
+
+async function succeeds(cwd: string, args: string[]): Promise<boolean> {
+  const result = await run('git', args, { cwd });
   return result.code === 0;
 }
