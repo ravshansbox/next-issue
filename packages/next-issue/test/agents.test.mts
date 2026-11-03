@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -78,6 +78,20 @@ test('the harness gets the last text, the tool calls and the model of a pi agent
   assert.equal(result.turns, 2);
   assert.equal(result.model, request.model);
   assert.ok(result.usage.total > 0);
+});
+
+test('the harness saves the session of a pi agent next to the run log', async () => {
+  const { recorder, request } = await fakePi([
+    fauxAssistantMessage([fauxToolCall('ls', { path: '.' })], { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done'),
+  ]);
+  const result = await runAgent(recorder, request);
+  const dir = join(recorder.logFile.replace(/\.jsonl$/, ''), 'sessions');
+  const files = await readdir(dir);
+  assert.equal(files.length, 1);
+  const saved = await readFile(join(dir, files[0]!), 'utf8');
+  assert.ok(saved.includes(result.sessionId!));
+  assert.ok(saved.includes('"ls"'));
 });
 
 test('the harness gets the verdict that the reviewer submits with the result tool', async () => {

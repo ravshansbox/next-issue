@@ -120,6 +120,10 @@ export class Recorder {
     return this.sink.file;
   }
 
+  get sessionDir(): string {
+    return join(this.sink.file.replace(/\.jsonl$/, ''), 'sessions');
+  }
+
   get level(): Level {
     return this.sink.level;
   }
@@ -210,8 +214,8 @@ export async function pruneRuns(root: string, keepDays: number): Promise<number>
     const path = join(dir, name);
     try {
       const info = await stat(path);
-      if (info.isFile() && info.mtimeMs < cutoff) {
-        await rm(path, { force: true });
+      if (info.mtimeMs < cutoff) {
+        await rm(path, { force: true, recursive: true });
         dropped += 1;
       }
     } catch {
