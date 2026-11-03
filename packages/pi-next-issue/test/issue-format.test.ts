@@ -26,3 +26,9 @@ test('a user who installs pi-next-issue gets the create-issue skill', async () =
   assert.match(skill, /^---\nname: create-issue\n/);
   assert.match(skill, /gh issue create .*--body-file .*--label status:todo/);
 });
+
+test('an agent who creates an issue with the create-issue skill links it to the open issues it depends on', async () => {
+  const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
+  assert.match(skill, /gh issue list/);
+  assert.match(skill, /gh issue edit <number> --add-blocked-by <blocker>/);
+});
