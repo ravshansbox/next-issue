@@ -6,7 +6,7 @@ import { listenForInterrupts } from './interrupt.mts';
 import { followLog, newestRunLog } from './logs.mts';
 import { message } from './observe.mts';
 import { runRepo } from './run.mts';
-import { serve, socketPaths, stopWorker } from './serve.mts';
+import { serve, stopWorker, workerPaths } from './serve.mts';
 import { STATE_DIR } from './state.mts';
 import { formatSummary } from './summary.mts';
 
@@ -24,11 +24,12 @@ async function main(): Promise<number> {
     await write(process.stdout, USAGE);
     return 0;
   }
+  const root = await repoRoot(process.cwd());
   if (args.command === 'serve') {
-    return serve();
+    return serve(root);
   }
   if (args.command === 'stop') {
-    const pid = await stopWorker(socketPaths().lockPath);
+    const pid = await stopWorker(workerPaths(root).lockPath);
     await write(
       process.stdout,
       pid === undefined
@@ -37,7 +38,6 @@ async function main(): Promise<number> {
     );
     return 0;
   }
-  const root = await repoRoot(process.cwd());
   if (args.command === 'init') {
     return init(root, args.force);
   }

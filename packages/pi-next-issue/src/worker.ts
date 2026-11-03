@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
-import { closeSync, openSync } from 'node:fs';
-import { join } from 'node:path';
+import { closeSync, mkdirSync, openSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import WebSocket from 'ws';
 
 export type RunStatus = 'running' | 'stopping' | 'finished' | 'stopped' | 'failed';
@@ -108,10 +108,30 @@ export function workerArgs(version: string): string[] {
   return ['-y', `next-issue@${version === '0.0.0' ? 'latest' : version}`, 'serve'];
 }
 
-export function spawnWorker(agentDir: string, version: string): void {
-  const log = openSync(join(agentDir, 'next-issue-worker.log'), 'a');
+export function workerPaths(root: string): { socketPath: string; logPath: string } {
+  return {
+    socketPath: join(root, '.next-issue', 'worker.sock'),
+    logPath: join(root, '.next-issue', 'worker.log'),
+  };
+}
+
+export function checkSocketPath(path: string, platform = process.platform): void {
+  const size = platform === 'linux' ? 108 : 104;
+  const length = Buffer.byteLength(path);
+  if (length >= size) {
+    throw new Error(
+      `the socket path ${path} is too long for this system: ${length} bytes, at most ${size - 1}`,
+    );
+  }
+}
+
+export function spawnWorker(root: string, version: string): void {
+  const { logPath } = workerPaths(root);
+  mkdirSync(dirname(logPath), { recursive: true });
+  const log = openSync(logPath, 'a');
   try {
     const child = spawn('npx', workerArgs(version), {
+      cwd: root,
       detached: true,
       stdio: ['ignore', log, log],
     });
@@ -191,6 +211,7 @@ export class WorkerClient {
   }
 
   private async start(): Promise<void> {
+    checkSocketPath(this.options.socketPath);
     try {
       await this.open();
       return;

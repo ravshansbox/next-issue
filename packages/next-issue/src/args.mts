@@ -19,8 +19,8 @@ export type Args = {
 export const USAGE = `next-issue [command] [options]
 
   init         write ${CONFIG_FILE} with the defaults
-  serve        run the worker that pi extensions talk to
-  stop         stop the worker
+  serve        run the worker of this repository that pi extensions talk to
+  stop         stop the worker of this repository
   logs         show the latest run log and follow it
 
   --once       stop after the first handled issue

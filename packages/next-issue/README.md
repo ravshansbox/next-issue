@@ -452,8 +452,8 @@ state of an issue that a label still holds back stays as it was.
 | Argument    | Effect                                                                                                                        |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `init`      | Write the config file with the defaults                                                                                       |
-| `serve`     | Run the worker that pi extensions talk to, see [Worker](#worker)                                                              |
-| `stop`      | Stop the worker, see [Worker](#worker)                                                                                        |
+| `serve`     | Run the worker of this repository that pi extensions talk to, see [Worker](#worker)                                           |
+| `stop`      | Stop the worker of this repository, see [Worker](#worker)                                                                     |
 | `logs`      | Show the latest run log and follow it, see [Observability](#observability)                                                    |
 | `--force`   | Replace an existing config file, with `init`                                                                                  |
 | `--once`    | Stop after the first handled issue                                                                                            |
@@ -499,20 +499,20 @@ The watch stops:
 
 ## Worker
 
-`next-issue serve` runs one worker for the machine. The
+`next-issue serve` runs one worker for the repository it is run in. The
 [`@ravshansbox/pi-next-issue`](../pi-next-issue) extension starts it and talks
-to it. The worker:
+to it. Each repository has its own worker, so the runs, restarts and upgrades
+of one repository never affect another. The worker:
 
-- listens with WebSocket on the socket file `~/.pi/agent/next-issue.sock`, or
-  in the folder that `PI_CODING_AGENT_DIR` names. Only your user can open the
-  file. It works on macOS and Linux;
-- holds `next-issue.lock` in the same folder, with its process id, so only one
-  worker runs. A lock whose process is no longer alive is taken over;
-- keeps the repositories it knows in `next-issue.roots.json` in the same
-  folder, so it still knows them after a restart;
-- runs at most one run per repository, and runs in several repositories at
-  once. Each run is like `next-issue` without `--watch`, and the client says
-  whether it merges;
+- listens with WebSocket on the socket file `.next-issue/worker.sock` in the
+  repository. Only your user can open the file. It works on macOS and Linux.
+  When the path of the socket file is too long for the system, about 103
+  bytes on macOS and 107 on Linux, it exits with an error that says so;
+- holds `.next-issue/worker.lock` in the repository, with its process id, so
+  only one worker runs per repository. A lock whose process is no longer alive
+  is taken over;
+- runs at most one run at a time. Each run is like `next-issue` without
+  `--watch`, and the client says whether it merges;
 - sends every client the progress of every run when it connects and on every
   change: for each running issue the issue, the step, the tool count and the
   last tool, and the handled issues;
@@ -522,7 +522,7 @@ to it. The worker:
   repository, the pull request when there is one, and the `needsHuman` and
   `skip` labels. It reads them
   from GitHub, so the list is the same after a restart. It sends them when a
-  client connects, for each repository it knows, after each issue of a run
+  client connects, for its repository, after each issue of a run
   ends, and when a client sends `{ "type": "questions", "root": "<path>" }`.
   An issue that no longer has the label leaves the list. An issue with the
   label but no hand-over comment is in the list with an empty reason and url.
@@ -532,16 +532,33 @@ to it. The worker:
   `{ "type": "questions-error", "root": "<path>", "message": "<text>" }`;
 - stops a run, when a client asks, like a second `Ctrl-C`: each running issue
   after its current round, with the state kept;
-- stays when all clients close;
+- exits, and removes its socket and lock files, when no run is going and no
+  client is connected, or when no client connects in the 30 seconds after it
+  starts;
+- waits up to 5 seconds for the lock when a worker that is closing still
+  holds it;
 - closes once no run is going when a client with a newer version connects, so
   that the client can start the newer worker;
 - stops every agent and command and exits on `SIGTERM` or `SIGINT`, and
   removes its socket and lock files.
 
-Stop it with `next-issue stop`. This sends `SIGTERM` to the process in the
-lock file, so the worker stops at once and a run that is going resumes from
+Stop the worker of a repository with `next-issue stop` in that repository.
+Workers of other repositories carry on. This sends `SIGTERM` to the process in
+the lock file, so the worker stops at once and a run that is going resumes from
 its saved state next time. When no worker is running, the command says so and
 exits with 0.
+
+Versions before one worker per repository ran one worker for the machine,
+with `next-issue.sock`, `next-issue.lock` and `next-issue.roots.json` in
+`~/.pi/agent`, or in the folder that `PI_CODING_AGENT_DIR` names. That worker
+does not stop by itself, `next-issue stop` does not reach it, and a run in it
+can claim issues alongside the new worker of the same repository. Stop it once
+after you upgrade:
+
+```sh
+kill "$(cat ~/.pi/agent/next-issue.lock)"
+rm -f ~/.pi/agent/next-issue.roots.json
+```
 
 ## Development
 
