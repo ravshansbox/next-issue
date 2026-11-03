@@ -22,7 +22,7 @@ The footer shows each running issue with its stage, the number of tool calls and
 
 When an issue waits for a person, with the `needsHuman` label of the [config](../next-issue/README.md), the footer shows the count, for example `2 questions waiting`, and a note appears once for each new question. Neither interrupts what you do. Pi asks the worker for the list when it connects and every minute, and the worker also sends it after each issue of a run. A question answered on GitHub or in another pi leaves the count with the next list.
 
-Run `/next-issue answer` to go through the waiting questions one at a time. Each shows the issue, the title and the reason of the hand-over. Choose:
+Run `/next-issue answer` to go through the waiting questions one at a time. Pi suggests `answer` as you type after `/next-issue `. Each shows the issue, the title and the reason of the hand-over. Choose:
 
 - **Retry**: takes the `needsHuman` label off the issue and its pull request, so the next run resumes it.
 - **Retry with guidance**: asks for text, posts it as a comment where the worker reads it, on the pull request of the issue or on the issue when it has none, then takes the `needsHuman` label off.

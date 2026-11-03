@@ -28,13 +28,22 @@ function host(mode = 'tui', cwd = '/repo', answers: Array<string | undefined> = 
   const commands = new Map<string, (args: string, ctx: unknown) => Promise<void>>();
   const handlers = new Map<string, Handler[]>();
   const tools = new Map<string, ToolExecute>();
+  const completions = new Map<string, (prefix: string) => unknown>();
   const pi = {
     registerTool: (options: { name: string; execute: ToolExecute }) =>
       tools.set(options.name, options.execute),
     registerCommand: (
       name: string,
-      options: { handler: (args: string, ctx: unknown) => Promise<void> },
-    ) => commands.set(name, options.handler),
+      options: {
+        handler: (args: string, ctx: unknown) => Promise<void>;
+        getArgumentCompletions?: (prefix: string) => unknown;
+      },
+    ) => {
+      commands.set(name, options.handler);
+      if (options.getArgumentCompletions !== undefined) {
+        completions.set(name, options.getArgumentCompletions);
+      }
+    },
     on: (event: string, handler: Handler) =>
       handlers.set(event, [...(handlers.get(event) ?? []), handler]),
   };
@@ -74,10 +83,25 @@ function host(mode = 'tui', cwd = '/repo', answers: Array<string | undefined> = 
     }
   };
   const command = (args = '') => commands.get('next-issue')!(args, ctx);
+  const complete = (prefix: string) => completions.get('next-issue')?.(prefix);
   const start = (signal?: AbortSignal) =>
     tools.get('next_issue_start')!('call', {}, signal, undefined, ctx);
   const report = () => tools.get('next_issue_status')!('call', {}, undefined, undefined, ctx);
-  return { pi, ctx, status, waiting, asked, painted, widgets, notes, emit, command, start, report };
+  return {
+    pi,
+    ctx,
+    status,
+    waiting,
+    asked,
+    painted,
+    widgets,
+    notes,
+    emit,
+    command,
+    complete,
+    start,
+    report,
+  };
 }
 
 const KEY = Symbol.for('pi-next-issue');
@@ -601,6 +625,16 @@ async function questionWorker(path: string, lists: Question[][], stale?: Questio
   workers.push(started);
   return started;
 }
+
+test('a user who types /next-issue followed by nothing or a start of answer is offered answer', () => {
+  const { extension } = setup();
+  const { pi, complete } = host();
+  extension(pi as never);
+  const offered = [{ value: 'answer', label: 'answer' }];
+  assert.deepEqual(complete(''), offered);
+  assert.deepEqual(complete('an'), offered);
+  assert.equal(complete('x'), null);
+});
 
 test('a user sees how many questions wait in the footer and a note for each new question', async () => {
   const { path, extension } = setup();
