@@ -13,10 +13,9 @@ export type RunSummary = {
 const OUTCOMES: Outcome[] = ['done', 'needs-human', 'error', 'skipped', 'stopped'];
 
 export function formatSummary(summary: RunSummary): string {
-  const tally = OUTCOMES.map(
-    (outcome) =>
-      `${summary.issues.filter((report) => report.outcome === outcome).length} ${outcome}`,
-  ).join(', ');
+  const tally = OUTCOMES.map((outcome) => `${count(summary.issues, outcome)} ${outcome}`).join(
+    ', ',
+  );
   const lines = [`run ${summary.runId}`, `issues ${summary.issues.length}: ${tally}`];
   for (const report of summary.issues) {
     lines.push(`  ${issueLine(report)}`);
@@ -27,6 +26,10 @@ export function formatSummary(summary: RunSummary): string {
   lines.push(`tokens ${tokens(summary.total.total)}${roles.length > 0 ? ` (${roles})` : ''}`);
   lines.push(`log ${summary.logFile}`);
   return `${lines.join('\n')}\n`;
+}
+
+export function count(reports: IssueReport[], outcome: Outcome): number {
+  return reports.filter((report) => report.outcome === outcome).length;
 }
 
 function issueLine(report: IssueReport): string {

@@ -9,9 +9,9 @@ import { defaultBranch } from './github.mts';
 import type { Interrupts } from './interrupt.mts';
 import { exitCode, type Loop, runIssues, watchIssues } from './loop.mts';
 import { type Fields, message, pruneRuns, Recorder } from './observe.mts';
-import { type Context, type IssueReport, pendingIssues, PORTS, processIssue } from './pipeline.mts';
+import { type Context, pendingIssues, PORTS, processIssue } from './pipeline.mts';
 import { STATE_DIR } from './state.mts';
-import type { RunSummary } from './summary.mts';
+import { count, type RunSummary } from './summary.mts';
 import { packageVersion } from './version.mts';
 
 export type RunControls = {
@@ -140,8 +140,4 @@ async function handle(
     await print(summary);
   }
   return error === undefined ? exitCode(reports) : 1;
-}
-
-function count(reports: IssueReport[], outcome: IssueReport['outcome']): number {
-  return reports.filter((report) => report.outcome === outcome).length;
 }
