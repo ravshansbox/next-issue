@@ -79,6 +79,7 @@ type Plan = {
   mergeFails?: boolean;
   mergeQueued?: boolean;
   alreadyMerged?: boolean;
+  conflicts?: boolean;
   open?: Issue[];
   closed?: Issue[];
   unlisted?: Issue[];
@@ -223,6 +224,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     mergeCommit: async (_repo, pr) => (plan.mergeQueued === true ? undefined : `merge-of-${pr}`),
     openBlockers: async () => plan.blockers ?? [],
     openIssues: async () => [...(plan.open ?? [])],
+    prConflicts: async () => plan.conflicts === true,
     prMerged: async () => plan.alreadyMerged === true,
     push: async (_worktree, _remote, _branch, force) => {
       state.pushes += 1;
@@ -865,6 +867,20 @@ test('a check wait that runs out of time hands the issue to a person', async (t)
 
 test('a repository without checks goes straight to the review', async (t) => {
   const target = await harness(t, { checks: ['none'] });
+  assert.equal((await target.run()).outcome, 'done');
+});
+
+test('a user whose pull request conflicts with its base and shows no checks gets the issue handed over with no review', async (t) => {
+  const target = await harness(t, { checks: ['none'], conflicts: true });
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'merge conflict');
+  assert.deepEqual(roles(target), ['implementer']);
+  assert.match(target.comments.at(-1)!, /conflicts with its base/);
+});
+
+test('a user whose pull request conflicts with its base but has passing checks gets the review', async (t) => {
+  const target = await harness(t, { checks: ['pass'], conflicts: true });
   assert.equal((await target.run()).outcome, 'done');
 });
 

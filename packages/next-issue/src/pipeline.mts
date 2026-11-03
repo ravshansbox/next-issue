@@ -32,6 +32,7 @@ import {
   mergePr,
   openBlockers,
   openIssues,
+  prConflicts,
   prMerged,
   reopenIssue,
   setLabel,
@@ -91,6 +92,7 @@ export type Ports = {
   mergePr: typeof mergePr;
   openBlockers: typeof openBlockers;
   openIssues: typeof openIssues;
+  prConflicts: typeof prConflicts;
   prMerged: typeof prMerged;
   push: typeof push;
   removeWorktree: typeof removeWorktree;
@@ -131,6 +133,7 @@ export const PORTS: Ports = {
   mergePr,
   openBlockers,
   openIssues,
+  prConflicts,
   prMerged,
   push,
   removeWorktree,
@@ -485,6 +488,16 @@ async function checkGate(job: Run): Promise<Gate> {
   if (checks === 'timeout') {
     await escalate(job, 'The checks did not finish in time.');
     return { done: true, report: await finish(job, 'needs-human', 'checks timeout') };
+  }
+  if (
+    checks === 'none' &&
+    (await ports.prConflicts(repo, state.pr!, {
+      intervalSeconds: config.checkIntervalSeconds,
+      timeoutMs: config.checkTimeoutMinutes * 60_000,
+    }))
+  ) {
+    await escalate(job, 'The pull request conflicts with its base, so no checks ran.');
+    return { done: true, report: await finish(job, 'needs-human', 'merge conflict') };
   }
   if (checks !== 'fail') {
     return { done: false, fixed: false };
