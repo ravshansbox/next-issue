@@ -130,12 +130,22 @@ export async function diff(cwd: string, base: string, remote: string): Promise<s
   return must('git', ['diff', `${remote}/${base}...HEAD`], { cwd });
 }
 
+export class HookError extends Error {}
+
 export async function commitAll(cwd: string, message: string): Promise<boolean> {
   if (!(await isDirty(cwd))) {
     return false;
   }
   await must('git', ['add', '-A'], { cwd });
-  await must('git', ['commit', '-m', message], { cwd });
+  try {
+    await must('git', ['commit', '-m', message], { cwd });
+  } catch (error) {
+    const plain = await run('git', ['commit', '--dry-run', '--no-verify', '-m', message], { cwd });
+    if (plain.code === 0 && error instanceof Error) {
+      throw new HookError(error.message);
+    }
+    throw error;
+  }
   return true;
 }
 
