@@ -6,7 +6,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { type CommandRecord, must, run, setCommandObserver } from '../src/exec.mts';
+import {
+  type CommandRecord,
+  must,
+  run,
+  setCommandObserver,
+  withDefaultTimeout,
+} from '../src/exec.mts';
 
 const NODE = process.execPath;
 
@@ -61,6 +67,23 @@ test('run kills a child that passes the time limit', async () => {
   const result = await run(NODE, script('setTimeout(() => {}, 10000)'), { timeoutMs: 100 });
   assert.equal(result.timedOut, true);
   assert.notEqual(result.code, 0);
+});
+
+test('two runs that start together each keep their own default time limit', async () => {
+  const sleeper = script('setTimeout(() => {}, 3000)');
+  const [short, long] = await Promise.all([
+    withDefaultTimeout(100, async () => {
+      await sleep(50);
+      return run(NODE, sleeper);
+    }),
+    withDefaultTimeout(60_000, async () => {
+      await sleep(50);
+      return run(NODE, sleeper);
+    }),
+  ]);
+  assert.equal(short.timedOut, true);
+  assert.equal(long.timedOut, false);
+  assert.equal(long.code, 0);
 });
 
 test('run stops on the time limit even when a grandchild holds the output open', async () => {

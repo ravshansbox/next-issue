@@ -3,7 +3,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Args } from './args.mts';
 import { type Config, loadConfig } from './config.mts';
-import { setCommandObserver, setDefaultTimeout } from './exec.mts';
+import { setCommandObserver, withDefaultTimeout } from './exec.mts';
 import { detectRepo, type Repo } from './git.mts';
 import { defaultBranch } from './github.mts';
 import type { Interrupts } from './interrupt.mts';
@@ -42,7 +42,17 @@ export function recordCommands<T>(recorder: Recorder, work: () => Promise<T>): P
 
 export async function runRepo(root: string, args: Args, controls: RunControls): Promise<number> {
   const config = await loadConfig(root);
-  setDefaultTimeout(config.commandTimeoutMinutes * 60_000);
+  return withDefaultTimeout(config.commandTimeoutMinutes * 60_000, () =>
+    runWithConfig(root, args, controls, config),
+  );
+}
+
+async function runWithConfig(
+  root: string,
+  args: Args,
+  controls: RunControls,
+  config: Config,
+): Promise<number> {
   const repo = await detectRepo(root, config.remote);
   const recorder = await Recorder.create(repo.root, args.level, controls.onEvent);
   const pruned = await pruneRuns(repo.root, config.keepRunDays);
