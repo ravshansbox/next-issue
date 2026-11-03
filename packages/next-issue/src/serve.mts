@@ -30,6 +30,7 @@ export type ListQuestions = (root: string) => Promise<Question[]>;
 export type WorkerOptions = {
   socketPath: string;
   lockPath: string;
+  rootsPath: string;
   version: string;
   runRepo: RunRepo;
   questions: ListQuestions;
@@ -46,10 +47,15 @@ type Run = {
   wake?: () => void;
 };
 
-export function socketPaths(agentDir = getAgentDir()): { socketPath: string; lockPath: string } {
+export function socketPaths(agentDir = getAgentDir()): {
+  socketPath: string;
+  lockPath: string;
+  rootsPath: string;
+} {
   return {
     socketPath: join(agentDir, 'next-issue.sock'),
     lockPath: join(agentDir, 'next-issue.lock'),
+    rootsPath: join(agentDir, 'next-issue.roots.json'),
   };
 }
 
@@ -93,6 +99,15 @@ async function lock(path: string): Promise<boolean> {
   return false;
 }
 
+async function readRoots(path: string): Promise<Set<string>> {
+  try {
+    const value: unknown = JSON.parse(await readFile(path, 'utf8'));
+    return new Set(Array.isArray(value) ? value.filter((root) => typeof root === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
 export async function listQuestions(root: string): Promise<Question[]> {
   const config = await loadConfig(root);
   return waitingQuestions(await detectRepo(root, config.remote), config, PORTS);
@@ -104,7 +119,18 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   }
   await rm(options.socketPath, { force: true });
   const runs = new Map<string, Run>();
-  const roots = new Set<string>();
+  const roots = await readRoots(options.rootsPath);
+  let saving = Promise.resolve();
+  const remember = (root: string): void => {
+    if (roots.has(root)) {
+      return;
+    }
+    roots.add(root);
+    const value = `${JSON.stringify([...roots], null, 2)}\n`;
+    saving = saving
+      .then(() => writeFile(options.rootsPath, value, { mode: 0o600 }))
+      .catch(() => undefined);
+  };
   const reads = new Map<string, number>();
   const delivered = new WeakMap<WebSocket, Map<string, number>>();
   let restart = false;
@@ -129,7 +155,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     }
   };
   const sendQuestions = async (root: string, targets: () => Iterable<WebSocket>): Promise<void> => {
-    roots.add(root);
+    remember(root);
     const read = (reads.get(root) ?? 0) + 1;
     reads.set(root, read);
     let value: WorkerMessage;
@@ -159,6 +185,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     await new Promise<void>((resolve) => sockets.close(() => resolve()));
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(options.socketPath, { force: true });
+    await saving;
     await rm(options.lockPath, { force: true });
     finish();
   };
@@ -180,7 +207,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     }
     const run: Run = { progress: startProgress(), stop: false };
     runs.set(root, run);
-    roots.add(root);
+    remember(root);
     const interrupts: Interrupts = {
       afterIssue: () => run.stop,
       afterRound: () => run.stop,

@@ -83,7 +83,11 @@ async function worker(
   questions: ListQuestions = noQuestions,
 ) {
   const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
-  const paths = { socketPath: join(dir, 'w.sock'), lockPath: join(dir, 'w.lock') };
+  const paths = {
+    socketPath: join(dir, 'w.sock'),
+    lockPath: join(dir, 'w.lock'),
+    rootsPath: join(dir, 'w.roots.json'),
+  };
   const started = await startWorker({ ...paths, version, runRepo: fake.runRepo, questions });
   assert.ok(started);
   t.after(() => started.close());
@@ -179,11 +183,12 @@ test('a client that stops a run sees it stop after the round and end as stopped'
 
 test('a second worker does not start while the first one holds the lock', async (t) => {
   const fake = fakeRuns();
-  const { socketPath, lockPath } = await worker(t, fake);
+  const { socketPath, lockPath, rootsPath } = await worker(t, fake);
   assert.equal(
     await startWorker({
       socketPath,
       lockPath,
+      rootsPath,
       version: '2.0.0',
       runRepo: fake.runRepo,
       questions: noQuestions,
@@ -201,6 +206,7 @@ test('a worker takes over the lock and the socket file that a dead worker left',
   const started = await startWorker({
     socketPath,
     lockPath,
+    rootsPath: join(dir, 'w.roots.json'),
     version: '2.0.0',
     runRepo: fakeRuns().runRepo,
     questions: noQuestions,
@@ -270,6 +276,31 @@ test('a client that connects gets the waiting questions of every known repositor
   asker.send({ type: 'questions', root: '/repo' });
   await asker.next(questionsOf);
   const later = await connect(t, socketPath);
+  assert.deepEqual(await later.next(questionsOf), {
+    type: 'questions',
+    root: '/repo',
+    questions: [QUESTION],
+  });
+});
+
+test('a client that connects after a worker restart gets the waiting questions of every known repository', async (t) => {
+  const fake = fakeRuns();
+  const first = await worker(t, fake, '2.0.0', async () => [QUESTION]);
+  const asker = await connect(t, first.socketPath);
+  asker.send({ type: 'questions', root: '/repo' });
+  await asker.next(questionsOf);
+  await first.worker.close();
+  const restarted = await startWorker({
+    socketPath: first.socketPath,
+    lockPath: first.lockPath,
+    rootsPath: first.rootsPath,
+    version: '2.0.0',
+    runRepo: fake.runRepo,
+    questions: async () => [QUESTION],
+  });
+  assert.ok(restarted);
+  t.after(() => restarted.close());
+  const later = await connect(t, first.socketPath);
   assert.deepEqual(await later.next(questionsOf), {
     type: 'questions',
     root: '/repo',

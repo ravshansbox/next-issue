@@ -461,6 +461,8 @@ to it. The worker:
   file. It works on macOS and Linux;
 - holds `next-issue.lock` in the same folder, with its process id, so only one
   worker runs. A lock whose process is no longer alive is taken over;
+- keeps the repositories it knows in `next-issue.roots.json` in the same
+  folder, so it still knows them after a restart;
 - runs at most one run per repository, and runs in several repositories at
   once. Each run is like `next-issue` without `--watch`, and the client says
   whether it merges;
