@@ -1,4 +1,5 @@
-import { appendFile, readFile } from 'node:fs/promises';
+import { appendFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { must, run } from './exec.mts';
 
@@ -130,13 +131,32 @@ export async function diff(cwd: string, base: string, remote: string): Promise<s
   return must('git', ['diff', `${remote}/${base}...HEAD`], { cwd });
 }
 
+export class HookError extends Error {}
+
 export async function commitAll(cwd: string, message: string): Promise<boolean> {
   if (!(await isDirty(cwd))) {
     return false;
   }
   await must('git', ['add', '-A'], { cwd });
-  await must('git', ['commit', '-m', message], { cwd });
+  const folder = await mkdtemp(join(tmpdir(), 'next-issue-message-'));
+  const file = join(folder, 'COMMIT_EDITMSG');
+  try {
+    await writeFile(file, `${message}\n`);
+    await runHook(cwd, 'pre-commit');
+    await runHook(cwd, 'commit-msg', file);
+    await must('git', ['commit', '--no-verify', '-F', file], { cwd });
+  } finally {
+    await rm(folder, { recursive: true, force: true });
+  }
   return true;
+}
+
+async function runHook(cwd: string, name: string, ...args: string[]): Promise<void> {
+  try {
+    await must('git', ['hook', 'run', '--ignore-missing', name, '--', ...args], { cwd });
+  } catch (error) {
+    throw new HookError(error instanceof Error ? error.message : String(error));
+  }
 }
 
 export async function discardChanges(cwd: string, target: string): Promise<boolean> {

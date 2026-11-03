@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { must } from '../src/exec.mts';
 import {
@@ -13,6 +13,7 @@ import {
   disputeBranches,
   ensureIgnored,
   findWorktree,
+  HookError,
   isDirty,
   parseRemote,
   push,
@@ -270,4 +271,74 @@ test('discardChanges keeps an ignored file and reports a clean worktree', async 
   await writeFile(join(path, 'deps', 'pkg.txt'), 'installed\n');
   assert.equal(await discardChanges(path, await revision(path)), false);
   assert.equal(existsSync(join(path, 'deps', 'pkg.txt')), true);
+});
+
+test('commitAll that a pre-commit hook stops throws a hook error with the hook output', async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const hooks = join(path, '..', 'hooks');
+  await mkdir(hooks, { recursive: true });
+  await writeFile(join(hooks, 'pre-commit'), '#!/bin/sh\necho lint fails >&2\nexit 1\n');
+  await chmod(join(hooks, 'pre-commit'), 0o755);
+  await git(path, 'config', 'core.hooksPath', hooks);
+  await git(path, 'config', 'user.name', 't');
+  await git(path, 'config', 'user.email', 't@t');
+  await writeFile(join(path, 'b.txt'), 'b\n');
+  await assert.rejects(commitAll(path, 'a change'), (error) => {
+    assert.ok(error instanceof HookError);
+    assert.match(error.message, /lint fails/);
+    return true;
+  });
+});
+
+test('commitAll that a commit-msg hook stops throws a hook error with the hook output', async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const hooks = join(path, '..', 'hooks');
+  await mkdir(hooks, { recursive: true });
+  await writeFile(
+    join(hooks, 'commit-msg'),
+    '#!/bin/sh\ngrep -q "^fix:" "$1" || { echo bad subject >&2; exit 1; }\n',
+  );
+  await chmod(join(hooks, 'commit-msg'), 0o755);
+  await git(path, 'config', 'core.hooksPath', hooks);
+  await git(path, 'config', 'user.name', 't');
+  await git(path, 'config', 'user.email', 't@t');
+  await writeFile(join(path, 'b.txt'), 'b\n');
+  await assert.rejects(commitAll(path, 'a change'), (error) => {
+    assert.ok(error instanceof HookError);
+    assert.match(error.message, /bad subject/);
+    return true;
+  });
+  assert.equal(await commitAll(path, 'fix: a change'), true);
+  assert.equal(await git(path, 'log', '-1', '--format=%s'), 'fix: a change');
+});
+
+test('commitAll whose commit signing fails throws an error that is not a hook error', async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  await git(path, 'config', 'user.name', 't');
+  await git(path, 'config', 'user.email', 't@t');
+  await git(path, 'config', 'commit.gpgsign', 'true');
+  await git(path, 'config', 'gpg.program', 'false');
+  await writeFile(join(path, 'b.txt'), 'b\n');
+  await assert.rejects(commitAll(path, 'a change'), (error) => {
+    assert.ok(error instanceof Error);
+    assert.ok(!(error instanceof HookError));
+    assert.match(error.message, /sign/);
+    return true;
+  });
+});
+
+test('commitAll whose git add fails throws an error that is not a hook error', async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  await writeFile(join(path, 'b.txt'), 'b\n');
+  const index = await git(path, 'rev-parse', '--git-path', 'index.lock');
+  await writeFile(resolve(path, index), '');
+  await assert.rejects(commitAll(path, 'a change'), (error) => {
+    assert.ok(error instanceof Error);
+    assert.ok(!(error instanceof HookError));
+    return true;
+  });
 });
