@@ -109,6 +109,7 @@ type Harness = {
   resets: number;
   titles: string[];
   branches: string[];
+  starts: boolean[];
   asides: Array<{ target: string; branch: string }>;
   head: () => string;
   run: () => Promise<IssueReport>;
@@ -155,6 +156,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     resets: 0,
     titles: [],
     branches: [],
+    starts: [],
     asides: [],
     head: () => String(head),
     run: () => processIssue(state.context, issue),
@@ -162,8 +164,9 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
   };
 
   const ports: Ports = {
-    addWorktree: async (_repo, _issue, branch) => {
+    addWorktree: async (_repo, _issue, branch, _base, _remote, start) => {
       state.branches.push(branch);
+      state.starts.push(start);
       return { path: join(root, 'worktree'), baseUpdated: plan.baseUpdated ?? true };
     },
     commentOnPr: async (_repo, _pr, body) => {
@@ -1064,6 +1067,13 @@ test('a saved state carries on and does not implement again', async (t) => {
   assert.equal(report.reviewRounds, 2);
   assert.deepEqual(roles(target), ['reviewer']);
   assert.deepEqual(target.branches, ['issue-7']);
+  assert.deepEqual(target.starts, [false]);
+});
+
+test('a new issue asks for its worktree to start from the base branch', async (t) => {
+  const target = await harness(t);
+  await target.run();
+  assert.deepEqual(target.starts, [true]);
 });
 
 const SAVED: IssueState = {
