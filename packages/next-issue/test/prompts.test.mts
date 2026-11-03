@@ -4,6 +4,7 @@ import type { Issue } from '../src/github.mts';
 import {
   capDiff,
   fixPrompt,
+  implementPrompt,
   parseCommitSubject,
   parseUnrelated,
   reviewPrompt,
@@ -112,6 +113,16 @@ test('the review fixer is told to dispute only when every finding is wrong', () 
   const review = fixPrompt(ISSUE, 'The reviewer requested changes.', 'the findings', [], 'review');
   assert.match(review, /If every finding is wrong, change nothing/);
   assert.match(review, /If only some of the findings are wrong, fix the correct ones/);
+});
+
+test('the implementer and the fixer get the answer of a person to the hand-over under its own heading', () => {
+  const reply = ['@owner: ready, take it'];
+  const implement = implementPrompt(ISSUE, [], reply);
+  const fix = fixPrompt(ISSUE, 'The reviewer requested changes.', 'x', [], 'review', reply);
+  for (const prompt of [implement, fix]) {
+    assert.match(prompt, /## Answer of a person to the hand-over\n[\s\S]*@owner: ready, take it/);
+  }
+  assert.doesNotMatch(implementPrompt(ISSUE, []), /hand-over/);
 });
 
 test('reviewPrompt asks for a full review when no earlier finding exists', () => {

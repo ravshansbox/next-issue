@@ -38,6 +38,7 @@ export type Run = {
   branch: string;
   worktree: string;
   comments: string[];
+  reply: string[];
   started: number;
   noChecks: boolean;
   mainBroken: boolean;

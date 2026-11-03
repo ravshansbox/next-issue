@@ -3,6 +3,32 @@ import { type Context, type IssueReport, type Outcome, type Run, setStatus } fro
 import { message, type Recorder } from './observe.mts';
 import { dropState, type IssueState, writeState } from './state.mts';
 
+export const HAND_OVER = 'next-issue needs help:';
+
+export async function handOverReply(
+  context: Context,
+  issue: number,
+  pr: number | undefined,
+): Promise<string[]> {
+  const { repo, ports } = context;
+  const comments = await ports.threadComments(repo, pr ?? issue);
+  const last = comments.findLastIndex((comment) => comment.body.startsWith(HAND_OVER));
+  if (last === -1) {
+    return [];
+  }
+  const access = new Map<string, boolean>();
+  const reply: string[] = [];
+  for (const comment of comments.slice(last + 1)) {
+    if (!access.has(comment.author)) {
+      access.set(comment.author, await ports.canWrite(repo, comment.author));
+    }
+    if (access.get(comment.author) === true) {
+      reply.push(`@${comment.author}: ${comment.body}`);
+    }
+  }
+  return reply;
+}
+
 export function escalate(job: Run, reason: string): Promise<void> {
   return handOver(job.context, job.log, job.issue.number, job.state, reason);
 }
@@ -68,7 +94,7 @@ export async function handOver(
   log.event('hand-over', { reason }, 'quiet');
   await writeState(context.repo, { ...state, handedOver: true });
   await setStatus(context, issue, state.pr, context.config.labels.needsHuman);
-  const body = `next-issue needs help: ${reason}`;
+  const body = `${HAND_OVER} ${reason}`;
   if (state.pr === undefined) {
     await context.ports.commentOnIssue(context.repo, issue, body);
   } else {

@@ -116,6 +116,49 @@ export async function issueComments(repo: Repo, issue: number): Promise<string[]
   return parsed.comments.map((comment) => `@${comment.author.login}: ${comment.body}`);
 }
 
+export type Comment = { author: string; body: string };
+
+export async function threadComments(repo: Repo, number: number): Promise<Comment[]> {
+  const raw = await repeatable(
+    [
+      'api',
+      '--paginate',
+      `repos/${slug(repo)}/issues/${number}/comments`,
+      '--jq',
+      '.[] | [.user.login, .body] | @json',
+    ],
+    { cwd: repo.root },
+  );
+  return raw
+    .split('\n')
+    .filter((line) => line.length > 0)
+    .map((line) => {
+      let parsed: [string, string | null];
+      try {
+        parsed = JSON.parse(line) as [string, string | null];
+      } catch {
+        throw new Error(`gh gave a comment of #${number} that is not valid JSON: ${line}`);
+      }
+      const [author, body] = parsed;
+      return { author, body: body ?? '' };
+    });
+}
+
+export async function canWrite(repo: Repo, login: string): Promise<boolean> {
+  try {
+    const permission = await repeatable(
+      ['api', `repos/${slug(repo)}/collaborators/${login}/permission`, '--jq', '.permission'],
+      { cwd: repo.root },
+    );
+    return ['admin', 'write'].includes(permission.trim());
+  } catch (error) {
+    if (error instanceof Error && /HTTP 404/.test(error.message)) {
+      return false;
+    }
+    throw error;
+  }
+}
+
 export async function openBlockers(repo: Repo, issue: number): Promise<string[]> {
   const raw = await repeatable(
     [
