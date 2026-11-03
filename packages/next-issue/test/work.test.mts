@@ -1337,7 +1337,7 @@ test('--reset puts the budgets back and keeps the resume point', async (t) => {
 
 test('a user who takes the needs-human label off a handed-over issue gets the budgets put back without --reset', async (t) => {
   const target = await harness(t, {
-    issue: { ...ISSUE, labels: ['status:in-review'] },
+    issue: { ...ISSUE, labels: [] },
     saved: { ...SAVED, handedOver: true },
   });
   const report = await target.run();
@@ -1345,6 +1345,20 @@ test('a user who takes the needs-human label off a handed-over issue gets the bu
   assert.equal(report.ciFixes, 0);
   assert.equal(report.reviewRounds, 1);
   assert.deepEqual(roles(target), ['reviewer']);
+});
+
+test('a user who resumes a handed-over issue and stops the run gets the state saved without the mark', async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: [] },
+    saved: { ...SAVED, handedOver: true },
+    pressDuring: 'reviewer',
+    verdicts: [changes('Rename it.')],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'stopped');
+  const state = await target.state();
+  assert.equal(state?.handedOver, undefined);
+  assert.equal(state?.ciFixes, 0);
 });
 
 test('a user who resumes a handed-over issue that is handed over again gets the mark back', async (t) => {
