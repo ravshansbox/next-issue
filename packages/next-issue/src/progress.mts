@@ -16,14 +16,19 @@ function toolLine(record: Fields): string {
   return line.length > TOOL_LINE_MAX ? `${line.slice(0, TOOL_LINE_MAX - 1)}…` : line;
 }
 
-function stageOf(step: string, record: Fields): string {
+function stageName(step: string, record: Fields): string {
   const cause = record['cause'];
-  const name =
-    step === 'fix' && typeof cause === 'string'
-      ? `${cause} fix`
-      : step === 'commit-fix'
-        ? 'commit fix'
-        : step;
+  if (step === 'fix' && typeof cause === 'string') {
+    return `${cause} fix`;
+  }
+  if (step === 'commit-fix') {
+    return 'commit fix';
+  }
+  return step;
+}
+
+function stageOf(step: string, record: Fields): string {
+  const name = stageName(step, record);
   const round = record['round'];
   const limit = record['limit'];
   if (typeof round !== 'number') {
