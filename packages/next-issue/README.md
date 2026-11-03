@@ -226,6 +226,9 @@ Thus a person who can write an issue, or a writer who can comment, can try to
 give an instruction to the agent. Use the harness only on a repository where you
 trust the issue authors, or run it in a container.
 
+[ADR 0001](https://github.com/ravshansbox/next-issue/blob/main/docs/adr/0001-reviewer-isolation.md) records why the reviewer
+keeps a full shell, and which other options were considered.
+
 ## Observability
 
 Every run has an id, `<timestamp>`, and writes these under `.next-issue/runs/`:
