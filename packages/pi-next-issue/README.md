@@ -23,7 +23,7 @@ The extension does no work itself. On `/next-issue` it connects to the `next-iss
 - Every pi on the machine shares the one worker, and every pi in a repository shows the run of that repository, whoever started it.
 - Opening pi does not start a worker. It only shows a run when a worker is going.
 - The run does not belong to pi: it goes on after `/new`, `/resume`, a fork, a reload or quitting pi.
-- The worker stays when every pi is closed. Stop it with `kill $(cat ~/.pi/agent/next-issue.lock)`.
+- The worker stays when every pi is closed. Stop it with `npx next-issue stop`.
 - When the extension is newer than the worker, the worker closes once no run is going, and the extension starts the newer worker.
 
 Each run asks the worker to merge the pull requests. See the [`next-issue` README](../next-issue/README.md) for what a run does, its labels, its state and its config.

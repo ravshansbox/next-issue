@@ -1,7 +1,7 @@
 import { CONFIG_FILE } from "./config.mts";
 import type { Level } from "./observe.mts";
 
-export type Command = "run" | "init" | "serve";
+export type Command = "run" | "init" | "serve" | "stop";
 
 export type Args = {
   command: Command;
@@ -20,6 +20,7 @@ export const USAGE = `next-issue [command] [options]
 
   init         write ${CONFIG_FILE} with the defaults
   serve        run the worker that pi extensions talk to
+  stop         stop the worker
 
   --once       stop after the first handled issue
   --max <n>    handle at most n issues
@@ -48,7 +49,7 @@ export function parseArgs(argv: string[]): Args {
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]!;
     if (index === 0 && !arg.startsWith("-")) {
-      if (arg !== "init" && arg !== "serve") {
+      if (arg !== "init" && arg !== "serve" && arg !== "stop") {
         throw new Error(`Unknown command: ${arg}`);
       }
       args.command = arg;

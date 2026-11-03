@@ -357,6 +357,7 @@ that a label still holds back stays as it was.
 | --- | --- |
 | `init` | Write the config file with the defaults |
 | `serve` | Run the worker that pi extensions talk to, see [Worker](#worker) |
+| `stop` | Stop the worker, see [Worker](#worker) |
 | `--force` | Replace an existing config file, with `init` |
 | `--once` | Stop after the first handled issue |
 | `--max <n>` | Handle at most n issues |
@@ -423,7 +424,10 @@ to it. The worker:
 - stops every agent and command and exits on `SIGTERM` or `SIGINT`, and
   removes its socket and lock files.
 
-Stop it by hand with `kill $(cat ~/.pi/agent/next-issue.lock)`.
+Stop it with `next-issue stop`. This sends `SIGTERM` to the process in the
+lock file, so the worker stops at once and a run that is going resumes from
+its saved state next time. When no worker is running, the command says so and
+exits with 0.
 
 ## Development
 

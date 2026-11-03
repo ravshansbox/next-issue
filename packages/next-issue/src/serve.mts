@@ -70,6 +70,19 @@ function alive(pid: number): boolean {
   }
 }
 
+async function holder(lockPath: string): Promise<number | undefined> {
+  const pid = Number((await readFile(lockPath, "utf8").catch(() => "")).trim());
+  return pid > 0 && alive(pid) ? pid : undefined;
+}
+
+export async function stopWorker(lockPath: string): Promise<number | undefined> {
+  const pid = await holder(lockPath);
+  if (pid !== undefined) {
+    process.kill(pid, "SIGTERM");
+  }
+  return pid;
+}
+
 async function lock(path: string): Promise<boolean> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
@@ -79,8 +92,7 @@ async function lock(path: string): Promise<boolean> {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
         throw error;
       }
-      const pid = Number((await readFile(path, "utf8").catch(() => "")).trim());
-      if (pid > 0 && alive(pid)) {
+      if ((await holder(path)) !== undefined) {
         return false;
       }
       await rm(path, { force: true });
