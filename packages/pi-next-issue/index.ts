@@ -29,7 +29,7 @@ const GUIDE = 'Retry with guidance';
 const GIVE_UP = 'Give up';
 const CLOSED = 'the worker closed the connection';
 
-export function formatQuestions(count: number): string {
+function formatQuestions(count: number): string {
   return `${count} ${count === 1 ? 'question' : 'questions'} waiting`;
 }
 

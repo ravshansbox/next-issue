@@ -114,7 +114,7 @@ export function workerPaths(root: string): { socketPath: string; logPath: string
   };
 }
 
-export function checkSocketPath(path: string, platform = process.platform): void {
+function checkSocketPath(path: string, platform = process.platform): void {
   const size = platform === 'linux' ? 108 : 104;
   const length = Buffer.byteLength(path);
   if (length >= size) {
