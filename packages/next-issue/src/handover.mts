@@ -14,7 +14,7 @@ import type { Ports } from './ports.mts';
 import type { Question } from './protocol.mts';
 import { dropState, type IssueState, readState, writeState } from './state.mts';
 
-export const HAND_OVER = 'next-issue needs help:';
+const HAND_OVER = 'next-issue needs help:';
 
 type Writer = (author: string) => Promise<boolean>;
 

@@ -14,7 +14,7 @@ export type Watch = Loop & {
   passEnd: (reports: IssueReport[]) => Promise<void>;
 };
 
-export const BACK_OFF_MINUTES = [1, 2, 3, 5, 10];
+const BACK_OFF_MINUTES = [1, 2, 3, 5, 10];
 
 export type LoopResult = { reports: IssueReport[]; stoppedAt?: number; error?: unknown };
 

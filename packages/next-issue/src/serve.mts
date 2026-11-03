@@ -126,7 +126,7 @@ async function lock(path: string, waitMs: number): Promise<boolean> {
   }
 }
 
-export async function listQuestions(root: string): Promise<Question[]> {
+async function listQuestions(root: string): Promise<Question[]> {
   const config = await loadConfig(root);
   return waitingQuestions(await detectRepo(root, config.remote), config, PORTS);
 }

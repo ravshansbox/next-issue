@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { type ChildProcess, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 
 export type RunResult = {
   code: number;
@@ -79,12 +79,6 @@ function unwatch(pid: number | undefined): void {
   if (groups.size === 0) {
     process.off('SIGTERM', onTerminate);
   }
-}
-
-export function track(child: ChildProcess): void {
-  watch(child.pid);
-  child.on('close', () => unwatch(child.pid));
-  child.on('error', () => unwatch(child.pid));
 }
 
 export function setCommandObserver(next: (record: CommandRecord) => void): void {
