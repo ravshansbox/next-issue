@@ -33,15 +33,13 @@ export function listenForInterrupts(say: (text: string) => void): Interrupts {
           resolve(false);
           return;
         }
-        const timer = setTimeout(() => {
-          wake = undefined;
-          resolve(true);
-        }, ms);
-        wake = () => {
+        const settle = (slept: boolean): void => {
           clearTimeout(timer);
           wake = undefined;
-          resolve(false);
+          resolve(slept);
         };
+        const timer = setTimeout(() => settle(true), ms);
+        wake = () => settle(false);
       }),
   };
 }
