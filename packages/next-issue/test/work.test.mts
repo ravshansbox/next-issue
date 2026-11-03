@@ -886,6 +886,13 @@ test('a check wait that runs out of time hands the issue to a person', async (t)
   assert.equal(report.reason, 'checks timeout');
 });
 
+test('a person who pushes to the pull request during the check wait gets the issue handed over', async (t) => {
+  const target = await harness(t, { checks: ['moved'] });
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'pull request moved');
+});
+
 test('a repository without checks goes straight to the review', async (t) => {
   const target = await harness(t, { checks: ['none'] });
   assert.equal((await target.run()).outcome, 'done');

@@ -25,6 +25,7 @@ function probe(list: Array<'none' | 'some'>, watch: CheckState[]): ChecksProbe &
     },
     watch: async () => watch.shift() ?? 'pass',
     head: async () => '',
+    lags: async () => true,
   };
   return state;
 }
@@ -70,6 +71,7 @@ test('a grace time of zero gives none at once', async () => {
 test('the deadline stops the wait', async () => {
   const time = clock();
   const target: ChecksProbe = {
+    lags: async () => true,
     list: async () => 'some',
     watch: async () => 'pending',
     head: async () => '',
@@ -81,6 +83,7 @@ test('the deadline stops the wait', async () => {
 test('the watch gets only the time that is left', async () => {
   const seen: number[] = [];
   const target: ChecksProbe = {
+    lags: async () => true,
     head: async () => '',
     list: async () => 'some',
     watch: async (timeoutMs) => {
@@ -102,6 +105,7 @@ test('the checks are read only when the pull request shows the pushed commit', a
   const target: ChecksProbe = {
     list: base.list,
     watch: base.watch,
+    lags: async () => true,
     head: async () => heads.shift() ?? 'new',
   };
   const time = clock();
@@ -116,6 +120,7 @@ test('the grace time starts when the pull request shows the pushed commit', asyn
   const target: ChecksProbe = {
     list: base.list,
     watch: base.watch,
+    lags: async () => true,
     head: async () => heads.shift() ?? 'new',
   };
   const time = clock();
@@ -125,16 +130,63 @@ test('the grace time starts when the pull request shows the pushed commit', asyn
 
 test('a pull request that never shows the pushed commit gives timeout', async () => {
   const base = probe(['some'], ['pass']);
-  const target: ChecksProbe = { list: base.list, watch: base.watch, head: async () => 'old' };
+  const target: ChecksProbe = {
+    list: base.list,
+    watch: base.watch,
+    head: async () => 'old',
+    lags: async () => true,
+  };
   const time = clock();
   assert.equal(await pollChecks(target, { ...OPTIONS, head: 'new' }, time), 'timeout');
   assert.equal(base.polls, 0);
   assert.equal(time.time, OPTIONS.timeoutMs);
 });
 
+test('a person who pushes to the pull request during the wait stops the wait with moved', async () => {
+  const heads = ['new', 'new', 'other'];
+  const base = probe(['some'], ['pending', 'pass']);
+  const target: ChecksProbe = {
+    list: base.list,
+    watch: base.watch,
+    lags: async () => true,
+    head: async () => heads.shift() ?? 'other',
+  };
+  const time = clock();
+  assert.equal(await pollChecks(target, { ...OPTIONS, head: 'new' }, time), 'moved');
+  assert.equal(base.polls, 1);
+  assert.equal(time.time, 10_000);
+});
+
+test('a person who pushes to the pull request while the watch runs stops the wait with moved', async () => {
+  const heads = ['new', 'other'];
+  const base = probe(['some'], ['pass']);
+  const target: ChecksProbe = {
+    list: base.list,
+    watch: base.watch,
+    lags: async () => true,
+    head: async () => heads.shift() ?? 'other',
+  };
+  assert.equal(await pollChecks(target, { ...OPTIONS, head: 'new' }, clock()), 'moved');
+});
+
+test('a person who pushes to the pull request before the wait starts stops the wait with moved', async () => {
+  const base = probe(['some'], ['pass']);
+  const target: ChecksProbe = {
+    list: base.list,
+    watch: base.watch,
+    head: async () => 'other',
+    lags: async () => false,
+  };
+  const time = clock();
+  assert.equal(await pollChecks(target, { ...OPTIONS, head: 'new' }, time), 'moved');
+  assert.equal(base.polls, 0);
+  assert.equal(time.time, 0);
+});
+
 test('a check read that fails once is tried again', async () => {
   let calls = 0;
   const target: ChecksProbe = {
+    lags: async () => true,
     head: async () => '',
     list: async () => {
       calls += 1;
@@ -153,6 +205,7 @@ test('a check read that fails once is tried again', async () => {
 test('a check watch that fails once is tried again', async () => {
   let calls = 0;
   const target: ChecksProbe = {
+    lags: async () => true,
     head: async () => '',
     list: async () => 'some',
     watch: async () => {
@@ -170,6 +223,7 @@ test('a check watch that fails once is tried again', async () => {
 
 test('a check read that keeps failing passes the error on', async () => {
   const target: ChecksProbe = {
+    lags: async () => true,
     head: async () => {
       throw new Error('network');
     },

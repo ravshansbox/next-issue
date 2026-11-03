@@ -14,6 +14,7 @@ import {
   ensureIgnored,
   findWorktree,
   HookError,
+  isAncestor,
   isDirty,
   parseRemote,
   push,
@@ -86,6 +87,15 @@ async function clones(): Promise<{ repo: Repo; other: string }> {
   await git(base, 'clone', '-q', remote, root);
   return { repo: { owner: 'acme', name: 'tool', root }, other };
 }
+
+test('a pull request head that lags the pushed commit counts as an ancestor, but a commit someone else pushed does not', async () => {
+  const { repo, other } = await clones();
+  const lagging = await revision(repo.root);
+  const pushed = await commit(repo.root, 'b.txt');
+  const foreign = await commit(other, 'c.txt');
+  assert.equal(await isAncestor(repo.root, lagging, pushed), true);
+  assert.equal(await isAncestor(repo.root, foreign, pushed), false);
+});
 
 test('addWorktree takes a branch that exists only on the remote', async () => {
   const { repo, other } = await clones();

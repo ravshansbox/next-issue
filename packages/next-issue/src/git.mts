@@ -209,6 +209,15 @@ export async function revision(cwd: string): Promise<string> {
   return must('git', ['rev-parse', 'HEAD'], { cwd });
 }
 
+export async function isAncestor(
+  cwd: string,
+  ancestor: string,
+  descendant: string,
+): Promise<boolean> {
+  const result = await run('git', ['merge-base', '--is-ancestor', ancestor, descendant], { cwd });
+  return result.code === 0;
+}
+
 export async function deleteBranch(repo: Repo, branch: string): Promise<boolean> {
   const result = await run('git', ['branch', '-D', branch], { cwd: repo.root });
   return result.code === 0;

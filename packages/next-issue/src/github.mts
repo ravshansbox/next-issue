@@ -1,5 +1,5 @@
 import { must, run, type RunOptions } from './exec.mts';
-import type { Repo } from './git.mts';
+import { isAncestor, type Repo } from './git.mts';
 
 export type Issue = {
   number: number;
@@ -11,7 +11,7 @@ export type Issue = {
 
 export type Kind = 'issue' | 'pr';
 
-export type CheckState = 'pass' | 'fail' | 'pending' | 'none' | 'timeout';
+export type CheckState = 'pass' | 'fail' | 'pending' | 'none' | 'timeout' | 'moved';
 
 const CHECK_PENDING_CODE = 8;
 const READ_TRIES = 3;
@@ -288,6 +288,7 @@ async function watchOnce(
 
 export type ChecksProbe = {
   head: () => Promise<string>;
+  lags: (head: string) => Promise<boolean>;
   list: () => Promise<'none' | 'some'>;
   watch: (timeoutMs: number) => Promise<CheckState>;
 };
@@ -325,6 +326,9 @@ export async function pollChecks(
       return 'timeout';
     }
     const state = await read(probe, options.head, rest(), () => (shown ??= clock.now()));
+    if (state === 'behind' && shown !== undefined) {
+      return 'moved';
+    }
     if (state instanceof Error) {
       failures += 1;
       if (failures >= READ_TRIES) {
@@ -350,14 +354,21 @@ async function read(
   shown: () => void,
 ): Promise<CheckState | 'none' | 'behind' | Error> {
   try {
-    if (head !== undefined && (await probe.head()) !== head) {
-      return 'behind';
+    if (head !== undefined) {
+      const current = await probe.head();
+      if (current !== head) {
+        return (await probe.lags(current)) ? 'behind' : 'moved';
+      }
     }
     shown();
     if ((await probe.list()) === 'none') {
       return 'none';
     }
-    return await probe.watch(timeoutMs);
+    const state = await probe.watch(timeoutMs);
+    if (head !== undefined && (await probe.head()) !== head) {
+      return 'moved';
+    }
+    return state;
   } catch (error) {
     return error instanceof Error ? error : new Error(String(error));
   }
@@ -367,6 +378,10 @@ export function waitForChecks(repo: Repo, pr: number, options: WaitOptions): Pro
   return pollChecks(
     {
       head: () => prHead(repo, pr),
+      lags: (head) =>
+        options.head === undefined
+          ? Promise.resolve(true)
+          : isAncestor(repo.root, head, options.head),
       list: async () => ((await readChecks(repo, pr)) === 'none' ? 'none' : 'some'),
       watch: (timeoutMs) => watchOnce(repo, pr, options.intervalSeconds, timeoutMs, options.show),
     },
@@ -417,6 +432,7 @@ export function waitForBaseChecks(
   return pollChecks(
     {
       head: async () => sha,
+      lags: async () => true,
       list: async () => ((await baseRuns(repo, sha)).length === 0 ? 'none' : 'some'),
       watch: async () => baseState(await baseRuns(repo, sha)),
     },
