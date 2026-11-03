@@ -450,6 +450,19 @@ test('mergeCommit gives no merge commit when the pull request closes without a m
   assert.equal(await callsOf(dir, 'pr view'), 1);
 });
 
+test('prConflicts waits while GitHub still works out mergeability and reports the conflict it then finds', async (t) => {
+  const dir = await fakeMergeGh(t, ['UNKNOWN', 'UNKNOWN', 'CONFLICTING']);
+  const repo = { owner: 'acme', name: 'unknown', root: dir };
+  assert.equal(await prConflicts(repo, 5, MERGE_OPTIONS, fakeClock()), true);
+  assert.equal(await callsOf(dir, 'pr view'), 3);
+});
+
+test('prConflicts reports no conflict when mergeability stays unknown past the timeout', async (t) => {
+  const dir = await fakeMergeGh(t, ['UNKNOWN']);
+  const repo = { owner: 'acme', name: 'stuck', root: dir };
+  assert.equal(await prConflicts(repo, 5, MERGE_OPTIONS, fakeClock()), false);
+});
+
 test('a user with a ready issue newer than the issue limit gets it listed', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
   const script = `#!/bin/sh
@@ -509,7 +522,7 @@ test('the worker passes gh the repository and the issue or pull request number i
   await markPrReady(repo, 42);
   await mergePr(repo, 42);
   await prMerged(repo, 42);
-  await prConflicts(repo, 42);
+  await prConflicts(repo, 42, MERGE_OPTIONS);
   await reopenIssue(repo, 7);
   assert.deepEqual(seen, [
     ['repo', 'view', 'acme/tool', '--json', 'defaultBranchRef'],

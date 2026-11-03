@@ -489,7 +489,13 @@ async function checkGate(job: Run): Promise<Gate> {
     await escalate(job, 'The checks did not finish in time.');
     return { done: true, report: await finish(job, 'needs-human', 'checks timeout') };
   }
-  if (checks === 'none' && (await ports.prConflicts(repo, state.pr!))) {
+  if (
+    checks === 'none' &&
+    (await ports.prConflicts(repo, state.pr!, {
+      intervalSeconds: config.checkIntervalSeconds,
+      timeoutMs: config.checkTimeoutMinutes * 60_000,
+    }))
+  ) {
     await escalate(job, 'The pull request conflicts with its base, so no checks ran.');
     return { done: true, report: await finish(job, 'needs-human', 'merge conflict') };
   }

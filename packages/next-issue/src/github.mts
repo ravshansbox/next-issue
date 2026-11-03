@@ -475,12 +475,23 @@ export async function mergePr(repo: Repo, pr: number): Promise<boolean> {
   return result.code === 0;
 }
 
-export async function prConflicts(repo: Repo, pr: number): Promise<boolean> {
-  return (
-    (
+export async function prConflicts(
+  repo: Repo,
+  pr: number,
+  options: { intervalSeconds: number; timeoutMs: number },
+  clock: Clock = REAL_CLOCK,
+): Promise<boolean> {
+  const deadline = clock.now() + options.timeoutMs;
+  for (;;) {
+    const mergeable = (
       await gh(repo, ['pr', 'view', String(pr), '--json', 'mergeable', '--jq', '.mergeable'])
-    ).trim() === 'CONFLICTING'
-  );
+    ).trim();
+    const rest = deadline - clock.now();
+    if (mergeable !== 'UNKNOWN' || rest <= 0) {
+      return mergeable === 'CONFLICTING';
+    }
+    await clock.sleep(Math.min(options.intervalSeconds * 1000, rest));
+  }
 }
 
 export async function prMerged(repo: Repo, pr: number): Promise<boolean> {
