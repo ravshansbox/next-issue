@@ -122,20 +122,21 @@ the run handles one issue. For each issue:
     base. A conflict starts the merge of the base from step 6, and the run
     goes to step 6 again. With no conflict, the harness squash-merges the pull
     request, deletes the remote branch, waits until the pull request is merged,
-    for example through a merge queue, and then waits for the checks that the merge commit starts on
-    the base branch. A cancelled run there is no failure. When those checks
-    fail, the fixer gets their logs on a branch reset to the base branch, from
-    the check budget, and the harness force-pushes the fix, reopens the issue
-    and opens a new pull request that goes to step 6 again, with fresh review
-    rounds. The next issue waits for this, and a second ctrl-c stops only after
-    it. The worktree, the local branch and the state file go away. A resume
-    whose pull request is already merged goes straight to the wait for the
-    checks on the base branch, and opens no new pull request. A resume that
-    stopped inside the fix of the base branch carries on with that fix, and
-    uses no more of the check budget. Without `--merge`, the remote branch
-    stays, and a resume whose pull request a person merged sets
-    `status:done` and waits for no check. A problem that the reviewer leaves out
-    of the findings thus gets an approval: only the findings count.
+    for example through a merge queue, and then waits for the checks that the
+    merge commit starts on the base branch. A cancelled run there is no
+    failure. When those checks fail, the fixer gets their logs on a branch
+    reset to the base branch, from the check budget, and the harness
+    force-pushes the fix, reopens the issue and opens a new pull request that
+    goes to step 6 again, with fresh review rounds. The next issue waits for
+    this, and a second ctrl-c stops only after it. The worktree, the local
+    branch and the state file go away. A resume whose pull request is already
+    merged goes straight to the wait for the checks on the base branch, and
+    opens no new pull request. A resume that stopped inside the fix of the
+    base branch carries on with that fix, and uses no more of the check
+    budget. Without `--merge`, the remote branch stays, and a resume whose
+    pull request a person merged sets `status:done` and waits for no check. A
+    problem that the reviewer leaves out of the findings thus gets an
+    approval: only the findings count.
 11. With an open finding, run the fixer agent and go to step 6 again. The
     budget is `maxReviewRounds`. A fixer that holds every finding to be wrong
     changes nothing and gives its reason instead. The reason goes on the pull
