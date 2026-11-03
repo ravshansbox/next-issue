@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Args } from './args.mts';
-import { type Config, loadConfig } from './config.mts';
+import { type Config, loadConfig, minutesToMs } from './config.mts';
 import { setCommandObserver, withDefaultTimeout } from './exec.mts';
 import { detectRepo, type Repo } from './git.mts';
 import { defaultBranch } from './github.mts';
@@ -42,7 +42,7 @@ export function recordCommands<T>(recorder: Recorder, work: () => Promise<T>): P
 
 export async function runRepo(root: string, args: Args, controls: RunControls): Promise<number> {
   const config = await loadConfig(root);
-  return withDefaultTimeout(config.commandTimeoutMinutes * 60_000, () =>
+  return withDefaultTimeout(minutesToMs(config.commandTimeoutMinutes), () =>
     runWithConfig(root, args, controls, config),
   );
 }
@@ -110,7 +110,7 @@ async function handle(
         wait: (minutes) => {
           recorder.event('watch.wait', { minutes }, 'quiet');
           passStart = recorder.summary();
-          return interrupts.sleep(minutes * 60_000);
+          return interrupts.sleep(minutesToMs(minutes));
         },
         passEnd: (issues) => print({ ...recorder.summary(passStart), issues }),
       })

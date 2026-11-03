@@ -217,3 +217,7 @@ export function managedLabels(config: Config): string[] {
     config.labels.needsHuman,
   ];
 }
+
+export function minutesToMs(minutes: number): number {
+  return minutes * 60_000;
+}

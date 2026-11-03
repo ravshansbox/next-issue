@@ -1,5 +1,5 @@
 import { CODING } from './agents.mts';
-import type { Config } from './config.mts';
+import { type Config, minutesToMs } from './config.mts';
 import { commitWork } from './fix.mts';
 import { checkGate } from './gate.mts';
 import { branchName } from './git.mts';
@@ -226,7 +226,7 @@ async function work(
     const setup = await log.step(
       'setup',
       { cmd: setupCommand, found: config.setupCommand === undefined },
-      () => ports.runSetup(setupCommand, worktree, config.setupTimeoutMinutes * 60_000),
+      () => ports.runSetup(setupCommand, worktree, minutesToMs(config.setupTimeoutMinutes)),
     );
     if (setup.code !== 0) {
       const late = setup.timedOut === true;

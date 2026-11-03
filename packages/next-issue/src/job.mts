@@ -1,5 +1,5 @@
 import type { AgentResult, Profile } from './agents.mts';
-import { type Config, managedLabels } from './config.mts';
+import { type Config, managedLabels, minutesToMs } from './config.mts';
 import type { Repo } from './git.mts';
 import type { Issue, Polling } from './github.mts';
 import type { Recorder } from './observe.mts';
@@ -62,14 +62,14 @@ export function runRole(
     prompt,
     profile,
     model: config.models[role],
-    timeoutMs: config.agentTimeoutMinutes * 60_000,
+    timeoutMs: minutesToMs(config.agentTimeoutMinutes),
   });
 }
 
 export function checkPolling(config: Config): Polling {
   return {
     intervalSeconds: config.checkIntervalSeconds,
-    timeoutMs: config.checkTimeoutMinutes * 60_000,
+    timeoutMs: minutesToMs(config.checkTimeoutMinutes),
   };
 }
 
