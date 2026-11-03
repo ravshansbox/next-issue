@@ -60,6 +60,11 @@ async function ghRun(repo: Repo, args: string[], options: RunOptions = {}): Prom
   return run('gh', [...args, '--repo', slug(repo)], { ...options, cwd: repo.root });
 }
 
+async function ghSucceeds(repo: Repo, args: string[]): Promise<boolean> {
+  const result = await ghRun(repo, args);
+  return result.code === 0;
+}
+
 export async function defaultBranch(repo: Repo): Promise<string> {
   const raw = await repeatable(repo, ['repo', 'view', slug(repo), '--json', 'defaultBranchRef']);
   return JSON.parse(raw).defaultBranchRef.name as string;
@@ -526,13 +531,11 @@ async function runLogs(
 }
 
 export async function markPrReady(repo: Repo, pr: number): Promise<boolean> {
-  const result = await ghRun(repo, ['pr', 'ready', String(pr)]);
-  return result.code === 0;
+  return ghSucceeds(repo, ['pr', 'ready', String(pr)]);
 }
 
 export async function mergePr(repo: Repo, pr: number): Promise<boolean> {
-  const result = await ghRun(repo, ['pr', 'merge', String(pr), '--squash', '--delete-branch']);
-  return result.code === 0;
+  return ghSucceeds(repo, ['pr', 'merge', String(pr), '--squash', '--delete-branch']);
 }
 
 export async function prConflicts(
