@@ -21,11 +21,12 @@ The footer shows the issue, the stage, the number of tool calls and the time spe
 
 The package ships the `create-issue` skill. Ask pi to write an issue, or run `/skill:create-issue <problem>`. Pi then:
 
-1. restates the problem and reads the code when the problem touches it;
+1. restates the problem, reads the code when the problem touches it, and finds the open issues that must be done first;
 2. asks numbered questions until none is open;
-3. shows the title and the body, and asks once whether to create the issue and start a run;
+3. shows the title, the body and those blockers, and asks once whether to create the issue and start a run;
 4. runs `gh issue create --body-file` with the body from [`template.md`](skills/create-issue/template.md) and the `status:todo` label;
-5. calls `next_issue_start` when you asked for a run.
+5. links each blocker with `gh issue edit --add-blocked-by`, so the worker waits for it;
+6. calls `next_issue_start` when you asked for a run.
 
 Pi does not implement the issue in that session. The worker does the work. The body holds the sections of the [issue format](../next-issue/README.md#issue-format).
 
