@@ -157,14 +157,13 @@ export async function finish(job: Run, outcome: Outcome, reason?: string): Promi
 }
 
 export async function cleanUp(context: Context, log: Recorder, branch: string): Promise<void> {
+  const { repo, ports } = context;
   try {
-    const path = await context.ports.findWorktree(context.repo, branch);
+    const path = await ports.findWorktree(repo, branch);
     if (path === undefined) {
       return;
     }
-    if (
-      !(await oneAtATime(context.repo.root, () => context.ports.removeWorktree(context.repo, path)))
-    ) {
+    if (!(await oneAtATime(repo.root, () => ports.removeWorktree(repo, path)))) {
       log.event('worktree.kept', { path }, 'quiet');
     }
   } catch (error) {
@@ -179,14 +178,15 @@ export async function handOver(
   state: IssueState,
   reason: string,
 ): Promise<void> {
+  const { repo, ports, config } = context;
   log.event('hand-over', { reason }, 'quiet');
-  await writeState(context.repo, { ...state, handedOver: true });
-  await setStatus(context, issue, state.pr, context.config.labels.needsHuman);
+  await writeState(repo, { ...state, handedOver: true });
+  await setStatus(context, issue, state.pr, config.labels.needsHuman);
   const body = `${HAND_OVER} ${reason}`;
   if (state.pr === undefined) {
-    await context.ports.commentOnIssue(context.repo, issue, body);
+    await ports.commentOnIssue(repo, issue, body);
   } else {
-    await context.ports.commentOnPr(context.repo, state.pr, body);
+    await ports.commentOnPr(repo, state.pr, body);
   }
 }
 
