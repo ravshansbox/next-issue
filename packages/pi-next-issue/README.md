@@ -36,10 +36,12 @@ The package ships the `create-issue` skill. Ask pi to write an issue, or run `/s
 
 1. restates the problem, reads the code when the problem touches it, and finds the open issues that must be done first;
 2. asks numbered questions until none is open;
-3. shows the title, the body and those blockers, and asks once whether to create the issue and start a run;
-4. runs `gh issue create --body-file` with the body from [`template.md`](skills/create-issue/template.md) and the `status:todo` label;
-5. links each blocker with `gh issue edit --add-blocked-by`, so the worker waits for it;
+3. runs `gh issue create --body-file` with the body from [`template.md`](skills/create-issue/template.md) and the `status:todo` label, without showing the body first;
+4. links each blocker with `gh issue edit --add-blocked-by`, so the worker waits for it;
+5. gives you the issue url and asks once whether to start a run, leave it or change it, and changes it with `gh issue edit --body-file` or `--title` until you start a run or leave it;
 6. calls `next_issue_start` when you asked for a run.
+
+The issue gets `status:todo` when it is created, so a run that is already going may claim it before you review it.
 
 Pi does not implement the issue in that session. The worker does the work. The body holds the sections of the [issue format](../next-issue/README.md#issue-format).
 
