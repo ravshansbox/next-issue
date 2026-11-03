@@ -125,6 +125,29 @@ test('a user who starts issue 3 afresh gets the base branch instead of a stale l
   assert.equal(await git(path, 'branch', '--show-current'), '3');
 });
 
+test('a user who starts issue 3 afresh gets the remote branch 3 instead of a stale local branch 3', async () => {
+  const { repo, other } = await clones();
+  await git(repo.root, 'checkout', '-q', '-b', '3');
+  await commit(repo.root, 'stale.txt');
+  await git(repo.root, 'checkout', '-q', 'main');
+  await git(other, 'checkout', '-q', '-b', '3');
+  const pushed = await commit(other, 'b.txt');
+  await git(other, 'push', '-q', 'origin', '3');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', true);
+  assert.equal(await revision(path), pushed);
+});
+
+test('a user who starts issue 3 afresh while a stale worktree holds branch 3 gets the base branch in it', async () => {
+  const { repo } = await clones();
+  const old = join(repo.root, '..', 'tool-issue-3');
+  await git(repo.root, 'worktree', 'add', '-q', '-b', '3', old, 'origin/main');
+  await commit(old, 'stale.txt');
+  await writeFile(join(old, 'scratch.txt'), 'scratch\n');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', true);
+  assert.equal(await revision(path), await git(repo.root, 'rev-parse', 'origin/main'));
+  assert.equal(await isDirty(path), false);
+});
+
 test('a user who resumes issue 3 keeps the work on local branch 3', async () => {
   const { repo } = await clones();
   await git(repo.root, 'checkout', '-q', '-b', '3');

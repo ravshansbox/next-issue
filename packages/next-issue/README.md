@@ -31,10 +31,11 @@ and exits with code 1. For each issue:
    holds that branch already stays in use. A branch that exists on the
    remote is the start, and a local branch that fell behind the remote is
    fast-forwarded. An issue with no saved state does not reuse a local
-   `<n>` branch: it resets that branch to the remote branch, or to the remote
-   base when there is none. A fast-forward of the base that is not safe leaves the
-   local base branch as it is and writes a `base.behind` event. A new branch
-   then starts from the remote base.
+   `<n>` branch: it resets that branch, and any worktree that holds it, to
+   the remote branch, or to the remote base when there is none. A
+   fast-forward of the base that is not safe leaves the local base branch as
+   it is and writes a `base.behind` event. A new branch then starts from the
+   remote base.
 4. Let the implementer agent do the work, then commit and push. When a git
    hook stops a commit, the agent that made the change gets the hook output,
    fixes it, and the harness commits again. A `commit:` line in the reply of
