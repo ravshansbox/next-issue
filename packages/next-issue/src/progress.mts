@@ -37,6 +37,10 @@ function stageOf(step: string, record: Fields): string {
   return typeof limit === 'number' ? `${name} ${round}/${limit}` : `${name} ${round}`;
 }
 
+function without(issues: IssueProgress[], issue: number): IssueProgress[] {
+  return issues.filter((current) => current.issue !== issue);
+}
+
 function change(
   progress: Progress,
   issue: number,
@@ -60,8 +64,7 @@ export function applyEvent(progress: Progress, record: Fields): Progress {
     if (typeof record['title'] === 'string') {
       next.title = record['title'];
     }
-    const others = progress.issues.filter((current) => current.issue !== issue);
-    return { ...progress, issues: [...others, next] };
+    return { ...progress, issues: [...without(progress.issues, issue), next] };
   }
   if (kind === 'tool') {
     return change(progress, issue, (current) => ({
@@ -79,8 +82,7 @@ export function applyEvent(progress: Progress, record: Fields): Progress {
       !repeated && (outcome === 'done' || outcome === 'needs-human' || outcome === 'error')
         ? [...progress.handled, { issue, outcome }]
         : progress.handled;
-    const issues = progress.issues.filter((current) => current.issue !== issue);
-    return { ...progress, issues, handled };
+    return { ...progress, issues: without(progress.issues, issue), handled };
   }
   if (kind === 'issues') {
     return { ...progress, open: Number(record['open']) };
