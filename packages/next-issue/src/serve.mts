@@ -53,6 +53,10 @@ type Run = {
   wake?: () => void;
 };
 
+function active(run: Run | undefined): boolean {
+  return run?.progress.status === 'running' || run?.progress.status === 'stopping';
+}
+
 export function workerPaths(root: string): { socketPath: string; lockPath: string } {
   return {
     socketPath: join(root, STATE_DIR, 'worker.sock'),
@@ -175,10 +179,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       }
     }
   };
-  const busy = (): boolean =>
-    [...runs.values()].some(
-      (run) => run.progress.status === 'running' || run.progress.status === 'stopping',
-    );
+  const busy = (): boolean => [...runs.values()].some(active);
 
   let closing: Promise<void> | undefined;
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -203,8 +204,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   };
 
   const start = (socket: WebSocket, root: string, merge: boolean): void => {
-    const current = runs.get(root);
-    if (current?.progress.status === 'running' || current?.progress.status === 'stopping') {
+    if (active(runs.get(root))) {
       send(socket, { type: 'error', root, message: 'a run is going in this repository already' });
       return;
     }
