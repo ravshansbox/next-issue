@@ -6,6 +6,7 @@ export type Loop = {
   issues: () => Promise<Issue[]>;
   process: (issue: Issue) => Promise<IssueReport>;
   stop: () => boolean;
+  concurrency?: number;
 };
 
 export type Watch = Loop & {
@@ -22,29 +23,65 @@ export async function runIssues(
   loop: Loop,
   seen = new Set<number>(),
 ): Promise<LoopResult> {
+  const limit = args.once ? Math.min(1, args.max ?? 1) : args.max;
+  const concurrency = loop.concurrency ?? 1;
   const reports: IssueReport[] = [];
-  while (args.max === undefined || handled(reports) < args.max) {
-    let issues: Issue[];
-    try {
-      issues = await loop.issues();
-    } catch (error) {
-      return { reports, error };
+  const running = new Map<
+    number,
+    Promise<{ issue: number; report?: IssueReport; failure?: unknown }>
+  >();
+  let stoppedAt: number | undefined;
+  let error: unknown;
+  let crash: { failure: unknown } | undefined;
+  let claiming = true;
+  const room = (): boolean =>
+    running.size < concurrency && (limit === undefined || handled(reports) + running.size < limit);
+  for (;;) {
+    if (claiming && room()) {
+      try {
+        const issues = await loop.issues();
+        for (const issue of issues.filter((candidate) => !seen.has(candidate.number))) {
+          if (!room()) {
+            break;
+          }
+          seen.add(issue.number);
+          running.set(
+            issue.number,
+            loop.process(issue).then(
+              (report) => ({ issue: issue.number, report }),
+              (failure: unknown) => ({ issue: issue.number, failure }),
+            ),
+          );
+        }
+      } catch (failure) {
+        error = failure;
+        claiming = false;
+      }
     }
-    const issue = issues.find((candidate) => !seen.has(candidate.number));
-    if (issue === undefined) {
+    if (running.size === 0) {
       break;
     }
-    seen.add(issue.number);
-    const report = await loop.process(issue);
+    const { issue, report, failure } = await Promise.race(running.values());
+    running.delete(issue);
+    if (report === undefined) {
+      crash ??= { failure };
+      claiming = false;
+      continue;
+    }
     reports.push(report);
-    if (loop.stop() || report.halt === true) {
-      return { reports, stoppedAt: issue.number };
-    }
-    if (args.once && report.outcome !== 'skipped') {
-      break;
+    if (claiming && (loop.stop() || report.halt === true)) {
+      stoppedAt = issue;
+      claiming = false;
     }
   }
-  return { reports };
+  if (crash !== undefined) {
+    throw crash.failure;
+  }
+  return {
+    reports,
+    ...(stoppedAt === undefined ? {} : { stoppedAt }),
+    ...(error === undefined ? {} : { error }),
+  };
 }
 
 export async function watchIssues(

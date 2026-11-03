@@ -48,6 +48,17 @@ export type Gate = { done: true; report: IssueReport } | { done: false; fixed: b
 
 export type Round = { done: true; report: IssueReport } | { done: false };
 
+const worktreeQueues = new Map<string, Promise<unknown>>();
+
+export function oneAtATime<T>(root: string, work: () => Promise<T>): Promise<T> {
+  const result = (worktreeQueues.get(root) ?? Promise.resolve()).then(work);
+  worktreeQueues.set(
+    root,
+    result.catch(() => undefined),
+  );
+  return result;
+}
+
 export async function openPr(job: Run): Promise<void> {
   const { context, issue, log, state, branch } = job;
   const { repo, config, ports } = context;

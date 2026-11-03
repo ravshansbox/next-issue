@@ -1,7 +1,14 @@
 import type { Config } from './config.mts';
 import type { Repo } from './git.mts';
 import type { Comment, Issue } from './github.mts';
-import { type Context, type IssueReport, type Outcome, type Run, setStatus } from './job.mts';
+import {
+  type Context,
+  type IssueReport,
+  type Outcome,
+  oneAtATime,
+  type Run,
+  setStatus,
+} from './job.mts';
 import { message, type Recorder } from './observe.mts';
 import type { Ports } from './ports.mts';
 import type { Question } from './protocol.mts';
@@ -118,7 +125,7 @@ export async function finish(job: Run, outcome: Outcome, reason?: string): Promi
   await cleanUp(context, log, branch);
   if (outcome === 'done') {
     for (const name of [branch, ...(await ports.disputeBranches(repo, branch))]) {
-      if (!(await ports.deleteBranch(repo, name))) {
+      if (!(await oneAtATime(repo.root, () => ports.deleteBranch(repo, name)))) {
         log.event('branch.kept', { branch: name }, 'quiet');
       }
     }
@@ -142,7 +149,9 @@ export async function cleanUp(context: Context, log: Recorder, branch: string): 
     if (path === undefined) {
       return;
     }
-    if (!(await context.ports.removeWorktree(context.repo, path))) {
+    if (
+      !(await oneAtATime(context.repo.root, () => context.ports.removeWorktree(context.repo, path)))
+    ) {
       log.event('worktree.kept', { path }, 'quiet');
     }
   } catch (error) {

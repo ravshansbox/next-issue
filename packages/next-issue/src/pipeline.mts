@@ -14,7 +14,7 @@ import {
   stop,
   writerComments,
 } from './handover.mts';
-import { type Context, type IssueReport, openPr, type Run, setStatus } from './job.mts';
+import { type Context, type IssueReport, oneAtATime, openPr, type Run, setStatus } from './job.mts';
 import { afterMerge, fixBase } from './merge.mts';
 import { message, type Recorder } from './observe.mts';
 import { implementPrompt, parseCommitSubject } from './prompts.mts';
@@ -188,7 +188,9 @@ async function work(
     ? await log.step('reply', {}, () => handOverReply(context, issue.number, state.pr))
     : [];
   const added = await log.step('worktree', { branch }, () =>
-    ports.addWorktree(repo, issue.number, branch, context.base, config.remote, start),
+    oneAtATime(repo.root, () =>
+      ports.addWorktree(repo, issue.number, branch, context.base, config.remote, start),
+    ),
   );
   const worktree = added.path;
   if (!added.baseUpdated) {

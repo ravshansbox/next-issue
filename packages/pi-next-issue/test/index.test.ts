@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 import { createExtension, formatStatus } from '../index.ts';
 import { type Progress, type Question, WorkerClient } from '../src/worker.ts';
-import { type FakeWorker, running, socketPath, startFakeWorker, until } from './fake-worker.ts';
+import {
+  type FakeWorker,
+  running,
+  socketPath,
+  startFakeWorker,
+  until,
+  working,
+} from './fake-worker.ts';
 
 type Handler = (event: unknown, ctx: unknown) => unknown;
 type ToolResult = {
@@ -181,7 +188,7 @@ test('a model that calls next_issue_start with no worker going starts one, asks 
 test('a model that calls next_issue_start while a run is going starts nothing and reports the current run', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
-  fake.runs['/repo'] = running({ issue: 7, stage: 'implement', tools: 3 });
+  fake.runs['/repo'] = running({ issues: [working(7, { stage: 'implement', tools: 3 })] });
   const { pi, emit, start } = host();
   extension(pi as never);
   await emit('session_start');
@@ -253,11 +260,9 @@ test('a model that calls next_issue_start outside a git repository gets the erro
 test('a model that calls next_issue_status sees the run of this repository and each handled issue with its outcome', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
-  fake.runs['/other'] = running({ issue: 3, stage: 'review 1', tools: 9 });
+  fake.runs['/other'] = running({ issues: [working(3, { stage: 'review 1', tools: 9 })] });
   fake.runs['/repo'] = running({
-    issue: 191,
-    stage: 'implement',
-    tools: 12,
+    issues: [working(191, { stage: 'implement', tools: 12 })],
     handled: [
       { issue: 190, outcome: 'done' },
       { issue: 189, outcome: 'needs-human' },
@@ -276,7 +281,7 @@ test('a model that calls next_issue_status sees the run of this repository and e
 test('a model that calls next_issue_status while the worker has no run of this repository is told so', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
-  fake.runs['/other'] = running({ issue: 3 });
+  fake.runs['/other'] = running({ issues: [working(3)] });
   const { pi, emit, report } = host();
   extension(pi as never);
   await emit('session_start');
@@ -318,15 +323,18 @@ test('a user sees the run of this repository in the footer in the dim colour of 
   const { pi, emit, painted, widgets } = host();
   extension(pi as never);
   await emit('session_start');
-  fake.update('/other', running({ issue: 1 }));
+  fake.update('/other', running({ issues: [working(1)] }));
   fake.update(
     '/repo',
     running({
-      issue: 7,
-      stage: 'implement',
-      tools: 1,
-      lastTool: 'bash npm test',
-      issueStartedAt: Date.now(),
+      issues: [
+        working(7, {
+          stage: 'implement',
+          tools: 1,
+          lastTool: 'bash npm test',
+          startedAt: Date.now(),
+        }),
+      ],
     }),
   );
   await until(() => painted.at(-1)?.includes('#7') === true);
@@ -340,7 +348,10 @@ test('a user of an rpc client sees the footer status without colour codes', asyn
   const { pi, emit, painted } = host('rpc');
   extension(pi as never);
   await emit('session_start');
-  fake.update('/repo', running({ issue: 7, stage: 'review 1', tools: 3, lastTool: 'read a.ts' }));
+  fake.update(
+    '/repo',
+    running({ issues: [working(7, { stage: 'review 1', tools: 3, lastTool: 'read a.ts' })] }),
+  );
   await until(() => painted.at(-1) === 'next-issue #7 · review 1 · 3 tools');
 });
 
@@ -350,12 +361,12 @@ test('a user sees a note per handled issue and a note when the run finishes, wit
   const { pi, emit, notes, status } = host();
   extension(pi as never);
   await emit('session_start');
-  fake.update('/repo', running({ issue: 7 }));
+  fake.update('/repo', running({ issues: [working(7)] }));
   await until(() => status.length > 0);
   fake.update('/repo', running({ handled: [{ issue: 7, outcome: 'done' }] }));
   fake.update('/repo', {
     status: 'finished',
-    tools: 0,
+    issues: [],
     handled: [
       { issue: 7, outcome: 'done' },
       { issue: 8, outcome: 'needs-human' },
@@ -375,7 +386,7 @@ test('a user who opens pi after a run has finished sees its summary in the foote
   const fake = await worker(path);
   fake.runs['/repo'] = {
     status: 'finished',
-    tools: 0,
+    issues: [],
     handled: [{ issue: 8, outcome: 'needs-human' }],
   };
   const { pi, emit, notes, status } = host();
@@ -389,7 +400,7 @@ test('a user who opens pi after a run has finished sees its summary in the foote
 test('a user who runs /next-issue while a run is going asks the worker to stop it', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
-  fake.runs['/repo'] = running({ issue: 7 });
+  fake.runs['/repo'] = running({ issues: [working(7)] });
   const { pi, emit, command } = host();
   extension(pi as never);
   await emit('session_start');
@@ -401,7 +412,7 @@ test('a user who runs /next-issue while a run is going asks the worker to stop i
 test('a user who runs /next-issue after a run has stopped starts a new run', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
-  fake.runs['/repo'] = { status: 'stopped', tools: 0, handled: [] };
+  fake.runs['/repo'] = { status: 'stopped', issues: [], handled: [] };
   const { pi, emit, command } = host();
   extension(pi as never);
   await emit('session_start');
@@ -428,7 +439,7 @@ test('a user who quits pi leaves the run going', async () => {
 test('a user in a second pi sees the run that the first pi started', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
-  fake.runs['/repo'] = running({ issue: 9, stage: 'checks' });
+  fake.runs['/repo'] = running({ issues: [working(9, { stage: 'checks' })] });
   const { pi, emit, status } = host();
   extension(pi as never);
   await emit('session_start');
@@ -496,16 +507,30 @@ test('a user with a newer extension gets a new worker once the old idle worker c
 const now = 1_000_000;
 
 function progress(fields: Partial<Progress>): Progress {
-  return { status: 'running', tools: 0, handled: [], ...fields };
+  return { status: 'running', issues: [], handled: [], ...fields };
 }
 
-test('a user sees the issue, the stage, the tool count and the time spent in the footer', () => {
+test('a user sees each running issue with its stage, tool count and time spent in the footer', () => {
   assert.equal(
     formatStatus(
-      progress({ issue: 12, stage: 'review 1', tools: 37, issueStartedAt: now - 252_000 }),
+      progress({
+        issues: [working(12, { stage: 'review 1', tools: 37, startedAt: now - 252_000 })],
+      }),
       now,
     ),
     'next-issue #12 · review 1 · 37 tools · 4m12s',
+  );
+  assert.equal(
+    formatStatus(
+      progress({
+        issues: [
+          working(12, { stage: 'review 1', tools: 37, startedAt: now - 252_000 }),
+          working(13, { tools: 2, startedAt: now - 40_000 }),
+        ],
+      }),
+      now,
+    ),
+    'next-issue #12 · review 1 · 37 tools · 4m12s | #13 · prepare · 2 tools · 40s',
   );
   assert.equal(formatStatus(progress({}), now), 'next-issue · looking for issues');
 });
@@ -522,8 +547,17 @@ test('a user sees a finished or stopped run summed up by outcome in the footer',
   );
   assert.equal(formatStatus(progress({ status: 'stopped' }), now), 'next-issue · stopped: 0 done');
   assert.equal(
-    formatStatus(progress({ status: 'stopping', issue: 4 }), now),
+    formatStatus(progress({ status: 'stopping', issues: [working(4)] }), now),
     'next-issue #4 · stopping',
+  );
+});
+
+test('a user whose older worker sends progress without running issues sees the footer without an error', () => {
+  const { issues: _issues, ...older } = progress({});
+  assert.equal(formatStatus(older as Progress, now), 'next-issue · looking for issues');
+  assert.equal(
+    formatStatus({ ...older, status: 'stopping' } as Progress, now),
+    'next-issue #? · stopping',
   );
 });
 

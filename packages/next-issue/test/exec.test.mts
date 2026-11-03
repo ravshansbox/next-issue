@@ -165,12 +165,12 @@ function alive(pid: number): boolean {
   }
 }
 
-test('a user who presses Ctrl-C once is told the run stops after the issue, and the command runs on', async (t) => {
+test('a user who presses Ctrl-C once is told the run stops after the running issues, and the command runs on', async (t) => {
   const { harness, pid, line } = await interrupted(t);
   harness.kill('SIGINT');
   assert.equal(
     await line(1),
-    'Stopping after this issue. Press Ctrl-C again to stop after this round. true false',
+    'Stopping after the running issues. Press Ctrl-C again to stop after the current round. true false',
   );
   assert.equal(alive(pid), true);
   assert.equal(harness.exitCode, null);
@@ -183,7 +183,7 @@ test('a user who presses Ctrl-C twice is told the run stops after the round, and
   harness.kill('SIGINT');
   assert.equal(
     await line(2),
-    'Stopping after this round. Press Ctrl-C again to stop now. true true',
+    'Stopping after the current round. Press Ctrl-C again to stop now. true true',
   );
   assert.equal(alive(pid), true);
   assert.equal(await stopped(), false);
