@@ -27,6 +27,7 @@ const QUESTIONS_MS = 60_000;
 const RETRY = 'Retry';
 const GUIDE = 'Retry with guidance';
 const GIVE_UP = 'Give up';
+const CLOSED = 'the worker closed the connection';
 
 export function formatQuestions(count: number): string {
   return `${count} ${count === 1 ? 'question' : 'questions'} waiting`;
@@ -301,7 +302,7 @@ export function createExtension(options: Options) {
           if (event.type === 'error' && event.root === root) {
             finish(new Error(event.message));
           } else if (event.type === 'closed') {
-            finish(new Error('the worker closed the connection'));
+            finish(new Error(CLOSED));
           } else if (event.type === 'runs' && going(event.runs[root])) {
             finish();
           }
@@ -378,15 +379,20 @@ export function createExtension(options: Options) {
       new Promise<Question[]>((resolve, reject) => {
         const id = randomUUID();
         const stop = client.subscribe((event) => {
-          if (event.type === 'questions' && event.root === root && event.id === id) {
+          if (event.type === 'closed') {
             stop();
-            resolve(event.questions);
-          } else if (event.type === 'questions-error' && event.root === root && event.id === id) {
+            reject(new Error(CLOSED));
+          } else if (
+            (event.type === 'questions' || event.type === 'questions-error') &&
+            event.root === root &&
+            event.id === id
+          ) {
             stop();
-            reject(new Error(event.message));
-          } else if (event.type === 'closed') {
-            stop();
-            reject(new Error('the worker closed the connection'));
+            if (event.type === 'questions') {
+              resolve(event.questions);
+            } else {
+              reject(new Error(event.message));
+            }
           }
         });
         client.send({ type: 'questions', root, id });
