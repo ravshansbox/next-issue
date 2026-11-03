@@ -68,12 +68,13 @@ function outcomes(progress: Progress): string {
 const OUTCOME_NOTES = { done: 'done', 'needs-human': 'needs a human', error: 'failed' } as const;
 
 export function formatStatus(progress: Progress, now: number): string {
+  const running = progress.issues ?? [];
   switch (progress.status) {
     case 'running': {
-      if (progress.issues.length === 0) {
+      if (running.length === 0) {
         return 'next-issue · looking for issues';
       }
-      const lines = progress.issues.map((item) => {
+      const lines = running.map((item) => {
         const parts = [`#${item.issue}`, item.stage ?? 'prepare', `${item.tools} tools`];
         if (item.startedAt !== undefined) {
           parts.push(duration(now - item.startedAt));
@@ -83,7 +84,7 @@ export function formatStatus(progress: Progress, now: number): string {
       return `next-issue ${lines.join(' | ')}`;
     }
     case 'stopping': {
-      const issues = progress.issues.map((item) => `#${item.issue}`);
+      const issues = running.map((item) => `#${item.issue}`);
       return `next-issue ${issues.length === 0 ? '#?' : issues.join(' ')} · stopping`;
     }
     case 'stopped':

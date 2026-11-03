@@ -14,7 +14,7 @@ import {
   stop,
   writerComments,
 } from './handover.mts';
-import { type Context, type IssueReport, openPr, type Run, setStatus } from './job.mts';
+import { type Context, type IssueReport, oneAtATime, openPr, type Run, setStatus } from './job.mts';
 import { afterMerge, fixBase } from './merge.mts';
 import { message, type Recorder } from './observe.mts';
 import { implementPrompt, parseCommitSubject } from './prompts.mts';
@@ -74,17 +74,6 @@ export async function pendingIssues(context: Context): Promise<Issue[]> {
     }
   }
   return issues.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-}
-
-const worktreeQueues = new Map<string, Promise<unknown>>();
-
-function oneAtATime<T>(root: string, work: () => Promise<T>): Promise<T> {
-  const result = (worktreeQueues.get(root) ?? Promise.resolve()).then(work);
-  worktreeQueues.set(
-    root,
-    result.catch(() => undefined),
-  );
-  return result;
 }
 
 export async function processIssue(context: Context, issue: Issue): Promise<IssueReport> {

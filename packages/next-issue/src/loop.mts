@@ -26,9 +26,13 @@ export async function runIssues(
   const limit = args.once ? Math.min(1, args.max ?? 1) : args.max;
   const concurrency = loop.concurrency ?? 1;
   const reports: IssueReport[] = [];
-  const running = new Map<number, Promise<{ issue: number; report: IssueReport }>>();
+  const running = new Map<
+    number,
+    Promise<{ issue: number; report?: IssueReport; failure?: unknown }>
+  >();
   let stoppedAt: number | undefined;
   let error: unknown;
+  let crash: { failure: unknown } | undefined;
   let claiming = true;
   const room = (): boolean =>
     running.size < concurrency && (limit === undefined || handled(reports) + running.size < limit);
@@ -43,7 +47,10 @@ export async function runIssues(
           seen.add(issue.number);
           running.set(
             issue.number,
-            loop.process(issue).then((report) => ({ issue: issue.number, report })),
+            loop.process(issue).then(
+              (report) => ({ issue: issue.number, report }),
+              (failure: unknown) => ({ issue: issue.number, failure }),
+            ),
           );
         }
       } catch (failure) {
@@ -54,13 +61,21 @@ export async function runIssues(
     if (running.size === 0) {
       break;
     }
-    const { issue, report } = await Promise.race(running.values());
+    const { issue, report, failure } = await Promise.race(running.values());
     running.delete(issue);
+    if (report === undefined) {
+      crash ??= { failure };
+      claiming = false;
+      continue;
+    }
     reports.push(report);
     if (claiming && (loop.stop() || report.halt === true)) {
       stoppedAt = issue;
       claiming = false;
     }
+  }
+  if (crash !== undefined) {
+    throw crash.failure;
   }
   return {
     reports,

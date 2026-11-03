@@ -210,6 +210,70 @@ test('a user with concurrency 2 whose issue leaves main broken gets no new claim
   assert.equal(end.stoppedAt, 1);
 });
 
+test('a user with concurrency 2 who passes --once gets one handled issue and no claim after it', async () => {
+  const fake = pool([1, 2, 3], 2);
+  const result = runIssues({ once: true }, fake);
+  await settle();
+  assert.deepEqual(fake.started, [1]);
+  await fake.finish(1, 'skipped');
+  assert.deepEqual(fake.started, [1, 2]);
+  await fake.finish(2, 'done');
+  assert.deepEqual(fake.started, [1, 2]);
+  assert.equal((await result).reports.length, 2);
+});
+
+test('a user with concurrency 2 whose fetch fails gets no new claim and the running issue finished', async () => {
+  const fake = pool([1, 2, 3], 2);
+  const failure = new Error('gh failed');
+  const lists = [[issue(1), issue(2), issue(3)]];
+  fake.issues = async () => {
+    const next = lists.shift();
+    if (next === undefined) {
+      throw failure;
+    }
+    return next;
+  };
+  const result = runIssues(ARGS, fake);
+  await settle();
+  await fake.finish(1, 'done');
+  assert.deepEqual(fake.started, [1, 2]);
+  await fake.finish(2, 'done');
+  const end = await result;
+  assert.deepEqual(
+    end.reports.map((entry) => entry.issue),
+    [1, 2],
+  );
+  assert.equal(end.error, failure);
+});
+
+test('a user with concurrency 2 whose issue is skipped while another runs does not get it tried again in that run', async () => {
+  const fake = pool([1, 2], 2);
+  const result = runIssues(ARGS, fake);
+  await settle();
+  await fake.finish(2, 'skipped');
+  await fake.finish(1, 'done');
+  assert.deepEqual(fake.started, [1, 2]);
+  assert.equal((await result).reports.length, 2);
+});
+
+test('a user with concurrency 2 whose issue throws gets the error once the other running issue ends', async () => {
+  const fake = pool([1, 2, 3], 2);
+  const failure = new Error('boom');
+  const process = fake.process;
+  fake.process = (target) => (target.number === 1 ? Promise.reject(failure) : process(target));
+  let caught: unknown;
+  const result = runIssues(ARGS, fake).catch((error: unknown) => {
+    caught = error;
+  });
+  await settle();
+  assert.equal(caught, undefined);
+  assert.deepEqual(fake.started, [2]);
+  await fake.finish(2, 'done');
+  await result;
+  assert.equal(caught, failure);
+  assert.deepEqual(fake.started, [2]);
+});
+
 type FakeWatch = Watch & { processed: number[]; waits: number[]; passes: number[][] };
 
 function watcher(lists: Outcome[][], wakes: boolean[] = []): FakeWatch {

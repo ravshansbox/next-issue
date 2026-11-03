@@ -18,8 +18,9 @@ writes the summary of the issues it handled and exits with code 1.
 A run handles up to `concurrency` issues at the same time, 1 by default. When an
 issue ends, the run fetches the open issues again and claims the oldest unseen
 one for the free slot. Each issue has its own worktree and branch. Step 3 below
-runs for one issue at a time, so two issues never fetch or fast-forward the base
-at once. `--max <n>` counts the handled issues across the run, and with `--once`
+and the removal of a worktree or branch run for one issue at a time, so two
+issues never change the git refs or worktrees of the repository at once. An issue blocked by a running issue is skipped and not tried again in
+that run, even when the blocker closes before the run ends. `--max <n>` counts the handled issues across the run, and with `--once`
 the run handles one issue. For each issue:
 
 1. Claim the issue only when it holds the `status:todo` label and holds no

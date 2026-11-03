@@ -552,6 +552,15 @@ test('a user sees a finished or stopped run summed up by outcome in the footer',
   );
 });
 
+test('a user whose older worker sends progress without running issues sees the footer without an error', () => {
+  const { issues: _issues, ...older } = progress({});
+  assert.equal(formatStatus(older as Progress, now), 'next-issue · looking for issues');
+  assert.equal(
+    formatStatus({ ...older, status: 'stopping' } as Progress, now),
+    'next-issue #? · stopping',
+  );
+});
+
 test('a user sees the error of a failed run in the footer', () => {
   assert.equal(
     formatStatus(progress({ status: 'failed', error: 'gh failed' }), now),
