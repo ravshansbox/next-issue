@@ -1,9 +1,61 @@
-import type { Issue } from './github.mts';
+import type { Config } from './config.mts';
+import type { Repo } from './git.mts';
+import type { Comment, Issue } from './github.mts';
 import { type Context, type IssueReport, type Outcome, type Run, setStatus } from './job.mts';
 import { message, type Recorder } from './observe.mts';
-import { dropState, type IssueState, writeState } from './state.mts';
+import type { Ports } from './ports.mts';
+import type { Question } from './protocol.mts';
+import { dropState, type IssueState, readState, writeState } from './state.mts';
 
 export const HAND_OVER = 'next-issue needs help:';
+
+type Writer = (author: string) => Promise<boolean>;
+
+function writers(repo: Repo, ports: Pick<Ports, 'canWrite'>): Writer {
+  const access = new Map<string, Promise<boolean>>();
+  return (author) => {
+    if (!access.has(author)) {
+      access.set(author, ports.canWrite(repo, author));
+    }
+    return access.get(author)!;
+  };
+}
+
+async function lastHandOver(comments: Comment[], writer: Writer): Promise<number> {
+  for (let index = comments.length - 1; index >= 0; index -= 1) {
+    const comment = comments[index]!;
+    if (comment.body.startsWith(HAND_OVER) && (await writer(comment.author))) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+export async function waitingQuestions(
+  repo: Repo,
+  config: Config,
+  ports: Pick<Ports, 'canWrite' | 'openIssues' | 'threadComments'>,
+): Promise<Question[]> {
+  const writer = writers(repo, ports);
+  const issues = await ports.openIssues(repo, config.issueLimit, [config.labels.needsHuman]);
+  const questions = await Promise.all(
+    issues.map(async (issue): Promise<Question | undefined> => {
+      const pr = (await readState(repo, issue.number))?.pr;
+      const comments = await ports.threadComments(repo, pr ?? issue.number);
+      const comment = comments[await lastHandOver(comments, writer)];
+      if (comment === undefined) {
+        return undefined;
+      }
+      return {
+        issue: issue.number,
+        title: issue.title,
+        reason: comment.body.slice(HAND_OVER.length).trim(),
+        url: comment.url ?? '',
+      };
+    }),
+  );
+  return questions.filter((question) => question !== undefined);
+}
 
 export async function handOverReply(
   context: Context,
@@ -12,20 +64,8 @@ export async function handOverReply(
 ): Promise<string[]> {
   const { repo, ports } = context;
   const comments = await ports.threadComments(repo, pr ?? issue);
-  const access = new Map<string, boolean>();
-  const writer = async (author: string): Promise<boolean> => {
-    if (!access.has(author)) {
-      access.set(author, await ports.canWrite(repo, author));
-    }
-    return access.get(author) === true;
-  };
-  let last = -1;
-  for (let index = comments.length - 1; index >= 0 && last === -1; index -= 1) {
-    const comment = comments[index]!;
-    if (comment.body.startsWith(HAND_OVER) && (await writer(comment.author))) {
-      last = index;
-    }
-  }
+  const writer = writers(repo, ports);
+  const last = await lastHandOver(comments, writer);
   if (last === -1) {
     return [];
   }

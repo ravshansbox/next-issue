@@ -467,6 +467,13 @@ to it. The worker:
 - sends every client the progress of every run when it connects and on every
   change: the issue, the step, the tool count, the last tool and the handled
   issues;
+- sends every client a `questions` message for each repository: the open
+  issues with the `needsHuman` label, each with its number, title, the reason
+  of the hand-over and the url of the comment that holds it. It reads them
+  from GitHub, so the list is the same after a restart. It sends them when a
+  client connects, for each repository it knows, after each issue of a run
+  ends, and when a client sends `{ "type": "questions", "root": "<path>" }`.
+  An issue that no longer has the label leaves the list;
 - stops a run, when a client asks, like a second `Ctrl-C`: after the current
   round, with the state kept;
 - stays when all clients close;

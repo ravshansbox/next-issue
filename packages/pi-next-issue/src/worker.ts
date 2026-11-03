@@ -19,14 +19,18 @@ export type Progress = {
   error?: string;
 };
 
+export type Question = { issue: number; title: string; reason: string; url: string };
+
 export type ClientMessage =
   | { type: 'hello'; version: string }
   | { type: 'start'; root: string; merge: boolean }
-  | { type: 'stop'; root: string };
+  | { type: 'stop'; root: string }
+  | { type: 'questions'; root: string };
 
 export type WorkerMessage =
   | { type: 'hello'; version: string }
   | { type: 'runs'; runs: Record<string, Progress> }
+  | { type: 'questions'; root: string; questions: Question[] }
   | { type: 'error'; root: string; message: string };
 
 export type WorkerEvent =
