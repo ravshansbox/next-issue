@@ -7,6 +7,28 @@ the [pi](https://github.com/earendil-works/pi) SDK. Run it inside a git reposito
 npx -y next-issue@latest
 ```
 
+## Overview
+
+The harness claims the oldest open issue with the `status:todo` label and gives it its own git worktree and branch. An implementer agent does the work, and the harness commits, pushes and opens a draft pull request. It then waits for the checks. A fixer agent repairs a red build, and a reviewer agent judges the diff. The fixer deals with any open finding, and the checks and review run again. With no open finding left, the pull request is marked ready and the issue gets `status:done`. When a budget runs out or the work cannot go on, the issue gets `status:needs-human` and goes to a person. Then the harness takes the next issue.
+
+```mermaid
+flowchart TD
+    claim[Claim the oldest status:todo issue] --> worktree[Add a worktree and branch]
+    worktree --> implement[Implementer does the work, harness commits and pushes]
+    implement --> pr[Open a draft pull request]
+    pr --> checks{Checks pass?}
+    checks -- no --> fixCi[Fixer repairs the build]
+    fixCi --> checks
+    checks -- yes --> review{Reviewer finds an open finding?}
+    review -- yes --> fixReview[Fixer deals with the findings]
+    fixReview --> checks
+    review -- no --> done[Mark ready, set status:done]
+    fixCi -. budget runs out .-> human[Hand over to a person: status:needs-human]
+    fixReview -. budget runs out .-> human
+    done --> claim
+    human --> claim
+```
+
 ## What it does
 
 Before each issue, fetch the open issues again and take the oldest one not yet
