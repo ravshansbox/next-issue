@@ -1206,6 +1206,22 @@ test('a user whose closed issue has a saved state but no merged pull request doe
   assert.deepEqual(await pendingIssues(target.context), []);
 });
 
+test('a user whose closed issue has a corrupt state file gets it back in the list with an error that names the file', async (t) => {
+  const target = await harness(t, { open: [], closed: [ISSUE] });
+  const folder = join(target.context.repo.root, STATE_DIR);
+  await mkdir(folder, { recursive: true });
+  await writeFile(join(folder, '7.json'), '{ "issue": 7');
+  const issues = await pendingIssues(target.context);
+  assert.deepEqual(
+    issues.map((entry) => entry.number),
+    [7],
+  );
+  const report = await processIssue(target.context, issues[0]!);
+  assert.equal(report.outcome, 'error');
+  assert.match(report.reason!, /7\.json is not valid JSON/);
+  assert.deepEqual(roles(target), []);
+});
+
 test('a user whose open issue has a saved state but lost its status label gets it back in the list', async (t) => {
   const target = await harness(t, {
     saved: SAVED,

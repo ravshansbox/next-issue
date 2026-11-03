@@ -227,13 +227,17 @@ export async function pendingIssues(context: Context): Promise<Issue[]> {
     if (listed.has(number)) {
       continue;
     }
-    const saved = await readState(repo, number).catch(() => undefined);
+    const saved = await readState(repo, number).catch(() => 'broken' as const);
     if (saved === undefined) {
       continue;
     }
     try {
       const { open, ...issue } = await ports.viewIssue(repo, number);
-      if (open || (saved.pr !== undefined && (await ports.prMerged(repo, saved.pr)))) {
+      if (
+        saved === 'broken' ||
+        open ||
+        (saved.pr !== undefined && (await ports.prMerged(repo, saved.pr)))
+      ) {
         issues.push(issue);
       }
     } catch (error) {
