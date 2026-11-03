@@ -32,3 +32,9 @@ test('an agent who creates an issue with the create-issue skill links it to the 
   assert.match(skill, /gh issue list/);
   assert.match(skill, /gh issue edit <number> --add-blocked-by <blocker>/);
 });
+
+test('a user who asks the create-issue skill to change a created issue gets the issue edited on GitHub', async () => {
+  const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
+  assert.match(skill, /gh issue edit <number> --body-file <file>/);
+  assert.match(skill, /gh issue edit <number> --title "<title>"/);
+});
