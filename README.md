@@ -19,3 +19,8 @@ npm run build
 ```
 
 Each script runs in every package that has it.
+
+## Releases
+
+Both packages are released together with the same version. See
+[Releases](packages/next-issue/README.md#releases).

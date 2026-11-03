@@ -445,7 +445,8 @@ workflow reads the commits since the last tag and picks the bump: `feat` gives a
 minor, `fix` gives a patch, and a `!` mark or a `BREAKING CHANGE` body gives a
 major. Any other type releases nothing.
 
-The workflow then bumps the version and publishes the package to npm with a
+The workflow then gives `next-issue` and `@ravshansbox/pi-next-issue` the same
+new version and publishes both packages to npm with a
 [trusted publish](https://docs.npmjs.com/trusted-publishers), so no token is
 stored. Only after the publish does it push the tag and make the GitHub release,
 so a failed publish leaves no half-release behind. A manual run of the workflow
