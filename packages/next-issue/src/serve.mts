@@ -1,5 +1,5 @@
 import { rmSync } from 'node:fs';
-import { chmod, readFile, rm, writeFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { getAgentDir } from '@earendil-works/pi-coding-agent';
@@ -220,12 +220,16 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
-    server.listen(options.socketPath, () => {
-      server.off('error', reject);
-      resolve();
-    });
+    const umask = process.umask(0o177);
+    try {
+      server.listen(options.socketPath, () => {
+        server.off('error', reject);
+        resolve();
+      });
+    } finally {
+      process.umask(umask);
+    }
   });
-  await chmod(options.socketPath, 0o600);
   return { closed, close };
 }
 
