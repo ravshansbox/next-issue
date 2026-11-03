@@ -11,16 +11,17 @@ Turn the problem of the user into one GitHub issue in the format of `template.md
 2. Investigate the code when the problem touches it. Read the relevant files and note what you find, with file paths.
 3. Ask numbered questions about anything that is unclear: the scope, the expected behaviour, the acceptance criteria. Label options with letters and recommend one. Ask again until no question is open.
 4. Write the body from `template.md` into a temporary file. Keep every heading of the template and its order. Leave `Open questions` empty.
-5. Show the title and the body to the user, and ask for confirmation. Change the draft and show it again until the user confirms.
-6. Only after the user confirms, create the issue:
+5. Show the title and the body to the user. Ask once whether to create the issue and start a run: a) create the issue and start a run, b) create the issue only, c) change the draft. Change the draft and show it again until the user picks a or b.
+6. Only after the user picks a or b, create the issue:
 
    ```bash
    gh issue create --title "<title>" --body-file <file> --label status:todo
    ```
 
 7. Tell the user the issue url.
+8. Only when the user picked a, call the `next_issue_start` tool, and tell the user what it reports.
 
-Once the issue exists, do not implement it in this session. The next-issue worker does the work.
+Once the issue exists, do not implement it in this session. The next-issue worker does the work. Do not ask about a run a second time.
 
 ## Sections
 
