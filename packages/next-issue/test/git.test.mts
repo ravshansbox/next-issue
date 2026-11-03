@@ -8,6 +8,7 @@ import { must } from '../src/exec.mts';
 import {
   addWorktree,
   branchName,
+  commitAll,
   discardChanges,
   disputeBranches,
   ensureIgnored,
@@ -211,7 +212,19 @@ test('discardChanges undoes a commit that the reviewer made', async () => {
   assert.equal(await readFile(join(path, 'a.txt'), 'utf8'), 'a.txt\n');
 });
 
-test('setAside moves a commit of the fixer to another branch and keeps its change in the worktree', async () => {
+test('setAside moves a commit of the fixer to another branch and leaves nothing for a later commit to sweep up', async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const head = await revision(path);
+  const disputed = await commit(path, 'fixer.txt');
+  await setAside(path, head, '3-dispute-1');
+  assert.equal(await revision(path), head);
+  assert.equal(await git(path, 'rev-parse', '3-dispute-1'), disputed);
+  assert.equal(existsSync(join(path, 'fixer.txt')), false);
+  assert.equal(await commitAll(path, 'a later fix'), false);
+});
+
+test('setAside moves a commit of the fixer that the fixer edited after and keeps both in the worktree', async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
   const head = await revision(path);

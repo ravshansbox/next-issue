@@ -149,9 +149,12 @@ export async function discardChanges(cwd: string, target: string): Promise<boole
 }
 
 export async function setAside(cwd: string, target: string, branch: string): Promise<void> {
-  const disputed = await revision(cwd);
-  await must('git', ['reset', '--soft', target], { cwd });
-  await must('git', ['branch', branch, disputed], { cwd });
+  await must('git', ['branch', branch], { cwd });
+  if (await isDirty(cwd)) {
+    await must('git', ['reset', '--soft', target], { cwd });
+    return;
+  }
+  await discardChanges(cwd, target);
 }
 
 export async function disputeBranches(repo: Repo, branch: string): Promise<string[]> {

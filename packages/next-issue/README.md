@@ -106,10 +106,11 @@ when:
   worktree or in a commit of its own. A dispute carries a reason, not a diff,
   so the harness throws none of it away: an unclean worktree stays on the
   disk, and a commit of the fixer moves to a new local
-  `<n>-dispute-<commit>` branch, with its change left uncommitted in the
-  worktree, so the `<n>` branch keeps only what the pull request holds. Neither
-  is pushed, also not by a later run, so the pull request shows no such change.
-  It holds the reason of the dispute, and the change is on the machine that ran
+  `<n>-dispute-<commit>` branch, so the `<n>` branch keeps only what the pull
+  request holds. The worktree drops the change of that commit, unless the fixer
+  edited the worktree after the commit: then the worktree keeps both and stays
+  on the disk. Neither is pushed, so the pull request shows no such change. It
+  holds the reason of the dispute, and the change is on the machine that ran
   the harness. The `<n>-dispute-<commit>` branches go away with the `<n>`
   branch when the issue is done;
 - the reviewer repeats a finding set from an earlier round, which shows a
