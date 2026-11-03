@@ -288,10 +288,6 @@ async function prField(repo: Repo, pr: number, field: string): Promise<string> {
   return gh(repo, ['pr', 'view', String(pr), '--json', field, '--jq', `.${field}`]);
 }
 
-async function prHead(repo: Repo, pr: number): Promise<string> {
-  return prField(repo, pr, 'headRefOid');
-}
-
 async function readChecks(repo: Repo, pr: number): Promise<CheckSummary[] | 'none'> {
   const result = await ghRun(repo, [
     'pr',
@@ -439,7 +435,7 @@ async function read(
 export function waitForChecks(repo: Repo, pr: number, options: WaitOptions): Promise<CheckState> {
   return pollChecks(
     {
-      head: () => prHead(repo, pr),
+      head: () => prField(repo, pr, 'headRefOid'),
       lags: (head) =>
         options.head === undefined
           ? Promise.resolve(true)
