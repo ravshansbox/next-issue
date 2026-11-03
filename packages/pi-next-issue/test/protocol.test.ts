@@ -14,7 +14,19 @@ test('the extension declares the same message types as the worker', () => {
 });
 
 test('the extension and the worker agree on which version is newer', () => {
-  const versions = ['1.9.9', '2.0.0', '2.0.1', '2.9.0', '2.10.0'];
+  const versions = [
+    '1.9.9',
+    '2.0.0',
+    '2.0.1',
+    '2.9.0',
+    '2.10.0',
+    '2.5.0-beta',
+    '2.5.0-beta.1',
+    '2.5.0-beta.2',
+    '2.5.0-beta.10',
+    '2.5.1-alpha.1',
+    '2.5.1',
+  ];
   for (const candidate of versions) {
     for (const current of versions) {
       assert.equal(
