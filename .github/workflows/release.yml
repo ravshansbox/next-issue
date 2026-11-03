@@ -35,6 +35,7 @@ jobs:
           last=$(git describe --tags --exact-match --match 'v*')
           npm version --no-git-tag-version --allow-same-version --workspaces "${last#v}" > /dev/null
           npm publish --workspaces
+          .github/scripts/wait-for-npm.sh 600
       - if: github.event_name == 'push'
         id: bump
         run: |
@@ -68,3 +69,4 @@ jobs:
           git tag "$tag"
           git push origin "$tag"
           gh release create "$tag" --title "$tag" --generate-notes
+          .github/scripts/wait-for-npm.sh 600

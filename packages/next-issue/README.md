@@ -476,7 +476,11 @@ The workflow then gives `next-issue` and `@ravshansbox/pi-next-issue` the same
 new version and publishes both packages to npm with a
 [trusted publish](https://docs.npmjs.com/trusted-publishers), so no token is
 stored. Only after the publish does it push the tag and make the GitHub release,
-so a failed publish leaves no half-release behind. A manual run of the workflow
+so a failed publish leaves no half-release behind. npm makes a new version
+live a few minutes after the publish, and not always in the order it got them,
+so the job then waits until npm serves the version of each package, for up to
+10 minutes. The next release thus starts only when the last one is live. A
+manual run of the workflow
 checks out the last tag and publishes that commit under the tag version, and
 changes nothing else. This repairs a release that reached GitHub but not npm.
 The release job stays on a GitHub runner, because npm takes provenance only
