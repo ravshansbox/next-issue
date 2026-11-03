@@ -7,13 +7,8 @@ import { test, type TestContext } from 'node:test';
 import { WebSocket } from 'ws';
 import type { Args } from '../src/args.mts';
 import type { RunControls } from '../src/run.mts';
-import {
-  type ClientMessage,
-  isNewer,
-  type RunRepo,
-  startWorker,
-  type WorkerMessage,
-} from '../src/serve.mts';
+import type { ClientMessage, WorkerMessage } from '../src/protocol.mts';
+import { type RunRepo, startWorker } from '../src/serve.mts';
 
 type Client = {
   send: (value: ClientMessage) => void;
@@ -209,11 +204,4 @@ test('a worker that meets an older or equal client keeps running', async (t) => 
   client.send({ type: 'start', root: '/repo', merge: true });
   await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
   assert.equal(fake.calls.length, 1);
-});
-
-test('a version is newer only when a part of it is greater', () => {
-  assert.equal(isNewer('2.0.1', '2.0.0'), true);
-  assert.equal(isNewer('2.10.0', '2.9.0'), true);
-  assert.equal(isNewer('2.0.0', '2.0.0'), false);
-  assert.equal(isNewer('1.9.9', '2.0.0'), false);
 });

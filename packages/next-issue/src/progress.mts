@@ -1,20 +1,5 @@
 import type { Fields } from './observe.mts';
-
-export type RunStatus = 'running' | 'stopping' | 'finished' | 'stopped' | 'failed';
-
-export type Handled = { issue: number; outcome: 'done' | 'needs-human' | 'error' };
-
-export type Progress = {
-  status: RunStatus;
-  issue?: number;
-  title?: string;
-  stage?: string;
-  tools: number;
-  lastTool?: string;
-  issueStartedAt?: number;
-  handled: Handled[];
-  error?: string;
-};
+import type { Handled, Progress } from './protocol.mts';
 
 const TOOL_LINE_MAX = 80;
 

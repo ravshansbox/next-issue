@@ -8,19 +8,10 @@ import { type Args, parseArgs } from './args.mts';
 import { stopChildren } from './exec.mts';
 import type { Interrupts } from './interrupt.mts';
 import { message } from './observe.mts';
-import { applyEvent, type Progress, startProgress } from './progress.mts';
+import { applyEvent, startProgress } from './progress.mts';
+import { type ClientMessage, isNewer, type Progress, type WorkerMessage } from './protocol.mts';
 import { runRepo, type RunControls } from './run.mts';
 import { packageVersion } from './version.mts';
-
-export type ClientMessage =
-  | { type: 'hello'; version: string }
-  | { type: 'start'; root: string; merge: boolean }
-  | { type: 'stop'; root: string };
-
-export type WorkerMessage =
-  | { type: 'hello'; version: string }
-  | { type: 'runs'; runs: Record<string, Progress> }
-  | { type: 'error'; root: string; message: string };
 
 export type RunRepo = (root: string, args: Args, controls: RunControls) => Promise<number>;
 
@@ -47,18 +38,6 @@ export function socketPaths(agentDir = getAgentDir()): { socketPath: string; loc
     socketPath: join(agentDir, 'next-issue.sock'),
     lockPath: join(agentDir, 'next-issue.lock'),
   };
-}
-
-export function isNewer(candidate: string, current: string): boolean {
-  const left = candidate.split('.').map(Number);
-  const right = current.split('.').map(Number);
-  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
-    const difference = (left[index] ?? 0) - (right[index] ?? 0);
-    if (difference !== 0) {
-      return difference > 0;
-    }
-  }
-  return false;
 }
 
 function alive(pid: number): boolean {
