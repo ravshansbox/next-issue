@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { type ChildProcess, spawn } from 'node:child_process';
 
 export type RunResult = {
@@ -28,7 +29,9 @@ export type CommandRecord = {
 
 let observer: ((record: CommandRecord) => void) | undefined;
 
-let defaultTimeoutMs = 10 * 60_000;
+const DEFAULT_TIMEOUT_MS = 10 * 60_000;
+
+const defaultTimeout = new AsyncLocalStorage<number>();
 
 const STDERR_TAIL = 200_000;
 
@@ -88,13 +91,13 @@ export function setCommandObserver(next: (record: CommandRecord) => void): void 
   observer = next;
 }
 
-export function setDefaultTimeout(ms: number): void {
-  defaultTimeoutMs = ms;
+export function withDefaultTimeout<T>(ms: number, body: () => Promise<T>): Promise<T> {
+  return defaultTimeout.run(ms, body);
 }
 
 export function run(command: string, args: string[], options: RunOptions = {}): Promise<RunResult> {
   const started = Date.now();
-  const limit = options.timeoutMs ?? defaultTimeoutMs;
+  const limit = options.timeoutMs ?? defaultTimeout.getStore() ?? DEFAULT_TIMEOUT_MS;
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
