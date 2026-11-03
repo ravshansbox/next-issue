@@ -472,10 +472,12 @@ async function baseRuns(repo: Repo, sha: string): Promise<BaseRun[]> {
   return JSON.parse(raw) as BaseRun[];
 }
 
+function failedRun(entry: BaseRun): boolean {
+  return entry.status === 'completed' && FAILED_CONCLUSIONS.has(entry.conclusion);
+}
+
 function baseState(runs: BaseRun[]): CheckState {
-  if (
-    runs.some((entry) => entry.status === 'completed' && FAILED_CONCLUSIONS.has(entry.conclusion))
-  ) {
+  if (runs.some(failedRun)) {
     return 'fail';
   }
   return runs.every((entry) => entry.status === 'completed') ? 'pass' : 'pending';
@@ -499,7 +501,7 @@ export function waitForBaseChecks(
 
 export async function failedBaseLogs(repo: Repo, sha: string, maxChars: number): Promise<string> {
   const failed = (await baseRuns(repo, sha))
-    .filter((entry) => entry.status === 'completed' && FAILED_CONCLUSIONS.has(entry.conclusion))
+    .filter(failedRun)
     .map((entry) => ({ heading: `## ${entry.name}`, runId: String(entry.databaseId) }));
   return runLogs(repo, failed, maxChars);
 }
