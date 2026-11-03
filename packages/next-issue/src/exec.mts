@@ -81,6 +81,10 @@ function unwatch(pid: number | undefined): void {
   }
 }
 
+function keepTail(text: string, limit: number | undefined): string {
+  return limit !== undefined && text.length > limit ? text.slice(-limit) : text;
+}
+
 export function setCommandObserver(next: (record: CommandRecord) => void): void {
   observer = next;
 }
@@ -111,17 +115,11 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
     child.stderr?.setEncoding('utf8');
     child.stdout?.on('data', (chunk: string) => {
       options.onStdout?.(chunk);
-      stdout += chunk;
-      if (options.tailChars !== undefined && stdout.length > options.tailChars) {
-        stdout = stdout.slice(-options.tailChars);
-      }
+      stdout = keepTail(stdout + chunk, options.tailChars);
     });
     const stderrLimit = options.tailChars ?? STDERR_TAIL;
     child.stderr?.on('data', (chunk: string) => {
-      stderr += chunk;
-      if (stderr.length > stderrLimit) {
-        stderr = stderr.slice(-stderrLimit);
-      }
+      stderr = keepTail(stderr + chunk, stderrLimit);
     });
     const timer = setTimeout(() => {
       timedOut = true;
