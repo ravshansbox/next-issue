@@ -17,11 +17,12 @@ const MARKERS: Array<[string, string]> = [
 
 export async function detectSetupCommand(root: string): Promise<string | undefined> {
   for (const [file, command] of MARKERS) {
-    try {
-      await access(join(root, file));
+    const found = await access(join(root, file)).then(
+      () => true,
+      () => false,
+    );
+    if (found) {
       return command;
-    } catch {
-      continue;
     }
   }
   return undefined;
