@@ -120,12 +120,7 @@ export async function removeWorktree(repo: Repo, path: string): Promise<boolean>
 
 export async function ensureIgnored(root: string, entry: string): Promise<boolean> {
   const path = join(root, '.gitignore');
-  let current = '';
-  try {
-    current = await readFile(path, 'utf8');
-  } catch {
-    current = '';
-  }
+  const current = await readFile(path, 'utf8').catch(() => '');
   if (current.split('\n').some((line) => line.trim() === entry)) {
     return false;
   }
