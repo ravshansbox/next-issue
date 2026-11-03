@@ -31,10 +31,10 @@ function slug(repo: Repo): string {
   return `${repo.owner}/${repo.name}`;
 }
 
-async function repeatable(args: string[], options: RunOptions): Promise<string> {
+async function repeatable(repo: Repo, args: string[]): Promise<string> {
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return await must('gh', args, options);
+      return await must('gh', args, { cwd: repo.root });
     } catch (error) {
       if (
         attempt >= NETWORK_TRIES ||
@@ -49,7 +49,7 @@ async function repeatable(args: string[], options: RunOptions): Promise<string> 
 }
 
 async function gh(repo: Repo, args: string[]): Promise<string> {
-  return repeatable([...args, '--repo', slug(repo)], { cwd: repo.root });
+  return repeatable(repo, [...args, '--repo', slug(repo)]);
 }
 
 async function ghOnce(repo: Repo, args: string[], input?: string): Promise<string> {
@@ -61,9 +61,7 @@ async function ghRun(repo: Repo, args: string[], options: RunOptions = {}): Prom
 }
 
 export async function defaultBranch(repo: Repo): Promise<string> {
-  const raw = await repeatable(['repo', 'view', slug(repo), '--json', 'defaultBranchRef'], {
-    cwd: repo.root,
-  });
+  const raw = await repeatable(repo, ['repo', 'view', slug(repo), '--json', 'defaultBranchRef']);
   return JSON.parse(raw).defaultBranchRef.name as string;
 }
 
@@ -123,16 +121,13 @@ export async function issueComments(repo: Repo, issue: number): Promise<Comment[
 }
 
 export async function threadComments(repo: Repo, number: number): Promise<Comment[]> {
-  const raw = await repeatable(
-    [
-      'api',
-      '--paginate',
-      `repos/${slug(repo)}/issues/${number}/comments`,
-      '--jq',
-      '.[] | [.user.login, .body, .html_url] | @json',
-    ],
-    { cwd: repo.root },
-  );
+  const raw = await repeatable(repo, [
+    'api',
+    '--paginate',
+    `repos/${slug(repo)}/issues/${number}/comments`,
+    '--jq',
+    '.[] | [.user.login, .body, .html_url] | @json',
+  ]);
   return lines(raw).map((line) => {
     let parsed: [string, string | null, string?];
     try {
@@ -147,10 +142,12 @@ export async function threadComments(repo: Repo, number: number): Promise<Commen
 
 export async function canWrite(repo: Repo, login: string): Promise<boolean> {
   try {
-    const permission = await repeatable(
-      ['api', `repos/${slug(repo)}/collaborators/${login}/permission`, '--jq', '.permission'],
-      { cwd: repo.root },
-    );
+    const permission = await repeatable(repo, [
+      'api',
+      `repos/${slug(repo)}/collaborators/${login}/permission`,
+      '--jq',
+      '.permission',
+    ]);
     return ['admin', 'write'].includes(permission.trim());
   } catch (error) {
     if (error instanceof Error && /HTTP 404/.test(error.message)) {
@@ -161,18 +158,16 @@ export async function canWrite(repo: Repo, login: string): Promise<boolean> {
 }
 
 export async function openBlockers(repo: Repo, issue: number): Promise<string[]> {
-  const raw = await repeatable(
-    [
-      'api',
-      '--paginate',
-      `repos/${slug(repo)}/issues/${issue}/dependencies/blocked_by`,
-      '--jq',
-      '.[] | select(.state == "open") | (.repository_url | split("/") | .[-2:] | join("/")) + "#" + (.number | tostring)',
-    ],
-    { cwd: repo.root },
-  );
+  const raw = await repeatable(repo, [
+    'api',
+    '--paginate',
+    `repos/${slug(repo)}/issues/${issue}/dependencies/blocked_by`,
+    '--jq',
+    '.[] | select(.state == "open") | (.repository_url | split("/") | .[-2:] | join("/")) + "#" + (.number | tostring)',
+  ]);
+  const repoSlug = slug(repo);
   return lines(raw).map((ref) =>
-    ref.startsWith(`${slug(repo)}#`) ? ref.slice(slug(repo).length) : ref,
+    ref.startsWith(`${repoSlug}#`) ? ref.slice(repoSlug.length) : ref,
   );
 }
 
