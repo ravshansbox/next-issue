@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Repo } from './git.mts';
+import { isMissing } from './observe.mts';
 
 export const STATE_DIR = '.next-issue';
 
@@ -45,7 +46,7 @@ export async function readState(repo: Repo, issue: number): Promise<IssueState |
   try {
     text = await readFile(path, 'utf8');
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    if (isMissing(error)) {
       return undefined;
     }
     throw error;
@@ -108,7 +109,7 @@ export async function savedIssues(repo: Repo): Promise<number[]> {
   try {
     names = await readdir(dir(repo));
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    if (isMissing(error)) {
       return [];
     }
     throw error;

@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { message } from './observe.mts';
+import { isMissing, message } from './observe.mts';
 
 export type Config = {
   remote: string;
@@ -117,7 +117,7 @@ export async function loadConfig(root: string): Promise<Config> {
   try {
     raw = await readFile(join(root, CONFIG_FILE), 'utf8');
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    if (isMissing(error)) {
       return defaults();
     }
     throw new Error(`${CONFIG_FILE} cannot be read: ${message(error)}`);
