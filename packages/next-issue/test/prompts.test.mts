@@ -109,6 +109,19 @@ test('each fixer kind is offered the unrelated exit for its own cause', () => {
   assert.match(review, /unrelated: <one sentence on why the findings are wrong/);
 });
 
+test('the conflict fixer is told to remove the conflict markers and leave the merge to the harness', () => {
+  const conflict = fixPrompt(
+    ISSUE,
+    'The pull request conflicts with its base.',
+    'a.txt',
+    [],
+    'conflict',
+  );
+  assert.match(conflict, /## Detail\na\.txt/);
+  assert.match(conflict, /remove every conflict marker/);
+  assert.doesNotMatch(conflict, /unrelated:/);
+});
+
 test('the review fixer is told to dispute only when every finding is wrong', () => {
   const review = fixPrompt(ISSUE, 'The reviewer requested changes.', 'the findings', [], 'review');
   assert.match(review, /If every finding is wrong, change nothing/);

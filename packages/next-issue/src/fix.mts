@@ -69,12 +69,14 @@ export async function commitWork(
   before: string,
   subject: string,
   role: 'implementer' | 'fixer',
+  commit?: (worktree: string, message: string) => Promise<boolean>,
 ): Promise<boolean> {
   const { context, issue, log, state, worktree, comments } = job;
   const { repo, config, ports } = context;
+  const commitChanges = commit ?? ports.commitAll;
   for (;;) {
     try {
-      if (await ports.commitAll(worktree, `${subject}\n\nRefs #${issue.number}`)) {
+      if (await commitChanges(worktree, `${subject}\n\nRefs #${issue.number}`)) {
         log.event('commit', { subject });
       }
       if ((await ports.revision(worktree)) === before) {

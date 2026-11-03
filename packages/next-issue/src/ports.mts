@@ -1,8 +1,10 @@
 import { runAgent } from './agents.mts';
 import { run } from './exec.mts';
 import {
+  abortMerge,
   addWorktree,
   commitAll,
+  commitMerge,
   deleteBranch,
   diff,
   discardChanges,
@@ -15,6 +17,7 @@ import {
   resetToBase,
   revision,
   setAside,
+  startMerge,
 } from './git.mts';
 import {
   canWrite,
@@ -42,11 +45,13 @@ import {
 import { detectSetupCommand } from './setup.mts';
 
 export type Ports = {
+  abortMerge: typeof abortMerge;
   addWorktree: typeof addWorktree;
   canWrite: typeof canWrite;
   commentOnIssue: typeof commentOnIssue;
   commentOnPr: typeof commentOnPr;
   commitAll: typeof commitAll;
+  commitMerge: typeof commitMerge;
   createPr: typeof createPr;
   deleteBranch: typeof deleteBranch;
   detectSetupCommand: typeof detectSetupCommand;
@@ -80,6 +85,7 @@ export type Ports = {
   ) => Promise<{ code: number; stderr: string; timedOut?: boolean }>;
   setAside: typeof setAside;
   setLabel: typeof setLabel;
+  startMerge: typeof startMerge;
   threadComments: typeof threadComments;
   viewIssue: typeof viewIssue;
   waitForBaseChecks: typeof waitForBaseChecks;
@@ -87,11 +93,13 @@ export type Ports = {
 };
 
 export const PORTS: Ports = {
+  abortMerge,
   addWorktree,
   canWrite,
   commentOnIssue,
   commentOnPr,
   commitAll,
+  commitMerge,
   createPr,
   deleteBranch,
   detectSetupCommand,
@@ -121,6 +129,7 @@ export const PORTS: Ports = {
   runSetup: async (command, cwd, timeoutMs) => run('bash', ['-lc', command], { cwd, timeoutMs }),
   setAside,
   setLabel,
+  startMerge,
   threadComments,
   viewIssue,
   waitForBaseChecks,
