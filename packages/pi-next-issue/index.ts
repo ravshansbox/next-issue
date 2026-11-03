@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
-import { must, type RunOptions } from './src/exec.ts';
+import { errorText, must, type RunOptions } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
 import {
   type Progress,
@@ -31,10 +31,6 @@ const CLOSED = 'the worker closed the connection';
 
 function formatQuestions(count: number): string {
   return `${count} ${count === 1 ? 'question' : 'questions'} waiting`;
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function shared(create: (root: string) => WorkerClient, root: string): WorkerClient {

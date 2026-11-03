@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { closeSync, mkdirSync, openSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import WebSocket from 'ws';
+import { errorText } from './exec.ts';
 
 export type RunStatus = 'running' | 'stopping' | 'finished' | 'stopped' | 'failed';
 
@@ -230,9 +231,7 @@ export class WorkerClient {
         return;
       } catch (error) {
         if (Date.now() >= deadline) {
-          throw new Error(
-            `the next-issue worker did not start: ${error instanceof Error ? error.message : String(error)}`,
-          );
+          throw new Error(`the next-issue worker did not start: ${errorText(error)}`);
         }
       }
     }
