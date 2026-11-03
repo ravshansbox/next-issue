@@ -59,10 +59,8 @@ export async function followLog(
       }
       const lines = rest.split('\n');
       rest = lines.pop()!;
-      let shown = lines.filter((line) => line.trim().length > 0);
-      if (first && options.tail !== undefined) {
-        shown = shown.slice(-options.tail);
-      }
+      const filled = lines.filter((line) => line.trim().length > 0);
+      const shown = first && options.tail !== undefined ? filled.slice(-options.tail) : filled;
       first = false;
       if (shown.length > 0) {
         await print(shown.map((line) => show(line, options.json)).join(''));
