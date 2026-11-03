@@ -99,12 +99,15 @@ when:
 - a fixer round adds no commit and gives no reason, so there is no progress;
 - the fixer reports that the checks fail for a reason the change did not cause,
    such as a test already broken on the base branch or one that fails only under
-   load. It changes nothing and the reason reaches the pull request, rather than
-   the fixer spending its whole budget on a failure it cannot fix;
+   load. The reason reaches the pull request, rather than the fixer spending
+   its whole budget on a failure it cannot fix. A change that the fixer leaves
+   behind is moved to a local branch, as for a dispute below, and the pull
+   request names that branch;
 - a fixer disputes the findings and leaves a change behind, either in the
    worktree or in a commit of its own. A dispute carries a reason, not a diff,
    so the harness throws none of it away: it moves the change to a local
-   branch named `<issue>-dispute-<commit>` and puts the issue branch back to
+   branch named `<issue>-dispute-<commit>`, where `<commit>` is the first seven
+   characters of the commit that holds the change, and puts the issue branch back to
    the commit it held before the fixer ran. The change is not pushed, now or on
    a later run, so the pull request shows no such change. It holds the reason
    of the dispute and the name of the branch, and the change is on the machine

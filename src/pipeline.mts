@@ -479,7 +479,7 @@ async function checkGate(job: Run): Promise<Gate> {
       job,
       note === undefined
         ? "The fixer added no commit for the failed checks."
-        : `The checks fail for a reason this change did not cause: ${note}`,
+        : `The checks fail for a reason this change did not cause: ${note}${asideNote(fix.aside)}`,
     );
     return {
       done: true,
@@ -661,7 +661,7 @@ async function fixBase(job: Run): Promise<Gate> {
       job,
       note === undefined
         ? "The fixer added no commit for the failed checks on main."
-        : `The checks on main fail for a reason this change did not cause: ${note}`,
+        : `The checks on main fail for a reason this change did not cause: ${note}${asideNote(fix.aside)}`,
     );
     return {
       done: true,
@@ -674,6 +674,10 @@ async function fixBase(job: Run): Promise<Gate> {
   state.baseFix = undefined;
   await openPr(job);
   return { done: false, fixed: true };
+}
+
+function asideNote(aside: string | undefined): string {
+  return aside === undefined ? "" : `. The fixer left a change behind on the local branch ${aside}.`;
 }
 
 function escalate(job: Run, reason: string): Promise<void> {

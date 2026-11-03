@@ -517,6 +517,32 @@ test("a fixer that reports an unrelated failure hands over without a commit", as
   assert.match(target.comments.at(-1)!, /a reason this change did not cause: product-inventories fails on main too/);
 });
 
+test("a fixer that reports an unrelated check failure after its own commit names the branch that holds the commit", async (t) => {
+  const target = await harness(t, {
+    selfCommit: true,
+    checks: ["fail"],
+    fixerText: "unrelated: product-inventories fails on main too, the diff does not touch it",
+  });
+  const report = await target.run();
+  assert.equal(report.reason, "unrelated failure");
+  assert.equal(await target.context.ports.revision("worktree"), target.pushedHeads.at(-1));
+  assert.equal(target.asides.length, 1);
+  assert.match(target.comments.at(-1)!, new RegExp(`fails on main too, the diff does not touch it\\. The fixer left a change behind on the local branch ${target.asides[0]}\\.`));
+});
+
+test("a fixer that reports an unrelated failure on main after its own commit names the branch that holds the commit", async (t) => {
+  const target = await harness(t, {
+    merge: true,
+    selfCommit: true,
+    baseChecks: ["fail"],
+    fixerText: "unrelated: the server does not mount the release",
+  });
+  const report = await target.run();
+  assert.equal(report.reason, "unrelated failure");
+  assert.equal(target.asides.length, 1);
+  assert.match(target.comments.at(-1)!, new RegExp(`does not mount the release\\. The fixer left a change behind on the local branch ${target.asides[0]}\\.`));
+});
+
 test("a fixer that disputes a finding keeps the round going", async (t) => {
   const target = await harness(t, {
     verdicts: [changes("The count is wrong."), APPROVE],
