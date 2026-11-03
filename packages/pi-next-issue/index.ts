@@ -72,27 +72,28 @@ export function formatStatus(progress: Progress, now: number): string {
   switch (progress.status) {
     case 'running': {
       if (running.length === 0) {
-        return 'next-issue · looking for issues';
+        return 'looking for issues';
       }
+      const count = progress.open === undefined ? '' : `/${progress.open}`;
       const lines = running.map((item) => {
-        const parts = [`#${item.issue}`, item.stage ?? 'prepare', `${item.tools} tools`];
+        const parts = [`#${item.issue}${count}`, item.stage ?? 'prepare', `${item.tools} tools`];
         if (item.startedAt !== undefined) {
           parts.push(duration(now - item.startedAt));
         }
         return parts.join(' · ');
       });
-      return `next-issue ${lines.join(' | ')}`;
+      return lines.join(' | ');
     }
     case 'stopping': {
       const issues = running.map((item) => `#${item.issue}`);
-      return `next-issue ${issues.length === 0 ? '#?' : issues.join(' ')} · stopping`;
+      return `${issues.length === 0 ? '#?' : issues.join(' ')} · stopping`;
     }
     case 'stopped':
-      return `next-issue · stopped: ${outcomes(progress)}`;
+      return `stopped: ${outcomes(progress)}`;
     case 'finished':
-      return `next-issue · finished: ${outcomes(progress)}`;
+      return `finished: ${outcomes(progress)}`;
     case 'failed':
-      return `next-issue · failed: ${progress.error ?? 'unknown error'}`;
+      return `failed: ${progress.error ?? 'unknown error'}`;
   }
 }
 
@@ -354,11 +355,11 @@ export function createExtension(options: Options) {
         const client = shared(options.client);
         await client.attach();
         if (!client.connected) {
-          return report('next-issue · no worker is running', root);
+          return report('no worker is running', root);
         }
         const progress = client.runs[root];
         if (progress === undefined) {
-          return report(`next-issue · no run of ${root}`, root);
+          return report(`no run of ${root}`, root);
         }
         const lines = [
           formatStatus(progress, Date.now()),
