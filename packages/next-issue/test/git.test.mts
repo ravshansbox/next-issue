@@ -9,6 +9,7 @@ import {
   addWorktree,
   branchName,
   discardChanges,
+  disputeBranches,
   ensureIgnored,
   findWorktree,
   isDirty,
@@ -216,11 +217,34 @@ test('setAside moves a commit of the fixer to another branch and keeps its chang
   const head = await revision(path);
   const disputed = await commit(path, 'fixer.txt');
   await writeFile(join(path, 'a.txt'), 'the fixer left this\n');
-  await setAside(path, head, '3-dispute');
+  await setAside(path, head, '3-dispute-1');
   assert.equal(await revision(path), head);
-  assert.equal(await git(path, 'rev-parse', '3-dispute'), disputed);
+  assert.equal(await git(path, 'rev-parse', '3-dispute-1'), disputed);
   assert.equal(await readFile(join(path, 'a.txt'), 'utf8'), 'the fixer left this\n');
-  assert.equal(existsSync(join(path, 'fixer.txt')), false);
+  assert.equal(await readFile(join(path, 'fixer.txt'), 'utf8'), 'fixer.txt\n');
+});
+
+test('setAside moves a commit of the fixer whose file the fixer then edited again', async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const head = await revision(path);
+  await writeFile(join(path, 'a.txt'), 'the fixer committed this\n');
+  await git(path, 'commit', '-q', '-am', 'fixer commit');
+  const disputed = await revision(path);
+  await writeFile(join(path, 'a.txt'), 'the fixer left this\n');
+  await setAside(path, head, '3-dispute-1');
+  assert.equal(await revision(path), head);
+  assert.equal(await git(path, 'rev-parse', '3-dispute-1'), disputed);
+  assert.equal(await readFile(join(path, 'a.txt'), 'utf8'), 'the fixer left this\n');
+});
+
+test('disputeBranches lists the dispute branches of an issue only', async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  await git(path, 'branch', '3-dispute-1');
+  await git(path, 'branch', '3-dispute-2');
+  await git(path, 'branch', '30-dispute-1');
+  assert.deepEqual(await disputeBranches(repo, '3'), ['3-dispute-1', '3-dispute-2']);
 });
 
 test('discardChanges keeps an ignored file and reports a clean worktree', async () => {

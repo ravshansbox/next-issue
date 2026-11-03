@@ -83,6 +83,7 @@ type Plan = {
   unlisted?: Issue[];
   baseChecks?: CheckState[];
   pressDuring?: string;
+  disputes?: string[];
 };
 
 type Harness = {
@@ -194,6 +195,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       head = Number(target);
       return moved || plan.reviewerWrites === true;
     },
+    disputeBranches: async () => plan.disputes ?? [],
     failedCheckLogs: async (_repo, pr) => {
       state.checked.push(pr);
       return 'the failed job logs';
@@ -601,8 +603,27 @@ test('a fixer that disputes after its own commit gets the commit moved off the b
     fixerText: ['unrelated: the count follows the convention in CONTRIBUTING.md'],
   });
   await target.run();
-  assert.deepEqual(target.asides, [{ target: '2', branch: '7-dispute' }]);
+  assert.deepEqual(target.asides, [{ target: '2', branch: '7-dispute-3' }]);
   assert.equal(target.head(), '2');
+});
+
+test('a fixer that reports an unrelated failure after its own commit gets the commit moved off the branch of the pull request', async (t) => {
+  const target = await harness(t, {
+    selfCommit: true,
+    checks: ['fail'],
+    fixerText: 'unrelated: product-inventories fails on main too, the diff does not touch it',
+  });
+  const report = await target.run();
+  assert.equal(report.reason, 'unrelated failure');
+  assert.deepEqual(target.asides, [{ target: '2', branch: '7-dispute-3' }]);
+  assert.equal(target.head(), '2');
+});
+
+test('a finished issue gets the dispute branches of an earlier run deleted', async (t) => {
+  const target = await harness(t, { disputes: ['7-dispute-3'] });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(target.deleted, ['7', '7-dispute-3']);
 });
 
 test('a fixer that disputes and leaves only an unclean worktree keeps the branch as it is', async (t) => {

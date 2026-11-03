@@ -8,6 +8,7 @@ import {
   deleteBranch,
   diff,
   discardChanges,
+  disputeBranches,
   findWorktree,
   isDirty,
   push,
@@ -77,6 +78,7 @@ export type Ports = {
   detectSetupCommand: typeof detectSetupCommand;
   diff: typeof diff;
   discardChanges: typeof discardChanges;
+  disputeBranches: typeof disputeBranches;
   failedBaseLogs: typeof failedBaseLogs;
   failedCheckLogs: typeof failedCheckLogs;
   findPr: typeof findPr;
@@ -116,6 +118,7 @@ export const PORTS: Ports = {
   detectSetupCommand,
   diff,
   discardChanges,
+  disputeBranches,
   failedBaseLogs,
   failedCheckLogs,
   findPr,
@@ -748,8 +751,10 @@ async function finish(job: Run, outcome: Outcome, reason?: string): Promise<Issu
   const { repo, ports } = context;
   await cleanUp(context, log, branch);
   if (outcome === 'done') {
-    if (!(await ports.deleteBranch(repo, branch))) {
-      log.event('branch.kept', { branch }, 'quiet');
+    for (const name of [branch, ...(await ports.disputeBranches(repo, branch))]) {
+      if (!(await ports.deleteBranch(repo, name))) {
+        log.event('branch.kept', { branch: name }, 'quiet');
+      }
     }
     await dropState(repo, issue.number);
   }
@@ -789,9 +794,10 @@ async function fixRound(
   );
   const unrelated = parseUnrelated(result.text);
   if (unrelated !== undefined) {
-    const moved = (await ports.revision(worktree)) !== before;
+    const disputed = await ports.revision(worktree);
+    const moved = disputed !== before;
     if (moved) {
-      const aside = `${branch}-dispute`;
+      const aside = `${branch}-dispute-${disputed.slice(0, 7)}`;
       await ports.setAside(worktree, before, aside);
       log.event('fix.aside', { branch: aside }, 'quiet');
     }

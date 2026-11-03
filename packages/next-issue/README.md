@@ -100,15 +100,18 @@ when:
 - the fixer reports that the checks fail for a reason the change did not cause,
   such as a test already broken on the base branch or one that fails only under
   load. It changes nothing and the reason reaches the pull request, rather than
-  the fixer spending its whole budget on a failure it cannot fix;
+  the fixer spending its whole budget on a failure it cannot fix. A commit it
+  makes anyway moves aside, as for a dispute of the findings;
 - a fixer disputes the findings and leaves a change behind, either in the
   worktree or in a commit of its own. A dispute carries a reason, not a diff,
   so the harness throws none of it away: an unclean worktree stays on the
-  disk, and a commit of the fixer moves to the local `<n>-dispute` branch, so
-  the `<n>` branch keeps only what the pull request holds. Neither is pushed,
-  also not by a later run, so the pull request shows no such change. It holds
-  the reason of the dispute, and the change is on the machine that ran the
-  harness;
+  disk, and a commit of the fixer moves to a new local
+  `<n>-dispute-<commit>` branch, with its change left uncommitted in the
+  worktree, so the `<n>` branch keeps only what the pull request holds. Neither
+  is pushed, also not by a later run, so the pull request shows no such change.
+  It holds the reason of the dispute, and the change is on the machine that ran
+  the harness. The `<n>-dispute-<commit>` branches go away with the `<n>`
+  branch when the issue is done;
 - the reviewer repeats a finding set from an earlier round, which shows a
   ping-pong between the fixer and the reviewer, or a finding that the fixer
   disputed and the reviewer holds to. The person then decides;
