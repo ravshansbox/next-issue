@@ -159,6 +159,10 @@ export class WorkerClient {
     this.options = options;
   }
 
+  private get startTimeoutMs(): number {
+    return this.options.startTimeoutMs ?? START_TIMEOUT_MS;
+  }
+
   get connected(): boolean {
     return this.socket?.readyState === WebSocket.OPEN;
   }
@@ -218,7 +222,7 @@ export class WorkerClient {
     } catch {
       this.options.spawnWorker(this.options.version);
     }
-    const deadline = Date.now() + (this.options.startTimeoutMs ?? START_TIMEOUT_MS);
+    const deadline = Date.now() + this.startTimeoutMs;
     for (;;) {
       await delay(POLL_MS);
       try {
@@ -289,7 +293,7 @@ export class WorkerClient {
       return Promise.resolve();
     }
     return new Promise((resolve) => {
-      const timer = setTimeout(resolve, this.options.startTimeoutMs ?? START_TIMEOUT_MS);
+      const timer = setTimeout(resolve, this.startTimeoutMs);
       socket.once('close', () => {
         clearTimeout(timer);
         resolve();
