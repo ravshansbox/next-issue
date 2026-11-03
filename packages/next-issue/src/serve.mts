@@ -21,7 +21,7 @@ import {
   type WorkerMessage,
 } from './protocol.mts';
 import { runRepo, type RunControls } from './run.mts';
-import { STATE_DIR } from './state.mts';
+import { stateDir } from './state.mts';
 import { packageVersion } from './version.mts';
 
 export type RunRepo = (root: string, args: Args, controls: RunControls) => Promise<number>;
@@ -66,9 +66,10 @@ function endStatus(run: Run): Progress['status'] {
 }
 
 export function workerPaths(root: string): { socketPath: string; lockPath: string } {
+  const dir = stateDir(root);
   return {
-    socketPath: join(root, STATE_DIR, 'worker.sock'),
-    lockPath: join(root, STATE_DIR, 'worker.lock'),
+    socketPath: join(dir, 'worker.sock'),
+    lockPath: join(dir, 'worker.lock'),
   };
 }
 

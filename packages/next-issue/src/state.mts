@@ -32,8 +32,12 @@ export type ReviewRound = {
   dispute?: string;
 };
 
+export function stateDir(root: string): string {
+  return join(root, STATE_DIR);
+}
+
 function dir(repo: Repo): string {
-  return join(repo.root, STATE_DIR);
+  return stateDir(repo.root);
 }
 
 function file(repo: Repo, issue: number): string {

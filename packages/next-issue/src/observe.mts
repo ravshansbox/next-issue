@@ -1,7 +1,7 @@
 import { createWriteStream, type WriteStream } from 'node:fs';
 import { mkdir, readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { STATE_DIR } from './state.mts';
+import { stateDir } from './state.mts';
 
 export type Level = 'quiet' | 'normal' | 'verbose';
 
@@ -29,7 +29,7 @@ export type Totals = {
 const VISIBILITY: Record<Level, number> = { quiet: 0, normal: 1, verbose: 2 };
 
 export function runsDir(root: string): string {
-  return join(root, STATE_DIR, 'runs');
+  return join(stateDir(root), 'runs');
 }
 
 export function emptyUsage(): Usage {
