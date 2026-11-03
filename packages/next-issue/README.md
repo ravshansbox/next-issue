@@ -284,7 +284,7 @@ does not know all stop the run, so a typo cannot pass without a word.
 | Field | Default | Effect |
 | --- | --- | --- |
 | `remote` | `origin` | The git remote for the repository and the branches |
-| `issueLimit` | `100` | The maximum number of open issues to read |
+| `issueLimit` | `100` | The maximum number of open issues to read. With `labels.ready` set, only issues with the ready, in-progress or in-review label count |
 | `maxCiFixes` | `5` | The budget for check fixes per issue |
 | `maxCommitFixes` | `10` | The budget for fixes of a commit that a git hook stopped, per issue |
 | `maxReviewRounds` | `5` | The budget for review rounds per issue |

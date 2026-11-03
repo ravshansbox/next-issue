@@ -10,6 +10,7 @@ import {
   failedCheckLogs,
   findPr,
   labelArgs, mergeCommit, openBlockers,
+  openIssues,
   prNumber,
   setLabel,
   waitForBaseChecks,
@@ -408,4 +409,27 @@ test("mergeCommit gives no merge commit when the pull request closes without a m
   const repo = { owner: "acme", name: "closed", root: dir };
   assert.equal(await mergeCommit(repo, 5, MERGE_OPTIONS, fakeClock()), undefined);
   assert.equal(await callsOf(dir, "pr view"), 1);
+});
+
+test("a user with a ready issue newer than the issue limit gets it listed", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "next-issue-"));
+  const script = `#!/bin/sh
+case "$*" in
+  *'label:"status:todo","status:in-progress"'*)
+    echo '[{"number":150,"title":"ready","body":"","createdAt":"2026-02-01T00:00:00Z","labels":[{"name":"status:todo"}]}]' ;;
+  *) echo '[{"number":1,"title":"old","body":"","createdAt":"2026-01-01T00:00:00Z","labels":[]}]' ;;
+esac
+`;
+  await writeFile(join(dir, "gh"), script, { mode: 0o755 });
+  const path = process.env.PATH;
+  process.env.PATH = `${dir}:${path}`;
+  t.after(() => {
+    process.env.PATH = path;
+  });
+  const repo = { owner: "acme", name: "many", root: dir };
+  const issues = await openIssues(repo, 1, ["status:todo", "status:in-progress"]);
+  assert.deepEqual(
+    issues.map((issue) => issue.number),
+    [150],
+  );
 });
