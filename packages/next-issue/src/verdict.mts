@@ -10,7 +10,9 @@ export type Verdict = {
   findings: Finding[];
 };
 
-const SEVERITIES: string[] = ['blocking', 'minor'];
+function isSeverity(value: unknown): value is Severity {
+  return value === 'blocking' || value === 'minor';
+}
 
 export function readVerdict(value: unknown): Verdict | undefined {
   if (typeof value !== 'object' || value === null) {
@@ -26,14 +28,10 @@ export function readVerdict(value: unknown): Verdict | undefined {
       return undefined;
     }
     const { severity, detail } = item as Record<string, unknown>;
-    if (
-      typeof severity !== 'string' ||
-      !SEVERITIES.includes(severity) ||
-      typeof detail !== 'string'
-    ) {
+    if (!isSeverity(severity) || typeof detail !== 'string') {
       return undefined;
     }
-    checked.push({ severity: severity as Severity, detail });
+    checked.push({ severity, detail });
   }
   return { summary, findings: checked };
 }
