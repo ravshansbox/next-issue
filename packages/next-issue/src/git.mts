@@ -185,9 +185,13 @@ export async function discardChanges(cwd: string, target: string): Promise<boole
   if (!(await isDirty(cwd)) && (await revision(cwd)) === target) {
     return false;
   }
+  await resetHard(cwd, target);
+  return true;
+}
+
+async function resetHard(cwd: string, target: string): Promise<void> {
   await must('git', ['reset', '--hard', target], { cwd });
   await must('git', ['clean', '-fd'], { cwd });
-  return true;
 }
 
 export async function setAside(cwd: string, target: string, branch: string): Promise<void> {
@@ -265,8 +269,7 @@ export async function commitMerge(cwd: string, files: string[], message: string)
 }
 
 export async function abortMerge(cwd: string, target: string): Promise<void> {
-  await must('git', ['reset', '--hard', target], { cwd });
-  await must('git', ['clean', '-fd'], { cwd });
+  await resetHard(cwd, target);
 }
 
 export async function latestSubject(
