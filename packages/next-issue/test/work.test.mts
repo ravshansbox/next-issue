@@ -42,7 +42,7 @@ function minor(...details: string[]): Verdict {
   };
 }
 
-function result(text: string, structured?: unknown): AgentResult {
+function result(text: string): AgentResult {
   return {
     text,
     usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
@@ -50,7 +50,6 @@ function result(text: string, structured?: unknown): AgentResult {
     toolCalls: 0,
     ms: 1,
     costUsd: 0,
-    structured,
   };
 }
 
@@ -255,7 +254,12 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
         if (plan.reviewerCommits === true) {
           head += 1;
         }
-        return result('reviewed', verdicts.shift());
+        const verdict = verdicts.shift();
+        return result(
+          verdict === undefined
+            ? 'reviewed'
+            : `reviewed\n\n\`\`\`json\n${JSON.stringify(verdict)}\n\`\`\``,
+        );
       }
       if (plan.selfCommit === true) {
         head += 1;

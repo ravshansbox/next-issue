@@ -73,7 +73,8 @@ export function reviewPrompt(
     'The harness discards each change that you make, so a change is only lost work.',
     scope,
     'Mark a finding blocking only for a wrong result, a missing part of the issue, a regression or a broken convention.',
-    'Give the result with the submit_result tool: a short summary and one entry per finding. The findings decide the outcome, so a problem that you leave out counts as no problem.',
+    'End your final message with the result as a json block in a ```json fence, in the form {"summary": "<short summary>", "findings": [{"severity": "blocking" or "minor", "detail": "<what is wrong and where>"}]}.',
+    'Give one entry per finding, and an empty list when nothing is wrong. The findings decide the outcome, so a problem that you leave out counts as no problem.',
   ].join('\n\n');
 }
 

@@ -5,6 +5,7 @@ import {
   fingerprint,
   formatVerdict,
   openFindings,
+  parseVerdict,
   readVerdict,
   type Verdict,
 } from '../src/verdict.mts';
@@ -16,6 +17,24 @@ const BLOCKING: Verdict = {
     { severity: 'minor', detail: 'The name is long.' },
   ],
 };
+
+test('parseVerdict reads the last json block of the reviewer text', () => {
+  const text = [
+    'The rule says to end like this:',
+    '```json\n{"summary": "example", "findings": []}\n```',
+    'Here is my verdict.',
+    '```json',
+    JSON.stringify(BLOCKING, null, 2),
+    '```',
+  ].join('\n');
+  assert.deepEqual(parseVerdict(text), BLOCKING);
+});
+
+test('parseVerdict gives undefined without a valid json block', () => {
+  assert.equal(parseVerdict('Looks good to me.'), undefined);
+  assert.equal(parseVerdict('```json\n{"summary": \n```'), undefined);
+  assert.equal(parseVerdict('```json\n{"summary": "x"}\n```'), undefined);
+});
 
 test('readVerdict refuses a value that is not a verdict', () => {
   assert.equal(readVerdict(undefined), undefined);

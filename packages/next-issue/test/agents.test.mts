@@ -12,7 +12,6 @@ import {
 import { ModelRuntime, SettingsManager } from '@earendil-works/pi-coding-agent';
 import { CODING, isOwnExtension, REVIEWING, runAgent, toolFields } from '../src/agents.mts';
 import { Recorder } from '../src/observe.mts';
-import { VERDICT_SCHEMA } from '../src/verdict.mts';
 
 async function fakePi(responses: FauxResponseStep[], tokensPerSecond?: number) {
   const root = await mkdtemp(join(tmpdir(), 'next-issue-'));
@@ -142,19 +141,6 @@ test('the harness saves the session of a pi agent next to the run log', async ()
   const saved = await readFile(join(dir, files[0]!), 'utf8');
   assert.ok(saved.includes(result.sessionId!));
   assert.ok(saved.includes('"ls"'));
-});
-
-test('the harness gets the verdict that the reviewer submits with the result tool', async () => {
-  const verdict = { summary: 'fine', findings: [{ severity: 'minor', detail: 'a typo' }] };
-  const { recorder, request } = await fakePi([
-    fauxAssistantMessage([fauxToolCall('submit_result', verdict)], { stopReason: 'toolUse' }),
-  ]);
-  const result = await runAgent(recorder, {
-    ...request,
-    profile: REVIEWING,
-    outputSchema: VERDICT_SCHEMA,
-  });
-  assert.deepEqual(result.structured, verdict);
 });
 
 test('the harness reports the error when the model of a pi agent fails', async () => {

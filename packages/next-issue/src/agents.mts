@@ -3,14 +3,11 @@ import {
   type AgentSessionEvent,
   createAgentSession,
   DefaultResourceLoader,
-  defineTool,
   getAgentDir,
   ModelRuntime,
   SessionManager,
   type SettingsManager,
-  type ToolDefinition,
 } from '@earendil-works/pi-coding-agent';
-import type { TSchema } from 'typebox';
 import { onStop } from './exec.mts';
 import { emptyUsage, type Fields, type Recorder, type Usage } from './observe.mts';
 
@@ -30,7 +27,6 @@ export type AgentRequest = {
   prompt: string;
   profile: Profile;
   model?: string;
-  outputSchema?: Record<string, unknown>;
   timeoutMs?: number;
   runtime?: Runtime;
 };
@@ -44,7 +40,6 @@ export type AgentResult = {
   costUsd: number;
   model?: string;
   sessionId?: string;
-  structured?: unknown;
 };
 
 const REVIEWING: Profile = {
@@ -57,8 +52,6 @@ const CODING: Profile = {
 
 export { CODING, REVIEWING };
 
-export const SUBMIT_TOOL = 'submit_result';
-
 export function isOwnExtension(path: string): boolean {
   return path.split(sep).includes('pi-next-issue');
 }
@@ -69,27 +62,6 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
   const agentDir = runtime.agentDir ?? getAgentDir();
   const started = Date.now();
   log.event('agent.start', { model: request.model, timeoutMs: request.timeoutMs }, 'normal');
-
-  let structured: unknown;
-  const customTools: ToolDefinition[] = [];
-  if (request.outputSchema !== undefined) {
-    customTools.push(
-      defineTool({
-        name: SUBMIT_TOOL,
-        label: 'Submit result',
-        description: 'Give the result. Call it once, as your last action.',
-        parameters: request.outputSchema as unknown as TSchema,
-        async execute(_toolCallId, params) {
-          structured = params;
-          return {
-            content: [{ type: 'text', text: 'Result saved.' }],
-            details: {},
-            terminate: true,
-          };
-        },
-      }) as unknown as ToolDefinition,
-    );
-  }
 
   const resourceLoader = new DefaultResourceLoader({
     cwd: request.cwd,
@@ -114,7 +86,6 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     resourceLoader,
     sessionManager: SessionManager.create(request.cwd, recorder.sessionDir),
     tools: request.profile.tools,
-    customTools,
     modelRuntime,
     ...(runtime.settingsManager === undefined ? {} : { settingsManager: runtime.settingsManager }),
     ...(model === undefined ? {} : { model }),
@@ -166,7 +137,6 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
       costUsd: stats.cost,
       model: name,
       sessionId: stats.sessionId,
-      structured,
     };
   } finally {
     clearTimeout(timer);
