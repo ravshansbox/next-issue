@@ -6,13 +6,19 @@ import { test, type TestContext } from "node:test";
 import { type CommandRecord, setCommandObserver } from "../src/exec.mts";
 import {
   commentOnPr,
+  createPr,
+  defaultBranch,
   failedBaseLogs,
   failedCheckLogs,
   findPr,
-  labelArgs, mergeCommit, openBlockers,
+  issueComments,
+  labelArgs, markPrReady, mergeCommit, mergePr, openBlockers,
   openIssues,
+  prMerged,
   prNumber,
+  reopenIssue,
   setLabel,
+  viewIssue,
   waitForBaseChecks,
   waitForChecks,
 } from "../src/github.mts";
@@ -432,4 +438,54 @@ esac
     issues.map((issue) => issue.number),
     [150],
   );
+});
+
+async function fakeAnyGh(t: TestContext): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "next-issue-"));
+  const script = `#!/bin/sh
+case "$1 $2" in
+  "repo view") echo '{"defaultBranchRef":{"name":"main"}}' ;;
+  "issue view") echo '{"number":7,"title":"t","body":"","createdAt":"2026-01-01T00:00:00Z","labels":[],"comments":[],"state":"OPEN"}' ;;
+  "pr list") echo '[{"number":42}]' ;;
+  "pr create") echo https://github.com/acme/tool/pull/42 ;;
+  "pr view") echo MERGED ;;
+  "pr ready"|"pr merge"|"issue reopen") ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+`;
+  await writeFile(join(dir, "gh"), script, { mode: 0o755 });
+  const path = process.env.PATH;
+  process.env.PATH = `${dir}:${path}`;
+  t.after(() => {
+    process.env.PATH = path;
+  });
+  return dir;
+}
+
+test("the worker passes gh the repository and the issue or pull request number it acts on", async (t) => {
+  const dir = await fakeAnyGh(t);
+  const seen: string[][] = [];
+  setCommandObserver((record) => seen.push(record.args));
+  t.after(() => setCommandObserver(() => undefined));
+  const repo = { owner: "acme", name: "tool", root: dir };
+  await defaultBranch(repo);
+  await viewIssue(repo, 7);
+  await issueComments(repo, 7);
+  await findPr(repo, "7");
+  await createPr(repo, "7", "main", "fix: x", "Closes #7", true);
+  await markPrReady(repo, 42);
+  await mergePr(repo, 42);
+  await prMerged(repo, 42);
+  await reopenIssue(repo, 7);
+  assert.deepEqual(seen, [
+    ["repo", "view", "acme/tool", "--json", "defaultBranchRef"],
+    ["issue", "view", "7", "--json", "number,title,body,createdAt,labels,state", "--repo", "acme/tool"],
+    ["issue", "view", "7", "--json", "comments", "--repo", "acme/tool"],
+    ["pr", "list", "--head", "7", "--state", "open", "--json", "number", "--repo", "acme/tool"],
+    ["pr", "create", "--head", "7", "--base", "main", "--title", "fix: x", "--body", "Closes #7", "--draft", "--repo", "acme/tool"],
+    ["pr", "ready", "42", "--repo", "acme/tool"],
+    ["pr", "merge", "42", "--squash", "--delete-branch", "--repo", "acme/tool"],
+    ["pr", "view", "42", "--json", "state", "--jq", ".state", "--repo", "acme/tool"],
+    ["issue", "reopen", "7", "--repo", "acme/tool"],
+  ]);
 });
