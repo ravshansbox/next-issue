@@ -6,7 +6,7 @@ import { branchName } from './git.mts';
 import type { Issue } from './github.mts';
 import {
   cleanUp,
-  escalate,
+  escalateAndFinish,
   finish,
   handOver,
   handOverReply,
@@ -236,13 +236,14 @@ async function work(
         { code: setup.code, timedOut: late, stderr: setup.stderr.trim().slice(-2000) },
         'quiet',
       );
-      await escalate(
+      const failed = await escalateAndFinish(
         job,
         late
           ? `The setup command did not finish in ${config.setupTimeoutMinutes} minutes.`
           : 'The setup command failed in the worktree.',
+        late ? 'setup timeout' : 'setup failed',
       );
-      return finish(job, 'needs-human', late ? 'setup timeout' : 'setup failed');
+      return failed.report;
     }
   }
 
@@ -255,8 +256,12 @@ async function work(
     if (!(await commitWork(job, before, subject, 'implementer'))) {
       const earlier = await ports.latestSubject(worktree, context.base, config.remote);
       if (earlier === undefined) {
-        await escalate(job, 'The implementer produced no change.');
-        return finish(job, 'needs-human', 'no implementation commit');
+        const empty = await escalateAndFinish(
+          job,
+          'The implementer produced no change.',
+          'no implementation commit',
+        );
+        return empty.report;
       }
       log.event('implement.earlier', { subject: earlier }, 'quiet');
       state.title = earlier;

@@ -106,16 +106,12 @@ export async function handOverReply(
   return reply;
 }
 
-export function escalate(job: Run, reason: string): Promise<void> {
-  return handOver(job.context, job.log, job.issue.number, job.state, reason);
-}
-
 export async function escalateAndFinish(
   job: Run,
   note: string,
   reason: string,
 ): Promise<{ done: true; report: IssueReport }> {
-  await escalate(job, note);
+  await handOver(job.context, job.log, job.issue.number, job.state, note);
   return { done: true, report: await finish(job, 'needs-human', reason) };
 }
 
