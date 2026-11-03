@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   blockingFindings,
-  fingerprint,
   formatVerdict,
   openFindings,
   parseVerdict,
@@ -122,17 +121,4 @@ test('an approval that leaves a finding says why', () => {
   assert.match(text, /- \*\*minor\*\* The name is long\./);
   assert.match(text, /the review budget is spent/);
   assert.doesNotMatch(formatVerdict(taste, taste.findings), /the review budget is spent/);
-});
-
-test('the fingerprint ignores the order, the case and the punctuation', () => {
-  const first = fingerprint([
-    { severity: 'blocking', detail: 'The count is wrong!' },
-    { severity: 'blocking', detail: 'A test is missing.' },
-  ]);
-  const second = fingerprint([
-    { severity: 'blocking', detail: 'a test is missing' },
-    { severity: 'blocking', detail: 'the  count is wrong' },
-  ]);
-  assert.equal(first, second);
-  assert.notEqual(first, fingerprint([{ severity: 'blocking', detail: 'Something else.' }]));
 });

@@ -8,7 +8,6 @@ import { capDiff, reviewPrompt } from './prompts.mts';
 import { writeState } from './state.mts';
 import {
   blockingFindings,
-  fingerprint,
   formatFindings,
   formatVerdict,
   openFindings,
@@ -90,15 +89,9 @@ export async function reviewRound(job: Run): Promise<Round> {
     return { done: true, report: await finish(job, 'done') };
   }
 
-  const mark = fingerprint(open);
-  if (state.reviewLog.some((round) => round.fingerprint === mark)) {
-    await escalate(job, 'The reviewer repeated findings that an earlier round did not fix.');
-    return { done: true, report: await finish(job, 'needs-human', 'repeated findings') };
-  }
   const earlier = history(state.reviewLog);
   state.reviewLog.push({
     round: state.reviewRounds,
-    fingerprint: mark,
     findings: formatFindings(open),
   });
   await writeState(repo, state);

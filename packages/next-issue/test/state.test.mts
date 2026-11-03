@@ -24,13 +24,26 @@ const STATE: IssueState = {
   pr: 12,
   ciFixes: 1,
   reviewRounds: 2,
-  reviewLog: [{ round: 1, fingerprint: 'a b', findings: '- a b' }],
+  reviewLog: [{ round: 1, findings: '- a b' }],
 };
 
 test('the state survives the round trip', async () => {
   const target = await repo();
   await writeState(target, STATE);
   assert.deepEqual(await readState(target, 7), STATE);
+});
+
+test('a caller that reads a state file of an earlier version with a fingerprint gets the state back', async () => {
+  const target = await repo();
+  await writeState(target, STATE);
+  const path = join(target.root, STATE_DIR, '7.json');
+  await writeFile(
+    path,
+    `{ ${VALID}, "phase": "review", "reviewLog": [{ "round": 1, "fingerprint": "a b", "findings": "- a b" }] }`,
+  );
+  assert.deepEqual((await readState(target, 7))?.reviewLog, [
+    { round: 1, fingerprint: 'a b', findings: '- a b' },
+  ]);
 });
 
 test('a missing state gives undefined', async () => {
@@ -59,7 +72,7 @@ for (const text of [
   `{ ${VALID}, "phase": "review", "baseFix": { "sha": "a" }, "reviewLog": [] }`,
   `{ ${VALID}, "phase": "review", "reviewLog": [null] }`,
   `{ ${VALID}, "phase": "review", "handedOver": "yes", "reviewLog": [] }`,
-  `{ ${VALID}, "phase": "review", "reviewLog": [{ "round": 1, "fingerprint": "f", "findings": "x", "dispute": 2 }] }`,
+  `{ ${VALID}, "phase": "review", "reviewLog": [{ "round": 1, "findings": "x", "dispute": 2 }] }`,
 ]) {
   test(`a caller that reads a state file holding ${text} gets an error that names the file`, async () => {
     const target = await repo();

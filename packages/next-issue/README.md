@@ -120,7 +120,9 @@ The harness hands the issue to a person, with the `status:needs-human` label,
 and comments the reason on the pull request, or on the issue when there is no
 pull request yet, when:
 
-- the check budget or the review budget runs out;
+- the check budget or the review budget runs out. A finding that the reviewer
+  repeats, even one that the fixer disputed, goes back to the fixer until the
+  review budget runs out;
 - a fixer round adds no commit and gives no reason, so there is no progress;
 - the fixer reports that the checks fail for a reason the change did not cause,
   such as a test already broken on the base branch or one that fails only under
@@ -138,9 +140,6 @@ pull request yet, when:
   holds the reason of the dispute, and the change is on the machine that ran
   the harness. The `<n>-dispute-<commit>` branches go away with the `<n>`
   branch when the issue is done;
-- the reviewer repeats a finding set from an earlier round, which shows a
-  ping-pong between the fixer and the reviewer, or a finding that the fixer
-  disputed and the reviewer holds to. The person then decides;
 - the reviewer gives no verdict, or the checks do not finish in time;
 - someone pushes to the pull request while the harness waits for the checks,
   so the pull request no longer shows the commit that the harness pushed;

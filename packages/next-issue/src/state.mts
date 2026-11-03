@@ -27,7 +27,6 @@ export type BaseFix = {
 
 export type ReviewRound = {
   round: number;
-  fingerprint: string;
   findings: string;
   dispute?: string;
 };
@@ -81,7 +80,6 @@ function isReviewRound(value: unknown): value is ReviewRound {
   return (
     isRecord(value) &&
     typeof value.round === 'number' &&
-    typeof value.fingerprint === 'string' &&
     typeof value.findings === 'string' &&
     isOptional(value.dispute, 'string')
   );
