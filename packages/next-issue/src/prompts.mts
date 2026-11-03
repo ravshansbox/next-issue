@@ -40,14 +40,14 @@ export function implementPrompt(issue: Issue, comments: string[], reply: string[
 }
 
 export function hookPrompt(issue: Issue, comments: string[], role: string, output: string): string {
-  return [
+  return paragraphs([
     `You are the ${role}. The harness could not commit your work for the issue below, because a git hook failed.`,
     issueBlock(issue, comments),
     `## Hook output\n${output}`,
     '## Rules',
     'Fix what the hook reports and keep the rest of the work in this worktree. Do not skip or weaken the hook.',
     COMMIT_RULES,
-  ].join('\n\n');
+  ]);
 }
 
 export function capDiff(diff: string, maxChars: number): string {
