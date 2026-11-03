@@ -440,6 +440,8 @@ export function createExtension(options: Options) {
     pi.registerCommand('next-issue', {
       description:
         'Start or stop working through the GitHub issues of this repository, or answer the waiting questions with "answer"',
+      getArgumentCompletions: (prefix) =>
+        'answer'.startsWith(prefix) ? [{ value: 'answer', label: 'answer' }] : null,
       handler: async (args, ctx) => {
         if (args.trim() === 'answer') {
           try {
