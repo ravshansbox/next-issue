@@ -217,6 +217,45 @@ export async function resetToBase(cwd: string, base: string, remote: string): Pr
   await must('git', ['reset', '--hard', `${remote}/${base}`], { cwd });
 }
 
+export async function startMerge(cwd: string, base: string, remote: string): Promise<string[]> {
+  await must('git', ['fetch', remote, base], { cwd });
+  const result = await run('git', ['merge', '--no-ff', '--no-commit', `${remote}/${base}`], {
+    cwd,
+  });
+  if (result.code === 0) {
+    return [];
+  }
+  const listed = await must('git', ['diff', '--name-only', '--diff-filter=U'], { cwd });
+  const files = listed.split('\n').filter((line) => line.length > 0);
+  if (files.length === 0) {
+    throw new Error(`git merge ${remote}/${base} failed: ${result.stderr.trim()}`);
+  }
+  return files;
+}
+
+const CONFLICT_MARKER = /^(?:<{7}|>{7})(?: |$)|^={7}$/m;
+
+export async function commitMerge(cwd: string, files: string[]): Promise<boolean> {
+  const merging = await run('git', ['rev-parse', '--quiet', '--verify', 'MERGE_HEAD'], { cwd });
+  if (merging.code !== 0) {
+    return false;
+  }
+  for (const file of files) {
+    const text = await readFile(join(cwd, file), 'utf8').catch(() => '');
+    if (CONFLICT_MARKER.test(text)) {
+      return false;
+    }
+  }
+  await must('git', ['add', '-A'], { cwd });
+  await must('git', ['commit', '--no-edit', '--no-verify'], { cwd });
+  return true;
+}
+
+export async function abortMerge(cwd: string, target: string): Promise<void> {
+  await must('git', ['reset', '--hard', target], { cwd });
+  await must('git', ['clean', '-fd'], { cwd });
+}
+
 export async function latestSubject(
   cwd: string,
   base: string,

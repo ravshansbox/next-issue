@@ -1,4 +1,5 @@
 import { REVIEWING } from './agents.mts';
+import { conflicts, resolveConflict } from './conflict.mts';
 import { fixRound } from './fix.mts';
 import { checkGate } from './gate.mts';
 import { escalate, finish } from './handover.mts';
@@ -80,6 +81,10 @@ export async function reviewRound(job: Run): Promise<Round> {
       log.event('pull-request.undraft.fail', { pr }, 'quiet');
     }
     if (context.merge) {
+      if (await conflicts(job)) {
+        const resolved = await resolveConflict(job);
+        return resolved.done ? { done: true, report: resolved.report } : { done: false };
+      }
       if (!(await ports.mergePr(repo, pr))) {
         await escalate(job, 'The merge of the pull request failed.');
         return { done: true, report: await finish(job, 'needs-human', 'merge failed') };

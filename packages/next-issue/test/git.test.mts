@@ -6,9 +6,11 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { must } from '../src/exec.mts';
 import {
+  abortMerge,
   addWorktree,
   branchName,
   commitAll,
+  commitMerge,
   discardChanges,
   disputeBranches,
   ensureIgnored,
@@ -23,6 +25,7 @@ import {
   type Repo,
   revision,
   setAside,
+  startMerge,
 } from '../src/git.mts';
 
 test('parseRemote reads every remote form', () => {
@@ -243,6 +246,58 @@ test('push with force replaces a remote branch that the base reset left behind',
     await git(repo.root, 'ls-remote', 'origin', 'refs/heads/3'),
     `${fixed}\trefs/heads/3`,
   );
+});
+
+async function diverged(): Promise<{ path: string; base: string }> {
+  const { repo, other } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  await git(path, 'config', 'user.name', 't');
+  await git(path, 'config', 'user.email', 't@t');
+  await writeFile(join(path, 'a.txt'), 'branch\n');
+  await git(path, 'commit', '-q', '-am', 'branch');
+  return { path, base: other };
+}
+
+test('startMerge merges a base that git can merge cleanly and commitMerge commits it with both parents', async () => {
+  const { path, base } = await diverged();
+  await commit(base, 'b.txt');
+  await git(base, 'push', '-q', 'origin', 'main');
+  const head = await revision(path);
+  assert.deepEqual(await startMerge(path, 'main', 'origin'), []);
+  assert.equal(await commitMerge(path, []), true);
+  assert.equal(await git(path, 'rev-parse', 'HEAD^1'), head);
+  assert.equal(await git(path, 'rev-parse', 'HEAD^2'), await git(path, 'rev-parse', 'origin/main'));
+  assert.equal(await isDirty(path), false);
+});
+
+test('startMerge lists the conflicted files, and commitMerge refuses them while they hold conflict markers', async () => {
+  const { path, base } = await diverged();
+  await writeFile(join(base, 'a.txt'), 'base\n');
+  await git(base, 'commit', '-q', '-am', 'base');
+  await git(base, 'push', '-q', 'origin', 'main');
+  const head = await revision(path);
+  assert.deepEqual(await startMerge(path, 'main', 'origin'), ['a.txt']);
+  assert.equal(await commitMerge(path, ['a.txt']), false);
+  await abortMerge(path, head);
+  assert.equal(await revision(path), head);
+  assert.equal(await isDirty(path), false);
+  await assert.rejects(git(path, 'rev-parse', '--verify', '--quiet', 'MERGE_HEAD'));
+});
+
+test('commitMerge commits a conflict that the fixer resolved, and refuses a merge that the fixer aborted', async () => {
+  const { path, base } = await diverged();
+  await writeFile(join(base, 'a.txt'), 'base\n');
+  await git(base, 'commit', '-q', '-am', 'base');
+  await git(base, 'push', '-q', 'origin', 'main');
+  const head = await revision(path);
+  await startMerge(path, 'main', 'origin');
+  await git(path, 'merge', '--abort');
+  assert.equal(await commitMerge(path, ['a.txt']), false);
+  await startMerge(path, 'main', 'origin');
+  await writeFile(join(path, 'a.txt'), 'branch and base\n');
+  assert.equal(await commitMerge(path, ['a.txt']), true);
+  assert.equal(await git(path, 'rev-parse', 'HEAD^1'), head);
+  assert.equal(await readFile(join(path, 'a.txt'), 'utf8'), 'branch and base\n');
 });
 
 test('discardChanges puts back a tracked file and removes a new one', async () => {

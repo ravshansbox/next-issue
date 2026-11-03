@@ -91,7 +91,7 @@ export function reviewPrompt(
   ].join('\n\n');
 }
 
-export type FixKind = 'checks' | 'review';
+export type FixKind = 'checks' | 'review' | 'conflict';
 
 const UNRELATED_RULE = [
   'The checks can fail for a reason this change did not cause: a test that is already broken on the base branch, one that exercises code the diff does not touch, or one that fails only under load.',
@@ -105,6 +105,18 @@ const DISPUTE_RULE = [
   'If only some of the findings are wrong, fix the correct ones and change nothing for the wrong ones. Write no `unrelated` line in that round. The next round holds only the findings that are left, and you can dispute them there.',
   'The reviewer reads that line in the next round. Do not make a change that you hold to be wrong only to end the round.',
 ].join('\n');
+
+const CONFLICT_RULE = [
+  'The harness merged the base branch into this branch, and git left conflict markers in the files listed under Detail.',
+  'Resolve each conflict so that both the change of this issue and the change on the base branch survive, and remove every conflict marker.',
+  'Leave the merge in progress. The harness commits the merge and pushes it.',
+].join('\n');
+
+const KIND_RULES: Record<FixKind, string> = {
+  checks: UNRELATED_RULE,
+  review: DISPUTE_RULE,
+  conflict: CONFLICT_RULE,
+};
 
 export function fixPrompt(
   issue: Issue,
@@ -128,7 +140,7 @@ export function fixPrompt(
     replyBlock(reply),
     '## Rules',
     'Fix the cause, not the symptom. Keep the change minimal.',
-    kind === 'checks' ? UNRELATED_RULE : DISPUTE_RULE,
+    KIND_RULES[kind],
     COMMIT_RULES,
   ]
     .filter((part) => part.length > 0)
