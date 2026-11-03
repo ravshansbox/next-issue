@@ -53,4 +53,4 @@ The extension does no work itself. On `/next-issue` or `next_issue_start` it con
 - The worker stays when every pi is closed. Stop it with `npx next-issue stop`.
 - When the extension is newer than the worker, the worker closes once no run is going, and the extension starts the newer worker.
 
-Each run asks the worker to merge the pull requests. See the [`next-issue` README](../next-issue/README.md) for what a run does, its labels, its state and its config.
+Each run asks the worker to merge the pull requests. [ADR 0002](https://github.com/ravshansbox/next-issue/blob/main/docs/adr/0002-merge-setting.md) compares where the merge setting could live. See the [`next-issue` README](../next-issue/README.md) for what a run does, its labels, its state and its config.
