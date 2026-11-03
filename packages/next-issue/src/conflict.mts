@@ -39,26 +39,28 @@ export async function resolveConflict(job: Run): Promise<Gate> {
   return { done: false, fixed: true };
 }
 
+async function fixConflict(job: Run, files: string[]): Promise<string> {
+  const { context, issue, log, state } = job;
+  const reason = 'The pull request conflicts with its base.';
+  const result = await log.step(
+    'fix',
+    { reason, cause: 'conflict', round: state.ciFixes, limit: context.config.maxCiFixes },
+    () =>
+      runRole(
+        job,
+        'fixer',
+        fixPrompt(issue, reason, files.join('\n'), [], 'conflict', job.reply),
+        CODING,
+      ),
+  );
+  return result.text;
+}
+
 async function mergeBase(job: Run, before: string, files: string[]): Promise<boolean> {
-  const { context, issue, log, state, worktree } = job;
+  const { context, worktree } = job;
   const { config, ports } = context;
   try {
-    let text = '';
-    if (files.length > 0) {
-      const reason = 'The pull request conflicts with its base.';
-      const result = await log.step(
-        'fix',
-        { reason, cause: 'conflict', round: state.ciFixes, limit: config.maxCiFixes },
-        () =>
-          runRole(
-            job,
-            'fixer',
-            fixPrompt(issue, reason, files.join('\n'), [], 'conflict', job.reply),
-            CODING,
-          ),
-      );
-      text = result.text;
-    }
+    const text = files.length > 0 ? await fixConflict(job, files) : '';
     const subject = parseCommitSubject(text, `chore: merge ${config.remote}/${context.base}`);
     return await commitWork(job, before, subject, 'fixer', (cwd, message) =>
       ports.commitMerge(cwd, files, message),
