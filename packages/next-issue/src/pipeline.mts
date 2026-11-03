@@ -434,11 +434,11 @@ async function openPr(job: Run): Promise<void> {
 }
 
 async function checkGate(job: Run): Promise<Gate> {
-  const { context, log, state, branch, worktree } = job;
+  const { context, log, state, worktree } = job;
   const { repo, config, ports } = context;
   const head = await ports.revision(worktree);
   const checks = await log.step("checks", { pr: state.pr, head }, () =>
-    ports.waitForChecks(repo, branch, {
+    ports.waitForChecks(repo, state.pr!, {
       head,
       intervalSeconds: config.checkIntervalSeconds,
       graceMs: job.noChecks ? 0 : config.checkGraceSeconds * 1000,
@@ -461,7 +461,7 @@ async function checkGate(job: Run): Promise<Gate> {
   }
   state.ciFixes += 1;
   await writeState(repo, state);
-  const logs = await ports.failedCheckLogs(repo, branch, config.logMaxChars);
+  const logs = await ports.failedCheckLogs(repo, state.pr!, config.logMaxChars);
   log.event("checks.logs", { chars: logs.length });
   const fix = await fixRound(
     job,

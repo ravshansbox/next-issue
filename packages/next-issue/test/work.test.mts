@@ -89,6 +89,7 @@ type Harness = {
   discards: number;
   setups: string[];
   waits: WaitOptions[];
+  checked: unknown[];
   pushes: number;
   forcedPushes: number;
   ready: number[];
@@ -132,6 +133,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     discards: 0,
     setups: [],
     waits: [],
+    checked: [],
     pushes: 0,
     forcedPushes: 0,
     ready: [],
@@ -181,7 +183,10 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       head = Number(target);
       return moved || plan.reviewerWrites === true;
     },
-    failedCheckLogs: async () => "the failed job logs",
+    failedCheckLogs: async (_repo, pr) => {
+      state.checked.push(pr);
+      return "the failed job logs";
+    },
     failedBaseLogs: async () => "the failed main logs",
     findPr: async () => undefined,
     findWorktree: async () => undefined,
@@ -247,7 +252,8 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       state.baseWaits.push(sha);
       return baseChecks.shift() ?? "pass";
     },
-    waitForChecks: async (_repo, _branch, options) => {
+    waitForChecks: async (_repo, pr, options) => {
+      state.checked.push(pr);
       state.waits.push(options);
       const next = checks[Math.min(state.checkReads, checks.length - 1)]!;
       state.checkReads += 1;
@@ -470,6 +476,12 @@ test("a failed build gives the logs to the fixer and then reviews", async (t) =>
   assert.deepEqual(roles(target), ["implementer", "fixer", "reviewer"]);
   assert.match(target.prompts[1]!.prompt, /the failed job logs/);
   assert.equal(target.pushes, 2);
+});
+
+test("a user whose branch is named after the issue number gets the checks read from the pull request number", async (t) => {
+  const target = await harness(t, { checks: ["fail", "pass"] });
+  await target.run();
+  assert.deepEqual(new Set(target.checked), new Set([101]));
 });
 
 test("a build that fails after the approval keeps the issue open", async (t) => {
