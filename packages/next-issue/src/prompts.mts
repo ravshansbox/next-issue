@@ -151,7 +151,7 @@ function lastMatch(text: string, pattern: RegExp): string | undefined {
 
 export function parseUnrelated(text: string): string | undefined {
   const note = lastMatch(text, /^unrelated:\s*(.+)$/gim);
-  return note !== undefined && note.length > 0 ? note : undefined;
+  return note === '' ? undefined : note;
 }
 
 export function parseCommitSubject(text: string, fallback: string): string {
