@@ -613,6 +613,13 @@ test('a user sees each running issue with the open-issue count of the latest fet
     ),
     '#12/7 · implement · 3 tools · 41s | #13/7 · review fix 2/5 · 1 tools',
   );
+  assert.equal(
+    formatStatus(
+      progress({ open: 1, issues: [working(225, { stage: 'implement', tools: 0 })] }),
+      now,
+    ),
+    '#225/1 · implement · 0 tools',
+  );
 });
 
 test('a user sees a finished or stopped run summed up by outcome in the footer', () => {

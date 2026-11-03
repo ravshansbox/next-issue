@@ -1422,6 +1422,29 @@ test('a user who resumes after a merge that closed the issue gets the closed iss
   );
 });
 
+test('a user with one open issue and two closed issues to resume sees an open count of one', async (t) => {
+  const older: Issue = { ...ISSUE, number: 3, createdAt: '2025-12-01T00:00:00Z' };
+  const closed: Issue = { ...ISSUE, number: 8, createdAt: '2026-01-15T00:00:00Z' };
+  const target = await harness(t, {
+    saved: SAVED,
+    alreadyMerged: true,
+    open: [older],
+    closed: [ISSUE, closed],
+  });
+  await writeState(target.context.repo, { ...SAVED, issue: 8 });
+  const issues = await pendingIssues(target.context);
+  assert.deepEqual(
+    issues.map((entry) => entry.number),
+    [3, 7, 8],
+  );
+  const counts = target.events.filter((record) => record.kind === 'issues');
+  assert.deepEqual(
+    counts.map((record) => record.open),
+    [1],
+  );
+  assert.equal(target.events.reduce(applyEvent, startProgress()).open, 1);
+});
+
 test('a user whose open issues arrive out of order gets them oldest first', async (t) => {
   const older: Issue = { ...ISSUE, number: 3, createdAt: '2025-12-01T00:00:00Z' };
   const later: Issue = { ...ISSUE, number: 9, createdAt: '2026-02-01T00:00:00Z' };
