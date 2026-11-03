@@ -36,12 +36,8 @@ export function stateDir(root: string): string {
   return join(root, STATE_DIR);
 }
 
-function dir(repo: Repo): string {
-  return stateDir(repo.root);
-}
-
 function file(repo: Repo, issue: number): string {
-  return join(dir(repo), `${issue}.json`);
+  return join(stateDir(repo.root), `${issue}.json`);
 }
 
 export async function readState(repo: Repo, issue: number): Promise<IssueState | undefined> {
@@ -111,7 +107,7 @@ function isState(value: unknown): value is IssueState {
 export async function savedIssues(repo: Repo): Promise<number[]> {
   let names: string[];
   try {
-    names = await readdir(dir(repo));
+    names = await readdir(stateDir(repo.root));
   } catch (error) {
     if (hasCode(error, 'ENOENT')) {
       return [];
@@ -130,7 +126,7 @@ export function resetState(state: IssueState): IssueState {
 }
 
 export async function writeState(repo: Repo, state: IssueState): Promise<void> {
-  await mkdir(dir(repo), { recursive: true });
+  await mkdir(stateDir(repo.root), { recursive: true });
   await writeFile(file(repo, state.issue), `${JSON.stringify(state, null, 2)}\n`);
 }
 
