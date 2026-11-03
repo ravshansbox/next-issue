@@ -489,21 +489,32 @@ test('a user sees the error of a failed run in the footer', () => {
   );
 });
 
-function question(issue: number, kind = 'issues', thread = issue): Question {
+function question(issue: number, pr?: number): Question {
   return {
     issue,
     title: `Title ${issue}`,
     reason: `Reason ${issue}`,
-    url: `https://github.com/owner/name/${kind}/${thread}#issuecomment-1`,
+    url: '',
+    repo: 'owner/name',
+    ...(pr === undefined ? {} : { pr }),
+    labels: { needsHuman: 'status:needs-human', skip: 'status:blocked' },
   };
 }
 
-async function questionWorker(path: string, lists: Question[][]) {
+async function questionWorker(path: string, lists: Question[][], stale?: Question[]) {
   let list: Question[] = lists[0] ?? [];
   const started = await startFakeWorker(path, '1.0.0', (self, message) => {
     if (message.type === 'questions') {
+      if (stale !== undefined && message.id !== undefined) {
+        self.reply({ type: 'questions', root: message.root, questions: stale });
+      }
       list = lists.length > 1 ? lists.shift()! : list;
-      self.reply({ type: 'questions', root: message.root, questions: list });
+      self.reply({
+        type: 'questions',
+        root: message.root,
+        questions: list,
+        ...(message.id === undefined ? {} : { id: message.id }),
+      });
     }
   });
   workers.push(started);
@@ -542,6 +553,32 @@ test('a user sees the count drop when a question is answered elsewhere, with no 
   assert.deepEqual(calls, []);
 });
 
+test('a user of an rpc client sees the question count in the footer without colour codes', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  const { pi, emit, waiting } = host('rpc');
+  extension(pi as never);
+  await emit('session_start');
+  fake.reply({ type: 'questions', root: '/repo', questions: [question(4)] });
+  await until(() => waiting.at(-1) === '1 question waiting');
+});
+
+test('a user with pi open has the worker asked for the waiting questions every minute', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] });
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  const { pi, emit } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const asks = () => fake.received.filter((message) => message.type === 'questions').length;
+  await until(() => asks() === 1);
+  t.mock.timers.tick(59_999);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(asks(), 1);
+  t.mock.timers.tick(1);
+  await until(() => asks() === 2);
+});
+
 test('a user who opens pi asks the worker for the waiting questions of this repository', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
@@ -555,9 +592,9 @@ test('a user who opens pi asks the worker for the waiting questions of this repo
   );
 });
 
-test('a user who answers retry takes the needs-human label off the issue', async () => {
+test('a user who answers retry takes the needs-human label off the issue and its pull request', async () => {
   const { path, calls, extension } = setup();
-  await questionWorker(path, [[question(4, 'pull', 12)], []]);
+  await questionWorker(path, [[question(4, 12)], []]);
   const { pi, emit, command, asked, notes } = host('tui', '/repo', ['Retry']);
   extension(pi as never);
   await emit('session_start');
@@ -565,43 +602,53 @@ test('a user who answers retry takes the needs-human label off the issue', async
   assert.deepEqual(asked, ['#4 Title 4\n\nReason 4']);
   assert.deepEqual(calls, [
     {
-      args: [
-        'issue',
-        'edit',
-        'https://github.com/owner/name/issues/4',
-        '--remove-label',
-        'status:needs-human',
-      ],
+      args: ['issue', 'edit', '4', '--repo', 'owner/name', '--remove-label', 'status:needs-human'],
+      cwd: '/repo',
+    },
+    {
+      args: ['pr', 'edit', '12', '--repo', 'owner/name', '--remove-label', 'status:needs-human'],
       cwd: '/repo',
     },
   ]);
   assert.ok(notes.includes('next-issue: #4 will be retried'));
 });
 
-test('a user who answers retry with guidance posts it on the pull request of the hand-over, then takes the label off', async () => {
+test('a user who answers retry with guidance posts it on the pull request of the issue, then takes the label off', async () => {
   const { path, calls, extension } = setup();
-  await questionWorker(path, [[question(4, 'pull', 12)], []]);
+  await questionWorker(path, [[question(4, 12)], []]);
   const { pi, emit, command } = host('tui', '/repo', ['Retry with guidance', 'Use the cache']);
   extension(pi as never);
   await emit('session_start');
   await command('answer');
   assert.deepEqual(calls, [
     {
-      args: ['pr', 'comment', 'https://github.com/owner/name/pull/12', '--body-file', '-'],
+      args: ['pr', 'comment', '12', '--repo', 'owner/name', '--body-file', '-'],
       cwd: '/repo',
       input: 'Use the cache',
     },
     {
-      args: [
-        'issue',
-        'edit',
-        'https://github.com/owner/name/issues/4',
-        '--remove-label',
-        'status:needs-human',
-      ],
+      args: ['issue', 'edit', '4', '--repo', 'owner/name', '--remove-label', 'status:needs-human'],
+      cwd: '/repo',
+    },
+    {
+      args: ['pr', 'edit', '12', '--repo', 'owner/name', '--remove-label', 'status:needs-human'],
       cwd: '/repo',
     },
   ]);
+});
+
+test('a user who answers retry with guidance on an issue with no pull request posts it on the issue', async () => {
+  const { path, calls, extension } = setup();
+  await questionWorker(path, [[question(4)], []]);
+  const { pi, emit, command } = host('tui', '/repo', ['Retry with guidance', 'Use the cache']);
+  extension(pi as never);
+  await emit('session_start');
+  await command('answer');
+  assert.deepEqual(calls[0], {
+    args: ['issue', 'comment', '4', '--repo', 'owner/name', '--body-file', '-'],
+    cwd: '/repo',
+    input: 'Use the cache',
+  });
 });
 
 test('a user who gives up takes the needs-human label off and adds the skip label, then sees the next question', async () => {
@@ -617,7 +664,9 @@ test('a user who gives up takes the needs-human label off and adds the skip labe
       args: [
         'issue',
         'edit',
-        'https://github.com/owner/name/issues/4',
+        '4',
+        '--repo',
+        'owner/name',
         '--remove-label',
         'status:needs-human',
         '--add-label',
@@ -626,6 +675,33 @@ test('a user who gives up takes the needs-human label off and adds the skip labe
       cwd: '/repo',
     },
   ]);
+});
+
+test('a user who gives up on an issue with a pull request moves both to the skip label', async () => {
+  const { path, calls, extension } = setup();
+  await questionWorker(path, [[question(4, 12)], []]);
+  const { pi, emit, command } = host('tui', '/repo', ['Give up']);
+  extension(pi as never);
+  await emit('session_start');
+  await command('answer');
+  assert.deepEqual(
+    calls.map((call) => call.args.slice(0, 3)),
+    [
+      ['issue', 'edit', '4'],
+      ['pr', 'edit', '12'],
+    ],
+  );
+  assert.ok(calls.every((call) => call.args.at(-1) === 'status:blocked'));
+});
+
+test('a user who answers is not shown a question from an older list that arrives first', async () => {
+  const { path, extension } = setup();
+  await questionWorker(path, [[question(5)], []], [question(4)]);
+  const { pi, emit, command, asked } = host('tui', '/repo', [undefined]);
+  extension(pi as never);
+  await emit('session_start');
+  await command('answer');
+  assert.deepEqual(asked, ['#5 Title 5\n\nReason 5']);
 });
 
 test('a user who answers skips a question that was answered elsewhere in the meantime', async () => {

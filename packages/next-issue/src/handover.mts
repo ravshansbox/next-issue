@@ -48,6 +48,9 @@ export async function waitingQuestions(
       title: issue.title,
       reason: comment?.body.slice(HAND_OVER.length).trim() ?? '',
       url: comment?.url ?? '',
+      repo: `${repo.owner}/${repo.name}`,
+      ...(pr === undefined ? {} : { pr }),
+      labels: { needsHuman: config.labels.needsHuman, skip: config.labels.skip },
     });
   }
   return questions;

@@ -1,5 +1,5 @@
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   type ExtensionAPI,
@@ -27,39 +27,12 @@ const KEY = Symbol.for('pi-next-issue');
 const STATUS_KEY = 'next-issue';
 const QUESTIONS_KEY = 'next-issue-questions';
 const QUESTIONS_MS = 60_000;
-const CONFIG_FILE = 'next-issue.config.json';
 const RETRY = 'Retry';
 const GUIDE = 'Retry with guidance';
 const GIVE_UP = 'Give up';
 
-type Labels = { needsHuman: string; skip: string };
-
-async function readLabels(root: string): Promise<Labels> {
-  const labels: Labels = { needsHuman: 'status:needs-human', skip: 'status:blocked' };
-  let raw: string;
-  try {
-    raw = await readFile(join(root, CONFIG_FILE), 'utf8');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return labels;
-    }
-    throw error;
-  }
-  try {
-    const file = JSON.parse(raw) as { labels?: Partial<Labels> };
-    return { ...labels, ...file.labels };
-  } catch (error) {
-    throw new Error(`${CONFIG_FILE} is not valid JSON: ${errorText(error)}`);
-  }
-}
-
 export function formatQuestions(count: number): string {
   return `${count} ${count === 1 ? 'question' : 'questions'} waiting`;
-}
-
-function threadOf(question: Question): { base: string; kind: string; number: string } | undefined {
-  const match = /^(https?:\/\/[^/]+\/[^/]+\/[^/]+)\/(issues|pull)\/(\d+)/.exec(question.url);
-  return match === null ? undefined : { base: match[1]!, kind: match[2]!, number: match[3]! };
 }
 
 function errorText(error: unknown): string {
@@ -361,11 +334,12 @@ export function createExtension(options: Options) {
 
     const fresh = (client: WorkerClient, root: string) =>
       new Promise<Question[]>((resolve, reject) => {
+        const id = randomUUID();
         const stop = client.subscribe((event) => {
-          if (event.type === 'questions' && event.root === root) {
+          if (event.type === 'questions' && event.root === root && event.id === id) {
             stop();
             resolve(event.questions);
-          } else if (event.type === 'questions-error' && event.root === root) {
+          } else if (event.type === 'questions-error' && event.root === root && event.id === id) {
             stop();
             reject(new Error(event.message));
           } else if (event.type === 'closed') {
@@ -373,30 +347,29 @@ export function createExtension(options: Options) {
             reject(new Error('the worker closed the connection'));
           }
         });
-        client.send({ type: 'questions', root });
+        client.send({ type: 'questions', root, id });
       });
 
     const reply = async (root: string, question: Question, choice: string, guidance: string) => {
-      const labels = await readLabels(root);
-      const thread = threadOf(question);
+      const threads: Array<[string, number]> = [['issue', question.issue]];
+      if (question.pr !== undefined) {
+        threads.push(['pr', question.pr]);
+      }
+      const repo = ['--repo', question.repo];
       if (choice === GUIDE) {
-        const kind = thread?.kind === 'pull' ? 'pr' : 'issue';
-        const target =
-          thread === undefined
-            ? String(question.issue)
-            : `${thread.base}/${thread.kind}/${thread.number}`;
-        await options.gh([kind, 'comment', target, '--body-file', '-'], {
+        const [kind, number] = threads.at(-1)!;
+        await options.gh([kind, 'comment', String(number), ...repo, '--body-file', '-'], {
           cwd: root,
           input: guidance,
         });
       }
-      const issue =
-        thread === undefined ? String(question.issue) : `${thread.base}/issues/${question.issue}`;
-      const args = ['issue', 'edit', issue, '--remove-label', labels.needsHuman];
+      const labels = ['--remove-label', question.labels.needsHuman];
       if (choice === GIVE_UP) {
-        args.push('--add-label', labels.skip);
+        labels.push('--add-label', question.labels.skip);
       }
-      await options.gh(args, { cwd: root });
+      for (const [kind, number] of threads) {
+        await options.gh([kind, 'edit', String(number), ...repo, ...labels], { cwd: root });
+      }
     };
 
     const answer = async (ctx: ExtensionContext) => {

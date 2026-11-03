@@ -63,9 +63,31 @@ test('the worker lists each open issue that waits for a person with the reason a
   });
   assert.deepEqual(labels, [[config.labels.needsHuman]]);
   assert.deepEqual(questions, [
-    { issue: 7, title: 'Seven', reason: 'The implementer produced no change.', url: 'u2' },
-    { issue: 8, title: 'Eight', reason: 'The reviewer gave no verdict.', url: 'u4' },
-    { issue: 9, title: 'Nine', reason: '', url: '' },
+    {
+      issue: 7,
+      title: 'Seven',
+      reason: 'The implementer produced no change.',
+      url: 'u2',
+      repo: 'acme/tool',
+      labels: { needsHuman: config.labels.needsHuman, skip: config.labels.skip },
+    },
+    {
+      issue: 8,
+      title: 'Eight',
+      reason: 'The reviewer gave no verdict.',
+      url: 'u4',
+      repo: 'acme/tool',
+      pr: 80,
+      labels: { needsHuman: config.labels.needsHuman, skip: config.labels.skip },
+    },
+    {
+      issue: 9,
+      title: 'Nine',
+      reason: '',
+      url: '',
+      repo: 'acme/tool',
+      labels: { needsHuman: config.labels.needsHuman, skip: config.labels.skip },
+    },
   ]);
   assert.equal(mostReading, 1);
 });

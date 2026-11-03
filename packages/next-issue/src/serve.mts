@@ -132,7 +132,8 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       .catch(() => undefined);
   };
   const reads = new Map<string, number>();
-  const delivered = new WeakMap<WebSocket, Map<string, number>>();
+  type Questions = Extract<WorkerMessage, { type: 'questions' | 'questions-error' }>;
+  const delivered = new WeakMap<WebSocket, Map<string, { read: number; value: Questions }>>();
   let restart = false;
   let finish: () => void = () => undefined;
   const closed = new Promise<void>((resolve) => {
@@ -154,22 +155,29 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       send(socket, value);
     }
   };
-  const sendQuestions = async (root: string, targets: () => Iterable<WebSocket>): Promise<void> => {
+  const sendQuestions = async (
+    root: string,
+    targets: () => Iterable<WebSocket>,
+    id?: string,
+  ): Promise<void> => {
     remember(root);
     const read = (reads.get(root) ?? 0) + 1;
     reads.set(root, read);
-    let value: WorkerMessage;
+    let value: Questions;
     try {
       value = { type: 'questions', root, questions: await options.questions(root) };
     } catch (error) {
       value = { type: 'questions-error', root, message: message(error) };
     }
     for (const socket of targets()) {
-      const seen = delivered.get(socket) ?? new Map<string, number>();
-      if ((seen.get(root) ?? 0) < read) {
-        seen.set(root, read);
+      const seen = delivered.get(socket) ?? new Map<string, { read: number; value: Questions }>();
+      const last = seen.get(root);
+      if (last === undefined || last.read < read) {
+        seen.set(root, { read, value });
         delivered.set(socket, seen);
-        send(socket, value);
+        send(socket, id === undefined ? value : { ...value, id });
+      } else if (id !== undefined) {
+        send(socket, { ...last.value, id });
       }
     }
   };
@@ -291,7 +299,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       } else if (value.type === 'stop') {
         stop(value.root);
       } else if (value.type === 'questions') {
-        void sendQuestions(value.root, () => [socket]);
+        void sendQuestions(value.root, () => [socket], value.id);
       }
     });
   });

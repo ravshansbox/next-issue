@@ -250,6 +250,8 @@ const QUESTION: Question = {
   title: 'Add a flag',
   reason: 'The reviewer gave no verdict.',
   url: 'https://github.com/acme/tool/issues/7#issuecomment-1',
+  repo: 'acme/tool',
+  labels: { needsHuman: 'status:needs-human', skip: 'status:blocked' },
 };
 
 const questionsOf = (value: WorkerMessage) => value.type === 'questions';
@@ -345,6 +347,64 @@ test('a client whose questions cannot be read gets a questions error for the rep
     type: 'questions-error',
     root: '/repo',
     message: 'gh: not logged in',
+  });
+});
+
+test('a client that asks with an id gets the list read for that ask, tagged with the id, after an older list', async (t) => {
+  const pending: ((questions: Question[]) => void)[] = [];
+  const { socketPath } = await worker(
+    t,
+    fakeRuns(),
+    '2.0.0',
+    () => new Promise((resolve) => pending.push(resolve)),
+  );
+  const client = await connect(t, socketPath);
+  client.send({ type: 'questions', root: '/repo' });
+  client.send({ type: 'questions', root: '/repo', id: 'ask' });
+  while (pending.length < 2) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  pending[0]!([QUESTION]);
+  assert.deepEqual(await client.next(questionsOf), {
+    type: 'questions',
+    root: '/repo',
+    questions: [QUESTION],
+  });
+  pending[1]!([]);
+  assert.deepEqual(await client.next(questionsOf), {
+    type: 'questions',
+    root: '/repo',
+    questions: [],
+    id: 'ask',
+  });
+});
+
+test('a client whose ask with an id is overtaken by a newer list gets that newer list tagged with the id', async (t) => {
+  const pending: ((questions: Question[]) => void)[] = [];
+  const { socketPath } = await worker(
+    t,
+    fakeRuns(),
+    '2.0.0',
+    () => new Promise((resolve) => pending.push(resolve)),
+  );
+  const client = await connect(t, socketPath);
+  client.send({ type: 'questions', root: '/repo', id: 'ask' });
+  client.send({ type: 'questions', root: '/repo' });
+  while (pending.length < 2) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  pending[1]!([]);
+  assert.deepEqual(await client.next(questionsOf), {
+    type: 'questions',
+    root: '/repo',
+    questions: [],
+  });
+  pending[0]!([QUESTION]);
+  assert.deepEqual(await client.next(questionsOf), {
+    type: 'questions',
+    root: '/repo',
+    questions: [],
+    id: 'ask',
   });
 });
 
