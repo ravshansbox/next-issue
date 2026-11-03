@@ -8,6 +8,7 @@ import {
   deleteBranch,
   diff,
   discardChanges,
+  disputeBranches,
   findWorktree,
   isDirty,
   push,
@@ -15,6 +16,7 @@ import {
   type Repo,
   resetToBase,
   revision,
+  setAside,
 } from './git.mts';
 import {
   commentOnPr,
@@ -76,6 +78,7 @@ export type Ports = {
   detectSetupCommand: typeof detectSetupCommand;
   diff: typeof diff;
   discardChanges: typeof discardChanges;
+  disputeBranches: typeof disputeBranches;
   failedBaseLogs: typeof failedBaseLogs;
   failedCheckLogs: typeof failedCheckLogs;
   findPr: typeof findPr;
@@ -99,6 +102,7 @@ export type Ports = {
     cwd: string,
     timeoutMs: number,
   ) => Promise<{ code: number; stderr: string; timedOut?: boolean }>;
+  setAside: typeof setAside;
   setLabel: typeof setLabel;
   viewIssue: typeof viewIssue;
   waitForBaseChecks: typeof waitForBaseChecks;
@@ -114,6 +118,7 @@ export const PORTS: Ports = {
   detectSetupCommand,
   diff,
   discardChanges,
+  disputeBranches,
   failedBaseLogs,
   failedCheckLogs,
   findPr,
@@ -133,6 +138,7 @@ export const PORTS: Ports = {
   revision,
   runAgent,
   runSetup: async (command, cwd, timeoutMs) => run('bash', ['-lc', command], { cwd, timeoutMs }),
+  setAside,
   setLabel,
   viewIssue,
   waitForBaseChecks,
@@ -745,8 +751,10 @@ async function finish(job: Run, outcome: Outcome, reason?: string): Promise<Issu
   const { repo, ports } = context;
   await cleanUp(context, log, branch);
   if (outcome === 'done') {
-    if (!(await ports.deleteBranch(repo, branch))) {
-      log.event('branch.kept', { branch }, 'quiet');
+    for (const name of [branch, ...(await ports.disputeBranches(repo, branch))]) {
+      if (!(await ports.deleteBranch(repo, name))) {
+        log.event('branch.kept', { branch: name }, 'quiet');
+      }
     }
     await dropState(repo, issue.number);
   }
@@ -786,7 +794,14 @@ async function fixRound(
   );
   const unrelated = parseUnrelated(result.text);
   if (unrelated !== undefined) {
-    const stray = (await ports.revision(worktree)) !== before || (await ports.isDirty(worktree));
+    const disputed = await ports.revision(worktree);
+    const moved = disputed !== before;
+    if (moved) {
+      const aside = `${branch}-dispute-${disputed.slice(0, 7)}`;
+      await ports.setAside(worktree, before, aside);
+      log.event('fix.aside', { branch: aside }, 'quiet');
+    }
+    const stray = moved || (await ports.isDirty(worktree));
     log.event('fix.unrelated', { reason, note: unrelated, stray }, 'quiet');
     return { committed: false, unrelated, stray };
   }
