@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { statSync } from 'node:fs';
-import { readdir, stat, writeFile } from 'node:fs/promises';
+import { readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { Server } from 'node:net';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -202,9 +202,45 @@ test('a second worker does not start while the first one holds the lock', async 
       version: '2.0.0',
       runRepo: fake.runRepo,
       questions: noQuestions,
+      lockWaitMs: 0,
     }),
     undefined,
   );
+});
+
+test('a worker started while the last one closes takes the lock once it is released', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const socketPath = join(dir, 'w.sock');
+  const lockPath = join(dir, 'w.lock');
+  await writeFile(lockPath, `${process.pid}\n`);
+  setTimeout(() => void rm(lockPath, { force: true }), 100);
+  const started = await startWorker({
+    root: '/repo',
+    socketPath,
+    lockPath,
+    version: '2.0.0',
+    runRepo: fakeRuns().runRepo,
+    questions: noQuestions,
+  });
+  assert.ok(started);
+  t.after(() => started.close());
+  await connect(t, socketPath);
+});
+
+test('a worker that no client connects to closes and removes its socket and lock', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const started = await startWorker({
+    root: '/repo',
+    socketPath: join(dir, 'w.sock'),
+    lockPath: join(dir, 'w.lock'),
+    version: '2.0.0',
+    runRepo: fakeRuns().runRepo,
+    questions: noQuestions,
+    idleMs: 50,
+  });
+  assert.ok(started);
+  await started.closed;
+  assert.deepEqual(await readdir(dir), []);
 });
 
 test('a worker takes over the lock and the socket file that a dead worker left', async (t) => {
@@ -233,8 +269,12 @@ test('a worker that meets a newer client closes once no run is going', async (t)
   client.send({ type: 'start', root: '/repo', merge: true });
   await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
   client.send({ type: 'hello', version: '2.1.0' });
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  assert.equal(fake.calls.length, 1);
+  client.send({ type: 'start', root: '/other', merge: true });
+  assert.deepEqual(await client.next((value) => value.type === 'error'), {
+    type: 'error',
+    root: '/other',
+    message: 'the worker is restarting, try again soon',
+  });
   fake.finish();
   await started.closed;
   await client.closed;

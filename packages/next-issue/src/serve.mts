@@ -34,7 +34,13 @@ export type WorkerOptions = {
   version: string;
   runRepo: RunRepo;
   questions: ListQuestions;
+  lockWaitMs?: number;
+  idleMs?: number;
 };
+
+const LOCK_WAIT_MS = 5_000;
+const LOCK_POLL_MS = 100;
+const IDLE_MS = 30_000;
 
 export type Worker = {
   closed: Promise<void>;
@@ -86,8 +92,9 @@ export async function stopWorker(lockPath: string): Promise<number | undefined> 
   return pid;
 }
 
-async function lock(path: string): Promise<boolean> {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+async function lock(path: string, waitMs: number): Promise<boolean> {
+  const deadline = Date.now() + waitMs;
+  for (;;) {
     try {
       await writeFile(path, `${process.pid}\n`, { flag: 'wx', mode: 0o600 });
       return true;
@@ -95,13 +102,15 @@ async function lock(path: string): Promise<boolean> {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
         throw error;
       }
-      if ((await holder(path)) !== undefined) {
-        return false;
-      }
+    }
+    if ((await holder(path)) === undefined) {
       await rm(path, { force: true });
+    } else if (Date.now() >= deadline) {
+      return false;
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, LOCK_POLL_MS));
     }
   }
-  return false;
 }
 
 export async function listQuestions(root: string): Promise<Question[]> {
@@ -112,7 +121,7 @@ export async function listQuestions(root: string): Promise<Question[]> {
 export async function startWorker(options: WorkerOptions): Promise<Worker | undefined> {
   checkSocketPath(options.socketPath);
   await mkdir(dirname(options.lockPath), { recursive: true });
-  if (!(await lock(options.lockPath))) {
+  if (!(await lock(options.lockPath, options.lockWaitMs ?? LOCK_WAIT_MS))) {
     return undefined;
   }
   await rm(options.socketPath, { force: true });
@@ -172,8 +181,10 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     );
 
   let closing: Promise<void> | undefined;
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
   const close = (): Promise<void> => {
     closing ??= (async () => {
+      clearTimeout(idleTimer);
       for (const socket of sockets.clients) {
         socket.terminate();
       }
@@ -302,6 +313,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       process.umask(umask);
     }
   });
+  idleTimer = setTimeout(closeWhenIdle, options.idleMs ?? IDLE_MS);
   return { closed, close };
 }
 

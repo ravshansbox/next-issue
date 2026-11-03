@@ -53,6 +53,7 @@ The extension does no work itself. On `/next-issue` or `next_issue_start` it con
 - Opening pi does not start a worker. It only shows a run when a worker is going.
 - The run does not belong to pi: it goes on after `/new`, `/resume`, a fork, a reload or quitting pi.
 - The worker exits when no run is going and no pi is connected. Stop it at once with `npx next-issue stop` in the repository.
+- Versions before one worker per repository ran one worker for the machine, which does not stop by itself and can keep claiming issues alongside the new worker. Stop it once after you upgrade, as the [`next-issue` README](../next-issue/README.md#worker) says.
 - When the extension is newer than the worker of a repository, that worker closes once no run is going, and the extension starts the newer worker. Workers of other repositories carry on.
 
 Each run asks the worker to merge the pull requests. [ADR 0002](https://github.com/ravshansbox/next-issue/blob/main/docs/adr/0002-merge-setting.md) compares where the merge setting could live. See the [`next-issue` README](../next-issue/README.md) for what a run does, its labels, its state and its config.

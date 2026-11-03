@@ -533,7 +533,10 @@ of one repository never affect another. The worker:
 - stops a run, when a client asks, like a second `Ctrl-C`: each running issue
   after its current round, with the state kept;
 - exits, and removes its socket and lock files, when no run is going and no
-  client is connected;
+  client is connected, or when no client connects in the 30 seconds after it
+  starts;
+- waits up to 5 seconds for the lock when a worker that is closing still
+  holds it;
 - closes once no run is going when a client with a newer version connects, so
   that the client can start the newer worker;
 - stops every agent and command and exits on `SIGTERM` or `SIGINT`, and
@@ -544,6 +547,18 @@ Workers of other repositories carry on. This sends `SIGTERM` to the process in
 the lock file, so the worker stops at once and a run that is going resumes from
 its saved state next time. When no worker is running, the command says so and
 exits with 0.
+
+Versions before one worker per repository ran one worker for the machine,
+with `next-issue.sock`, `next-issue.lock` and `next-issue.roots.json` in
+`~/.pi/agent`, or in the folder that `PI_CODING_AGENT_DIR` names. That worker
+does not stop by itself, `next-issue stop` does not reach it, and a run in it
+can claim issues alongside the new worker of the same repository. Stop it once
+after you upgrade:
+
+```sh
+kill "$(cat ~/.pi/agent/next-issue.lock)"
+rm -f ~/.pi/agent/next-issue.roots.json
+```
 
 ## Development
 

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { closeSync, mkdirSync, openSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import WebSocket from 'ws';
 
 export type RunStatus = 'running' | 'stopping' | 'finished' | 'stopped' | 'failed';
@@ -127,7 +127,7 @@ export function checkSocketPath(path: string, platform = process.platform): void
 
 export function spawnWorker(root: string, version: string): void {
   const { logPath } = workerPaths(root);
-  mkdirSync(join(root, '.next-issue'), { recursive: true });
+  mkdirSync(dirname(logPath), { recursive: true });
   const log = openSync(logPath, 'a');
   try {
     const child = spawn('npx', workerArgs(version), {
