@@ -28,6 +28,10 @@ export type Totals = {
 
 const VISIBILITY: Record<Level, number> = { quiet: 0, normal: 1, verbose: 2 };
 
+export function runsDir(root: string): string {
+  return join(root, STATE_DIR, 'runs');
+}
+
 export function emptyUsage(): Usage {
   return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
 }
@@ -113,7 +117,7 @@ export class Recorder {
     listener?: (record: Fields) => void,
   ): Promise<Recorder> {
     const runId = new Date().toISOString().replace(/[:.]/g, '-');
-    const dir = join(root, STATE_DIR, 'runs');
+    const dir = runsDir(root);
     await mkdir(dir, { recursive: true });
     const file = join(dir, `${runId}.jsonl`);
     const sink = new Sink(createWriteStream(file, { flags: 'a' }), level, file, listener);
@@ -205,7 +209,7 @@ export async function pruneRuns(root: string, keepDays: number): Promise<number>
   if (keepDays <= 0) {
     return 0;
   }
-  const dir = join(root, STATE_DIR, 'runs');
+  const dir = runsDir(root);
   const names = await readdir(dir).catch(() => []);
   const cutoff = Date.now() - keepDays * 24 * 60 * 60_000;
   let dropped = 0;

@@ -8,9 +8,8 @@ import { detectRepo, type Repo } from './git.mts';
 import { defaultBranch } from './github.mts';
 import type { Interrupts } from './interrupt.mts';
 import { exitCode, type Loop, runIssues, watchIssues } from './loop.mts';
-import { type Fields, message, pruneRuns, Recorder } from './observe.mts';
+import { type Fields, message, pruneRuns, Recorder, runsDir } from './observe.mts';
 import { type Context, pendingIssues, PORTS, processIssue } from './pipeline.mts';
-import { STATE_DIR } from './state.mts';
 import { count, type RunSummary } from './summary.mts';
 import { packageVersion } from './version.mts';
 
@@ -134,7 +133,7 @@ async function handle(
     'quiet',
   );
   const summary: RunSummary = { ...recorder.summary(), issues: reports };
-  const summaryFile = join(repo.root, STATE_DIR, 'runs', `${recorder.runId}.summary.json`);
+  const summaryFile = join(runsDir(repo.root), `${recorder.runId}.summary.json`);
   await writeFile(summaryFile, `${JSON.stringify(summary, null, 2)}\n`);
   if (!args.watch) {
     await print(summary);

@@ -2,13 +2,12 @@ import { writeSync } from 'node:fs';
 import { open, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
-import { hasCode, render } from './observe.mts';
-import { STATE_DIR } from './state.mts';
+import { hasCode, render, runsDir } from './observe.mts';
 
 const POLL_MS = 200;
 
 export async function newestRunLog(root: string): Promise<string | undefined> {
-  const dir = join(root, STATE_DIR, 'runs');
+  const dir = runsDir(root);
   const names = await readdir(dir).catch(() => []);
   const newest = names
     .filter((name) => name.endsWith('.jsonl'))
