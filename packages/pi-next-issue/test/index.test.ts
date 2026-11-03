@@ -7,7 +7,7 @@ import { type FakeWorker, running, socketPath, startFakeWorker, until } from './
 type Handler = (event: unknown, ctx: unknown) => unknown;
 type ToolResult = {
   content: Array<{ type: string; text: string }>;
-  details: { started: boolean; root: string };
+  details: { started?: boolean; root: string };
 };
 type ToolExecute = (
   toolCallId: string,
@@ -69,7 +69,8 @@ function host(mode = 'tui', cwd = '/repo', answers: Array<string | undefined> = 
   const command = (args = '') => commands.get('next-issue')!(args, ctx);
   const start = (signal?: AbortSignal) =>
     tools.get('next_issue_start')!('call', {}, signal, undefined, ctx);
-  return { pi, ctx, status, waiting, asked, painted, widgets, notes, emit, command, start };
+  const report = () => tools.get('next_issue_status')!('call', {}, undefined, undefined, ctx);
+  return { pi, ctx, status, waiting, asked, painted, widgets, notes, emit, command, start, report };
 }
 
 const KEY = Symbol.for('pi-next-issue');
@@ -247,6 +248,50 @@ test('a model that calls next_issue_start outside a git repository gets the erro
   const { pi, start } = host('tui', '/outside');
   extension(pi as never);
   await assert.rejects(start(), /not a git repository/);
+});
+
+test('a model that calls next_issue_status sees the run of this repository and each handled issue with its outcome', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/other'] = running({ issue: 3, stage: 'review 1', tools: 9 });
+  fake.runs['/repo'] = running({
+    issue: 191,
+    stage: 'implement',
+    tools: 12,
+    handled: [
+      { issue: 190, outcome: 'done' },
+      { issue: 189, outcome: 'needs-human' },
+      { issue: 188, outcome: 'error' },
+    ],
+  });
+  const { pi, report } = host();
+  extension(pi as never);
+  const result = await report();
+  assert.equal(
+    result.content[0]?.text,
+    'next-issue #191 · implement · 12 tools\n#190 done\n#189 needs a human\n#188 failed',
+  );
+});
+
+test('a model that calls next_issue_status while the worker has no run of this repository is told so', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/other'] = running({ issue: 3 });
+  const { pi, emit, report } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const result = await report();
+  assert.equal(result.content[0]?.text, 'next-issue · no run of /repo');
+});
+
+test('a model that calls next_issue_status with no worker going is told so and no worker starts', async () => {
+  const { spawns, extension } = setup();
+  const { pi, emit, report } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const result = await report();
+  assert.equal(result.content[0]?.text, 'next-issue · no worker is running');
+  assert.equal(spawns.length, 0);
 });
 
 test('a user who runs /next-issue with no worker going starts the worker release that matches the extension version', async () => {
