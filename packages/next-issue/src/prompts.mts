@@ -15,15 +15,28 @@ function issueBlock(issue: Issue, comments: string[]): string {
     .join('\n\n');
 }
 
-export function implementPrompt(issue: Issue, comments: string[]): string {
+function replyBlock(reply: string[]): string {
+  return reply.length > 0
+    ? [
+        '## Answer of a person to the hand-over',
+        'The last run handed the issue to a person. A person with write access to the repository answered as below. Follow this guidance.',
+        reply.join('\n\n'),
+      ].join('\n\n')
+    : '';
+}
+
+export function implementPrompt(issue: Issue, comments: string[], reply: string[] = []): string {
   return [
     'You are the implementer. Solve the issue below in this worktree.',
     issueBlock(issue, comments),
+    replyBlock(reply),
     '## Rules',
     'Read the repository conventions first. Keep the change minimal and focused on the issue.',
     'Add or update tests when the repository has a test suite.',
     COMMIT_RULES,
-  ].join('\n\n');
+  ]
+    .filter((part) => part.length > 0)
+    .join('\n\n');
 }
 
 export function hookPrompt(issue: Issue, comments: string[], role: string, output: string): string {
@@ -99,6 +112,7 @@ export function fixPrompt(
   detail: string,
   earlier: string[],
   kind: FixKind,
+  reply: string[] = [],
 ): string {
   return [
     `You are the fixer. Correct the work for issue #${issue.number}: ${issue.title}.`,
@@ -111,6 +125,7 @@ export function fixPrompt(
           'Keep those earlier fixes. Do not undo work that a later round did not question.',
         ].join('\n')
       : '',
+    replyBlock(reply),
     '## Rules',
     'Fix the cause, not the symptom. Keep the change minimal.',
     kind === 'checks' ? UNRELATED_RULE : DISPUTE_RULE,

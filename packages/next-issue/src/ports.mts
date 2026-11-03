@@ -17,6 +17,7 @@ import {
   setAside,
 } from './git.mts';
 import {
+  canWrite,
   commentOnIssue,
   commentOnPr,
   createPr,
@@ -33,6 +34,7 @@ import {
   prMerged,
   reopenIssue,
   setLabel,
+  threadComments,
   viewIssue,
   waitForBaseChecks,
   waitForChecks,
@@ -41,6 +43,7 @@ import { detectSetupCommand } from './setup.mts';
 
 export type Ports = {
   addWorktree: typeof addWorktree;
+  canWrite: typeof canWrite;
   commentOnIssue: typeof commentOnIssue;
   commentOnPr: typeof commentOnPr;
   commitAll: typeof commitAll;
@@ -77,6 +80,7 @@ export type Ports = {
   ) => Promise<{ code: number; stderr: string; timedOut?: boolean }>;
   setAside: typeof setAside;
   setLabel: typeof setLabel;
+  threadComments: typeof threadComments;
   viewIssue: typeof viewIssue;
   waitForBaseChecks: typeof waitForBaseChecks;
   waitForChecks: typeof waitForChecks;
@@ -84,6 +88,7 @@ export type Ports = {
 
 export const PORTS: Ports = {
   addWorktree,
+  canWrite,
   commentOnIssue,
   commentOnPr,
   commitAll,
@@ -116,6 +121,7 @@ export const PORTS: Ports = {
   runSetup: async (command, cwd, timeoutMs) => run('bash', ['-lc', command], { cwd, timeoutMs }),
   setAside,
   setLabel,
+  threadComments,
   viewIssue,
   waitForBaseChecks,
   waitForChecks,

@@ -29,7 +29,7 @@ export async function fixRound(
     ports.runAgent(log, {
       name: 'fixer',
       cwd: worktree,
-      prompt: fixPrompt(issue, reason, detail, earlier, kind),
+      prompt: fixPrompt(issue, reason, detail, earlier, kind, job.reply),
       profile: CODING,
       model: context.config.models.fixer,
       timeoutMs: context.config.agentTimeoutMinutes * 60_000,

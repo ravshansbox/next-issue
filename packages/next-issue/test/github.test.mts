@@ -11,6 +11,7 @@ import {
   defaultBranch,
   failedBaseLogs,
   failedCheckLogs,
+  canWrite,
   findPr,
   issueComments,
   labelArgs,
@@ -24,6 +25,7 @@ import {
   prNumber,
   reopenIssue,
   setLabel,
+  threadComments,
   viewIssue,
   waitForBaseChecks,
   waitForChecks,
@@ -618,4 +620,45 @@ test('the worker passes gh the repository and the issue or pull request number i
     ['pr', 'view', '42', '--json', 'mergeable', '--jq', '.mergeable', '--repo', 'acme/tool'],
     ['issue', 'reopen', '7', '--repo', 'acme/tool'],
   ]);
+});
+
+async function fakeApiGh(t: TestContext, script: string): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  await writeFile(join(dir, 'gh'), `#!/bin/sh\n${script}\n`, { mode: 0o755 });
+  const path = process.env.PATH;
+  process.env.PATH = `${dir}:${path}`;
+  t.after(() => {
+    process.env.PATH = path;
+  });
+  return dir;
+}
+
+test('threadComments reads the author and the body of each comment of an issue or pull request', async (t) => {
+  const dir = await fakeApiGh(
+    t,
+    `[ "$3" = "repos/acme/tool/issues/42/comments" ] || exit 1
+printf '%s\\n' '["owner","line one\\nline two"]' '["bot",null]'`,
+  );
+  const repo = { owner: 'acme', name: 'tool', root: dir };
+  assert.deepEqual(await threadComments(repo, 42), [
+    { author: 'owner', body: 'line one\nline two' },
+    { author: 'bot', body: '' },
+  ]);
+});
+
+test('canWrite grants write access only to an admin or a writer', async (t) => {
+  const dir = await fakeApiGh(
+    t,
+    `case "$2" in
+  */admin/permission) echo admin ;;
+  */writer/permission) echo write ;;
+  */reader/permission) echo read ;;
+  *) echo 'gh: Not Found (HTTP 404)' >&2; exit 1 ;;
+esac`,
+  );
+  const repo = { owner: 'acme', name: 'tool', root: dir };
+  assert.equal(await canWrite(repo, 'admin'), true);
+  assert.equal(await canWrite(repo, 'writer'), true);
+  assert.equal(await canWrite(repo, 'reader'), false);
+  assert.equal(await canWrite(repo, 'ghost'), false);
 });

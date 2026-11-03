@@ -4,7 +4,7 @@ import { commitWork } from './fix.mts';
 import { checkGate } from './gate.mts';
 import { branchName } from './git.mts';
 import type { Issue } from './github.mts';
-import { cleanUp, escalate, finish, handOver, skipped, stop } from './handover.mts';
+import { cleanUp, escalate, finish, handOver, handOverReply, skipped, stop } from './handover.mts';
 import { type Context, type IssueReport, openPr, type Run, setStatus } from './job.mts';
 import { afterMerge, fixBase } from './merge.mts';
 import { message, type Recorder } from './observe.mts';
@@ -123,7 +123,14 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
         : saved;
 
   try {
-    const report = await work(context, issue, log, state, saved === undefined);
+    const report = await work(
+      context,
+      issue,
+      log,
+      state,
+      saved === undefined,
+      saved?.handedOver === true,
+    );
     log.event(
       'issue.end',
       { outcome: report.outcome, reason: report.reason, ms: report.ms },
@@ -156,6 +163,7 @@ async function work(
   log: Recorder,
   state: IssueState,
   start: boolean,
+  handedOver: boolean,
 ): Promise<IssueReport> {
   const started = Date.now();
   const { repo, config, ports } = context;
@@ -167,6 +175,9 @@ async function work(
   });
 
   const comments = await log.step('comments', {}, () => ports.issueComments(repo, issue.number));
+  const reply = handedOver
+    ? await log.step('reply', {}, () => handOverReply(context, issue.number, state.pr))
+    : [];
   const added = await log.step('worktree', { branch }, () =>
     ports.addWorktree(repo, issue.number, branch, context.base, config.remote, start),
   );
@@ -182,6 +193,7 @@ async function work(
     branch,
     worktree,
     comments,
+    reply,
     started,
     noChecks: false,
     mainBroken: false,
@@ -217,7 +229,7 @@ async function work(
       ports.runAgent(log, {
         name: 'implementer',
         cwd: worktree,
-        prompt: implementPrompt(issue, comments),
+        prompt: implementPrompt(issue, comments, reply),
         profile: CODING,
         model: config.models.implementer,
         timeoutMs: config.agentTimeoutMinutes * 60_000,
