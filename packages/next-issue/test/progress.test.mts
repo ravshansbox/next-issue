@@ -107,3 +107,16 @@ test('a watcher sees the step and the tools of each running issue apart', () => 
 test('a watcher sees the error when the issues cannot be read', () => {
   assert.equal(replay([{ kind: 'issues.fail', error: 'gh failed' }]).error, 'gh failed');
 });
+
+test('a watcher sees an issue that fails on every fetch as one handled error', () => {
+  const progress = replay([
+    { kind: 'issue.error', issue: 4, error: 'gh failed' },
+    { kind: 'issue.start', issue: 5, ts: '2026-11-02T10:00:00.000Z' },
+    { kind: 'issue.end', issue: 5, outcome: 'done' },
+    { kind: 'issue.error', issue: 4, error: 'gh failed' },
+  ]);
+  assert.deepEqual(progress.handled, [
+    { issue: 4, outcome: 'error' },
+    { issue: 5, outcome: 'done' },
+  ]);
+});

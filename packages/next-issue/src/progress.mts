@@ -67,8 +67,11 @@ export function applyEvent(progress: Progress, record: Fields): Progress {
   }
   if (kind === 'issue.end' || kind === 'issue.error') {
     const outcome = kind === 'issue.error' ? 'error' : record['outcome'];
+    const repeated = progress.handled.some(
+      (item) => item.issue === issue && item.outcome === outcome,
+    );
     const handled: Handled[] =
-      outcome === 'done' || outcome === 'needs-human' || outcome === 'error'
+      !repeated && (outcome === 'done' || outcome === 'needs-human' || outcome === 'error')
         ? [...progress.handled, { issue, outcome }]
         : progress.handled;
     const issues = progress.issues.filter((current) => current.issue !== issue);
