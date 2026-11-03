@@ -57,6 +57,13 @@ function active(run: Run | undefined): boolean {
   return run?.progress.status === 'running' || run?.progress.status === 'stopping';
 }
 
+function endStatus(run: Run): Progress['status'] {
+  if (run.stop) {
+    return 'stopped';
+  }
+  return run.progress.error === undefined ? 'finished' : 'failed';
+}
+
 export function workerPaths(root: string): { socketPath: string; lockPath: string } {
   return {
     socketPath: join(root, STATE_DIR, 'worker.sock'),
@@ -251,14 +258,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
         },
       )
       .then(
-        () => {
-          const status = run.stop
-            ? 'stopped'
-            : run.progress.error === undefined
-              ? 'finished'
-              : 'failed';
-          update({ ...run.progress, status });
-        },
+        () => update({ ...run.progress, status: endStatus(run) }),
         (error: unknown) => update({ ...run.progress, status: 'failed', error: message(error) }),
       )
       .finally(closeWhenIdle);
