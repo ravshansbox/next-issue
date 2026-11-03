@@ -10,7 +10,7 @@ import {
   type FauxResponseStep,
 } from '@earendil-works/pi-ai';
 import { ModelRuntime, SettingsManager } from '@earendil-works/pi-coding-agent';
-import { CODING, isOwnExtension, REVIEWING, runAgent, toolFields } from '../src/agents.mts';
+import { CODING, isOwnResource, REVIEWING, runAgent, toolFields } from '../src/agents.mts';
 import { Recorder } from '../src/observe.mts';
 
 async function fakePi(responses: FauxResponseStep[], tokensPerSecond?: number) {
@@ -56,9 +56,32 @@ test('a bash call without command text records only its name', () => {
 });
 
 test('an agent session leaves out the pi-next-issue extension and keeps the others', () => {
-  assert.equal(isOwnExtension('/home/me/node_modules/@ravshansbox/pi-next-issue/index.ts'), true);
-  assert.equal(isOwnExtension('/home/me/next-issue/packages/pi-next-issue/index.ts'), true);
-  assert.equal(isOwnExtension('/home/me/node_modules/@ravshansbox/pi-statusline/index.ts'), false);
+  assert.equal(isOwnResource('/home/me/node_modules/@ravshansbox/pi-next-issue/index.ts'), true);
+  assert.equal(isOwnResource('/home/me/next-issue/packages/pi-next-issue/index.ts'), true);
+  assert.equal(isOwnResource('/home/me/node_modules/@ravshansbox/pi-statusline/index.ts'), false);
+});
+
+async function addSkill(folder: string, name: string): Promise<void> {
+  await mkdir(join(folder, name), { recursive: true });
+  await writeFile(
+    join(folder, name, 'SKILL.md'),
+    `---\nname: ${name}\ndescription: The ${name} skill.\n---\n\n# ${name}\n`,
+  );
+}
+
+test('an agent session leaves out the skills of pi-next-issue and keeps the others', async () => {
+  let transcript = '';
+  const { recorder, request } = await fakePi([
+    (context) => {
+      transcript = JSON.stringify(context.messages);
+      return fauxAssistantMessage('done');
+    },
+  ]);
+  await addSkill(join(request.cwd, 'skills', 'pi-next-issue'), 'create-issue');
+  await addSkill(join(request.cwd, 'skills'), 'other-skill');
+  await runAgent(recorder, request);
+  assert.match(transcript, /other-skill/);
+  assert.doesNotMatch(transcript, /create-issue/);
 });
 
 async function markExtension(root: string, value = "'yes'"): Promise<string> {
