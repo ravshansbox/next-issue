@@ -360,7 +360,11 @@ async function read(
     if ((await probe.list()) === 'none') {
       return 'none';
     }
-    return await probe.watch(timeoutMs);
+    const state = await probe.watch(timeoutMs);
+    if (head !== undefined && (await probe.head()) !== head) {
+      return 'behind';
+    }
+    return state;
   } catch (error) {
     return error instanceof Error ? error : new Error(String(error));
   }
