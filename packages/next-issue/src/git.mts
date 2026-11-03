@@ -53,6 +53,7 @@ export async function addWorktree(
   branch: string,
   base: string,
   remote: string,
+  start: boolean,
 ): Promise<Worktree> {
   const upstream = `${remote}/${branch}`;
   await must('git', ['fetch', remote], { cwd: repo.root });
@@ -62,9 +63,10 @@ export async function addWorktree(
   const existing = await findWorktree(repo, branch);
   const path = existing ?? worktreePath(repo, issue);
   if (existing === undefined) {
-    const args = (await hasBranch(repo, branch))
-      ? ['worktree', 'add', path, branch]
-      : ['worktree', 'add', '-b', branch, path, pushed ? upstream : `${remote}/${base}`];
+    const args =
+      !start && (await hasBranch(repo, branch))
+        ? ['worktree', 'add', path, branch]
+        : ['worktree', 'add', '-B', branch, path, pushed ? upstream : `${remote}/${base}`];
     await must('git', args, { cwd: repo.root });
   }
   if (pushed) {

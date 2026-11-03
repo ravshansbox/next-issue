@@ -92,7 +92,7 @@ test('addWorktree takes a branch that exists only on the remote', async () => {
   await git(other, 'checkout', '-q', '-b', '3');
   const pushed = await commit(other, 'b.txt');
   await git(other, 'push', '-q', 'origin', '3');
-  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   assert.equal(await revision(path), pushed);
 });
 
@@ -102,27 +102,48 @@ test('addWorktree fast-forwards a local branch that the remote left behind', asy
   await git(other, 'checkout', '-q', '-b', '3');
   const pushed = await commit(other, 'b.txt');
   await git(other, 'push', '-q', 'origin', '3');
-  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   assert.equal(await revision(path), pushed);
 });
 
 test('addWorktree starts a new branch from the base', async () => {
   const { repo } = await clones();
-  const { path, baseUpdated } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const { path, baseUpdated } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   assert.equal(await revision(path), await revision(repo.root));
   assert.equal(baseUpdated, true);
 });
 
+test('a user who starts issue 3 afresh gets the base branch instead of a stale local branch 3', async () => {
+  const { repo, other } = await clones();
+  await git(repo.root, 'checkout', '-q', '-b', '3');
+  await commit(repo.root, 'stale.txt');
+  await git(repo.root, 'checkout', '-q', 'main');
+  await commit(other, 'b.txt');
+  await git(other, 'push', '-q', 'origin', 'main');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', true);
+  assert.equal(await revision(path), await git(repo.root, 'rev-parse', 'origin/main'));
+  assert.equal(await git(path, 'branch', '--show-current'), '3');
+});
+
+test('a user who resumes issue 3 keeps the work on local branch 3', async () => {
+  const { repo } = await clones();
+  await git(repo.root, 'checkout', '-q', '-b', '3');
+  const kept = await commit(repo.root, 'kept.txt');
+  await git(repo.root, 'checkout', '-q', 'main');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  assert.equal(await revision(path), kept);
+});
+
 test('a user who starts issue 3 gets branch 3 in .worktrees/3 under the repository root', async () => {
   const { repo } = await clones();
-  const { path } = await addWorktree(repo, 3, branchName(3), 'main', 'origin');
+  const { path } = await addWorktree(repo, 3, branchName(3), 'main', 'origin', true);
   assert.equal(path, join(repo.root, '.worktrees', '3'));
   assert.equal(await git(path, 'branch', '--show-current'), '3');
 });
 
 test('a user who resumes issue 3 on a saved branch gets that branch in the worktree', async () => {
   const { repo } = await clones();
-  const { path } = await addWorktree(repo, 3, 'issue-3', 'main', 'origin');
+  const { path } = await addWorktree(repo, 3, 'issue-3', 'main', 'origin', false);
   assert.equal(await git(path, 'branch', '--show-current'), 'issue-3');
 });
 
@@ -130,7 +151,7 @@ test('a user who resumes issue 3 while its old worktree holds the saved branch w
   const { repo } = await clones();
   const old = join(repo.root, '..', 'tool-issue-3');
   await git(repo.root, 'worktree', 'add', '-q', '-b', 'issue-3', old, 'origin/main');
-  const { path } = await addWorktree(repo, 3, 'issue-3', 'main', 'origin');
+  const { path } = await addWorktree(repo, 3, 'issue-3', 'main', 'origin', false);
   assert.equal(path, await findWorktree(repo, 'issue-3'));
   assert.equal(await git(path, 'branch', '--show-current'), 'issue-3');
   assert.equal(existsSync(join(repo.root, '.worktrees', '3')), false);
@@ -152,14 +173,14 @@ test('addWorktree reports a base that it cannot fast-forward', async () => {
   await commit(repo.root, 'local.txt');
   await commit(other, 'remote.txt');
   await git(other, 'push', '-q', 'origin', 'main');
-  const { path, baseUpdated } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const { path, baseUpdated } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   assert.equal(baseUpdated, false);
   assert.equal(await revision(path), await git(repo.root, 'rev-parse', 'origin/main'));
 });
 
 test('push with force replaces a remote branch that the base reset left behind', async () => {
   const { repo } = await clones();
-  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   await commit(path, 'old.txt');
   await push(path, 'origin', '3');
   await git(path, 'reset', '-q', '--hard', 'origin/main');
@@ -174,7 +195,7 @@ test('push with force replaces a remote branch that the base reset left behind',
 
 test('discardChanges puts back a tracked file and removes a new one', async () => {
   const { repo } = await clones();
-  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   const head = await revision(path);
   await writeFile(join(path, 'a.txt'), 'the reviewer wrote this\n');
   await writeFile(join(path, 'notes.md'), 'scratch\n');
@@ -188,7 +209,7 @@ test('discardChanges puts back a tracked file and removes a new one', async () =
 
 test('discardChanges throws away a change that the index holds', async () => {
   const { repo } = await clones();
-  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   const head = await revision(path);
   await writeFile(join(path, 'a.txt'), 'tampered\n');
   await git(path, 'add', 'a.txt');
@@ -203,7 +224,7 @@ test('discardChanges throws away a change that the index holds', async () => {
 
 test('discardChanges undoes a commit that the reviewer made', async () => {
   const { repo } = await clones();
-  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   const head = await revision(path);
   await writeFile(join(path, 'a.txt'), 'the reviewer committed this\n');
   await git(path, 'commit', '-q', '-am', 'reviewer commit');
@@ -215,7 +236,7 @@ test('discardChanges undoes a commit that the reviewer made', async () => {
 
 test('setAside moves a commit of the fixer to another branch and leaves nothing for a later commit to sweep up', async () => {
   const { repo } = await clones();
-  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   const head = await revision(path);
   const disputed = await commit(path, 'fixer.txt');
   await setAside(path, head, '3-dispute-1');
@@ -227,7 +248,7 @@ test('setAside moves a commit of the fixer to another branch and leaves nothing 
 
 test('setAside moves a commit of the fixer that the fixer edited after and keeps both in the worktree', async () => {
   const { repo } = await clones();
-  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   const head = await revision(path);
   const disputed = await commit(path, 'fixer.txt');
   await writeFile(join(path, 'a.txt'), 'the fixer left this\n');
@@ -240,7 +261,7 @@ test('setAside moves a commit of the fixer that the fixer edited after and keeps
 
 test('setAside moves a commit of the fixer whose file the fixer then edited again', async () => {
   const { repo } = await clones();
-  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   const head = await revision(path);
   await writeFile(join(path, 'a.txt'), 'the fixer committed this\n');
   await git(path, 'commit', '-q', '-am', 'fixer commit');
@@ -254,7 +275,7 @@ test('setAside moves a commit of the fixer whose file the fixer then edited agai
 
 test('disputeBranches lists the dispute branches of an issue only', async () => {
   const { repo } = await clones();
-  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   await git(path, 'branch', '3-dispute-1');
   await git(path, 'branch', '3-dispute-2');
   await git(path, 'branch', '30-dispute-1');
@@ -263,7 +284,7 @@ test('disputeBranches lists the dispute branches of an issue only', async () => 
 
 test('discardChanges keeps an ignored file and reports a clean worktree', async () => {
   const { repo } = await clones();
-  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   await writeFile(join(path, '.gitignore'), 'deps/\n');
   await git(path, 'add', '.gitignore');
   await git(path, 'commit', '-q', '-m', 'ignore deps');
@@ -275,7 +296,7 @@ test('discardChanges keeps an ignored file and reports a clean worktree', async 
 
 test('commitAll that a pre-commit hook stops throws a hook error with the hook output', async () => {
   const { repo } = await clones();
-  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   const hooks = join(path, '..', 'hooks');
   await mkdir(hooks, { recursive: true });
   await writeFile(join(hooks, 'pre-commit'), '#!/bin/sh\necho lint fails >&2\nexit 1\n');
@@ -293,7 +314,7 @@ test('commitAll that a pre-commit hook stops throws a hook error with the hook o
 
 test('commitAll that a commit-msg hook stops throws a hook error with the hook output', async () => {
   const { repo } = await clones();
-  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   const hooks = join(path, '..', 'hooks');
   await mkdir(hooks, { recursive: true });
   await writeFile(
@@ -316,7 +337,7 @@ test('commitAll that a commit-msg hook stops throws a hook error with the hook o
 
 test('commitAll whose commit signing fails throws an error that is not a hook error', async () => {
   const { repo } = await clones();
-  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   await git(path, 'config', 'user.name', 't');
   await git(path, 'config', 'user.email', 't@t');
   await git(path, 'config', 'commit.gpgsign', 'true');
@@ -332,7 +353,7 @@ test('commitAll whose commit signing fails throws an error that is not a hook er
 
 test('commitAll whose git add fails throws an error that is not a hook error', async () => {
   const { repo } = await clones();
-  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   await writeFile(join(path, 'b.txt'), 'b\n');
   const index = await git(path, 'rev-parse', '--git-path', 'index.lock');
   await writeFile(resolve(path, index), '');

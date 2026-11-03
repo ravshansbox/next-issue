@@ -282,7 +282,7 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
   const state = saved === undefined ? fresh : context.reset ? resetState(saved) : saved;
 
   try {
-    const report = await work(context, issue, log, state);
+    const report = await work(context, issue, log, state, saved === undefined);
     log.event(
       'issue.end',
       { outcome: report.outcome, reason: report.reason, ms: report.ms },
@@ -318,6 +318,7 @@ async function work(
   issue: Issue,
   log: Recorder,
   state: IssueState,
+  start: boolean,
 ): Promise<IssueReport> {
   const started = Date.now();
   const { repo, config, ports } = context;
@@ -330,7 +331,7 @@ async function work(
 
   const comments = await log.step('comments', {}, () => ports.issueComments(repo, issue.number));
   const added = await log.step('worktree', { branch }, () =>
-    ports.addWorktree(repo, issue.number, branch, context.base, config.remote),
+    ports.addWorktree(repo, issue.number, branch, context.base, config.remote, start),
   );
   const worktree = added.path;
   if (!added.baseUpdated) {
