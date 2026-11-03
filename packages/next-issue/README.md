@@ -249,7 +249,9 @@ Three levels of console output:
   level and the extensions from your pi settings, except the `pi-next-issue`
   extension. The implementer and the fixer get the default tools of your pi
   settings, the `grep`, `find` and `ls` tools and the tools of your
-  extensions. The reviewer gets all of them except `edit` and `write`.
+  extensions. The reviewer gets all of them except `edit` and `write`. The
+  agents run with `GIT_OPTIONAL_LOCKS=0`, so a `git status` from an agent or
+  an extension does not hold the index lock while the harness commits.
 
 ## Configuration
 
