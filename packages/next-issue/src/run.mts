@@ -104,6 +104,7 @@ async function handle(
     },
     process: (issue) => processIssue(context, issue),
     stop: interrupts.afterIssue,
+    concurrency: config.concurrency,
   };
   const print = controls.print ?? (async () => undefined);
   let passStart = recorder.summary();

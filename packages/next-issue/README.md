@@ -12,8 +12,15 @@ npx -y next-issue@latest
 Before each issue, fetch the open issues again and take the oldest one not yet
 seen in this run. An issue seen once in a run, also a skipped or failed one, is
 not tried again in that run. The run ends when no unseen issue is left. When
-the fetch fails, the run ends there, writes the summary of the issues it handled
-and exits with code 1. For each issue:
+the fetch fails, the run claims no new issue, ends once the running issues end,
+writes the summary of the issues it handled and exits with code 1.
+
+A run handles up to `concurrency` issues at the same time, 1 by default. When an
+issue ends, the run fetches the open issues again and claims the oldest unseen
+one for the free slot. Each issue has its own worktree and branch. Step 3 below
+runs for one issue at a time, so two issues never fetch or fast-forward the base
+at once. `--max <n>` counts the handled issues across the run, and with `--once`
+the run handles one issue. For each issue:
 
 1. Claim the issue only when it holds the `status:todo` label and holds no
    `status:in-progress` or `status:in-review` label. A `status:done`,
@@ -149,7 +156,8 @@ pull request yet, when:
   the pull request closes without a merge;
 - with `--merge`, the checks on the base branch fail after the merge and the
   fixer cannot fix them, or they do not finish in time. The base branch is
-  then broken, so the run stops after this issue;
+  then broken, so the run claims no new issue and ends once the running
+  issues end;
 - an agent does not finish in `agentTimeoutMinutes`;
 - the setup command fails, or does not finish in `setupTimeoutMinutes`;
 - a step of the run fails with an error. A `gh` call that is safe to repeat,
@@ -174,12 +182,12 @@ exception is the answer to a hand-over, see
 
 Press `Ctrl-C` to stop the run step by step:
 
-1. The first press stops the run after the current issue. The harness finishes
-   the issue that it holds and then writes the summary as usual.
-2. The second press stops the run after the current round: the implementation,
-   one checks round (wait, then fix) or one review round (review, then fix). The
-   issue ends as `stopped`. Its state, worktree and labels stay, so the next run
-   carries on from that point.
+1. The first press stops new claims. The harness finishes every issue that it
+   holds and then writes the summary as usual.
+2. The second press stops every running issue after its current round: the
+   implementation, one checks round (wait, then fix) or one review round
+   (review, then fix). The issue ends as `stopped`. Its state, worktree and
+   labels stay, so the next run carries on from that point.
 3. The third press stops every agent, kills the command that runs and every
    child of it, so the run dies in the middle of a step. The saved state lets the next run continue the
    issue, but the issue keeps `status:in-progress` and the run writes no
@@ -300,6 +308,7 @@ does not know all stop the run, so a typo cannot pass without a word.
 {
   "remote": "origin",
   "issueLimit": 100,
+  "concurrency": 1,
   "maxCiFixes": 5,
   "maxCommitFixes": 10,
   "maxReviewRounds": 5,
@@ -333,6 +342,7 @@ does not know all stop the run, so a typo cannot pass without a word.
 | ----------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `remote`                | `origin`           | The git remote for the repository and the branches                                                                                   |
 | `issueLimit`            | `100`              | The maximum number of open issues to read. With `labels.ready` set, only issues with the ready, in-progress or in-review label count |
+| `concurrency`           | `1`                | The most issues that a run handles at the same time                                                                                  |
 | `maxCiFixes`            | `5`                | The budget for check fixes per issue                                                                                                 |
 | `maxCommitFixes`        | `10`               | The budget for fixes of a commit that a git hook stopped, per issue                                                                  |
 | `maxReviewRounds`       | `5`                | The budget for review rounds per issue                                                                                               |
@@ -455,7 +465,7 @@ and `--once` is the same as `--max 1`.
 The watch stops:
 
 - at the first `Ctrl-C` during a wait, at once;
-- at the first `Ctrl-C` during an issue, after that issue;
+- at the first `Ctrl-C` during an issue, after the running issues;
 - after a pass that halts the run, for example when the base branch is broken
   after `--merge`;
 - when the open issues cannot be read.
@@ -477,8 +487,8 @@ to it. The worker:
   once. Each run is like `next-issue` without `--watch`, and the client says
   whether it merges;
 - sends every client the progress of every run when it connects and on every
-  change: the issue, the step, the tool count, the last tool and the handled
-  issues;
+  change: for each running issue the issue, the step, the tool count and the
+  last tool, and the handled issues;
 - sends every client a `questions` message for each repository: the open
   issues with the `needsHuman` label, each with its number, title, the reason
   of the hand-over, the url of the comment that holds it, the `owner/name`
@@ -493,8 +503,8 @@ to it. The worker:
   a newer one. When the client adds an `"id"` to its message, the list that
   answers it carries the same `id` and is read after the message arrived. When the list cannot be read, the client gets
   `{ "type": "questions-error", "root": "<path>", "message": "<text>" }`;
-- stops a run, when a client asks, like a second `Ctrl-C`: after the current
-  round, with the state kept;
+- stops a run, when a client asks, like a second `Ctrl-C`: each running issue
+  after its current round, with the state kept;
 - stays when all clients close;
 - closes once no run is going when a client with a newer version connects, so
   that the client can start the newer worker;

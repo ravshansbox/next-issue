@@ -129,7 +129,7 @@ test('a worker that starts under an open umask never leaves its socket file open
   assert.equal(process.umask(0), 0);
 });
 
-test('a client that starts a run sees the progress of the run in every client', async (t) => {
+test('a client that starts a run sees the progress of every running issue in every client', async (t) => {
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const starter = await connect(t, socketPath);
@@ -140,8 +140,13 @@ test('a client that starts a run sees the progress of the run in every client', 
   assert.equal(fake.calls[0]!.root, '/repo');
   assert.equal(fake.calls[0]!.args.merge, true);
   fake.controls().onEvent!({ kind: 'issue.start', issue: 7, ts: '2026-11-02T10:00:00.000Z' });
+  fake.controls().onEvent!({ kind: 'issue.start', issue: 8, ts: '2026-11-02T10:00:00.000Z' });
   const running = await watcher.next(
-    (value) => value.type === 'runs' && value.runs['/repo']?.issue === 7,
+    (value) => value.type === 'runs' && value.runs['/repo']?.issues.length === 2,
+  );
+  assert.deepEqual(
+    running.type === 'runs' && running.runs['/repo']!.issues.map((entry) => entry.issue),
+    [7, 8],
   );
   assert.equal(running.type === 'runs' && running.runs['/repo']!.status, 'running');
   fake.finish();

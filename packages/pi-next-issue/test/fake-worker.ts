@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WebSocketServer } from 'ws';
-import type { ClientMessage, Progress, WorkerMessage } from '../src/worker.ts';
+import type { ClientMessage, IssueProgress, Progress, WorkerMessage } from '../src/worker.ts';
 
 export type FakeWorker = {
   received: ClientMessage[];
@@ -59,7 +59,11 @@ export async function startFakeWorker(
 }
 
 export function running(fields: Partial<Progress> = {}): Progress {
-  return { status: 'running', tools: 0, handled: [], ...fields };
+  return { status: 'running', issues: [], handled: [], ...fields };
+}
+
+export function working(issue: number, fields: Partial<IssueProgress> = {}): IssueProgress {
+  return { issue, tools: 0, ...fields };
 }
 
 export async function until(check: () => boolean, ms = 2000): Promise<void> {

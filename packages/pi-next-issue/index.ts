@@ -70,18 +70,22 @@ const OUTCOME_NOTES = { done: 'done', 'needs-human': 'needs a human', error: 'fa
 export function formatStatus(progress: Progress, now: number): string {
   switch (progress.status) {
     case 'running': {
-      if (progress.issue === undefined) {
+      if (progress.issues.length === 0) {
         return 'next-issue · looking for issues';
       }
-      const parts = [`next-issue #${progress.issue}`, progress.stage ?? 'prepare'];
-      parts.push(`${progress.tools} tools`);
-      if (progress.issueStartedAt !== undefined) {
-        parts.push(duration(now - progress.issueStartedAt));
-      }
-      return parts.join(' · ');
+      const lines = progress.issues.map((item) => {
+        const parts = [`#${item.issue}`, item.stage ?? 'prepare', `${item.tools} tools`];
+        if (item.startedAt !== undefined) {
+          parts.push(duration(now - item.startedAt));
+        }
+        return parts.join(' · ');
+      });
+      return `next-issue ${lines.join(' | ')}`;
     }
-    case 'stopping':
-      return `next-issue #${progress.issue ?? '?'} · stopping`;
+    case 'stopping': {
+      const issues = progress.issues.map((item) => `#${item.issue}`);
+      return `next-issue ${issues.length === 0 ? '#?' : issues.join(' ')} · stopping`;
+    }
     case 'stopped':
       return `next-issue · stopped: ${outcomes(progress)}`;
     case 'finished':

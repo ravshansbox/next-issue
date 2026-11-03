@@ -5,6 +5,7 @@ import { message } from './observe.mts';
 export type Config = {
   remote: string;
   issueLimit: number;
+  concurrency: number;
   maxCiFixes: number;
   maxCommitFixes: number;
   maxReviewRounds: number;
@@ -37,6 +38,7 @@ export type Config = {
 const DEFAULTS: Config = {
   remote: 'origin',
   issueLimit: 100,
+  concurrency: 1,
   maxCiFixes: 5,
   maxCommitFixes: 10,
   maxReviewRounds: 5,
@@ -69,6 +71,7 @@ const FIELDS: string[] = [...Object.keys(DEFAULTS), 'setupCommand'];
 
 const WHOLE_FIELDS: Array<[keyof Config, number]> = [
   ['issueLimit', 1],
+  ['concurrency', 1],
   ['maxCiFixes', 0],
   ['maxCommitFixes', 0],
   ['maxReviewRounds', 1],

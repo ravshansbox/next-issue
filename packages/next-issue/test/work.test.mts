@@ -361,6 +361,27 @@ test('a clean run implements, reviews and finishes', async (t) => {
   assert.match(target.comments[0]!, /Review: approved/);
 });
 
+test('a user with several issues at once gets their worktrees made one at a time', async (t) => {
+  const target = await harness(t);
+  const ports = target.context.ports;
+  let active = 0;
+  let most = 0;
+  const addWorktree = ports.addWorktree;
+  ports.addWorktree = async (...args) => {
+    active += 1;
+    most = Math.max(most, active);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    active -= 1;
+    return addWorktree(...args);
+  };
+  await Promise.all([
+    processIssue(target.context, ISSUE),
+    processIssue(target.context, { ...ISSUE, number: 8 }),
+  ]);
+  assert.deepEqual(target.branches.toSorted(), ['7', '8']);
+  assert.equal(most, 1);
+});
+
 test('a user who passes --merge gets the approved pull request merged', async (t) => {
   const target = await harness(t, { merge: true });
   const report = await target.run();

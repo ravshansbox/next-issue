@@ -76,6 +76,17 @@ export async function pendingIssues(context: Context): Promise<Issue[]> {
   return issues.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
+const worktreeQueues = new Map<string, Promise<unknown>>();
+
+function oneAtATime<T>(root: string, work: () => Promise<T>): Promise<T> {
+  const result = (worktreeQueues.get(root) ?? Promise.resolve()).then(work);
+  worktreeQueues.set(
+    root,
+    result.catch(() => undefined),
+  );
+  return result;
+}
+
 export async function processIssue(context: Context, issue: Issue): Promise<IssueReport> {
   const started = Date.now();
   const log = context.recorder.scope({ issue: issue.number });
@@ -188,7 +199,9 @@ async function work(
     ? await log.step('reply', {}, () => handOverReply(context, issue.number, state.pr))
     : [];
   const added = await log.step('worktree', { branch }, () =>
-    ports.addWorktree(repo, issue.number, branch, context.base, config.remote, start),
+    oneAtATime(repo.root, () =>
+      ports.addWorktree(repo, issue.number, branch, context.base, config.remote, start),
+    ),
   );
   const worktree = added.path;
   if (!added.baseUpdated) {

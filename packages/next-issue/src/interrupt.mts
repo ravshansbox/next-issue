@@ -15,9 +15,9 @@ export function listenForInterrupts(say: (text: string) => void): Interrupts {
       say('Stopping now.');
       wake();
     } else if (presses === 1) {
-      say('Stopping after this issue. Press Ctrl-C again to stop after this round.');
+      say('Stopping after the running issues. Press Ctrl-C again to stop after the current round.');
     } else if (presses === 2) {
-      say('Stopping after this round. Press Ctrl-C again to stop now.');
+      say('Stopping after the current round. Press Ctrl-C again to stop now.');
     } else {
       process.off('SIGINT', press);
       stopChildren('SIGINT');
