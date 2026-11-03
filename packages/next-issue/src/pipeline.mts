@@ -115,7 +115,12 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
     reviewRounds: 0,
     reviewLog: [],
   };
-  const state = saved === undefined ? fresh : context.reset ? resetState(saved) : saved;
+  const state =
+    saved === undefined
+      ? fresh
+      : context.reset || saved.handedOver === true
+        ? resetState(saved)
+        : saved;
 
   try {
     const report = await work(context, issue, log, state, saved === undefined);

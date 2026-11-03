@@ -364,6 +364,7 @@ test('a user whose merge fails gets the issue handed over', async (t) => {
   assert.equal(report.reason, 'merge failed');
   assert.match(target.comments.at(-1)!, /needs help: The merge of the pull request failed/);
   assert.equal(target.labels.at(-1)!.label, 'status:needs-human');
+  assert.equal((await target.state())?.handedOver, true);
 });
 
 test('a user whose queued merge does not finish in time gets the issue handed over instead of done', async (t) => {
@@ -1332,6 +1333,44 @@ test('--reset puts the budgets back and keeps the resume point', async (t) => {
   assert.equal(report.ciFixes, 0);
   assert.equal(report.reviewRounds, 1);
   assert.deepEqual(roles(target), ['reviewer']);
+});
+
+test('a user who takes the needs-human label off a handed-over issue gets the budgets put back without --reset', async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: ['status:in-review'] },
+    saved: { ...SAVED, handedOver: true },
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.equal(report.ciFixes, 0);
+  assert.equal(report.reviewRounds, 1);
+  assert.deepEqual(roles(target), ['reviewer']);
+});
+
+test('a user who resumes a handed-over issue that is handed over again gets the mark back', async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: ['status:in-review'] },
+    saved: { ...SAVED, handedOver: true },
+    merge: true,
+    mergeFails: true,
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  const state = await target.state();
+  assert.equal(state?.handedOver, true);
+  assert.equal(state?.ciFixes, 0);
+});
+
+test('a handed-over issue that still has the needs-human label is not claimed', async (t) => {
+  const saved = { ...SAVED, handedOver: true };
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: ['status:needs-human'] },
+    saved,
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'skipped');
+  assert.deepEqual(target.labels, []);
+  assert.deepEqual(await target.state(), saved);
 });
 
 test('--reset leaves the state of a skipped issue alone', async (t) => {
