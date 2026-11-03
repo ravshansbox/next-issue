@@ -228,7 +228,7 @@ async function createUnknownLabel(repo: Repo, label: string): Promise<'known' | 
   try {
     await ghOnce(repo, ['label', 'create', label]);
   } catch (error) {
-    return error instanceof Error ? error : new Error(String(error));
+    return asError(error);
   }
   known.add(label);
   return 'created';
@@ -427,7 +427,7 @@ async function read(
     }
     return state;
   } catch (error) {
-    return error instanceof Error ? error : new Error(String(error));
+    return asError(error);
   }
 }
 
@@ -607,4 +607,8 @@ export async function commentOnIssue(repo: Repo, issue: number, body: string): P
 
 export async function commentOnPr(repo: Repo, pr: number, body: string): Promise<void> {
   await ghOnce(repo, ['pr', 'comment', String(pr), '--body-file', '-'], body);
+}
+
+function asError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }

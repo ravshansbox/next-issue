@@ -2,6 +2,7 @@ import { appendFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { must, run } from './exec.mts';
+import { message } from './observe.mts';
 
 export type Repo = {
   owner: string;
@@ -176,7 +177,7 @@ async function runHook(cwd: string, name: string, ...args: string[]): Promise<vo
   try {
     await must('git', ['hook', 'run', '--ignore-missing', name, '--', ...args], { cwd });
   } catch (error) {
-    throw new HookError(error instanceof Error ? error.message : String(error));
+    throw new HookError(message(error));
   }
 }
 
