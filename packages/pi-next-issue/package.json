@@ -16,12 +16,16 @@
   "keywords": [
     "pi-package",
     "pi-extension",
+    "pi-skill",
     "github",
     "issues"
   ],
   "pi": {
     "extensions": [
       "./index.ts"
+    ],
+    "skills": [
+      "./skills"
     ]
   },
   "scripts": {
@@ -45,7 +49,8 @@
   },
   "files": [
     "index.ts",
-    "src"
+    "src",
+    "skills"
   ],
   "publishConfig": {
     "access": "public"

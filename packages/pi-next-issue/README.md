@@ -16,6 +16,17 @@ Run this in pi, inside a git repository:
 
 The footer shows the issue, the stage, the number of tool calls and the time spent on the issue, for example `next-issue #12 · review 1 · 37 tools · 4m12s`. After a run ends, it keeps the last summary. In the terminal, it uses the dim colour of the theme, like the rest of the footer. A note appears when an issue is done, needs a human or fails while pi is open. Pi does not repeat the notes of a run that ended before it opened.
 
+## Create an issue
+
+The package ships the `create-issue` skill. Ask pi to write an issue, or run `/skill:create-issue <problem>`. Pi then:
+
+1. restates the problem and reads the code when the problem touches it;
+2. asks numbered questions until none is open;
+3. shows the title and the body, and waits for you to confirm;
+4. runs `gh issue create --body-file` with the body from [`template.md`](skills/create-issue/template.md) and the `status:todo` label.
+
+Pi does not implement the issue in that session. The worker does the work. The body holds the sections of the [issue format](../next-issue/README.md#issue-format).
+
 ## Worker
 
 The extension does no work itself. On `/next-issue` it connects to the `next-issue` worker on the socket file `~/.pi/agent/next-issue.sock`. When no worker answers, it starts one with `npx -y next-issue@<version> serve`, where `<version>` is the version of the extension, or `latest` when the extension runs from a source checkout with version `0.0.0`, in the background, and writes the output of the worker to `~/.pi/agent/next-issue-worker.log`.

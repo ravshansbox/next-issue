@@ -102,6 +102,18 @@ and exits with code 1. For each issue:
     some findings wrong, the fixer fixes the correct ones, and the next round
     holds the rest.
 
+## Issue format
+
+Every agent prompt holds the body and the comments of the issue. An issue reads best with these sections, in this order:
+
+1. `Problem`
+2. `Context and findings`
+3. `Acceptance criteria`
+4. `Out of scope`
+5. `Open questions`, empty when the issue is created
+
+The list lives in `src/issue-format.mts`. The `create-issue` skill of [`@ravshansbox/pi-next-issue`](../pi-next-issue) writes an issue in this format, and a contract test fails when its template and the list disagree. The harness does not reject an issue without the format.
+
 ## Stops for a loop
 
 The harness hands the issue to a person, with the `status:needs-human` label,
