@@ -1,5 +1,6 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { writeFile } from 'node:fs/promises';
-import { join, sep } from 'node:path';
+import { join } from 'node:path';
 import type { Args } from './args.mts';
 import { type Config, loadConfig } from './config.mts';
 import { setCommandObserver, setDefaultTimeout } from './exec.mts';
@@ -19,26 +20,25 @@ export type RunControls = {
   onEvent?: (record: Fields) => void;
 };
 
-const recorders = new Map<string, Recorder>();
+const commandRecorder = new AsyncLocalStorage<Recorder>();
 
 setCommandObserver((record) => {
-  for (const [root, recorder] of recorders) {
-    if (record.cwd !== undefined && record.cwd !== root && !record.cwd.startsWith(root + sep)) {
-      continue;
-    }
-    recorder.event(
-      record.code === 0 ? 'command' : 'command.fail',
-      {
-        cmd: `${record.command} ${record.args.join(' ')}`,
-        code: record.code,
-        ms: record.ms,
-        stderr: record.stderr.length > 0 ? record.stderr : undefined,
-        timedOut: record.timedOut ? true : undefined,
-      },
-      record.code === 0 ? 'verbose' : 'quiet',
-    );
-  }
+  commandRecorder.getStore()?.event(
+    record.code === 0 ? 'command' : 'command.fail',
+    {
+      cmd: `${record.command} ${record.args.join(' ')}`,
+      code: record.code,
+      ms: record.ms,
+      stderr: record.stderr.length > 0 ? record.stderr : undefined,
+      timedOut: record.timedOut ? true : undefined,
+    },
+    record.code === 0 ? 'verbose' : 'quiet',
+  );
 });
+
+export function recordCommands<T>(recorder: Recorder, work: () => Promise<T>): Promise<T> {
+  return commandRecorder.run(recorder, work);
+}
 
 export async function runRepo(root: string, args: Args, controls: RunControls): Promise<number> {
   const config = await loadConfig(root);
@@ -49,11 +49,9 @@ export async function runRepo(root: string, args: Args, controls: RunControls): 
   if (pruned > 0) {
     recorder.event('runs.pruned', { files: pruned, keepDays: config.keepRunDays }, 'verbose');
   }
-  recorders.set(repo.root, recorder);
   try {
-    return await handle(args, config, repo, recorder, controls);
+    return await recordCommands(recorder, () => handle(args, config, repo, recorder, controls));
   } finally {
-    recorders.delete(repo.root);
     await recorder.close();
   }
 }
