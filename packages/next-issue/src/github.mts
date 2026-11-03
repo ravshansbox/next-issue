@@ -11,7 +11,7 @@ export type Issue = {
 
 export type Kind = 'issue' | 'pr';
 
-export type CheckState = 'pass' | 'fail' | 'pending' | 'none' | 'timeout';
+export type CheckState = 'pass' | 'fail' | 'pending' | 'none' | 'timeout' | 'moved';
 
 const CHECK_PENDING_CODE = 8;
 const READ_TRIES = 3;
@@ -229,6 +229,14 @@ async function prHead(repo: Repo, pr: number): Promise<string> {
   return gh(repo, ['pr', 'view', String(pr), '--json', 'headRefOid', '--jq', '.headRefOid']);
 }
 
+async function contains(repo: Repo, pullHead: string, commit: string): Promise<boolean> {
+  const status = await repeatable(
+    ['api', `repos/${slug(repo)}/compare/${commit}...${pullHead}`, '--jq', '.status'],
+    { cwd: repo.root },
+  );
+  return status === 'ahead';
+}
+
 async function readChecks(repo: Repo, pr: number): Promise<CheckSummary[] | 'none'> {
   const result = await run(
     'gh',
@@ -288,6 +296,7 @@ async function watchOnce(
 
 export type ChecksProbe = {
   head: () => Promise<string>;
+  contains: (pullHead: string, commit: string) => Promise<boolean>;
   list: () => Promise<'none' | 'some'>;
   watch: (timeoutMs: number) => Promise<CheckState>;
 };
@@ -322,7 +331,7 @@ export async function pollChecks(
   let failures = 0;
   for (;;) {
     if (rest() === 0) {
-      return 'timeout';
+      return timeout(probe, options.head);
     }
     const state = await read(probe, options.head, rest(), () => (shown ??= clock.now()));
     if (state instanceof Error) {
@@ -335,11 +344,26 @@ export async function pollChecks(
       if (state === 'none' && clock.now() - (shown ?? 0) >= options.graceMs) {
         return 'none';
       }
+      if (state === 'timeout') {
+        return timeout(probe, options.head);
+      }
       if (state !== 'none' && state !== 'behind' && state !== 'pending') {
         return state;
       }
     }
     await clock.sleep(Math.min(options.intervalSeconds * 1000, rest()));
+  }
+}
+
+async function timeout(probe: ChecksProbe, head: string | undefined): Promise<CheckState> {
+  if (head === undefined) {
+    return 'timeout';
+  }
+  try {
+    const pullHead = await probe.head();
+    return pullHead !== head && (await probe.contains(pullHead, head)) ? 'moved' : 'timeout';
+  } catch {
+    return 'timeout';
   }
 }
 
@@ -350,8 +374,11 @@ async function read(
   shown: () => void,
 ): Promise<CheckState | 'none' | 'behind' | Error> {
   try {
-    if (head !== undefined && (await probe.head()) !== head) {
-      return 'behind';
+    if (head !== undefined) {
+      const pullHead = await probe.head();
+      if (pullHead !== head) {
+        return (await probe.contains(pullHead, head)) ? 'moved' : 'behind';
+      }
     }
     shown();
     if ((await probe.list()) === 'none') {
@@ -367,6 +394,7 @@ export function waitForChecks(repo: Repo, pr: number, options: WaitOptions): Pro
   return pollChecks(
     {
       head: () => prHead(repo, pr),
+      contains: (pullHead, commit) => contains(repo, pullHead, commit),
       list: async () => ((await readChecks(repo, pr)) === 'none' ? 'none' : 'some'),
       watch: (timeoutMs) => watchOnce(repo, pr, options.intervalSeconds, timeoutMs, options.show),
     },
@@ -417,6 +445,7 @@ export function waitForBaseChecks(
   return pollChecks(
     {
       head: async () => sha,
+      contains: async () => false,
       list: async () => ((await baseRuns(repo, sha)).length === 0 ? 'none' : 'some'),
       watch: async () => baseState(await baseRuns(repo, sha)),
     },

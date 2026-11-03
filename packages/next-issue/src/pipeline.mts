@@ -492,6 +492,10 @@ async function checkGate(job: Run): Promise<Gate> {
     await escalate(job, 'The checks did not finish in time.');
     return { done: true, report: await finish(job, 'needs-human', 'checks timeout') };
   }
+  if (checks === 'moved') {
+    await escalate(job, 'The pull request moved: someone else pushed to its branch.');
+    return { done: true, report: await finish(job, 'needs-human', 'pull request moved') };
+  }
   if (
     checks === 'none' &&
     (await ports.prConflicts(repo, state.pr!, {
