@@ -146,6 +146,7 @@ async function until(read: () => string, pattern: RegExp): Promise<void> {
 function followLogs(root: string, extra: string[]) {
   const child = spawn(process.execPath, [CLI, 'logs', ...extra], { cwd: root });
   let stdout = '';
+  child.stdout.setEncoding('utf8');
   child.stdout.on('data', (chunk) => (stdout += chunk));
   const exited = new Promise<number | null>((resolve) => child.on('exit', resolve));
   return { child, read: () => stdout, exited };
@@ -179,6 +180,32 @@ test('a user who pipes logs --json sees the raw JSON lines, then new ones', asyn
   child.kill('SIGINT');
   assert.equal(await exited, 0);
   assert.equal(read(), `${event(1)}\n${event(2)}\n`);
+});
+
+test('a user who pipes logs --json sees multi-byte characters intact across a long line', async (t) => {
+  const long = JSON.stringify({
+    ts: '2026-01-02T03:04:05.000Z',
+    kind: 'xy',
+    text: 'é'.repeat(40000),
+  });
+  const { root } = await runLog([long]);
+  const { child, read, exited } = followLogs(root, ['--json']);
+  t.after(() => child.kill('SIGKILL'));
+  await until(read, /\n$/);
+  child.kill('SIGINT');
+  assert.equal(await exited, 0);
+  assert.equal(read(), `${long}\n`);
+});
+
+test('a user who pipes logs sees the valid events rendered and the line that is not JSON skipped', async (t) => {
+  const { root } = await runLog([event(1), 'not json', event(2)]);
+  const { child, read, exited } = followLogs(root, []);
+  t.after(() => child.kill('SIGKILL'));
+  await until(read, /step2\.end/);
+  child.kill('SIGINT');
+  assert.equal(await exited, 0);
+  assert.doesNotMatch(read(), /not json/);
+  assert.match(read(), /step1\.end/);
 });
 
 test('a user whose reader closes the pipe sees logs exit with 0 at the next event', async (t) => {

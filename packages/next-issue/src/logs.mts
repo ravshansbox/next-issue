@@ -1,5 +1,6 @@
 import { open, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
 import { render } from './observe.mts';
 import { STATE_DIR } from './state.mts';
 
@@ -34,8 +35,17 @@ export async function followLog(
   };
   process.on('SIGINT', stop);
   process.stdout.on('error', stop);
-  const show = (line: string): string =>
-    options.json ? `${line}\n` : render(JSON.parse(line) as Record<string, unknown>);
+  const show = (line: string): string => {
+    if (options.json) {
+      return `${line}\n`;
+    }
+    try {
+      return render(JSON.parse(line) as Record<string, unknown>);
+    } catch {
+      return '';
+    }
+  };
+  const decoder = new StringDecoder('utf8');
   let position = 0;
   let rest = '';
   let first = true;
@@ -45,7 +55,7 @@ export async function followLog(
       const { bytesRead } = await handle.read(buffer, 0, buffer.length, position);
       if (bytesRead > 0) {
         position += bytesRead;
-        rest += buffer.toString('utf8', 0, bytesRead);
+        rest += decoder.write(buffer.subarray(0, bytesRead));
         if (bytesRead === buffer.length) {
           continue;
         }
@@ -78,6 +88,7 @@ export async function followLog(
     }
   } finally {
     process.off('SIGINT', stop);
+    process.stdout.off('error', stop);
     await handle.close();
   }
   return 0;
