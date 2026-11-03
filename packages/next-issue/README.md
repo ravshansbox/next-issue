@@ -30,7 +30,8 @@ and exits with code 1. For each issue:
    state keeps the branch name that the state holds, and a worktree that
    holds that branch already stays in use. A branch that exists on the
    remote is the start, and a local branch that fell behind the remote is
-   fast-forwarded. An issue with no saved state does not reuse a local
+   fast-forwarded. A local branch that the remote does not hold and that has
+   no commits of its own starts again from the remote base. An issue with no saved state does not reuse a local
    `<n>` branch: it resets that branch, and any worktree that holds it, to
    the remote branch, or to the remote base when there is none. A
    fast-forward of the base that is not safe leaves the local base branch as

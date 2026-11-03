@@ -176,6 +176,16 @@ test('a user who resumes issue 3 keeps the work on local branch 3', async () => 
   assert.equal(await revision(path), kept);
 });
 
+test('a user who resumes issue 3 whose local branch has no work of its own gets the current base', async () => {
+  const { repo, other } = await clones();
+  await git(repo.root, 'branch', '3', 'main');
+  await commit(other, 'b.txt');
+  await git(other, 'push', '-q', 'origin', 'main');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  assert.equal(await revision(path), await git(repo.root, 'rev-parse', 'origin/main'));
+  assert.equal(await git(path, 'branch', '--show-current'), '3');
+});
+
 test('a user who starts issue 3 gets branch 3 in .worktrees/3 under the repository root', async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, branchName(3), 'main', 'origin', true);

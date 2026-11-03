@@ -65,7 +65,7 @@ export async function addWorktree(
   const target = pushed ? upstream : `${remote}/${base}`;
   if (existing === undefined) {
     const args =
-      !start && (await hasBranch(repo, branch))
+      !start && (await hasWork(repo, branch, pushed, `${remote}/${base}`))
         ? ['worktree', 'add', path, branch]
         : ['worktree', 'add', '-B', branch, path, target];
     await must('git', args, { cwd: repo.root });
@@ -76,6 +76,18 @@ export async function addWorktree(
     await run('git', ['merge', '--ff-only', upstream], { cwd: path });
   }
   return { path, baseUpdated };
+}
+
+async function hasWork(
+  repo: Repo,
+  branch: string,
+  pushed: boolean,
+  base: string,
+): Promise<boolean> {
+  if (!(await hasBranch(repo, branch))) {
+    return false;
+  }
+  return pushed || !(await isAncestor(repo.root, branch, base));
 }
 
 async function hasBranch(repo: Repo, name: string, ...flags: string[]): Promise<boolean> {
