@@ -1,3 +1,4 @@
+import { secondsToMs } from './config.mts';
 import { conflicts, resolveConflict } from './conflict.mts';
 import { fixRound } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
@@ -12,7 +13,7 @@ export async function checkGate(job: Run): Promise<Gate> {
     ports.waitForChecks(repo, state.pr!, {
       head,
       ...checkPolling(config),
-      graceMs: job.noChecks ? 0 : config.checkGraceSeconds * 1000,
+      graceMs: job.noChecks ? 0 : secondsToMs(config.checkGraceSeconds),
       show: log.level === 'verbose',
     }),
   );

@@ -1,3 +1,4 @@
+import { secondsToMs } from './config.mts';
 import { fixRound } from './fix.mts';
 import { escalateAndFinish, finish } from './handover.mts';
 import { checkPolling, type Gate, openPr, type Round, type Run, setStatus } from './job.mts';
@@ -31,7 +32,7 @@ async function watchBase(job: Run): Promise<Gate> {
   const checks = await log.step('main-checks', { pr: state.pr, sha }, () =>
     ports.waitForBaseChecks(repo, sha, {
       ...polling,
-      graceMs: config.checkGraceSeconds * 1000,
+      graceMs: secondsToMs(config.checkGraceSeconds),
     }),
   );
   log.event('main-checks.state', { state: checks });
