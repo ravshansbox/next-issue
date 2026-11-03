@@ -107,6 +107,32 @@ test('setLabel tries the create again when it failed', async (t) => {
   assert.equal(creates.length, 2);
 });
 
+test('setLabel creates a label again when a person deleted it after the worker read the labels', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const labels = join(dir, 'labels');
+  await writeFile(labels, 'status:todo\n');
+  const script = `#!/bin/sh
+case "$1 $2" in
+  "label list") printf '['; sed 's/.*/{"name":"&"}/' "${labels}" | paste -sd, -; printf ']' ;;
+  "label create") echo "$3" >> "${labels}" ;;
+  "issue view") echo '{"labels":[]}' ;;
+  "issue edit") grep -qx -- "$5" "${labels}" || { echo "'$5' not found" >&2; exit 1; } ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+`;
+  await writeFile(join(dir, 'gh'), script, { mode: 0o755 });
+  const path = process.env.PATH;
+  process.env.PATH = `${dir}:${path}`;
+  t.after(() => {
+    process.env.PATH = path;
+  });
+  const repo = { owner: 'acme', name: 'deleted', root: dir };
+  await setLabel(repo, 'issue', 1, 'status:todo', []);
+  await writeFile(labels, '');
+  await setLabel(repo, 'issue', 1, 'status:todo', []);
+  assert.equal(await readFile(labels, 'utf8'), 'status:todo\n');
+});
+
 async function flakyGh(t: TestContext, failures: number, error: string): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
   const calls = join(dir, 'calls');
