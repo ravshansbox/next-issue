@@ -11,7 +11,7 @@ export type Issue = {
 
 export type Kind = 'issue' | 'pr';
 
-export type CheckState = 'pass' | 'fail' | 'pending' | 'none' | 'timeout';
+export type CheckState = 'pass' | 'fail' | 'pending' | 'none' | 'timeout' | 'moved';
 
 const CHECK_PENDING_CODE = 8;
 const READ_TRIES = 3;
@@ -325,6 +325,9 @@ export async function pollChecks(
       return 'timeout';
     }
     const state = await read(probe, options.head, rest(), () => (shown ??= clock.now()));
+    if (state === 'behind' && shown !== undefined) {
+      return 'moved';
+    }
     if (state instanceof Error) {
       failures += 1;
       if (failures >= READ_TRIES) {

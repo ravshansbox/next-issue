@@ -132,6 +132,20 @@ test('a pull request that never shows the pushed commit gives timeout', async ()
   assert.equal(time.time, OPTIONS.timeoutMs);
 });
 
+test('a person who pushes to the pull request during the wait stops the wait with moved', async () => {
+  const heads = ['new', 'other'];
+  const base = probe(['some'], ['pending', 'pass']);
+  const target: ChecksProbe = {
+    list: base.list,
+    watch: base.watch,
+    head: async () => heads.shift() ?? 'other',
+  };
+  const time = clock();
+  assert.equal(await pollChecks(target, { ...OPTIONS, head: 'new' }, time), 'moved');
+  assert.equal(base.polls, 1);
+  assert.equal(time.time, 10_000);
+});
+
 test('a check read that fails once is tried again', async () => {
   let calls = 0;
   const target: ChecksProbe = {

@@ -502,6 +502,13 @@ async function checkGate(job: Run): Promise<Gate> {
     await escalate(job, 'The pull request conflicts with its base, so no checks ran.');
     return { done: true, report: await finish(job, 'needs-human', 'merge conflict') };
   }
+  if (checks === 'moved') {
+    await escalate(
+      job,
+      'Someone pushed to the pull request while the harness waited for the checks.',
+    );
+    return { done: true, report: await finish(job, 'needs-human', 'pull request moved') };
+  }
   if (checks !== 'fail') {
     return { done: false, fixed: false };
   }
