@@ -49,16 +49,20 @@ async function repeatable(repo: Repo, args: string[]): Promise<string> {
   }
 }
 
+function withRepo(repo: Repo, args: string[]): string[] {
+  return [...args, '--repo', slug(repo)];
+}
+
 async function gh(repo: Repo, args: string[]): Promise<string> {
-  return repeatable(repo, [...args, '--repo', slug(repo)]);
+  return repeatable(repo, withRepo(repo, args));
 }
 
 async function ghOnce(repo: Repo, args: string[], input?: string): Promise<string> {
-  return must('gh', [...args, '--repo', slug(repo)], { cwd: repo.root, input });
+  return must('gh', withRepo(repo, args), { cwd: repo.root, input });
 }
 
 async function ghRun(repo: Repo, args: string[], options: RunOptions = {}): Promise<RunResult> {
-  return run('gh', [...args, '--repo', slug(repo)], { ...options, cwd: repo.root });
+  return run('gh', withRepo(repo, args), { ...options, cwd: repo.root });
 }
 
 async function ghSucceeds(repo: Repo, args: string[]): Promise<boolean> {
