@@ -88,13 +88,7 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
   try {
     saved = await readState(context.repo, issue.number);
   } catch (error) {
-    log.event('issue.error', { error: message(error), ms: Date.now() - started }, 'quiet');
-    return {
-      ...skipped(issue),
-      outcome: 'error',
-      reason: message(error),
-      ms: Date.now() - started,
-    };
+    return unclaimedError(log, issue, error, started);
   }
   const skip = skipReason(issue, context.config, saved !== undefined);
   if (skip !== undefined) {
@@ -106,13 +100,7 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
     try {
       blockers = await context.ports.openBlockers(context.repo, issue.number);
     } catch (error) {
-      log.event('issue.error', { error: message(error), ms: Date.now() - started }, 'quiet');
-      return {
-        ...skipped(issue),
-        outcome: 'error',
-        reason: message(error),
-        ms: Date.now() - started,
-      };
+      return unclaimedError(log, issue, error, started);
     }
     if (blockers.length > 0) {
       log.event('issue.skip', { title: issue.title, reason: 'blocked', blockers });
@@ -169,6 +157,16 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
       ms: Date.now() - started,
     };
   }
+}
+
+function unclaimedError(log: Recorder, issue: Issue, error: unknown, started: number): IssueReport {
+  log.event('issue.error', { error: message(error), ms: Date.now() - started }, 'quiet');
+  return {
+    ...skipped(issue),
+    outcome: 'error',
+    reason: message(error),
+    ms: Date.now() - started,
+  };
 }
 
 async function work(
