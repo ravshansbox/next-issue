@@ -19,7 +19,8 @@ export async function afterMerge(job: Run): Promise<Round> {
 async function watchBase(job: Run): Promise<Gate> {
   const { context, log, state, worktree } = job;
   const { repo, config, ports } = context;
-  const sha = await ports.mergeCommit(repo, state.pr!, checkPolling(config));
+  const polling = checkPolling(config);
+  const sha = await ports.mergeCommit(repo, state.pr!, polling);
   if (sha === undefined) {
     return escalateAndFinish(
       job,
@@ -29,7 +30,7 @@ async function watchBase(job: Run): Promise<Gate> {
   }
   const checks = await log.step('main-checks', { pr: state.pr, sha }, () =>
     ports.waitForBaseChecks(repo, sha, {
-      ...checkPolling(config),
+      ...polling,
       graceMs: config.checkGraceSeconds * 1000,
     }),
   );
