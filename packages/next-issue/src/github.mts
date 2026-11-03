@@ -1,4 +1,4 @@
-import { lines, must, run, type RunOptions } from './exec.mts';
+import { lines, must, run, type RunOptions, type RunResult } from './exec.mts';
 import { isAncestor, type Repo } from './git.mts';
 
 export type Issue = {
@@ -54,6 +54,10 @@ async function gh(repo: Repo, args: string[]): Promise<string> {
 
 async function ghOnce(repo: Repo, args: string[], input?: string): Promise<string> {
   return must('gh', [...args, '--repo', slug(repo)], { cwd: repo.root, input });
+}
+
+async function ghRun(repo: Repo, args: string[], options: RunOptions = {}): Promise<RunResult> {
+  return run('gh', [...args, '--repo', slug(repo)], { ...options, cwd: repo.root });
 }
 
 export async function defaultBranch(repo: Repo): Promise<string> {
@@ -283,11 +287,13 @@ async function prHead(repo: Repo, pr: number): Promise<string> {
 }
 
 async function readChecks(repo: Repo, pr: number): Promise<CheckSummary[] | 'none'> {
-  const result = await run(
-    'gh',
-    ['pr', 'checks', String(pr), '--json', 'name,bucket,link,description', '--repo', slug(repo)],
-    { cwd: repo.root },
-  );
+  const result = await ghRun(repo, [
+    'pr',
+    'checks',
+    String(pr),
+    '--json',
+    'name,bucket,link,description',
+  ]);
   const output = result.stdout.trim();
   if (output.length === 0) {
     if (NO_CHECKS.test(result.stderr)) {
@@ -306,20 +312,10 @@ async function watchOnce(
   timeoutMs: number,
   show: boolean,
 ): Promise<CheckState> {
-  const watch = await run(
-    'gh',
-    [
-      'pr',
-      'checks',
-      String(pr),
-      '--watch',
-      '--fail-fast',
-      '--interval',
-      String(intervalSeconds),
-      '--repo',
-      slug(repo),
-    ],
-    { cwd: repo.root, show, timeoutMs },
+  const watch = await ghRun(
+    repo,
+    ['pr', 'checks', String(pr), '--watch', '--fail-fast', '--interval', String(intervalSeconds)],
+    { show, timeoutMs },
   );
   if (watch.timedOut) {
     return 'timeout';
@@ -514,10 +510,7 @@ async function runLogs(
     if (runId === undefined) {
       continue;
     }
-    const logs = await run('gh', ['run', 'view', runId, '--log-failed', '--repo', slug(repo)], {
-      cwd: repo.root,
-      tailChars: share,
-    });
+    const logs = await ghRun(repo, ['run', 'view', runId, '--log-failed'], { tailChars: share });
     if (logs.code === 0) {
       parts.push(logs.stdout);
       continue;
@@ -531,18 +524,12 @@ async function runLogs(
 }
 
 export async function markPrReady(repo: Repo, pr: number): Promise<boolean> {
-  const result = await run('gh', ['pr', 'ready', String(pr), '--repo', slug(repo)], {
-    cwd: repo.root,
-  });
+  const result = await ghRun(repo, ['pr', 'ready', String(pr)]);
   return result.code === 0;
 }
 
 export async function mergePr(repo: Repo, pr: number): Promise<boolean> {
-  const result = await run(
-    'gh',
-    ['pr', 'merge', String(pr), '--squash', '--delete-branch', '--repo', slug(repo)],
-    { cwd: repo.root },
-  );
+  const result = await ghRun(repo, ['pr', 'merge', String(pr), '--squash', '--delete-branch']);
   return result.code === 0;
 }
 
