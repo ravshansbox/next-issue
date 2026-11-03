@@ -189,13 +189,12 @@ export async function must(
   options: RunOptions = {},
 ): Promise<string> {
   const result = await run(command, args, options);
+  const commandLine = `${command} ${args.join(' ')}`;
   if (result.timedOut) {
-    throw new Error(`${command} ${args.join(' ')} did not finish in time.`);
+    throw new Error(`${commandLine} did not finish in time.`);
   }
   if (result.code !== 0) {
-    throw new Error(
-      `${command} ${args.join(' ')} failed with code ${result.code}: ${result.stderr.trim()}`,
-    );
+    throw new Error(`${commandLine} failed with code ${result.code}: ${result.stderr.trim()}`);
   }
   return result.stdout.trim();
 }
