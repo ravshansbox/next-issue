@@ -133,11 +133,7 @@ export async function loadConfig(root: string): Promise<Config> {
 
 function parseConfig(value: unknown): Config {
   const file = record(value, 'the file');
-  for (const key of Object.keys(file)) {
-    if (!FIELDS.includes(key)) {
-      throw new Error(`${CONFIG_FILE} holds an unknown field: ${key}`);
-    }
-  }
+  rejectUnknown(file, FIELDS, 'field');
   const config: Config = defaults();
   if (file.remote !== undefined) {
     config.remote = text(file.remote, 'remote', false);
@@ -158,11 +154,7 @@ function parseConfig(value: unknown): Config {
   }
   if (file.models !== undefined) {
     const models = record(file.models, 'models');
-    for (const key of Object.keys(models)) {
-      if (!MODEL_ROLES.includes(key as (typeof MODEL_ROLES)[number])) {
-        throw new Error(`${CONFIG_FILE} holds an unknown model role: ${key}`);
-      }
-    }
+    rejectUnknown(models, MODEL_ROLES, 'model role');
     for (const role of MODEL_ROLES) {
       if (models[role] !== undefined && models[role] !== null) {
         config.models[role] = text(models[role], `models.${role}`, false);
@@ -171,11 +163,7 @@ function parseConfig(value: unknown): Config {
   }
   if (file.labels !== undefined) {
     const labels = record(file.labels, 'labels');
-    for (const key of Object.keys(labels)) {
-      if (!LABEL_NAMES.includes(key as (typeof LABEL_NAMES)[number])) {
-        throw new Error(`${CONFIG_FILE} holds an unknown label name: ${key}`);
-      }
-    }
+    rejectUnknown(labels, LABEL_NAMES, 'label name');
     for (const name of LABEL_NAMES) {
       if (labels[name] !== undefined) {
         config.labels[name] = text(labels[name], `labels.${name}`, name === 'ready');
@@ -190,6 +178,18 @@ function record(value: unknown, what: string): Record<string, unknown> {
     throw new Error(`${CONFIG_FILE}: ${what} must be an object.`);
   }
   return value as Record<string, unknown>;
+}
+
+function rejectUnknown(
+  value: Record<string, unknown>,
+  known: readonly string[],
+  what: string,
+): void {
+  for (const key of Object.keys(value)) {
+    if (!known.includes(key)) {
+      throw new Error(`${CONFIG_FILE} holds an unknown ${what}: ${key}`);
+    }
+  }
 }
 
 function whole(value: unknown, field: string, least: number): number {
