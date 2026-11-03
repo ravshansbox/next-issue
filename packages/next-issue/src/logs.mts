@@ -22,6 +22,17 @@ export async function newestRunLog(root: string): Promise<string | undefined> {
   return newest === undefined ? undefined : join(dir, newest);
 }
 
+function show(line: string, json: boolean): string {
+  if (json) {
+    return `${line}\n`;
+  }
+  try {
+    return render(JSON.parse(line) as Record<string, unknown>);
+  } catch {
+    return '';
+  }
+}
+
 export async function followLog(
   file: string,
   options: { json: boolean; tail?: number },
@@ -36,16 +47,6 @@ export async function followLog(
   };
   process.on('SIGINT', stop);
   process.stdout.on('error', stop);
-  const show = (line: string): string => {
-    if (options.json) {
-      return `${line}\n`;
-    }
-    try {
-      return render(JSON.parse(line) as Record<string, unknown>);
-    } catch {
-      return '';
-    }
-  };
   const decoder = new StringDecoder('utf8');
   let position = 0;
   let rest = '';
@@ -69,7 +70,7 @@ export async function followLog(
       }
       first = false;
       if (shown.length > 0) {
-        await print(shown.map(show).join(''));
+        await print(shown.map((line) => show(line, options.json)).join(''));
       }
       try {
         writeSync(process.stdout.fd, '');
