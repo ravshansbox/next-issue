@@ -1,4 +1,4 @@
-import { must, run, type RunOptions } from './exec.mts';
+import { lines, must, run, type RunOptions } from './exec.mts';
 import { isAncestor, type Repo } from './git.mts';
 
 export type Issue = {
@@ -129,19 +129,16 @@ export async function threadComments(repo: Repo, number: number): Promise<Commen
     ],
     { cwd: repo.root },
   );
-  return raw
-    .split('\n')
-    .filter((line) => line.length > 0)
-    .map((line) => {
-      let parsed: [string, string | null, string?];
-      try {
-        parsed = JSON.parse(line) as [string, string | null, string?];
-      } catch {
-        throw new Error(`gh gave a comment of #${number} that is not valid JSON: ${line}`);
-      }
-      const [author, body, url] = parsed;
-      return url === undefined ? { author, body: body ?? '' } : { author, body: body ?? '', url };
-    });
+  return lines(raw).map((line) => {
+    let parsed: [string, string | null, string?];
+    try {
+      parsed = JSON.parse(line) as [string, string | null, string?];
+    } catch {
+      throw new Error(`gh gave a comment of #${number} that is not valid JSON: ${line}`);
+    }
+    const [author, body, url] = parsed;
+    return url === undefined ? { author, body: body ?? '' } : { author, body: body ?? '', url };
+  });
 }
 
 export async function canWrite(repo: Repo, login: string): Promise<boolean> {
@@ -170,10 +167,9 @@ export async function openBlockers(repo: Repo, issue: number): Promise<string[]>
     ],
     { cwd: repo.root },
   );
-  return raw
-    .split('\n')
-    .filter((line) => line.length > 0)
-    .map((ref) => (ref.startsWith(`${slug(repo)}#`) ? ref.slice(slug(repo).length) : ref));
+  return lines(raw).map((ref) =>
+    ref.startsWith(`${slug(repo)}#`) ? ref.slice(slug(repo).length) : ref,
+  );
 }
 
 async function labelsOf(repo: Repo, kind: Kind, number: number): Promise<string[]> {

@@ -1,7 +1,7 @@
 import { appendFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { must, run } from './exec.mts';
+import { lines, must, run } from './exec.mts';
 import { message } from './observe.mts';
 
 export type Repo = {
@@ -209,7 +209,7 @@ export async function disputeBranches(repo: Repo, branch: string): Promise<strin
     ['for-each-ref', '--format=%(refname:short)', `refs/heads/${branch}-dispute-*`],
     { cwd: repo.root },
   );
-  return list.split('\n').filter((line) => line.length > 0);
+  return lines(list);
 }
 
 export async function push(
@@ -239,7 +239,7 @@ export async function startMerge(
     return (await merging(cwd)) ? [] : undefined;
   }
   const listed = await must('git', ['diff', '--name-only', '--diff-filter=U'], { cwd });
-  const files = listed.split('\n').filter((line) => line.length > 0);
+  const files = lines(listed);
   if (files.length === 0) {
     throw new Error(`git merge ${remote}/${base} failed: ${result.stderr.trim()}`);
   }
