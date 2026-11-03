@@ -201,13 +201,16 @@ export function createExtension(options: Options) {
     };
 
     const onEvent = (event: WorkerEvent) => {
-      if (event.type === 'runs' && baseline) {
-        baseline = false;
-        remember(root === undefined ? undefined : event.runs[root]);
-        render();
-        askQuestions();
-      } else if (event.type === 'runs') {
-        onProgress(root === undefined ? undefined : event.runs[root]);
+      if (event.type === 'runs') {
+        const progress = root === undefined ? undefined : event.runs[root];
+        if (baseline) {
+          baseline = false;
+          remember(progress);
+          render();
+          askQuestions();
+        } else {
+          onProgress(progress);
+        }
       } else if (event.type === 'questions' && event.root === root) {
         onQuestions(event.questions);
       } else if (event.type === 'error' && event.root === root) {
