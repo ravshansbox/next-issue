@@ -112,7 +112,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     cwd: request.cwd,
     agentDir,
     resourceLoader,
-    sessionManager: SessionManager.inMemory(request.cwd),
+    sessionManager: SessionManager.create(request.cwd, recorder.sessionDir),
     tools: [...request.profile.tools, ...customTools.map((tool) => tool.name)],
     customTools,
     modelRuntime,
