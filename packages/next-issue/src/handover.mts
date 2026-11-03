@@ -125,6 +125,13 @@ export function stop(job: Run): IssueReport {
   return {
     issue: issue.number,
     outcome: 'stopped',
+    ...progress(job),
+  };
+}
+
+function progress(job: Run): Pick<IssueReport, 'pr' | 'ciFixes' | 'reviewRounds' | 'ms'> {
+  const { state } = job;
+  return {
     pr: state.pr,
     ciFixes: state.ciFixes,
     reviewRounds: state.reviewRounds,
@@ -133,7 +140,7 @@ export function stop(job: Run): IssueReport {
 }
 
 export async function finish(job: Run, outcome: Outcome, reason?: string): Promise<IssueReport> {
-  const { context, issue, log, state, branch } = job;
+  const { context, issue, log, branch } = job;
   const { repo, ports } = context;
   await cleanUp(context, log, branch);
   if (outcome === 'done') {
@@ -148,10 +155,7 @@ export async function finish(job: Run, outcome: Outcome, reason?: string): Promi
     issue: issue.number,
     outcome,
     reason,
-    pr: state.pr,
-    ciFixes: state.ciFixes,
-    reviewRounds: state.reviewRounds,
-    ms: Date.now() - job.started,
+    ...progress(job),
     ...(job.mainBroken && outcome !== 'done' ? { halt: true } : {}),
   };
 }
