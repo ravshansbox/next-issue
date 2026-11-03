@@ -1,6 +1,6 @@
 import { CODING } from './agents.mts';
 import { HookError } from './git.mts';
-import type { Run } from './job.mts';
+import { type Run, runRole } from './job.mts';
 import { message } from './observe.mts';
 import {
   type FixKind,
@@ -30,14 +30,7 @@ export async function fixRound(
       ? { round: state.reviewRounds, limit: config.maxReviewRounds }
       : { round: state.ciFixes, limit: config.maxCiFixes };
   const result = await log.step('fix', { reason, cause: kind, ...budget }, () =>
-    ports.runAgent(log, {
-      name: 'fixer',
-      cwd: worktree,
-      prompt: fixPrompt(issue, reason, detail, earlier, kind, job.reply),
-      profile: CODING,
-      model: config.models.fixer,
-      timeoutMs: config.agentTimeoutMinutes * 60_000,
-    }),
+    runRole(job, 'fixer', fixPrompt(issue, reason, detail, earlier, kind, job.reply), CODING),
   );
   const unrelated = parseUnrelated(result.text);
   if (unrelated !== undefined) {
@@ -96,15 +89,7 @@ export async function commitWork(
       const fix = await log.step(
         'commit-fix',
         { role, round: state.commitFixes, limit: config.maxCommitFixes },
-        () =>
-          ports.runAgent(log, {
-            name: role,
-            cwd: worktree,
-            prompt: hookPrompt(issue, comments, role, output),
-            profile: CODING,
-            model: config.models[role],
-            timeoutMs: config.agentTimeoutMinutes * 60_000,
-          }),
+        () => runRole(job, role, hookPrompt(issue, comments, role, output), CODING),
       );
       subject = parseCommitSubject(fix.text, subject);
     }

@@ -3,7 +3,7 @@ import { conflicts, resolveConflict } from './conflict.mts';
 import { fixRound } from './fix.mts';
 import { checkGate } from './gate.mts';
 import { escalateAndFinish, finish } from './handover.mts';
-import { history, type Round, type Run, setStatus } from './job.mts';
+import { history, type Round, type Run, runRole, setStatus } from './job.mts';
 import { afterMerge } from './merge.mts';
 import { capDiff, reviewPrompt } from './prompts.mts';
 import { writeState } from './state.mts';
@@ -40,14 +40,12 @@ export async function reviewRound(job: Run): Promise<Round> {
   };
   const before = await ports.revision(worktree);
   const review = await log.step('review', fields, () =>
-    ports.runAgent(log, {
-      name: 'reviewer',
-      cwd: worktree,
-      prompt: reviewPrompt(issue, comments, patch, history(state.reviewLog)),
-      profile: REVIEWING,
-      model: config.models.reviewer,
-      timeoutMs: config.agentTimeoutMinutes * 60_000,
-    }),
+    runRole(
+      job,
+      'reviewer',
+      reviewPrompt(issue, comments, patch, history(state.reviewLog)),
+      REVIEWING,
+    ),
   );
   if (await ports.discardChanges(worktree, before)) {
     log.event('review.discard', { round: state.reviewRounds }, 'quiet');

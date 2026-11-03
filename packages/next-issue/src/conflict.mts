@@ -1,7 +1,7 @@
 import { CODING } from './agents.mts';
 import { commitWork } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
-import type { Gate, Run } from './job.mts';
+import { type Gate, type Run, runRole } from './job.mts';
 import { fixPrompt, parseCommitSubject } from './prompts.mts';
 import { writeState } from './state.mts';
 
@@ -53,14 +53,12 @@ async function mergeBase(job: Run, before: string, files: string[]): Promise<boo
         'fix',
         { reason, cause: 'conflict', round: state.ciFixes, limit: config.maxCiFixes },
         () =>
-          ports.runAgent(log, {
-            name: 'fixer',
-            cwd: worktree,
-            prompt: fixPrompt(issue, reason, files.join('\n'), [], 'conflict', job.reply),
-            profile: CODING,
-            model: config.models.fixer,
-            timeoutMs: config.agentTimeoutMinutes * 60_000,
-          }),
+          runRole(
+            job,
+            'fixer',
+            fixPrompt(issue, reason, files.join('\n'), [], 'conflict', job.reply),
+            CODING,
+          ),
       );
       text = result.text;
     }

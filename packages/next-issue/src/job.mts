@@ -1,3 +1,4 @@
+import type { AgentResult, Profile } from './agents.mts';
 import { type Config, managedLabels } from './config.mts';
 import type { Repo } from './git.mts';
 import type { Issue } from './github.mts';
@@ -47,6 +48,23 @@ export type Run = {
 export type Gate = { done: true; report: IssueReport } | { done: false; fixed: boolean };
 
 export type Round = { done: true; report: IssueReport } | { done: false };
+
+export function runRole(
+  job: Run,
+  role: keyof Config['models'],
+  prompt: string,
+  profile: Profile,
+): Promise<AgentResult> {
+  const { config, ports } = job.context;
+  return ports.runAgent(job.log, {
+    name: role,
+    cwd: job.worktree,
+    prompt,
+    profile,
+    model: config.models[role],
+    timeoutMs: config.agentTimeoutMinutes * 60_000,
+  });
+}
 
 const worktreeQueues = new Map<string, Promise<unknown>>();
 

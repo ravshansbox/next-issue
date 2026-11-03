@@ -14,7 +14,15 @@ import {
   stop,
   writerComments,
 } from './handover.mts';
-import { type Context, type IssueReport, oneAtATime, openPr, type Run, setStatus } from './job.mts';
+import {
+  type Context,
+  type IssueReport,
+  oneAtATime,
+  openPr,
+  type Run,
+  runRole,
+  setStatus,
+} from './job.mts';
 import { afterMerge, fixBase } from './merge.mts';
 import { message, type Recorder } from './observe.mts';
 import { implementPrompt, parseCommitSubject } from './prompts.mts';
@@ -240,14 +248,7 @@ async function work(
   if (state.phase === 'claimed') {
     const before = await ports.revision(worktree);
     const result = await log.step('implement', {}, () =>
-      ports.runAgent(log, {
-        name: 'implementer',
-        cwd: worktree,
-        prompt: implementPrompt(issue, comments, reply),
-        profile: CODING,
-        model: config.models.implementer,
-        timeoutMs: config.agentTimeoutMinutes * 60_000,
-      }),
+      runRole(job, 'implementer', implementPrompt(issue, comments, reply), CODING),
     );
     const subject = parseCommitSubject(result.text, `fix: resolve issue #${issue.number}`);
     if (!(await commitWork(job, before, subject, 'implementer'))) {
