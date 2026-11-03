@@ -9,7 +9,9 @@ import { defaultBranch } from './github.mts';
 import type { Interrupts } from './interrupt.mts';
 import { exitCode, type Loop, runIssues, watchIssues } from './loop.mts';
 import { type Fields, message, pruneRuns, Recorder, runsDir } from './observe.mts';
-import { type Context, pendingIssues, PORTS, processIssue } from './pipeline.mts';
+import type { Context } from './job.mts';
+import { pendingIssues, processIssue } from './pipeline.mts';
+import { PORTS } from './ports.mts';
 import { count, type RunSummary } from './summary.mts';
 import { packageVersion } from './version.mts';
 

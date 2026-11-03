@@ -10,13 +10,9 @@ import { HookError } from '../src/git.mts';
 import { applyEvent, startProgress } from '../src/progress.mts';
 import type { Progress } from '../src/protocol.mts';
 import { Recorder } from '../src/observe.mts';
-import {
-  type Context,
-  type IssueReport,
-  pendingIssues,
-  type Ports,
-  processIssue,
-} from '../src/pipeline.mts';
+import type { Context, IssueReport } from '../src/job.mts';
+import { pendingIssues, processIssue } from '../src/pipeline.mts';
+import type { Ports } from '../src/ports.mts';
 import { type IssueState, readState, STATE_DIR, writeState } from '../src/state.mts';
 import type { Verdict } from '../src/verdict.mts';
 

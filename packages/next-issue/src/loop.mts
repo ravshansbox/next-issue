@@ -1,6 +1,6 @@
 import type { Args } from './args.mts';
 import type { Issue } from './github.mts';
-import type { IssueReport } from './pipeline.mts';
+import type { IssueReport } from './job.mts';
 
 export type Loop = {
   issues: () => Promise<Issue[]>;

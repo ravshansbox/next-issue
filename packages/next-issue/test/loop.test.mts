@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Issue } from '../src/github.mts';
 import { exitCode, type Loop, runIssues, type Watch, watchIssues } from '../src/loop.mts';
-import type { IssueReport, Outcome } from '../src/pipeline.mts';
+import type { IssueReport, Outcome } from '../src/job.mts';
 
 function issue(number: number): Issue {
   return { number, title: 't', body: '', createdAt: '2026-01-01T00:00:00Z', labels: [] };

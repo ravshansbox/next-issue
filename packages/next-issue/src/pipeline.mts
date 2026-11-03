@@ -29,9 +29,6 @@ import { implementPrompt, parseCommitSubject } from './prompts.mts';
 import { reviewRound } from './review.mts';
 import { type IssueState, readState, resetState, savedIssues, writeState } from './state.mts';
 
-export type { Context, IssueReport, Outcome } from './job.mts';
-export { type Ports, PORTS } from './ports.mts';
-
 export type Skip = 'stop-label' | 'not-ready' | 'in-flight';
 
 export function skipReason(issue: Issue, config: Config, resuming: boolean): Skip | undefined {

@@ -1,5 +1,5 @@
 import type { RoleTotals, Usage } from './observe.mts';
-import type { IssueReport, Outcome } from './pipeline.mts';
+import type { IssueReport, Outcome } from './job.mts';
 
 export type RunSummary = {
   runId: string;
