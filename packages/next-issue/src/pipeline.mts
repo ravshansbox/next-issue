@@ -90,15 +90,16 @@ export async function pendingIssues(context: Context): Promise<Issue[]> {
 }
 
 export async function processIssue(context: Context, issue: Issue): Promise<IssueReport> {
+  const { repo, config, ports } = context;
   const started = Date.now();
   const log = context.recorder.scope({ issue: issue.number });
   let saved: IssueState | undefined;
   try {
-    saved = await readState(context.repo, issue.number);
+    saved = await readState(repo, issue.number);
   } catch (error) {
     return unclaimedError(log, issue, error, started);
   }
-  const skip = skipReason(issue, context.config, saved !== undefined);
+  const skip = skipReason(issue, config, saved !== undefined);
   if (skip !== undefined) {
     log.event('issue.skip', { title: issue.title, reason: skip });
     return skipped(issue);
@@ -106,7 +107,7 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
   if (saved === undefined) {
     let blockers: string[];
     try {
-      blockers = await context.ports.openBlockers(context.repo, issue.number);
+      blockers = await ports.openBlockers(repo, issue.number);
     } catch (error) {
       return unclaimedError(log, issue, error, started);
     }
