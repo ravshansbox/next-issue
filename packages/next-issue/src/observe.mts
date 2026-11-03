@@ -40,6 +40,10 @@ export function addUsage(target: Usage, source: Usage): void {
   target.total += source.total;
 }
 
+function emptyRoleTotals(): RoleTotals {
+  return { ...emptyUsage(), calls: 0, ms: 0 };
+}
+
 function negate(usage: Usage): Usage {
   return {
     input: -usage.input,
@@ -80,7 +84,7 @@ class Sink {
   }
 
   add(role: string, usage: Usage, ms: number): void {
-    const current = this.totals.get(role) ?? { ...emptyUsage(), calls: 0, ms: 0 };
+    const current = this.totals.get(role) ?? emptyRoleTotals();
     addUsage(current, usage);
     current.calls += 1;
     current.ms += ms;
@@ -173,7 +177,7 @@ export class Recorder {
     const total = emptyUsage();
     const roles: Record<string, RoleTotals> = {};
     for (const [role, value] of this.sink.totals) {
-      const earlier = since?.roles[role] ?? { ...emptyUsage(), calls: 0, ms: 0 };
+      const earlier = since?.roles[role] ?? emptyRoleTotals();
       if (value.calls === earlier.calls) {
         continue;
       }
