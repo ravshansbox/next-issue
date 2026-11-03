@@ -32,7 +32,7 @@ Press Escape, or leave the guidance empty, to stop. Pi reads the list again befo
 
 ## Create an issue
 
-The package ships the `create-issue` skill. Ask pi to write an issue, or run `/skill:create-issue <problem>`. Pi then:
+The package ships the `create-issue` skill. Ask pi to write an issue, ask for a change in a repository with `next-issue.config.json`, or run `/skill:create-issue <problem>`. Pi then:
 
 1. restates the problem, reads the code when the problem touches it, and finds the open issues that must be done first;
 2. asks numbered questions until none is open;

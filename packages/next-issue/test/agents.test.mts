@@ -61,6 +61,29 @@ test('an agent session leaves out the pi-next-issue extension and keeps the othe
   assert.equal(isOwnExtension('/home/me/node_modules/@ravshansbox/pi-statusline/index.ts'), false);
 });
 
+async function addSkill(folder: string, name: string): Promise<void> {
+  await mkdir(join(folder, name), { recursive: true });
+  await writeFile(
+    join(folder, name, 'SKILL.md'),
+    `---\nname: ${name}\ndescription: The ${name} skill.\n---\n\n# ${name}\n`,
+  );
+}
+
+test('an agent session leaves out the skills of pi-next-issue and keeps the others', async () => {
+  let transcript = '';
+  const { recorder, request } = await fakePi([
+    (context) => {
+      transcript = JSON.stringify(context.messages);
+      return fauxAssistantMessage('done');
+    },
+  ]);
+  await addSkill(join(request.cwd, 'skills', 'pi-next-issue'), 'create-issue');
+  await addSkill(join(request.cwd, 'skills'), 'other-skill');
+  await runAgent(recorder, request);
+  assert.match(transcript, /other-skill/);
+  assert.doesNotMatch(transcript, /create-issue/);
+});
+
 async function markExtension(root: string, value = "'yes'"): Promise<string> {
   const mark = join(root, 'marked');
   await mkdir(join(root, 'extensions'), { recursive: true });

@@ -71,6 +71,10 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
       ...base,
       extensions: base.extensions.filter((extension) => !isOwnExtension(extension.resolvedPath)),
     }),
+    skillsOverride: (base) => ({
+      ...base,
+      skills: base.skills.filter((skill) => !isOwnExtension(skill.filePath)),
+    }),
   });
   await resourceLoader.reload();
   const modelRuntime =
