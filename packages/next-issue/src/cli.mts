@@ -68,11 +68,10 @@ async function logs(root: string, json: boolean): Promise<number> {
 async function init(root: string, force: boolean): Promise<number> {
   const path = await writeDefaultConfig(root, force);
   await write(process.stdout, `wrote ${path}\n`);
-  if (await ensureIgnored(root, `${STATE_DIR}/`)) {
-    await write(process.stdout, `added ${STATE_DIR}/ to .gitignore\n`);
-  }
-  if (await ensureIgnored(root, `${WORKTREE_DIR}/`)) {
-    await write(process.stdout, `added ${WORKTREE_DIR}/ to .gitignore\n`);
+  for (const directory of [STATE_DIR, WORKTREE_DIR]) {
+    if (await ensureIgnored(root, `${directory}/`)) {
+      await write(process.stdout, `added ${directory}/ to .gitignore\n`);
+    }
   }
   return 0;
 }
