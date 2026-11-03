@@ -131,12 +131,13 @@ export function createExtension(options: Options) {
     const current = (): Progress | undefined =>
       root === undefined ? undefined : shared(options.client, root).runs[root];
 
+    const dim = (text: string) => (coloured && ui !== undefined ? ui.theme.fg('dim', text) : text);
+
     const render = () => {
       const progress = current();
       if (ui === undefined || progress === undefined) {
         return;
       }
-      const dim = (text: string) => (coloured ? ui!.theme.fg('dim', text) : text);
       ui.setStatus(STATUS_KEY, dim(formatStatus(progress, Date.now())));
     };
 
@@ -144,10 +145,9 @@ export function createExtension(options: Options) {
       if (ui === undefined || waiting === undefined) {
         return;
       }
-      const text = formatQuestions(waiting.length);
       ui.setStatus(
         QUESTIONS_KEY,
-        waiting.length === 0 ? undefined : coloured ? ui.theme.fg('dim', text) : text,
+        waiting.length === 0 ? undefined : dim(formatQuestions(waiting.length)),
       );
     };
 
