@@ -57,10 +57,14 @@ export function isNewer(candidate: string, current: string): boolean {
   return false;
 }
 
-export function spawnWorker(agentDir: string): void {
+export function workerArgs(version: string): string[] {
+  return ['-y', `next-issue@${version}`, 'serve'];
+}
+
+export function spawnWorker(agentDir: string, version: string): void {
   const log = openSync(join(agentDir, 'next-issue-worker.log'), 'a');
   try {
-    const child = spawn('npx', ['-y', 'next-issue@latest', 'serve'], {
+    const child = spawn('npx', workerArgs(version), {
       detached: true,
       stdio: ['ignore', log, log],
     });

@@ -76,10 +76,11 @@ function packageVersion(): string {
 const fromMachine: Options = {
   client: () => {
     const agentDir = getAgentDir();
+    const version = packageVersion();
     return new WorkerClient({
       socketPath: join(agentDir, 'next-issue.sock'),
-      version: packageVersion(),
-      spawnWorker: () => spawnWorker(agentDir),
+      version,
+      spawnWorker: () => spawnWorker(agentDir, version),
     });
   },
   root: repoRoot,
