@@ -55,9 +55,11 @@ function duration(ms: number): string {
 }
 
 function outcomes(progress: Progress): string {
-  const done = progress.handled.filter((item) => item.outcome === 'done').length;
-  const human = progress.handled.filter((item) => item.outcome === 'needs-human').length;
-  const failed = progress.handled.filter((item) => item.outcome === 'error').length;
+  const count = (outcome: Progress['handled'][number]['outcome']): number =>
+    progress.handled.filter((item) => item.outcome === outcome).length;
+  const done = count('done');
+  const human = count('needs-human');
+  const failed = count('error');
   const parts = [`${done} done`];
   if (human > 0) {
     parts.push(`${human} needs a human`);
