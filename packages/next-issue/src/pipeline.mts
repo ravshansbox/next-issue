@@ -1,6 +1,6 @@
-import { CODING, REVIEWING, runAgent } from "./agents.mts";
-import { type Config, managedLabels } from "./config.mts";
-import { run } from "./exec.mts";
+import { CODING, REVIEWING, runAgent } from './agents.mts';
+import { type Config, managedLabels } from './config.mts';
+import { run } from './exec.mts';
 import {
   addWorktree,
   branchName,
@@ -15,7 +15,7 @@ import {
   type Repo,
   resetToBase,
   revision,
-} from "./git.mts";
+} from './git.mts';
 import {
   commentOnPr,
   createPr,
@@ -35,8 +35,8 @@ import {
   viewIssue,
   waitForBaseChecks,
   waitForChecks,
-} from "./github.mts";
-import { message, type Recorder } from "./observe.mts";
+} from './github.mts';
+import { message, type Recorder } from './observe.mts';
 import {
   capDiff,
   type FixKind,
@@ -46,8 +46,8 @@ import {
   parseCommitSubject,
   parseUnrelated,
   reviewPrompt,
-} from "./prompts.mts";
-import { detectSetupCommand } from "./setup.mts";
+} from './prompts.mts';
+import { detectSetupCommand } from './setup.mts';
 import {
   dropState,
   type IssueState,
@@ -56,7 +56,7 @@ import {
   type ReviewRound,
   savedIssues,
   writeState,
-} from "./state.mts";
+} from './state.mts';
 import {
   blockingFindings,
   fingerprint,
@@ -65,7 +65,7 @@ import {
   openFindings,
   readVerdict,
   VERDICT_SCHEMA,
-} from "./verdict.mts";
+} from './verdict.mts';
 
 export type Ports = {
   addWorktree: typeof addWorktree;
@@ -132,7 +132,7 @@ export const PORTS: Ports = {
   resetToBase,
   revision,
   runAgent,
-  runSetup: async (command, cwd, timeoutMs) => run("bash", ["-lc", command], { cwd, timeoutMs }),
+  runSetup: async (command, cwd, timeoutMs) => run('bash', ['-lc', command], { cwd, timeoutMs }),
   setLabel,
   viewIssue,
   waitForBaseChecks,
@@ -150,7 +150,7 @@ export type Context = {
   ports: Ports;
 };
 
-export type Outcome = "done" | "needs-human" | "skipped" | "error" | "stopped";
+export type Outcome = 'done' | 'needs-human' | 'skipped' | 'error' | 'stopped';
 
 export type IssueReport = {
   issue: number;
@@ -176,7 +176,7 @@ type Run = {
   mainBroken: boolean;
 };
 
-export type Skip = "stop-label" | "not-ready" | "in-flight";
+export type Skip = 'stop-label' | 'not-ready' | 'in-flight';
 
 type Gate = { done: true; report: IssueReport } | { done: false; fixed: boolean };
 
@@ -188,16 +188,16 @@ export function skipReason(issue: Issue, config: Config, resuming: boolean): Ski
   const labels = new Set(issue.labels);
   const names = config.labels;
   if (labels.has(names.done) || labels.has(names.needsHuman) || labels.has(names.skip)) {
-    return "stop-label";
+    return 'stop-label';
   }
   if (resuming) {
     return undefined;
   }
   if (names.ready.length > 0 && !labels.has(names.ready)) {
-    return "not-ready";
+    return 'not-ready';
   }
   if (labels.has(names.inProgress) || labels.has(names.inReview)) {
-    return "in-flight";
+    return 'in-flight';
   }
   return undefined;
 }
@@ -231,12 +231,17 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
   try {
     saved = await readState(context.repo, issue.number);
   } catch (error) {
-    log.event("issue.error", { error: message(error), ms: Date.now() - started }, "quiet");
-    return { ...skipped(issue), outcome: "error", reason: message(error), ms: Date.now() - started };
+    log.event('issue.error', { error: message(error), ms: Date.now() - started }, 'quiet');
+    return {
+      ...skipped(issue),
+      outcome: 'error',
+      reason: message(error),
+      ms: Date.now() - started,
+    };
   }
   const skip = skipReason(issue, context.config, saved !== undefined);
   if (skip !== undefined) {
-    log.event("issue.skip", { title: issue.title, reason: skip });
+    log.event('issue.skip', { title: issue.title, reason: skip });
     return skipped(issue);
   }
   if (saved === undefined) {
@@ -244,19 +249,24 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
     try {
       blockers = await context.ports.openBlockers(context.repo, issue.number);
     } catch (error) {
-      log.event("issue.error", { error: message(error), ms: Date.now() - started }, "quiet");
-      return { ...skipped(issue), outcome: "error", reason: message(error), ms: Date.now() - started };
+      log.event('issue.error', { error: message(error), ms: Date.now() - started }, 'quiet');
+      return {
+        ...skipped(issue),
+        outcome: 'error',
+        reason: message(error),
+        ms: Date.now() - started,
+      };
     }
     if (blockers.length > 0) {
-      log.event("issue.skip", { title: issue.title, reason: "blocked", blockers });
+      log.event('issue.skip', { title: issue.title, reason: 'blocked', blockers });
       return skipped(issue);
     }
   }
-  log.event("issue.start", { title: issue.title, createdAt: issue.createdAt }, "quiet");
+  log.event('issue.start', { title: issue.title, createdAt: issue.createdAt }, 'quiet');
 
   const fresh: IssueState = {
     issue: issue.number,
-    phase: "claimed",
+    phase: 'claimed',
     branch: branchName(issue.number),
     ciFixes: 0,
     reviewRounds: 0,
@@ -266,19 +276,23 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
 
   try {
     const report = await work(context, issue, log, state);
-    log.event("issue.end", { outcome: report.outcome, reason: report.reason, ms: report.ms }, "quiet");
+    log.event(
+      'issue.end',
+      { outcome: report.outcome, reason: report.reason, ms: report.ms },
+      'quiet',
+    );
     return report;
   } catch (error) {
-    log.event("issue.error", { error: message(error), ms: Date.now() - started }, "quiet");
+    log.event('issue.error', { error: message(error), ms: Date.now() - started }, 'quiet');
     try {
       await handOver(context, log, issue.number, state, `The run failed: ${message(error)}`);
     } catch (failure) {
-      log.event("hand-over.error", { error: message(failure) }, "quiet");
+      log.event('hand-over.error', { error: message(failure) }, 'quiet');
     }
     await cleanUp(context, log, state.branch);
     return {
       issue: issue.number,
-      outcome: "error",
+      outcome: 'error',
       reason: message(error),
       pr: state.pr,
       ciFixes: state.ciFixes,
@@ -289,7 +303,7 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
 }
 
 function skipped(issue: Issue): IssueReport {
-  return { issue: issue.number, outcome: "skipped", ciFixes: 0, reviewRounds: 0, ms: 0 };
+  return { issue: issue.number, outcome: 'skipped', ciFixes: 0, reviewRounds: 0, ms: 0 };
 }
 
 async function work(
@@ -302,18 +316,18 @@ async function work(
   const { repo, config, ports } = context;
   const branch = state.branch;
 
-  await log.step("claim", { label: config.labels.inProgress }, async () => {
+  await log.step('claim', { label: config.labels.inProgress }, async () => {
     await setStatus(context, issue.number, state.pr, config.labels.inProgress);
     await writeState(repo, state);
   });
 
-  const comments = await log.step("comments", {}, () => ports.issueComments(repo, issue.number));
-  const added = await log.step("worktree", { branch }, () =>
+  const comments = await log.step('comments', {}, () => ports.issueComments(repo, issue.number));
+  const added = await log.step('worktree', { branch }, () =>
     ports.addWorktree(repo, issue.number, branch, context.base, config.remote),
   );
   const worktree = added.path;
   if (!added.baseUpdated) {
-    log.event("base.behind", { base: context.base }, "quiet");
+    log.event('base.behind', { base: context.base }, 'quiet');
   }
   const job: Run = {
     context,
@@ -330,31 +344,33 @@ async function work(
 
   const setupCommand = config.setupCommand ?? (await ports.detectSetupCommand(worktree));
   if (setupCommand !== undefined) {
-    const setup = await log.step("setup", { cmd: setupCommand, found: config.setupCommand === undefined }, () =>
-      ports.runSetup(setupCommand, worktree, config.setupTimeoutMinutes * 60_000),
+    const setup = await log.step(
+      'setup',
+      { cmd: setupCommand, found: config.setupCommand === undefined },
+      () => ports.runSetup(setupCommand, worktree, config.setupTimeoutMinutes * 60_000),
     );
     if (setup.code !== 0) {
       const late = setup.timedOut === true;
       log.event(
-        "setup.fail",
+        'setup.fail',
         { code: setup.code, timedOut: late, stderr: setup.stderr.trim().slice(-2000) },
-        "quiet",
+        'quiet',
       );
       await escalate(
         job,
         late
           ? `The setup command did not finish in ${config.setupTimeoutMinutes} minutes.`
-          : "The setup command failed in the worktree.",
+          : 'The setup command failed in the worktree.',
       );
-      return finish(job, "needs-human", late ? "setup timeout" : "setup failed");
+      return finish(job, 'needs-human', late ? 'setup timeout' : 'setup failed');
     }
   }
 
-  if (state.phase === "claimed") {
+  if (state.phase === 'claimed') {
     const before = await ports.revision(worktree);
-    const result = await log.step("implement", {}, () =>
+    const result = await log.step('implement', {}, () =>
       ports.runAgent(log, {
-        name: "implementer",
+        name: 'implementer',
         cwd: worktree,
         prompt: implementPrompt(issue, comments),
         profile: CODING,
@@ -363,11 +379,11 @@ async function work(
       }),
     );
     const subject = parseCommitSubject(result.text, `fix: resolve issue #${issue.number}`);
-    if (!(await commitWork(job, before, subject, "implementer"))) {
-      await escalate(job, "The implementer produced no change.");
-      return finish(job, "needs-human", "no implementation commit");
+    if (!(await commitWork(job, before, subject, 'implementer'))) {
+      await escalate(job, 'The implementer produced no change.');
+      return finish(job, 'needs-human', 'no implementation commit');
     }
-    state.phase = "implemented";
+    state.phase = 'implemented';
     await writeState(repo, state);
   }
   if (context.stopAfterRound()) {
@@ -380,19 +396,23 @@ async function work(
     if (fixed.done) {
       return fixed.report;
     }
-  } else if (state.phase === "review" && state.pr !== undefined && (await ports.prMerged(repo, state.pr))) {
-    log.event("pull-request.merged", { pr: state.pr }, "quiet");
+  } else if (
+    state.phase === 'review' &&
+    state.pr !== undefined &&
+    (await ports.prMerged(repo, state.pr))
+  ) {
+    log.event('pull-request.merged', { pr: state.pr }, 'quiet');
     if (!context.merge) {
       await setStatus(context, issue.number, state.pr, config.labels.done);
-      return finish(job, "done");
+      return finish(job, 'done');
     }
     const landed = await afterMerge(job);
     if (landed.done) {
       return landed.report;
     }
   } else {
-    await log.step("push", { branch }, () => ports.push(worktree, config.remote, branch));
-    state.phase = "review";
+    await log.step('push', { branch }, () => ports.push(worktree, config.remote, branch));
+    state.phase = 'review';
     await openPr(job);
   }
 
@@ -420,7 +440,7 @@ async function work(
 async function openPr(job: Run): Promise<void> {
   const { context, issue, log, state, branch } = job;
   const { repo, config, ports } = context;
-  const pr = await log.step("pull-request", { branch }, async () => {
+  const pr = await log.step('pull-request', { branch }, async () => {
     const existing = await ports.findPr(repo, branch);
     return (
       existing ??
@@ -436,57 +456,61 @@ async function openPr(job: Run): Promise<void> {
   });
   state.pr = pr;
   await writeState(repo, state);
-  log.event("pull-request.ready", { pr }, "quiet");
+  log.event('pull-request.ready', { pr }, 'quiet');
 }
 
 async function checkGate(job: Run): Promise<Gate> {
   const { context, log, state, worktree } = job;
   const { repo, config, ports } = context;
   const head = await ports.revision(worktree);
-  const checks = await log.step("checks", { pr: state.pr, head }, () =>
+  const checks = await log.step('checks', { pr: state.pr, head }, () =>
     ports.waitForChecks(repo, state.pr!, {
       head,
       intervalSeconds: config.checkIntervalSeconds,
       graceMs: job.noChecks ? 0 : config.checkGraceSeconds * 1000,
       timeoutMs: config.checkTimeoutMinutes * 60_000,
-      show: log.level === "verbose",
+      show: log.level === 'verbose',
     }),
   );
-  log.event("checks.state", { state: checks });
-  job.noChecks ||= checks === "none";
-  if (checks === "timeout") {
-    await escalate(job, "The checks did not finish in time.");
-    return { done: true, report: await finish(job, "needs-human", "checks timeout") };
+  log.event('checks.state', { state: checks });
+  job.noChecks ||= checks === 'none';
+  if (checks === 'timeout') {
+    await escalate(job, 'The checks did not finish in time.');
+    return { done: true, report: await finish(job, 'needs-human', 'checks timeout') };
   }
-  if (checks !== "fail") {
+  if (checks !== 'fail') {
     return { done: false, fixed: false };
   }
   if (state.ciFixes >= config.maxCiFixes) {
     await escalate(job, `The limit of ${config.maxCiFixes} check fixes was reached.`);
-    return { done: true, report: await finish(job, "needs-human", "check budget") };
+    return { done: true, report: await finish(job, 'needs-human', 'check budget') };
   }
   state.ciFixes += 1;
   await writeState(repo, state);
   const logs = await ports.failedCheckLogs(repo, state.pr!, config.logMaxChars);
-  log.event("checks.logs", { chars: logs.length });
+  log.event('checks.logs', { chars: logs.length });
   const fix = await fixRound(
     job,
-    "The continuous integration checks failed.",
+    'The continuous integration checks failed.',
     logs,
     history(state.reviewLog),
-    "checks",
+    'checks',
   );
   if (!fix.committed) {
     const note = fix.unrelated;
     await escalate(
       job,
       note === undefined
-        ? "The fixer added no commit for the failed checks."
+        ? 'The fixer added no commit for the failed checks.'
         : `The checks fail for a reason this change did not cause: ${note}`,
     );
     return {
       done: true,
-      report: await finish(job, "needs-human", note === undefined ? "no fix commit" : "unrelated failure"),
+      report: await finish(
+        job,
+        'needs-human',
+        note === undefined ? 'no fix commit' : 'unrelated failure',
+      ),
     };
   }
   return { done: false, fixed: true };
@@ -498,7 +522,7 @@ async function reviewRound(job: Run): Promise<Round> {
   const pr = state.pr!;
   if (state.reviewRounds >= config.maxReviewRounds) {
     await escalate(job, `The limit of ${config.maxReviewRounds} review rounds was reached.`);
-    return { done: true, report: await finish(job, "needs-human", "review budget") };
+    return { done: true, report: await finish(job, 'needs-human', 'review budget') };
   }
   state.reviewRounds += 1;
   await writeState(repo, state);
@@ -512,9 +536,9 @@ async function reviewRound(job: Run): Promise<Round> {
     cut: full.length > config.diffMaxChars,
   };
   const before = await ports.revision(worktree);
-  const review = await log.step("review", fields, () =>
+  const review = await log.step('review', fields, () =>
     ports.runAgent(log, {
-      name: "reviewer",
+      name: 'reviewer',
       cwd: worktree,
       prompt: reviewPrompt(issue, comments, patch, history(state.reviewLog)),
       profile: REVIEWING,
@@ -524,22 +548,26 @@ async function reviewRound(job: Run): Promise<Round> {
     }),
   );
   if (await ports.discardChanges(worktree, before)) {
-    log.event("review.discard", { round: state.reviewRounds }, "quiet");
+    log.event('review.discard', { round: state.reviewRounds }, 'quiet');
   }
   const verdict = readVerdict(review.structured);
   if (verdict === undefined) {
-    await escalate(job, "The reviewer gave no verdict.");
-    return { done: true, report: await finish(job, "needs-human", "no verdict") };
+    await escalate(job, 'The reviewer gave no verdict.');
+    return { done: true, report: await finish(job, 'needs-human', 'no verdict') };
   }
   const blocking = blockingFindings(verdict);
   const open = openFindings(verdict, state.reviewRounds >= config.maxReviewRounds);
-  log.event("verdict", {
-    round: state.reviewRounds,
-    blocking: blocking.length,
-    minor: verdict.findings.length - blocking.length,
-    open: open.length,
-    summary: verdict.summary,
-  }, "quiet");
+  log.event(
+    'verdict',
+    {
+      round: state.reviewRounds,
+      blocking: blocking.length,
+      minor: verdict.findings.length - blocking.length,
+      open: open.length,
+      summary: verdict.summary,
+    },
+    'quiet',
+  );
   await ports.commentOnPr(repo, pr, formatVerdict(verdict, open));
 
   if (open.length === 0) {
@@ -551,44 +579,48 @@ async function reviewRound(job: Run): Promise<Round> {
       return { done: false };
     }
     if (config.draftPullRequest && !(await ports.markPrReady(repo, pr))) {
-      log.event("pull-request.undraft.fail", { pr }, "quiet");
+      log.event('pull-request.undraft.fail', { pr }, 'quiet');
     }
     if (context.merge) {
       if (!(await ports.mergePr(repo, pr))) {
-        await escalate(job, "The merge of the pull request failed.");
-        return { done: true, report: await finish(job, "needs-human", "merge failed") };
+        await escalate(job, 'The merge of the pull request failed.');
+        return { done: true, report: await finish(job, 'needs-human', 'merge failed') };
       }
       return afterMerge(job);
     }
     await setStatus(context, issue.number, pr, config.labels.done);
-    return { done: true, report: await finish(job, "done") };
+    return { done: true, report: await finish(job, 'done') };
   }
 
   const mark = fingerprint(open);
   if (state.reviewLog.some((round) => round.fingerprint === mark)) {
-    await escalate(job, "The reviewer repeated findings that an earlier round did not fix.");
-    return { done: true, report: await finish(job, "needs-human", "repeated findings") };
+    await escalate(job, 'The reviewer repeated findings that an earlier round did not fix.');
+    return { done: true, report: await finish(job, 'needs-human', 'repeated findings') };
   }
   const earlier = history(state.reviewLog);
-  state.reviewLog.push({ round: state.reviewRounds, fingerprint: mark, findings: formatFindings(open) });
+  state.reviewLog.push({
+    round: state.reviewRounds,
+    fingerprint: mark,
+    findings: formatFindings(open),
+  });
   await writeState(repo, state);
 
   const fix = await fixRound(
     job,
-    "The reviewer requested changes.",
+    'The reviewer requested changes.',
     formatFindings(open),
     earlier,
-    "review",
+    'review',
   );
   if (!fix.committed) {
     const note = fix.unrelated;
     if (note === undefined) {
-      await escalate(job, "The fixer added no commit for the review findings.");
-      return { done: true, report: await finish(job, "needs-human", "no fix commit") };
+      await escalate(job, 'The fixer added no commit for the review findings.');
+      return { done: true, report: await finish(job, 'needs-human', 'no fix commit') };
     }
     if (fix.stray === true) {
       await escalate(job, `The fixer disputed the findings and left a change behind: ${note}`);
-      return { done: true, report: await finish(job, "needs-human", "dispute with changes") };
+      return { done: true, report: await finish(job, 'needs-human', 'dispute with changes') };
     }
     state.reviewLog.at(-1)!.dispute = note;
     await writeState(repo, state);
@@ -607,7 +639,7 @@ async function afterMerge(job: Run): Promise<Round> {
     return { done: false };
   }
   await setStatus(context, issue.number, state.pr, context.config.labels.done);
-  return { done: true, report: await finish(job, "done") };
+  return { done: true, report: await finish(job, 'done') };
 }
 
 async function watchBase(job: Run): Promise<Gate> {
@@ -618,28 +650,31 @@ async function watchBase(job: Run): Promise<Gate> {
     timeoutMs: config.checkTimeoutMinutes * 60_000,
   });
   if (sha === undefined) {
-    await escalate(job, "The pull request did not merge in time, or it closed without a merge.");
-    return { done: true, report: await finish(job, "needs-human", "not merged") };
+    await escalate(job, 'The pull request did not merge in time, or it closed without a merge.');
+    return { done: true, report: await finish(job, 'needs-human', 'not merged') };
   }
-  const checks = await log.step("main-checks", { pr: state.pr, sha }, () =>
+  const checks = await log.step('main-checks', { pr: state.pr, sha }, () =>
     ports.waitForBaseChecks(repo, sha, {
       intervalSeconds: config.checkIntervalSeconds,
       graceMs: config.checkGraceSeconds * 1000,
       timeoutMs: config.checkTimeoutMinutes * 60_000,
     }),
   );
-  log.event("main-checks.state", { state: checks });
-  if (checks === "pass" || checks === "none") {
+  log.event('main-checks.state', { state: checks });
+  if (checks === 'pass' || checks === 'none') {
     return { done: false, fixed: false };
   }
   job.mainBroken = true;
-  if (checks !== "fail") {
-    await escalate(job, "The checks on main did not finish in time.");
-    return { done: true, report: await finish(job, "needs-human", "main checks timeout") };
+  if (checks !== 'fail') {
+    await escalate(job, 'The checks on main did not finish in time.');
+    return { done: true, report: await finish(job, 'needs-human', 'main checks timeout') };
   }
   if (state.ciFixes >= config.maxCiFixes) {
-    await escalate(job, `The checks on main failed and the limit of ${config.maxCiFixes} check fixes was reached.`);
-    return { done: true, report: await finish(job, "needs-human", "check budget") };
+    await escalate(
+      job,
+      `The checks on main failed and the limit of ${config.maxCiFixes} check fixes was reached.`,
+    );
+    return { done: true, report: await finish(job, 'needs-human', 'check budget') };
   }
   await ports.resetToBase(worktree, context.base, config.remote);
   state.ciFixes += 1;
@@ -653,19 +688,31 @@ async function fixBase(job: Run): Promise<Gate> {
   const { repo, config, ports } = context;
   const { sha, head } = state.baseFix!;
   const logs = await ports.failedBaseLogs(repo, sha, config.logMaxChars);
-  log.event("main-checks.logs", { chars: logs.length });
-  const fix = await fixRound(job, "The checks on main failed after the merge.", logs, [], "checks", true, head);
+  log.event('main-checks.logs', { chars: logs.length });
+  const fix = await fixRound(
+    job,
+    'The checks on main failed after the merge.',
+    logs,
+    [],
+    'checks',
+    true,
+    head,
+  );
   if (!fix.committed) {
     const note = fix.unrelated;
     await escalate(
       job,
       note === undefined
-        ? "The fixer added no commit for the failed checks on main."
+        ? 'The fixer added no commit for the failed checks on main.'
         : `The checks on main fail for a reason this change did not cause: ${note}`,
     );
     return {
       done: true,
-      report: await finish(job, "needs-human", note === undefined ? "no fix commit" : "unrelated failure"),
+      report: await finish(
+        job,
+        'needs-human',
+        note === undefined ? 'no fix commit' : 'unrelated failure',
+      ),
     };
   }
   await ports.reopenIssue(repo, issue.number);
@@ -682,10 +729,10 @@ function escalate(job: Run, reason: string): Promise<void> {
 
 function stop(job: Run): IssueReport {
   const { issue, log, state } = job;
-  log.event("issue.stop", { phase: state.phase }, "quiet");
+  log.event('issue.stop', { phase: state.phase }, 'quiet');
   return {
     issue: issue.number,
-    outcome: "stopped",
+    outcome: 'stopped',
     pr: state.pr,
     ciFixes: state.ciFixes,
     reviewRounds: state.reviewRounds,
@@ -697,9 +744,9 @@ async function finish(job: Run, outcome: Outcome, reason?: string): Promise<Issu
   const { context, issue, log, state, branch } = job;
   const { repo, ports } = context;
   await cleanUp(context, log, branch);
-  if (outcome === "done") {
+  if (outcome === 'done') {
     if (!(await ports.deleteBranch(repo, branch))) {
-      log.event("branch.kept", { branch }, "quiet");
+      log.event('branch.kept', { branch }, 'quiet');
     }
     await dropState(repo, issue.number);
   }
@@ -711,7 +758,7 @@ async function finish(job: Run, outcome: Outcome, reason?: string): Promise<Issu
     ciFixes: state.ciFixes,
     reviewRounds: state.reviewRounds,
     ms: Date.now() - job.started,
-    ...(job.mainBroken && outcome !== "done" ? { halt: true } : {}),
+    ...(job.mainBroken && outcome !== 'done' ? { halt: true } : {}),
   };
 }
 
@@ -727,9 +774,9 @@ async function fixRound(
   const { context, issue, log, worktree, branch } = job;
   const { ports } = context;
   const before = from ?? (await ports.revision(worktree));
-  const result = await log.step("fix", { reason }, () =>
+  const result = await log.step('fix', { reason }, () =>
     ports.runAgent(log, {
-      name: "fixer",
+      name: 'fixer',
       cwd: worktree,
       prompt: fixPrompt(issue, reason, detail, earlier, kind),
       profile: CODING,
@@ -740,12 +787,15 @@ async function fixRound(
   const unrelated = parseUnrelated(result.text);
   if (unrelated !== undefined) {
     const stray = (await ports.revision(worktree)) !== before || (await ports.isDirty(worktree));
-    log.event("fix.unrelated", { reason, note: unrelated, stray }, "quiet");
+    log.event('fix.unrelated', { reason, note: unrelated, stray }, 'quiet');
     return { committed: false, unrelated, stray };
   }
-  const subject = parseCommitSubject(result.text, `fix: address feedback on issue #${issue.number}`);
-  if (!(await commitWork(job, before, subject, "fixer"))) {
-    log.event("commit.empty", { reason }, "quiet");
+  const subject = parseCommitSubject(
+    result.text,
+    `fix: address feedback on issue #${issue.number}`,
+  );
+  if (!(await commitWork(job, before, subject, 'fixer'))) {
+    log.event('commit.empty', { reason }, 'quiet');
     return { committed: false };
   }
   await ports.push(worktree, context.config.remote, branch, force);
@@ -756,14 +806,14 @@ async function commitWork(
   job: Run,
   before: string,
   subject: string,
-  role: "implementer" | "fixer",
+  role: 'implementer' | 'fixer',
 ): Promise<boolean> {
   const { context, issue, log, state, worktree, comments } = job;
   const { repo, config, ports } = context;
   for (;;) {
     try {
       if (await ports.commitAll(worktree, `${subject}\n\nRefs #${issue.number}`)) {
-        log.event("commit", { subject });
+        log.event('commit', { subject });
       }
       if ((await ports.revision(worktree)) === before) {
         return false;
@@ -778,8 +828,8 @@ async function commitWork(
       state.commitFixes = used + 1;
       await writeState(repo, state);
       const output = message(error).slice(-config.logMaxChars);
-      log.event("commit.fail", { role, output }, "quiet");
-      const fix = await log.step("commit-fix", { role }, () =>
+      log.event('commit.fail', { role, output }, 'quiet');
+      const fix = await log.step('commit-fix', { role }, () =>
         ports.runAgent(log, {
           name: role,
           cwd: worktree,
@@ -801,10 +851,10 @@ async function cleanUp(context: Context, log: Recorder, branch: string): Promise
       return;
     }
     if (!(await context.ports.removeWorktree(context.repo, path))) {
-      log.event("worktree.kept", { path }, "quiet");
+      log.event('worktree.kept', { path }, 'quiet');
     }
   } catch (error) {
-    log.event("worktree.error", { error: message(error) }, "quiet");
+    log.event('worktree.error', { error: message(error) }, 'quiet');
   }
 }
 
@@ -815,7 +865,7 @@ async function handOver(
   state: IssueState,
   reason: string,
 ): Promise<void> {
-  log.event("hand-over", { reason }, "quiet");
+  log.event('hand-over', { reason }, 'quiet');
   await writeState(context.repo, state);
   await setStatus(context, issue, state.pr, context.config.labels.needsHuman);
   if (state.pr !== undefined) {
@@ -830,9 +880,9 @@ async function setStatus(
   label: string,
 ): Promise<void> {
   const managed = managedLabels(context.config);
-  await context.ports.setLabel(context.repo, "issue", issue, label, managed);
+  await context.ports.setLabel(context.repo, 'issue', issue, label, managed);
   if (pr !== undefined) {
-    await context.ports.setLabel(context.repo, "pr", pr, label, managed);
+    await context.ports.setLabel(context.repo, 'pr', pr, label, managed);
   }
 }
 

@@ -1,47 +1,56 @@
-import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { test } from "node:test";
-import type { Repo } from "../src/git.mts";
-import { dropState, type IssueState, readState, resetState, STATE_DIR, writeState } from "../src/state.mts";
+import assert from 'node:assert/strict';
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { test } from 'node:test';
+import type { Repo } from '../src/git.mts';
+import {
+  dropState,
+  type IssueState,
+  readState,
+  resetState,
+  STATE_DIR,
+  writeState,
+} from '../src/state.mts';
 
 async function repo(): Promise<Repo> {
-  return { owner: "acme", name: "tool", root: await mkdtemp(join(tmpdir(), "next-issue-")) };
+  return { owner: 'acme', name: 'tool', root: await mkdtemp(join(tmpdir(), 'next-issue-')) };
 }
 
 const STATE: IssueState = {
   issue: 7,
-  phase: "review",
-  branch: "issue-7",
+  phase: 'review',
+  branch: 'issue-7',
   pr: 12,
   ciFixes: 1,
   reviewRounds: 2,
-  reviewLog: [{ round: 1, fingerprint: "a b", findings: "- a b" }],
+  reviewLog: [{ round: 1, fingerprint: 'a b', findings: '- a b' }],
 };
 
-test("the state survives the round trip", async () => {
+test('the state survives the round trip', async () => {
   const target = await repo();
   await writeState(target, STATE);
   assert.deepEqual(await readState(target, 7), STATE);
 });
 
-test("a missing state gives undefined", async () => {
+test('a missing state gives undefined', async () => {
   assert.equal(await readState(await repo(), 7), undefined);
 });
 
-test("a caller that reads a broken state gets an error that names the file", async () => {
+test('a caller that reads a broken state gets an error that names the file', async () => {
   const target = await repo();
   await writeState(target, STATE);
-  const path = join(target.root, STATE_DIR, "7.json");
+  const path = join(target.root, STATE_DIR, '7.json');
   await writeFile(path, '{ "issue": 7');
-  await assert.rejects(readState(target, 7), { message: `the state file ${path} is not valid JSON` });
+  await assert.rejects(readState(target, 7), {
+    message: `the state file ${path} is not valid JSON`,
+  });
 });
 
 const VALID = '"issue": 7, "branch": "issue-7", "ciFixes": 0, "reviewRounds": 0';
 for (const text of [
-  "null",
-  "{}",
+  'null',
+  '{}',
   '{ "issue": 7, "phase": "review" }',
   `{ ${VALID}, "phase": "done", "reviewLog": [] }`,
   `{ ${VALID}, "phase": "review", "pr": "12", "reviewLog": [] }`,
@@ -54,13 +63,15 @@ for (const text of [
   test(`a caller that reads a state file holding ${text} gets an error that names the file`, async () => {
     const target = await repo();
     await writeState(target, STATE);
-    const path = join(target.root, STATE_DIR, "7.json");
+    const path = join(target.root, STATE_DIR, '7.json');
     await writeFile(path, text);
-    await assert.rejects(readState(target, 7), { message: `the state file ${path} does not hold a valid state` });
+    await assert.rejects(readState(target, 7), {
+      message: `the state file ${path} does not hold a valid state`,
+    });
   });
 }
 
-test("resetState drops the budgets and keeps the resume point", () => {
+test('resetState drops the budgets and keeps the resume point', () => {
   assert.deepEqual(resetState(STATE), {
     ...STATE,
     ciFixes: 0,
@@ -70,7 +81,7 @@ test("resetState drops the budgets and keeps the resume point", () => {
   });
 });
 
-test("dropState takes the state away and accepts a state that is not there", async () => {
+test('dropState takes the state away and accepts a state that is not there', async () => {
   const target = await repo();
   await writeState(target, STATE);
   await dropState(target, 7);

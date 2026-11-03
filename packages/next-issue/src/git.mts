@@ -1,6 +1,6 @@
-import { appendFile, readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { must, run } from "./exec.mts";
+import { appendFile, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { must, run } from './exec.mts';
 
 export type Repo = {
   owner: string;
@@ -25,12 +25,12 @@ export function parseRemote(url: string): { owner: string; name: string } {
 }
 
 export async function repoRoot(cwd: string): Promise<string> {
-  return must("git", ["rev-parse", "--show-toplevel"], { cwd });
+  return must('git', ['rev-parse', '--show-toplevel'], { cwd });
 }
 
 export async function detectRepo(cwd: string, remote: string): Promise<Repo> {
   const root = await repoRoot(cwd);
-  const url = await must("git", ["remote", "get-url", remote], { cwd });
+  const url = await must('git', ['remote', 'get-url', remote], { cwd });
   const { owner, name } = parseRemote(url);
   return { owner, name, root };
 }
@@ -40,7 +40,7 @@ export type Worktree = {
   baseUpdated: boolean;
 };
 
-export const WORKTREE_DIR = ".worktrees";
+export const WORKTREE_DIR = '.worktrees';
 
 export function worktreePath(repo: Repo, issue: number): string {
   return join(repo.root, WORKTREE_DIR, String(issue));
@@ -54,65 +54,65 @@ export async function addWorktree(
   remote: string,
 ): Promise<Worktree> {
   const upstream = `${remote}/${branch}`;
-  await must("git", ["fetch", remote], { cwd: repo.root });
+  await must('git', ['fetch', remote], { cwd: repo.root });
   const baseUpdated = await updateBase(repo, base, remote);
-  await must("git", ["worktree", "prune"], { cwd: repo.root });
-  const pushed = await hasBranch(repo, upstream, "--remotes");
+  await must('git', ['worktree', 'prune'], { cwd: repo.root });
+  const pushed = await hasBranch(repo, upstream, '--remotes');
   const existing = await findWorktree(repo, branch);
   const path = existing ?? worktreePath(repo, issue);
   if (existing === undefined) {
     const args = (await hasBranch(repo, branch))
-      ? ["worktree", "add", path, branch]
-      : ["worktree", "add", "-b", branch, path, pushed ? upstream : `${remote}/${base}`];
-    await must("git", args, { cwd: repo.root });
+      ? ['worktree', 'add', path, branch]
+      : ['worktree', 'add', '-b', branch, path, pushed ? upstream : `${remote}/${base}`];
+    await must('git', args, { cwd: repo.root });
   }
   if (pushed) {
-    await run("git", ["merge", "--ff-only", upstream], { cwd: path });
+    await run('git', ['merge', '--ff-only', upstream], { cwd: path });
   }
   return { path, baseUpdated };
 }
 
 async function hasBranch(repo: Repo, name: string, ...flags: string[]): Promise<boolean> {
-  const list = await must("git", ["branch", "--list", ...flags, name], { cwd: repo.root });
+  const list = await must('git', ['branch', '--list', ...flags, name], { cwd: repo.root });
   return list.length > 0;
 }
 
 export async function updateBase(repo: Repo, base: string, remote: string): Promise<boolean> {
-  const head = await run("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], { cwd: repo.root });
+  const head = await run('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], { cwd: repo.root });
   const args =
     head.code === 0 && head.stdout.trim() === base
-      ? ["merge", "--ff-only", `${remote}/${base}`]
-      : ["fetch", ".", `${remote}/${base}:${base}`];
-  const result = await run("git", args, { cwd: repo.root });
+      ? ['merge', '--ff-only', `${remote}/${base}`]
+      : ['fetch', '.', `${remote}/${base}:${base}`];
+  const result = await run('git', args, { cwd: repo.root });
   return result.code === 0;
 }
 
 export async function findWorktree(repo: Repo, branch: string): Promise<string | undefined> {
-  const list = await must("git", ["worktree", "list", "--porcelain"], { cwd: repo.root });
+  const list = await must('git', ['worktree', 'list', '--porcelain'], { cwd: repo.root });
   const entry = list
-    .split("\n\n")
-    .map((block) => block.split("\n"))
+    .split('\n\n')
+    .map((block) => block.split('\n'))
     .find((lines) => lines.includes(`branch refs/heads/${branch}`));
-  return entry?.find((line) => line.startsWith("worktree "))?.slice("worktree ".length);
+  return entry?.find((line) => line.startsWith('worktree '))?.slice('worktree '.length);
 }
 
 export async function removeWorktree(repo: Repo, path: string): Promise<boolean> {
-  const result = await run("git", ["worktree", "remove", path], { cwd: repo.root });
+  const result = await run('git', ['worktree', 'remove', path], { cwd: repo.root });
   return result.code === 0;
 }
 
 export async function ensureIgnored(root: string, entry: string): Promise<boolean> {
-  const path = join(root, ".gitignore");
-  let current = "";
+  const path = join(root, '.gitignore');
+  let current = '';
   try {
-    current = await readFile(path, "utf8");
+    current = await readFile(path, 'utf8');
   } catch {
-    current = "";
+    current = '';
   }
-  if (current.split("\n").some((line) => line.trim() === entry)) {
+  if (current.split('\n').some((line) => line.trim() === entry)) {
     return false;
   }
-  const gap = current.length === 0 || current.endsWith("\n") ? "" : "\n";
+  const gap = current.length === 0 || current.endsWith('\n') ? '' : '\n';
   await appendFile(path, `${gap}${entry}\n`);
   return true;
 }
@@ -122,20 +122,20 @@ export function branchName(issue: number): string {
 }
 
 export async function isDirty(cwd: string): Promise<boolean> {
-  const status = await must("git", ["status", "--porcelain"], { cwd });
+  const status = await must('git', ['status', '--porcelain'], { cwd });
   return status.length > 0;
 }
 
 export async function diff(cwd: string, base: string, remote: string): Promise<string> {
-  return must("git", ["diff", `${remote}/${base}...HEAD`], { cwd });
+  return must('git', ['diff', `${remote}/${base}...HEAD`], { cwd });
 }
 
 export async function commitAll(cwd: string, message: string): Promise<boolean> {
   if (!(await isDirty(cwd))) {
     return false;
   }
-  await must("git", ["add", "-A"], { cwd });
-  await must("git", ["commit", "-m", message], { cwd });
+  await must('git', ['add', '-A'], { cwd });
+  await must('git', ['commit', '-m', message], { cwd });
   return true;
 }
 
@@ -143,25 +143,30 @@ export async function discardChanges(cwd: string, target: string): Promise<boole
   if (!(await isDirty(cwd)) && (await revision(cwd)) === target) {
     return false;
   }
-  await must("git", ["reset", "--hard", target], { cwd });
-  await must("git", ["clean", "-fd"], { cwd });
+  await must('git', ['reset', '--hard', target], { cwd });
+  await must('git', ['clean', '-fd'], { cwd });
   return true;
 }
 
-export async function push(cwd: string, remote: string, branch: string, force = false): Promise<void> {
-  await must("git", ["push", "-u", ...(force ? ["--force"] : []), remote, branch], { cwd });
+export async function push(
+  cwd: string,
+  remote: string,
+  branch: string,
+  force = false,
+): Promise<void> {
+  await must('git', ['push', '-u', ...(force ? ['--force'] : []), remote, branch], { cwd });
 }
 
 export async function resetToBase(cwd: string, base: string, remote: string): Promise<void> {
-  await must("git", ["fetch", remote, base], { cwd });
-  await must("git", ["reset", "--hard", `${remote}/${base}`], { cwd });
+  await must('git', ['fetch', remote, base], { cwd });
+  await must('git', ['reset', '--hard', `${remote}/${base}`], { cwd });
 }
 
 export async function revision(cwd: string): Promise<string> {
-  return must("git", ["rev-parse", "HEAD"], { cwd });
+  return must('git', ['rev-parse', 'HEAD'], { cwd });
 }
 
 export async function deleteBranch(repo: Repo, branch: string): Promise<boolean> {
-  const result = await run("git", ["branch", "-D", branch], { cwd: repo.root });
+  const result = await run('git', ['branch', '-D', branch], { cwd: repo.root });
   return result.code === 0;
 }

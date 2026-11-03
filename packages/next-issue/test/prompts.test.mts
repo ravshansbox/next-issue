@@ -1,116 +1,137 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
-import type { Issue } from "../src/github.mts";
-import { capDiff, fixPrompt, parseCommitSubject, parseUnrelated, reviewPrompt } from "../src/prompts.mts";
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import type { Issue } from '../src/github.mts';
+import {
+  capDiff,
+  fixPrompt,
+  parseCommitSubject,
+  parseUnrelated,
+  reviewPrompt,
+} from '../src/prompts.mts';
 
 const ISSUE: Issue = {
   number: 7,
-  title: "Add a flag",
-  body: "Please add it.",
-  createdAt: "2026-01-01T00:00:00Z",
+  title: 'Add a flag',
+  body: 'Please add it.',
+  createdAt: '2026-01-01T00:00:00Z',
   labels: [],
 };
 
-const FALLBACK = "fix: fallback";
+const FALLBACK = 'fix: fallback';
 
-test("parseCommitSubject reads the last line of the agent text", () => {
-  assert.equal(parseCommitSubject("Done.\ncommit: feat: add a flag", FALLBACK), "feat: add a flag");
+test('parseCommitSubject reads the last line of the agent text', () => {
+  assert.equal(parseCommitSubject('Done.\ncommit: feat: add a flag', FALLBACK), 'feat: add a flag');
 });
 
-test("parseCommitSubject reads the last commit line when the agent quoted the rule earlier", () => {
+test('parseCommitSubject reads the last commit line when the agent quoted the rule earlier', () => {
   assert.equal(
-    parseCommitSubject("I will end with commit: <subject>\ncommit: docs: wrong\nDone.\ncommit: fix: right", FALLBACK),
-    "fix: right",
+    parseCommitSubject(
+      'I will end with commit: <subject>\ncommit: docs: wrong\nDone.\ncommit: fix: right',
+      FALLBACK,
+    ),
+    'fix: right',
   );
 });
 
-test("parseCommitSubject accepts other letter cases and spaces", () => {
-  assert.equal(parseCommitSubject("Commit:   fix: trim", FALLBACK), "fix: trim");
+test('parseCommitSubject accepts other letter cases and spaces', () => {
+  assert.equal(parseCommitSubject('Commit:   fix: trim', FALLBACK), 'fix: trim');
 });
 
-test("parseCommitSubject falls back without a line", () => {
-  assert.equal(parseCommitSubject("No subject here", FALLBACK), FALLBACK);
-  assert.equal(parseCommitSubject("commit:   ", FALLBACK), FALLBACK);
-  assert.equal(parseCommitSubject("", FALLBACK), FALLBACK);
+test('parseCommitSubject falls back without a line', () => {
+  assert.equal(parseCommitSubject('No subject here', FALLBACK), FALLBACK);
+  assert.equal(parseCommitSubject('commit:   ', FALLBACK), FALLBACK);
+  assert.equal(parseCommitSubject('', FALLBACK), FALLBACK);
 });
 
-test("parseCommitSubject drops the backticks an agent wrapped the subject in", () => {
+test('parseCommitSubject drops the backticks an agent wrapped the subject in', () => {
   assert.equal(
-    parseCommitSubject("commit: `fix(ucps): re-probe a batch`", FALLBACK),
-    "fix(ucps): re-probe a batch",
+    parseCommitSubject('commit: `fix(ucps): re-probe a batch`', FALLBACK),
+    'fix(ucps): re-probe a batch',
   );
-  assert.equal(parseCommitSubject("commit: ``build: lint``", FALLBACK), "build: lint");
-  assert.equal(parseCommitSubject("commit: ` ci: deploy `", FALLBACK), "ci: deploy");
+  assert.equal(parseCommitSubject('commit: ``build: lint``', FALLBACK), 'build: lint');
+  assert.equal(parseCommitSubject('commit: ` ci: deploy `', FALLBACK), 'ci: deploy');
 });
 
-test("parseCommitSubject keeps a backtick inside the subject", () => {
+test('parseCommitSubject keeps a backtick inside the subject', () => {
   assert.equal(
-    parseCommitSubject("commit: fix(api): reject a `null` body", FALLBACK),
-    "fix(api): reject a `null` body",
+    parseCommitSubject('commit: fix(api): reject a `null` body', FALLBACK),
+    'fix(api): reject a `null` body',
   );
 });
 
-test("parseCommitSubject falls back when the subject is only backticks", () => {
-  assert.equal(parseCommitSubject("commit: ``", FALLBACK), FALLBACK);
+test('parseCommitSubject falls back when the subject is only backticks', () => {
+  assert.equal(parseCommitSubject('commit: ``', FALLBACK), FALLBACK);
 });
 
-test("capDiff keeps a diff that fits", () => {
-  assert.equal(capDiff("abc", 3), "abc");
-  assert.equal(capDiff("", 10), "");
+test('capDiff keeps a diff that fits', () => {
+  assert.equal(capDiff('abc', 3), 'abc');
+  assert.equal(capDiff('', 10), '');
 });
 
-test("capDiff cuts a diff that is too long and says so", () => {
-  const text = capDiff("abcdef", 3);
+test('capDiff cuts a diff that is too long and says so', () => {
+  const text = capDiff('abcdef', 3);
   assert.match(text, /^abc\n/);
   assert.match(text, /cut here, after 3 characters\./);
 });
 
-test("parseUnrelated reads the marker line", () => {
-  assert.equal(parseUnrelated("looked at it\nunrelated: the spec fails on main too"), "the spec fails on main too");
-  assert.equal(parseUnrelated("UNRELATED:   spaced  "), "spaced");
+test('parseUnrelated reads the marker line', () => {
+  assert.equal(
+    parseUnrelated('looked at it\nunrelated: the spec fails on main too'),
+    'the spec fails on main too',
+  );
+  assert.equal(parseUnrelated('UNRELATED:   spaced  '), 'spaced');
 });
 
-test("parseUnrelated reads the last marker line when the agent quoted the rule earlier", () => {
-  assert.equal(parseUnrelated("unrelated: <one sentence>\nchecked\nunrelated: main fails too"), "main fails too");
+test('parseUnrelated reads the last marker line when the agent quoted the rule earlier', () => {
+  assert.equal(
+    parseUnrelated('unrelated: <one sentence>\nchecked\nunrelated: main fails too'),
+    'main fails too',
+  );
 });
 
-test("parseUnrelated gives undefined without the marker", () => {
-  assert.equal(parseUnrelated("commit: fix: the thing"), undefined);
-  assert.equal(parseUnrelated("unrelated:   "), undefined);
-  assert.equal(parseUnrelated(""), undefined);
+test('parseUnrelated gives undefined without the marker', () => {
+  assert.equal(parseUnrelated('commit: fix: the thing'), undefined);
+  assert.equal(parseUnrelated('unrelated:   '), undefined);
+  assert.equal(parseUnrelated(''), undefined);
 });
 
-test("each fixer kind is offered the unrelated exit for its own cause", () => {
-  const checks = fixPrompt(ISSUE, "The continuous integration checks failed.", "the logs", [], "checks");
-  const review = fixPrompt(ISSUE, "The reviewer requested changes.", "the findings", [], "review");
+test('each fixer kind is offered the unrelated exit for its own cause', () => {
+  const checks = fixPrompt(
+    ISSUE,
+    'The continuous integration checks failed.',
+    'the logs',
+    [],
+    'checks',
+  );
+  const review = fixPrompt(ISSUE, 'The reviewer requested changes.', 'the findings', [], 'review');
   assert.match(checks, /unrelated: <one sentence on what fails/);
   assert.match(review, /unrelated: <one sentence on why the findings are wrong/);
 });
 
-test("the review fixer is told to dispute only when every finding is wrong", () => {
-  const review = fixPrompt(ISSUE, "The reviewer requested changes.", "the findings", [], "review");
+test('the review fixer is told to dispute only when every finding is wrong', () => {
+  const review = fixPrompt(ISSUE, 'The reviewer requested changes.', 'the findings', [], 'review');
   assert.match(review, /If every finding is wrong, change nothing/);
   assert.match(review, /If only some of the findings are wrong, fix the correct ones/);
 });
 
-test("reviewPrompt asks for a full review when no earlier finding exists", () => {
-  const prompt = reviewPrompt(ISSUE, [], "diff", []);
+test('reviewPrompt asks for a full review when no earlier finding exists', () => {
+  const prompt = reviewPrompt(ISSUE, [], 'diff', []);
   assert.doesNotMatch(prompt, /Earlier findings/);
   assert.match(prompt, /Check correctness/);
 });
 
-test("reviewPrompt narrows a later round to the earlier findings", () => {
-  const prompt = reviewPrompt(ISSUE, [], "diff", ["Round 1:\n- The count is wrong."]);
+test('reviewPrompt narrows a later round to the earlier findings', () => {
+  const prompt = reviewPrompt(ISSUE, [], 'diff', ['Round 1:\n- The count is wrong.']);
   assert.match(prompt, /## Earlier findings\nRound 1:\n- The count is wrong\./);
   assert.doesNotMatch(prompt, /Check correctness/);
 });
 
-test("a later reviewer is told that a dispute answers every finding of its round", () => {
+test('a later reviewer is told that a dispute answers every finding of its round', () => {
   const earlier = [
-    "Round 1:\n- The count is wrong.\n- The name is wrong.\nThe fixer disputed every finding of this round: both follow CONTRIBUTING.md",
+    'Round 1:\n- The count is wrong.\n- The name is wrong.\nThe fixer disputed every finding of this round: both follow CONTRIBUTING.md',
   ];
-  const prompt = reviewPrompt(ISSUE, [], "diff", earlier);
+  const prompt = reviewPrompt(ISSUE, [], 'diff', earlier);
   assert.match(prompt, /answers all of the findings of that round, not one of them\./);
   assert.match(prompt, /Withdraw every finding of that round if the dispute is correct\./);
-  assert.doesNotMatch(reviewPrompt(ISSUE, [], "diff", []), /Withdraw every finding/);
+  assert.doesNotMatch(reviewPrompt(ISSUE, [], 'diff', []), /Withdraw every finding/);
 });

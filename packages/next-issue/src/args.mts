@@ -1,7 +1,7 @@
-import { CONFIG_FILE } from "./config.mts";
-import type { Level } from "./observe.mts";
+import { CONFIG_FILE } from './config.mts';
+import type { Level } from './observe.mts';
 
-export type Command = "run" | "init" | "serve" | "stop";
+export type Command = 'run' | 'init' | 'serve' | 'stop';
 
 export type Args = {
   command: Command;
@@ -36,7 +36,7 @@ export const USAGE = `next-issue [command] [options]
 
 export function parseArgs(argv: string[]): Args {
   const args: Args = {
-    command: "run",
+    command: 'run',
     once: false,
     help: false,
     json: false,
@@ -44,34 +44,34 @@ export function parseArgs(argv: string[]): Args {
     force: false,
     merge: false,
     watch: false,
-    level: "normal",
+    level: 'normal',
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]!;
-    if (index === 0 && !arg.startsWith("-")) {
-      if (arg !== "init" && arg !== "serve" && arg !== "stop") {
+    if (index === 0 && !arg.startsWith('-')) {
+      if (arg !== 'init' && arg !== 'serve' && arg !== 'stop') {
         throw new Error(`Unknown command: ${arg}`);
       }
       args.command = arg;
-    } else if (arg === "--force") {
+    } else if (arg === '--force') {
       args.force = true;
-    } else if (arg === "--json") {
+    } else if (arg === '--json') {
       args.json = true;
-    } else if (arg === "--help") {
+    } else if (arg === '--help') {
       args.help = true;
-    } else if (arg === "--merge") {
+    } else if (arg === '--merge') {
       args.merge = true;
-    } else if (arg === "--watch") {
+    } else if (arg === '--watch') {
       args.watch = true;
-    } else if (arg === "--reset") {
+    } else if (arg === '--reset') {
       args.reset = true;
-    } else if (arg === "--once") {
+    } else if (arg === '--once') {
       args.once = true;
-    } else if (arg === "--verbose") {
-      args.level = "verbose";
-    } else if (arg === "--quiet") {
-      args.level = "quiet";
-    } else if (arg === "--max") {
+    } else if (arg === '--verbose') {
+      args.level = 'verbose';
+    } else if (arg === '--quiet') {
+      args.level = 'quiet';
+    } else if (arg === '--max') {
       args.max = whole(argv[++index], arg);
     } else {
       throw new Error(`Unknown argument: ${arg}`);
@@ -87,4 +87,3 @@ function whole(value: string | undefined, option: string): number {
   }
   return parsed;
 }
-

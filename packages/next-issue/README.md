@@ -98,32 +98,32 @@ when:
 - the check budget or the review budget runs out;
 - a fixer round adds no commit and gives no reason, so there is no progress;
 - the fixer reports that the checks fail for a reason the change did not cause,
-   such as a test already broken on the base branch or one that fails only under
-   load. It changes nothing and the reason reaches the pull request, rather than
-   the fixer spending its whole budget on a failure it cannot fix;
+  such as a test already broken on the base branch or one that fails only under
+  load. It changes nothing and the reason reaches the pull request, rather than
+  the fixer spending its whole budget on a failure it cannot fix;
 - a fixer disputes the findings and leaves a change behind, either in the
-   worktree or in a commit of its own. A dispute carries a reason, not a diff,
-   so the harness throws none of it away: an unclean worktree stays on the
-   disk, and a commit of the fixer stays on the local branch. Neither is
-   pushed, so the pull request shows no such change. It holds the reason of the
-   dispute, and the change is on the machine that ran the harness;
+  worktree or in a commit of its own. A dispute carries a reason, not a diff,
+  so the harness throws none of it away: an unclean worktree stays on the
+  disk, and a commit of the fixer stays on the local branch. Neither is
+  pushed, so the pull request shows no such change. It holds the reason of the
+  dispute, and the change is on the machine that ran the harness;
 - the reviewer repeats a finding set from an earlier round, which shows a
-   ping-pong between the fixer and the reviewer, or a finding that the fixer
-   disputed and the reviewer holds to. The person then decides;
+  ping-pong between the fixer and the reviewer, or a finding that the fixer
+  disputed and the reviewer holds to. The person then decides;
 - the reviewer gives no verdict, or the checks do not finish in time;
 - with `--merge`, the merge of an approved pull request fails, for example
-   because branch protection asks for a human approval;
+  because branch protection asks for a human approval;
 - with `--merge`, a queued merge does not finish in `checkTimeoutMinutes`, or
-   the pull request closes without a merge;
+  the pull request closes without a merge;
 - with `--merge`, the checks on the base branch fail after the merge and the
-   fixer cannot fix them, or they do not finish in time. The base branch is
-   then broken, so the run stops after this issue;
+  fixer cannot fix them, or they do not finish in time. The base branch is
+  then broken, so the run stops after this issue;
 - an agent does not finish in `agentTimeoutMinutes`;
 - the setup command fails, or does not finish in `setupTimeoutMinutes`;
 - a step of the run fails with an error. A `gh` call that is safe to repeat,
-   such as a read or a label edit, is tried up to three times first when the
-   network fails. A `gh pr create` or `gh pr comment` is tried once, so a lost
-   reply never makes a duplicate.
+  such as a read or a label edit, is tried up to three times first when the
+  network fails. A `gh pr create` or `gh pr comment` is tried once, so a lost
+  reply never makes a duplicate.
 
 The fixer sees the findings of all earlier rounds, not only the last one, with
 its own disputes next to them. From round two, the reviewer judges only the
@@ -213,11 +213,11 @@ jq -r 'select(.kind=="usage") | [.issue,.role,.turns,.total] | @tsv' \
 
 Three levels of console output:
 
-| Level | Shows |
-| --- | --- |
-| `--quiet` | Run and issue milestones, verdicts, hand-overs, errors |
-| default | The above plus each step end, each tool call and failed commands |
-| `--verbose` | The above plus every command and all agent text |
+| Level       | Shows                                                            |
+| ----------- | ---------------------------------------------------------------- |
+| `--quiet`   | Run and issue milestones, verdicts, hand-overs, errors           |
+| default     | The above plus each step end, each tool call and failed commands |
+| `--verbose` | The above plus every command and all agent text                  |
 
 ## Requirements
 
@@ -281,26 +281,26 @@ does not know all stop the run, so a typo cannot pass without a word.
 }
 ```
 
-| Field | Default | Effect |
-| --- | --- | --- |
-| `remote` | `origin` | The git remote for the repository and the branches |
-| `issueLimit` | `100` | The maximum number of open issues to read. With `labels.ready` set, only issues with the ready, in-progress or in-review label count |
-| `maxCiFixes` | `5` | The budget for check fixes per issue |
-| `maxCommitFixes` | `10` | The budget for fixes of a commit that a git hook stopped, per issue |
-| `maxReviewRounds` | `5` | The budget for review rounds per issue |
-| `checkIntervalSeconds` | `15` | The time between two check states |
-| `checkGraceSeconds` | `60` | The time to wait for the first check to show |
-| `checkTimeoutMinutes` | `60` | The limit for one check wait |
-| `agentTimeoutMinutes` | `30` | The limit for one agent call |
-| `setupTimeoutMinutes` | `15` | The limit for the setup command |
-| `commandTimeoutMinutes` | `10` | The limit for one `git` or `gh` command |
-| `logMaxChars` | `20000` | The maximum length of the failed job logs, shared between the failed jobs |
-| `diffMaxChars` | `60000` | The maximum length of the diff that the reviewer reads |
-| `keepRunDays` | `7` | The number of days to keep the run files; `0` keeps them all |
-| `draftPullRequest` | `true` | Open the pull request as a draft, until the review approves |
-| `setupCommand` | from the lock file | A shell command to run in a new worktree, before the implementer |
-| `models` | `null` per role | The pi model per agent role, as `provider/model`: `implementer`, `reviewer`, `fixer` |
-| `labels` | see above | The names of the labels that the harness reads and sets |
+| Field                   | Default            | Effect                                                                                                                               |
+| ----------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `remote`                | `origin`           | The git remote for the repository and the branches                                                                                   |
+| `issueLimit`            | `100`              | The maximum number of open issues to read. With `labels.ready` set, only issues with the ready, in-progress or in-review label count |
+| `maxCiFixes`            | `5`                | The budget for check fixes per issue                                                                                                 |
+| `maxCommitFixes`        | `10`               | The budget for fixes of a commit that a git hook stopped, per issue                                                                  |
+| `maxReviewRounds`       | `5`                | The budget for review rounds per issue                                                                                               |
+| `checkIntervalSeconds`  | `15`               | The time between two check states                                                                                                    |
+| `checkGraceSeconds`     | `60`               | The time to wait for the first check to show                                                                                         |
+| `checkTimeoutMinutes`   | `60`               | The limit for one check wait                                                                                                         |
+| `agentTimeoutMinutes`   | `30`               | The limit for one agent call                                                                                                         |
+| `setupTimeoutMinutes`   | `15`               | The limit for the setup command                                                                                                      |
+| `commandTimeoutMinutes` | `10`               | The limit for one `git` or `gh` command                                                                                              |
+| `logMaxChars`           | `20000`            | The maximum length of the failed job logs, shared between the failed jobs                                                            |
+| `diffMaxChars`          | `60000`            | The maximum length of the diff that the reviewer reads                                                                               |
+| `keepRunDays`           | `7`                | The number of days to keep the run files; `0` keeps them all                                                                         |
+| `draftPullRequest`      | `true`             | Open the pull request as a draft, until the review approves                                                                          |
+| `setupCommand`          | from the lock file | A shell command to run in a new worktree, before the implementer                                                                     |
+| `models`                | `null` per role    | The pi model per agent role, as `provider/model`: `implementer`, `reviewer`, `fixer`                                                 |
+| `labels`                | see above          | The names of the labels that the harness reads and sets                                                                              |
 
 An empty `labels.ready` turns the ready requirement off. The harness then
 claims every open issue that no other label holds back.
@@ -314,17 +314,17 @@ your pi settings.
 Without a `setupCommand`, the harness looks in the new worktree for a lock file
 and runs the install command that goes with it:
 
-| Lock file | Command |
-| --- | --- |
-| `pnpm-lock.yaml` | `pnpm install --frozen-lockfile` |
-| `package-lock.json` | `npm ci` |
-| `yarn.lock` | `yarn install --frozen-lockfile`, or `yarn install --immutable` with a `.yarnrc.yml` |
-| `bun.lock`, `bun.lockb` | `bun install --frozen-lockfile` |
-| `Cargo.lock` | `cargo fetch` |
-| `go.sum` | `go mod download` |
-| `uv.lock` | `uv sync` |
-| `poetry.lock` | `poetry install` |
-| `Gemfile.lock` | `bundle install` |
+| Lock file               | Command                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------ |
+| `pnpm-lock.yaml`        | `pnpm install --frozen-lockfile`                                                     |
+| `package-lock.json`     | `npm ci`                                                                             |
+| `yarn.lock`             | `yarn install --frozen-lockfile`, or `yarn install --immutable` with a `.yarnrc.yml` |
+| `bun.lock`, `bun.lockb` | `bun install --frozen-lockfile`                                                      |
+| `Cargo.lock`            | `cargo fetch`                                                                        |
+| `go.sum`                | `go mod download`                                                                    |
+| `uv.lock`               | `uv sync`                                                                            |
+| `poetry.lock`           | `poetry install`                                                                     |
+| `Gemfile.lock`          | `bundle install`                                                                     |
 
 The first match in that order wins. A project with no lock file in the list
 runs no setup, and a `setupCommand` in the config file always wins. Thus the
@@ -353,21 +353,21 @@ that a label still holds back stays as it was.
 
 ## Commands and options
 
-| Argument | Effect |
-| --- | --- |
-| `init` | Write the config file with the defaults |
-| `serve` | Run the worker that pi extensions talk to, see [Worker](#worker) |
-| `stop` | Stop the worker, see [Worker](#worker) |
-| `--force` | Replace an existing config file, with `init` |
-| `--once` | Stop after the first handled issue |
-| `--max <n>` | Handle at most n issues |
-| `--merge` | Squash-merge the pull request after the approval, delete the remote branch and fix a failure of the checks on the base branch |
-| `--watch` | Keep running, and read the open issues again after each pass |
-| `--reset` | Drop the saved budgets and findings, and keep the rest of the state |
-| `--json` | Print the machine summary instead of the text one |
-| `--verbose` | Show every command and all agent output |
-| `--quiet` | Show only the milestones and the summary |
-| `--help` | Show the option list |
+| Argument    | Effect                                                                                                                        |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `init`      | Write the config file with the defaults                                                                                       |
+| `serve`     | Run the worker that pi extensions talk to, see [Worker](#worker)                                                              |
+| `stop`      | Stop the worker, see [Worker](#worker)                                                                                        |
+| `--force`   | Replace an existing config file, with `init`                                                                                  |
+| `--once`    | Stop after the first handled issue                                                                                            |
+| `--max <n>` | Handle at most n issues                                                                                                       |
+| `--merge`   | Squash-merge the pull request after the approval, delete the remote branch and fix a failure of the checks on the base branch |
+| `--watch`   | Keep running, and read the open issues again after each pass                                                                  |
+| `--reset`   | Drop the saved budgets and findings, and keep the rest of the state                                                           |
+| `--json`    | Print the machine summary instead of the text one                                                                             |
+| `--verbose` | Show every command and all agent output                                                                                       |
+| `--quiet`   | Show only the milestones and the summary                                                                                      |
+| `--help`    | Show the option list                                                                                                          |
 
 The exit code is 1 when an issue needs a person or failed, and 0 when it does
 not, so a cron job or a CI step can read the result of the run.

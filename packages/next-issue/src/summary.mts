@@ -1,5 +1,5 @@
-import type { RoleTotals, Usage } from "./observe.mts";
-import type { IssueReport, Outcome } from "./pipeline.mts";
+import type { RoleTotals, Usage } from './observe.mts';
+import type { IssueReport, Outcome } from './pipeline.mts';
 
 export type RunSummary = {
   runId: string;
@@ -10,22 +10,23 @@ export type RunSummary = {
   issues: IssueReport[];
 };
 
-const OUTCOMES: Outcome[] = ["done", "needs-human", "error", "skipped", "stopped"];
+const OUTCOMES: Outcome[] = ['done', 'needs-human', 'error', 'skipped', 'stopped'];
 
 export function formatSummary(summary: RunSummary): string {
   const tally = OUTCOMES.map(
-    (outcome) => `${summary.issues.filter((report) => report.outcome === outcome).length} ${outcome}`,
-  ).join(", ");
+    (outcome) =>
+      `${summary.issues.filter((report) => report.outcome === outcome).length} ${outcome}`,
+  ).join(', ');
   const lines = [`run ${summary.runId}`, `issues ${summary.issues.length}: ${tally}`];
   for (const report of summary.issues) {
     lines.push(`  ${issueLine(report)}`);
   }
   const roles = Object.entries(summary.roles)
     .map(([role, totals]) => `${role} ${tokens(totals.total)} in ${totals.calls}`)
-    .join(", ");
-  lines.push(`tokens ${tokens(summary.total.total)}${roles.length > 0 ? ` (${roles})` : ""}`);
+    .join(', ');
+  lines.push(`tokens ${tokens(summary.total.total)}${roles.length > 0 ? ` (${roles})` : ''}`);
   lines.push(`log ${summary.logFile}`);
-  return `${lines.join("\n")}\n`;
+  return `${lines.join('\n')}\n`;
 }
 
 function issueLine(report: IssueReport): string {
@@ -45,13 +46,13 @@ function issueLine(report: IssueReport): string {
   if (report.reason !== undefined) {
     parts.push(`(${report.reason})`);
   }
-  return parts.join("  ").trimEnd();
+  return parts.join('  ').trimEnd();
 }
 
 function duration(ms: number): string {
   const seconds = Math.round(ms / 1000);
   const minutes = Math.floor(seconds / 60);
-  return minutes === 0 ? `${seconds}s` : `${minutes}m${String(seconds % 60).padStart(2, "0")}s`;
+  return minutes === 0 ? `${seconds}s` : `${minutes}m${String(seconds % 60).padStart(2, '0')}s`;
 }
 
 function tokens(value: number): string {
