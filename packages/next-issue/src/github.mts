@@ -164,14 +164,14 @@ export async function canWrite(repo: Repo, login: string): Promise<boolean> {
 }
 
 export async function openBlockers(repo: Repo, issue: number): Promise<string[]> {
+  const repoSlug = slug(repo);
   const raw = await repeatable(repo, [
     'api',
     '--paginate',
-    `repos/${slug(repo)}/issues/${issue}/dependencies/blocked_by`,
+    `repos/${repoSlug}/issues/${issue}/dependencies/blocked_by`,
     '--jq',
     '.[] | select(.state == "open") | (.repository_url | split("/") | .[-2:] | join("/")) + "#" + (.number | tostring)',
   ]);
-  const repoSlug = slug(repo);
   return lines(raw).map((ref) =>
     ref.startsWith(`${repoSlug}#`) ? ref.slice(repoSlug.length) : ref,
   );
@@ -217,11 +217,12 @@ export async function setLabel(
 }
 
 async function createUnknownLabel(repo: Repo, label: string): Promise<'known' | 'created' | Error> {
-  let known = KNOWN_LABELS.get(slug(repo));
+  const repoSlug = slug(repo);
+  let known = KNOWN_LABELS.get(repoSlug);
   if (known === undefined) {
     const raw = await gh(repo, ['label', 'list', '--limit', '1000', '--json', 'name']);
     known = new Set((JSON.parse(raw) as Array<{ name: string }>).map((item) => item.name));
-    KNOWN_LABELS.set(slug(repo), known);
+    KNOWN_LABELS.set(repoSlug, known);
   }
   if (known.has(label)) {
     return 'known';
