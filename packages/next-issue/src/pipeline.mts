@@ -16,6 +16,7 @@ import {
 } from './handover.mts';
 import {
   type Context,
+  fallbackTitle,
   type IssueReport,
   oneAtATime,
   openPr,
@@ -249,7 +250,7 @@ async function work(
     const result = await log.step('implement', {}, () =>
       runRole(job, 'implementer', implementPrompt(issue, comments, reply), CODING),
     );
-    const subject = parseCommitSubject(result.text, `fix: resolve issue #${issue.number}`);
+    const subject = parseCommitSubject(result.text, fallbackTitle(issue));
     if (!(await commitWork(job, before, subject, 'implementer'))) {
       const earlier = await ports.latestSubject(worktree, context.base, config.remote);
       if (earlier === undefined) {

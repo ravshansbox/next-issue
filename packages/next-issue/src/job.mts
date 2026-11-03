@@ -84,6 +84,10 @@ export function oneAtATime<T>(root: string, work: () => Promise<T>): Promise<T> 
   return result;
 }
 
+export function fallbackTitle(issue: Issue): string {
+  return `fix: resolve issue #${issue.number}`;
+}
+
 export async function openPr(job: Run): Promise<void> {
   const { context, issue, log, state, branch } = job;
   const { repo, config, ports } = context;
@@ -95,7 +99,7 @@ export async function openPr(job: Run): Promise<void> {
         repo,
         branch,
         context.base,
-        state.title ?? `fix: resolve issue #${issue.number}`,
+        state.title ?? fallbackTitle(issue),
         `Closes #${issue.number}\n\nOpened by next-issue.`,
         config.draftPullRequest,
       )
