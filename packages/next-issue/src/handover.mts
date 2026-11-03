@@ -115,6 +115,12 @@ export async function escalateAndFinish(
   return { done: true, report: await finish(job, 'needs-human', reason) };
 }
 
+export async function finishDone(job: Run): Promise<IssueReport> {
+  const { context, issue, state } = job;
+  await setStatus(context, issue.number, state.pr, context.config.labels.done);
+  return finish(job, 'done');
+}
+
 export function stop(job: Run): IssueReport {
   const { issue, log, state } = job;
   log.event('issue.stop', { phase: state.phase }, 'quiet');

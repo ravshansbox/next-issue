@@ -7,7 +7,7 @@ import type { Issue } from './github.mts';
 import {
   cleanUp,
   escalateAndFinish,
-  finish,
+  finishDone,
   handOver,
   handOverReply,
   skipped,
@@ -284,8 +284,7 @@ async function work(
   ) {
     log.event('pull-request.merged', { pr: state.pr }, 'quiet');
     if (!context.merge) {
-      await setStatus(context, issue.number, state.pr, config.labels.done);
-      return finish(job, 'done');
+      return finishDone(job);
     }
     const landed = await afterMerge(job);
     if (landed.done) {

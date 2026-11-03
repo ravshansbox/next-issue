@@ -2,7 +2,7 @@ import { REVIEWING } from './agents.mts';
 import { conflicts, resolveConflict } from './conflict.mts';
 import { fixRound } from './fix.mts';
 import { checkGate } from './gate.mts';
-import { escalateAndFinish, finish } from './handover.mts';
+import { escalateAndFinish, finishDone } from './handover.mts';
 import { history, type Round, type Run, runRole, setStatus } from './job.mts';
 import { afterMerge } from './merge.mts';
 import { capDiff, reviewPrompt } from './prompts.mts';
@@ -86,8 +86,7 @@ export async function reviewRound(job: Run): Promise<Round> {
       }
       return afterMerge(job);
     }
-    await setStatus(context, issue.number, pr, config.labels.done);
-    return { done: true, report: await finish(job, 'done') };
+    return { done: true, report: await finishDone(job) };
   }
 
   const findings = formatFindings(open);
