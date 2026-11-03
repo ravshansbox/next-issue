@@ -379,14 +379,16 @@ silent skip.
 
 ## Retry an issue that waits for a person
 
-A hand-over leaves the state file with the used budgets in it, so the next run
-would hand the issue over again at once. To give the issue another try, take the
-`status:needs-human` label off and run with `--reset`. The flag puts the budgets
-and the findings back to zero and keeps the branch, the pull request and the
-step that the last run reached, so the work carries on where it stopped. A
-commit that you pushed to the pull request in the meantime is fetched first.
-The flag touches only an issue that the run handles, so the state of an issue
-that a label still holds back stays as it was.
+A hand-over marks the state file as handed over. To give the issue another try,
+take the `status:needs-human` label off. The next run that claims the issue puts
+the budgets and the findings back to zero, clears the mark and keeps the branch,
+the pull request and the step that the last run reached, so the work carries on
+where it stopped. A commit that you pushed to the pull request in the meantime
+is fetched first. An issue that still has the label is not claimed.
+
+The `--reset` flag does the same for any issue that the run handles, whether or
+not it was handed over. It touches only an issue that the run handles, so the
+state of an issue that a label still holds back stays as it was.
 
 ## Commands and options
 

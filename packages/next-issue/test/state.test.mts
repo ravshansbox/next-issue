@@ -58,6 +58,7 @@ for (const text of [
   `{ ${VALID}, "phase": "review", "commitFixes": "1", "reviewLog": [] }`,
   `{ ${VALID}, "phase": "review", "baseFix": { "sha": "a" }, "reviewLog": [] }`,
   `{ ${VALID}, "phase": "review", "reviewLog": [null] }`,
+  `{ ${VALID}, "phase": "review", "handedOver": "yes", "reviewLog": [] }`,
   `{ ${VALID}, "phase": "review", "reviewLog": [{ "round": 1, "fingerprint": "f", "findings": "x", "dispute": 2 }] }`,
 ]) {
   test(`a caller that reads a state file holding ${text} gets an error that names the file`, async () => {
@@ -70,6 +71,10 @@ for (const text of [
     });
   });
 }
+
+test('resetState clears the hand-over mark', () => {
+  assert.equal(resetState({ ...STATE, handedOver: true }).handedOver, undefined);
+});
 
 test('resetState drops the budgets and keeps the resume point', () => {
   assert.deepEqual(resetState(STATE), {

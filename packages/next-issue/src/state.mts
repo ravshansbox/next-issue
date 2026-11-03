@@ -17,6 +17,7 @@ export type IssueState = {
   baseFix?: BaseFix;
   reviewRounds: number;
   reviewLog: ReviewRound[];
+  handedOver?: boolean;
 };
 
 export type BaseFix = {
@@ -99,7 +100,8 @@ function isState(value: unknown): value is IssueState {
     (value.baseFix === undefined || isBaseFix(value.baseFix)) &&
     typeof value.reviewRounds === 'number' &&
     Array.isArray(value.reviewLog) &&
-    value.reviewLog.every(isReviewRound)
+    value.reviewLog.every(isReviewRound) &&
+    (value.handedOver === undefined || typeof value.handedOver === 'boolean')
   );
 }
 
@@ -120,7 +122,8 @@ export async function savedIssues(repo: Repo): Promise<number[]> {
 }
 
 export function resetState(state: IssueState): IssueState {
-  return { ...state, ciFixes: 0, commitFixes: 0, reviewRounds: 0, reviewLog: [] };
+  const { handedOver: _handedOver, ...rest } = state;
+  return { ...rest, ciFixes: 0, commitFixes: 0, reviewRounds: 0, reviewLog: [] };
 }
 
 export async function writeState(repo: Repo, state: IssueState): Promise<void> {

@@ -66,7 +66,7 @@ export async function handOver(
   reason: string,
 ): Promise<void> {
   log.event('hand-over', { reason }, 'quiet');
-  await writeState(context.repo, state);
+  await writeState(context.repo, { ...state, handedOver: true });
   await setStatus(context, issue, state.pr, context.config.labels.needsHuman);
   const body = `next-issue needs help: ${reason}`;
   if (state.pr === undefined) {
