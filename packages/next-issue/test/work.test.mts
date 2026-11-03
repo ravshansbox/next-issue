@@ -1192,6 +1192,17 @@ test('a user who resumes after a merge that closed the issue gets the closed iss
   );
 });
 
+test('a user whose open issues arrive out of order gets them oldest first', async (t) => {
+  const older: Issue = { ...ISSUE, number: 3, createdAt: '2025-12-01T00:00:00Z' };
+  const later: Issue = { ...ISSUE, number: 9, createdAt: '2026-02-01T00:00:00Z' };
+  const target = await harness(t, { open: [later, older] });
+  const issues = await pendingIssues(target.context);
+  assert.deepEqual(
+    issues.map((entry) => entry.number),
+    [3, 9],
+  );
+});
+
 test('a user whose closed issue has a saved state but no merged pull request does not get it back in the list', async (t) => {
   const target = await harness(t, {
     saved: SAVED,
