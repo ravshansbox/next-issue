@@ -1220,6 +1220,21 @@ test('a user whose open issue has a saved state but lost its status label gets i
   );
 });
 
+test('a user whose saved issue can no longer be read gets the other issues and an error for that issue', async (t) => {
+  const other: Issue = { ...ISSUE, number: 9, createdAt: '2026-02-01T00:00:00Z' };
+  const target = await harness(t, {
+    saved: SAVED,
+    open: [other],
+    fail: 'viewIssue',
+  });
+  const issues = await pendingIssues(target.context);
+  assert.deepEqual(
+    issues.map((entry) => entry.number),
+    [9],
+  );
+  assert.equal(target.context.recorder.summary().counts['issue.error'], 1);
+});
+
 test('a user with a ready label gets only the ready, in-progress and in-review issues asked for', async (t) => {
   const target = await harness(t);
   const asked: string[][] = [];
