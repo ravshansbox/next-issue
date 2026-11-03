@@ -44,55 +44,15 @@ import {
 } from './github.mts';
 import { detectSetupCommand } from './setup.mts';
 
-export type Ports = {
-  abortMerge: typeof abortMerge;
-  addWorktree: typeof addWorktree;
-  canWrite: typeof canWrite;
-  commentOnIssue: typeof commentOnIssue;
-  commentOnPr: typeof commentOnPr;
-  commitAll: typeof commitAll;
-  commitMerge: typeof commitMerge;
-  createPr: typeof createPr;
-  deleteBranch: typeof deleteBranch;
-  detectSetupCommand: typeof detectSetupCommand;
-  diff: typeof diff;
-  discardChanges: typeof discardChanges;
-  disputeBranches: typeof disputeBranches;
-  failedBaseLogs: typeof failedBaseLogs;
-  failedCheckLogs: typeof failedCheckLogs;
-  findPr: typeof findPr;
-  findWorktree: typeof findWorktree;
-  isDirty: typeof isDirty;
-  latestSubject: typeof latestSubject;
-  issueComments: typeof issueComments;
-  markPrReady: typeof markPrReady;
-  mergeCommit: typeof mergeCommit;
-  mergePr: typeof mergePr;
-  openBlockers: typeof openBlockers;
-  openIssues: typeof openIssues;
-  prConflicts: typeof prConflicts;
-  prMerged: typeof prMerged;
-  push: typeof push;
-  removeWorktree: typeof removeWorktree;
-  reopenIssue: typeof reopenIssue;
-  resetToBase: typeof resetToBase;
-  revision: typeof revision;
-  runAgent: typeof runAgent;
-  runSetup: (
-    command: string,
-    cwd: string,
-    timeoutMs: number,
-  ) => Promise<{ code: number; stderr: string; timedOut?: boolean }>;
-  setAside: typeof setAside;
-  setLabel: typeof setLabel;
-  startMerge: typeof startMerge;
-  threadComments: typeof threadComments;
-  viewIssue: typeof viewIssue;
-  waitForBaseChecks: typeof waitForBaseChecks;
-  waitForChecks: typeof waitForChecks;
-};
+async function runSetup(
+  command: string,
+  cwd: string,
+  timeoutMs: number,
+): Promise<{ code: number; stderr: string; timedOut?: boolean }> {
+  return run('bash', ['-lc', command], { cwd, timeoutMs });
+}
 
-export const PORTS: Ports = {
+export const PORTS = {
   abortMerge,
   addWorktree,
   canWrite,
@@ -126,7 +86,7 @@ export const PORTS: Ports = {
   resetToBase,
   revision,
   runAgent,
-  runSetup: async (command, cwd, timeoutMs) => run('bash', ['-lc', command], { cwd, timeoutMs }),
+  runSetup,
   setAside,
   setLabel,
   startMerge,
@@ -135,3 +95,5 @@ export const PORTS: Ports = {
   waitForBaseChecks,
   waitForChecks,
 };
+
+export type Ports = typeof PORTS;
