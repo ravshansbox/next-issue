@@ -186,10 +186,7 @@ export class WorkerClient {
 
   async ensure(): Promise<void> {
     if (!this.connected) {
-      this.connecting ??= this.start().finally(() => {
-        this.connecting = undefined;
-      });
-      await this.connecting;
+      await this.connect();
     }
     if (this.workerVersion !== undefined && isNewer(this.options.version, this.workerVersion)) {
       const busy = Object.values(this.runs).some(
@@ -197,10 +194,7 @@ export class WorkerClient {
       );
       if (!busy) {
         await this.waitForClose();
-        this.connecting ??= this.start().finally(() => {
-          this.connecting = undefined;
-        });
-        await this.connecting;
+        await this.connect();
       }
     }
   }
@@ -212,6 +206,13 @@ export class WorkerClient {
     const socket = this.socket;
     this.socket = undefined;
     socket?.terminate();
+  }
+
+  private connect(): Promise<void> {
+    this.connecting ??= this.start().finally(() => {
+      this.connecting = undefined;
+    });
+    return this.connecting;
   }
 
   private async start(): Promise<void> {
