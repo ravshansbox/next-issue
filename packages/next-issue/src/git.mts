@@ -44,7 +44,7 @@ export type Worktree = {
 
 export const WORKTREE_DIR = '.worktrees';
 
-export function worktreePath(repo: Repo, issue: number): string {
+function worktreePath(repo: Repo, issue: number): string {
   return join(repo.root, WORKTREE_DIR, String(issue));
 }
 
@@ -96,7 +96,7 @@ async function hasBranch(repo: Repo, name: string, ...flags: string[]): Promise<
   return list.length > 0;
 }
 
-export async function updateBase(repo: Repo, base: string, remote: string): Promise<boolean> {
+async function updateBase(repo: Repo, base: string, remote: string): Promise<boolean> {
   const head = await run('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], { cwd: repo.root });
   const args =
     head.code === 0 && head.stdout.trim() === base
