@@ -67,18 +67,14 @@ const RECONNECT_MS = 5_000;
 const POLL_MS = 200;
 
 export function isNewer(candidate: string, current: string): boolean {
-  const [leftCore = '', ...leftRest] = candidate.replace(/\+.*$/, '').split('-');
-  const [rightCore = '', ...rightRest] = current.replace(/\+.*$/, '').split('-');
-  const left = leftCore.split('.').map(Number);
-  const right = rightCore.split('.').map(Number);
+  const { core: left, prerelease: leftPrerelease } = parseVersion(candidate);
+  const { core: right, prerelease: rightPrerelease } = parseVersion(current);
   for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
     const difference = (left[index] ?? 0) - (right[index] ?? 0);
     if (difference !== 0) {
       return difference > 0;
     }
   }
-  const leftPrerelease = leftRest.length > 0 ? leftRest.join('-').split('.') : [];
-  const rightPrerelease = rightRest.length > 0 ? rightRest.join('-').split('.') : [];
   if (leftPrerelease.length === 0 || rightPrerelease.length === 0) {
     return leftPrerelease.length === 0 && rightPrerelease.length > 0;
   }
@@ -102,6 +98,14 @@ export function isNewer(candidate: string, current: string): boolean {
     return leftPart > rightPart;
   }
   return false;
+}
+
+function parseVersion(version: string): { core: number[]; prerelease: string[] } {
+  const [core = '', ...rest] = version.replace(/\+.*$/, '').split('-');
+  return {
+    core: core.split('.').map(Number),
+    prerelease: rest.length > 0 ? rest.join('-').split('.') : [],
+  };
 }
 
 export function workerArgs(version: string): string[] {
