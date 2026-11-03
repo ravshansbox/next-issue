@@ -245,3 +245,16 @@ test("a disputed commit and change move to their own branch and leave the issue 
   assert.equal(await git(path, "show", `${aside}:b.txt`), "b.txt");
   assert.equal(await git(path, "show", `${aside}:c.txt`), "c.txt");
 });
+
+test("a later run that rebuilds the worktree pushes no disputed commit to the pull request branch", async () => {
+  const { repo } = await clones();
+  const first = await addWorktree(repo, 3, "3", "main", "origin");
+  const pushed = await commit(first.path, "b.txt");
+  await push(first.path, "origin", "3");
+  await commit(first.path, "c.txt");
+  await setAside(first.path, "3", pushed);
+  assert.equal(await removeWorktree(repo, first.path), true);
+  const second = await addWorktree(repo, 3, "3", "main", "origin");
+  await push(second.path, "origin", "3");
+  assert.equal(await git(repo.root, "rev-parse", "origin/3"), pushed);
+});
