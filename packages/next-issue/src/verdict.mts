@@ -76,15 +76,3 @@ export function formatVerdict(verdict: Verdict, open: Finding[]): string {
 export function formatFindings(findings: Finding[]): string {
   return findings.map((finding) => `- ${finding.detail}`).join('\n');
 }
-
-export function fingerprint(findings: Finding[]): string {
-  return findings
-    .map((finding) =>
-      finding.detail
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, ' ')
-        .trim(),
-    )
-    .sort()
-    .join('|');
-}

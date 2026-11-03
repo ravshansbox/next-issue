@@ -688,14 +688,19 @@ test('the next reviewer reads the dispute of the fixer', async (t) => {
   );
 });
 
-test('a reviewer that holds to a disputed finding hands the issue to a person', async (t) => {
+test('a reviewer that holds to a disputed finding sends it back to the fixer until the review budget runs out', async (t) => {
   const target = await harness(t, {
+    config: { maxReviewRounds: 2 },
     verdicts: [changes('The count is wrong.'), changes('The count is wrong.')],
-    fixerText: ['unrelated: the count follows the convention in CONTRIBUTING.md'],
+    fixerText: [
+      'unrelated: the count follows the convention in CONTRIBUTING.md',
+      'unrelated: the count follows the convention in CONTRIBUTING.md',
+    ],
   });
   const report = await target.run();
   assert.equal(report.outcome, 'needs-human');
-  assert.equal(report.reason, 'repeated findings');
+  assert.equal(report.reason, 'review budget');
+  assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer', 'reviewer', 'fixer']);
 });
 
 test('a fixer that changes nothing and says nothing hands the issue to a person', async (t) => {
@@ -738,14 +743,16 @@ test('the review budget hands the issue to a person', async (t) => {
   assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer']);
 });
 
-test('a repeated finding set stops the ping-pong', async (t) => {
+test('a reviewer that repeats the findings of an earlier round starts another fix round until the review budget runs out', async (t) => {
   const target = await harness(t, {
-    verdicts: [changes('The count is wrong.'), changes('the  count is wrong')],
+    config: { maxReviewRounds: 2 },
+    verdicts: [changes('The count is wrong.'), changes('The count is wrong.')],
   });
   const report = await target.run();
   assert.equal(report.outcome, 'needs-human');
-  assert.equal(report.reason, 'repeated findings');
+  assert.equal(report.reason, 'review budget');
   assert.equal(report.reviewRounds, 2);
+  assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer', 'reviewer', 'fixer']);
 });
 
 test('the fixer sees the findings once in the first round and the history later', async (t) => {
@@ -1135,7 +1142,7 @@ test('a saved state carries on and does not implement again', async (t) => {
       pr: 101,
       ciFixes: 2,
       reviewRounds: 1,
-      reviewLog: [{ round: 1, fingerprint: 'old', findings: '- old' }],
+      reviewLog: [{ round: 1, findings: '- old' }],
     },
   });
   const report = await target.run();
@@ -1160,7 +1167,7 @@ const SAVED: IssueState = {
   pr: 101,
   ciFixes: 2,
   reviewRounds: 1,
-  reviewLog: [{ round: 1, fingerprint: 'old', findings: '- old' }],
+  reviewLog: [{ round: 1, findings: '- old' }],
 };
 
 test('a user who resumes a run that died after the merge gets the merge carried on without a second pull request', async (t) => {
