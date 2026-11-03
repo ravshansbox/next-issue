@@ -251,7 +251,8 @@ jq -r 'select(.kind=="usage") | [.issue,.role,.turns,.total] | @tsv' \
 `next-issue logs` shows the newest run log, one readable line per event, and
 then prints new events as the run adds them, until `Ctrl-C`. In a terminal it
 starts with the last events that fit the screen; in a pipe it starts with all
-of them. With `--json` it prints the raw JSON lines. This also shows a run of
+of them. It stops when the reader of the pipe closes it; on Linux it notices
+this only at the next event. With `--json` it prints the raw JSON lines. This also shows a run of
 the worker, whose progress goes to no terminal.
 
 Three levels of console output:

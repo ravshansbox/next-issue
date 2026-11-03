@@ -1,3 +1,4 @@
+import { writeSync } from 'node:fs';
 import { open, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
@@ -69,6 +70,11 @@ export async function followLog(
       first = false;
       if (shown.length > 0) {
         await print(shown.map(show).join(''));
+      }
+      try {
+        writeSync(process.stdout.fd, '');
+      } catch {
+        stop();
       }
       if (stopped) {
         break;

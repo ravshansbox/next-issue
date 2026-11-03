@@ -226,6 +226,24 @@ test('a user whose reader closes the pipe sees logs exit with 0 at the next even
   assert.equal(stderr, 'exit=0\n');
 });
 
+test(
+  'a user whose reader closes the pipe sees logs exit with 0 while the run adds no events',
+  { skip: process.platform === 'linux' && 'Linux reports a closed pipe only on a write of data' },
+  async (t) => {
+    const { root } = await runLog([event(1)]);
+    const child = spawn(
+      'sh',
+      ['-c', `{ "${process.execPath}" "${CLI}" logs; echo "exit=$?" >&2; } | head -n 1`],
+      { cwd: root },
+    );
+    t.after(() => child.kill('SIGKILL'));
+    let stderr = '';
+    child.stderr.on('data', (chunk) => (stderr += chunk));
+    await until(() => stderr, /exit=\d+/);
+    assert.equal(stderr, 'exit=0\n');
+  },
+);
+
 test('a user who runs logs in a repository with no run log sees an error and exit code 1', async () => {
   const root = await mkdtemp(join(tmpdir(), 'next-issue-'));
   await must('git', ['init', '-q'], { cwd: root });
