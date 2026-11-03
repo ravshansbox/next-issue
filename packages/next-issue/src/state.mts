@@ -68,7 +68,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function isOptional(value: unknown, type: 'number' | 'string'): boolean {
+function isOptional(value: unknown, type: 'boolean' | 'number' | 'string'): boolean {
   return value === undefined || typeof value === type;
 }
 
@@ -99,7 +99,7 @@ function isState(value: unknown): value is IssueState {
     typeof value.reviewRounds === 'number' &&
     Array.isArray(value.reviewLog) &&
     value.reviewLog.every(isReviewRound) &&
-    (value.handedOver === undefined || typeof value.handedOver === 'boolean')
+    isOptional(value.handedOver, 'boolean')
   );
 }
 
