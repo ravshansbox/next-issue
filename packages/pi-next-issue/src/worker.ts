@@ -47,12 +47,7 @@ export type WorkerMessage =
   | { type: 'questions-error'; root: string; message: string; id?: string }
   | { type: 'error'; root: string; message: string };
 
-export type WorkerEvent =
-  | { type: 'runs'; runs: Record<string, Progress> }
-  | { type: 'questions'; root: string; questions: Question[]; id?: string }
-  | { type: 'questions-error'; root: string; message: string; id?: string }
-  | { type: 'error'; root: string; message: string }
-  | { type: 'closed' };
+export type WorkerEvent = Exclude<WorkerMessage, { type: 'hello' }> | { type: 'closed' };
 
 export type WorkerOptions = {
   socketPath: string;
