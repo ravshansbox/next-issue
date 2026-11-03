@@ -18,6 +18,8 @@ export const BACK_OFF_MINUTES = [1, 2, 3, 5, 10];
 
 export type LoopResult = { reports: IssueReport[]; stoppedAt?: number; error?: unknown };
 
+type Settled = { issue: number; report?: IssueReport; failure?: unknown };
+
 export async function runIssues(
   args: Pick<Args, 'max' | 'once'>,
   loop: Loop,
@@ -26,10 +28,7 @@ export async function runIssues(
   const limit = args.once ? Math.min(1, args.max ?? 1) : args.max;
   const concurrency = loop.concurrency ?? 1;
   const reports: IssueReport[] = [];
-  const running = new Map<
-    number,
-    Promise<{ issue: number; report?: IssueReport; failure?: unknown }>
-  >();
+  const running = new Map<number, Promise<Settled>>();
   let stoppedAt: number | undefined;
   let error: unknown;
   let crash: { failure: unknown } | undefined;
