@@ -8,6 +8,7 @@ import { type Config, loadConfig } from '../src/config.mts';
 import type { CheckState, Issue, WaitOptions } from '../src/github.mts';
 import { HookError } from '../src/git.mts';
 import { applyEvent, startProgress } from '../src/progress.mts';
+import type { Progress } from '../src/protocol.mts';
 import { Recorder } from '../src/observe.mts';
 import {
   type Context,
@@ -344,7 +345,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
 
 function stages(target: Harness): string[] {
   const seen: string[] = [];
-  target.events.reduce((progress, record) => {
+  target.events.reduce<Progress>((progress, record) => {
     const next = applyEvent(progress, record);
     const stage = next.issues[0]?.stage;
     if (stage !== undefined && stage !== seen.at(-1)) {
