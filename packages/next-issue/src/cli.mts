@@ -3,6 +3,7 @@ import { parseArgs, USAGE } from './args.mts';
 import { writeDefaultConfig } from './config.mts';
 import { ensureIgnored, repoRoot, WORKTREE_DIR } from './git.mts';
 import { listenForInterrupts } from './interrupt.mts';
+import { followLog, newestRunLog } from './logs.mts';
 import { message } from './observe.mts';
 import { runRepo } from './run.mts';
 import { serve, socketPaths, stopWorker } from './serve.mts';
@@ -40,6 +41,9 @@ async function main(): Promise<number> {
   if (args.command === 'init') {
     return init(root, args.force);
   }
+  if (args.command === 'logs') {
+    return logs(root, args.json);
+  }
   const interrupts = listenForInterrupts((text) => void write(process.stderr, `${text}\n`));
   return runRepo(root, args, {
     interrupts,
@@ -49,6 +53,16 @@ async function main(): Promise<number> {
         args.json ? `${JSON.stringify(summary, null, 2)}\n` : formatSummary(summary),
       ),
   });
+}
+
+async function logs(root: string, json: boolean): Promise<number> {
+  const file = await newestRunLog(root);
+  if (file === undefined) {
+    await write(process.stderr, `next-issue: no run log in ${STATE_DIR}/runs\n`);
+    return 1;
+  }
+  const tail = process.stdout.isTTY ? Math.max(1, (process.stdout.rows || 24) - 1) : undefined;
+  return followLog(file, { json, tail }, (text) => write(process.stdout, text));
 }
 
 async function init(root: string, force: boolean): Promise<number> {

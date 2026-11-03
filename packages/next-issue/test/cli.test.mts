@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
-import { mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -113,4 +113,145 @@ test('a user who runs stop with no worker alive sees that none is running', asyn
   await new Promise((resolve) => dead.on('exit', resolve));
   await writeFile(join(agentDir, 'next-issue.lock'), `${dead.pid}\n`);
   assert.equal(await stopCommand(agentDir), 'next-issue: no worker is running\n');
+});
+
+function event(index: number): string {
+  return JSON.stringify({
+    ts: '2026-01-02T03:04:05.000Z',
+    runId: 'r',
+    kind: `step${index}.end`,
+    issue: 7,
+    ms: index,
+  });
+}
+
+async function runLog(lines: string[]): Promise<{ root: string; file: string }> {
+  const root = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  await must('git', ['init', '-q'], { cwd: root });
+  const dir = join(root, '.next-issue', 'runs');
+  await mkdir(join(dir, '2026-01-02T03-04-05-000Z', 'sessions'), { recursive: true });
+  await writeFile(join(dir, '2026-01-01T00-00-00-000Z.jsonl'), `${event(99)}\n`);
+  const file = join(dir, '2026-01-02T03-04-05-000Z.jsonl');
+  await writeFile(file, lines.map((line) => `${line}\n`).join(''));
+  return { root, file };
+}
+
+async function until(read: () => string, pattern: RegExp): Promise<void> {
+  for (let left = 200; left > 0 && !pattern.test(read()); left -= 1) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.match(read(), pattern);
+}
+
+function followLogs(root: string, extra: string[]) {
+  const child = spawn(process.execPath, [CLI, 'logs', ...extra], { cwd: root });
+  let stdout = '';
+  child.stdout.on('data', (chunk) => (stdout += chunk));
+  const exited = new Promise<number | null>((resolve) => child.on('exit', resolve));
+  return { child, read: () => stdout, exited };
+}
+
+test('a user who pipes logs sees every event of the newest run log rendered, then new ones, until Ctrl-C', async (t) => {
+  const { root, file } = await runLog([event(1), event(2)]);
+  const { child, read, exited } = followLogs(root, []);
+  t.after(() => child.kill('SIGKILL'));
+  await until(read, /step2\.end/);
+  await appendFile(file, `${event(3)}\n`);
+  await until(read, /step3\.end/);
+  child.kill('SIGINT');
+  assert.equal(await exited, 0);
+  assert.deepEqual(
+    read()
+      .trimEnd()
+      .split('\n')
+      .map((line) => line.replace(/^\S+ /, '')),
+    ['#7 step1.end ms=1', '#7 step2.end ms=2', '#7 step3.end ms=3'],
+  );
+});
+
+test('a user who pipes logs --json sees the raw JSON lines, then new ones', async (t) => {
+  const { root, file } = await runLog([event(1)]);
+  const { child, read, exited } = followLogs(root, ['--json']);
+  t.after(() => child.kill('SIGKILL'));
+  await until(read, /step1\.end/);
+  await appendFile(file, `${event(2)}\n`);
+  await until(read, /step2\.end/);
+  child.kill('SIGINT');
+  assert.equal(await exited, 0);
+  assert.equal(read(), `${event(1)}\n${event(2)}\n`);
+});
+
+test('a user whose reader closes the pipe sees logs exit with 0 at the next event', async (t) => {
+  const { root, file } = await runLog([event(1)]);
+  const child = spawn(
+    'sh',
+    ['-c', `{ "${process.execPath}" "${CLI}" logs; echo "exit=$?" >&2; } | head -n 1`],
+    { cwd: root },
+  );
+  t.after(() => child.kill('SIGKILL'));
+  let stdout = '';
+  let stderr = '';
+  child.stdout.on('data', (chunk) => (stdout += chunk));
+  child.stderr.on('data', (chunk) => (stderr += chunk));
+  await until(() => stdout, /step1\.end/);
+  await appendFile(file, `${event(2)}\n${event(3)}\n`);
+  await until(() => stderr, /exit=\d+/);
+  assert.equal(stderr, 'exit=0\n');
+});
+
+test('a user who runs logs in a repository with no run log sees an error and exit code 1', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  await must('git', ['init', '-q'], { cwd: root });
+  const error = await promisify(execFile)(process.execPath, [CLI, 'logs'], { cwd: root }).then(
+    () => undefined,
+    (failure: { code: number; stderr: string }) => failure,
+  );
+  assert.equal(error?.code, 1);
+  assert.equal(error?.stderr, 'next-issue: no run log in .next-issue/runs\n');
+});
+
+async function inTerminal(command: string): Promise<string[]> {
+  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const script = join(dir, 'run.sh');
+  await writeFile(script, command);
+  return [
+    '-c',
+    process.platform === 'darwin'
+      ? `cat | script -q /dev/null sh "${script}"`
+      : `cat | script -qfc 'sh "${script}"' /dev/null`,
+  ];
+}
+
+for (const json of [false, true]) {
+  test(`a user who runs logs${json ? ' --json' : ''} in a terminal sees the last events that fit the screen, then new ones, until Ctrl-C`, async (t) => {
+    const { root, file } = await runLog(Array.from({ length: 10 }, (_, index) => event(index + 1)));
+    const command = `stty rows 4 cols 300; trap : INT; "${process.execPath}" "${CLI}" logs${json ? ' --json' : ''}; echo "exit=$?"`;
+    const child = spawn('sh', await inTerminal(command), { cwd: root });
+    t.after(() => child.kill('SIGKILL'));
+    let output = '';
+    child.stdout.on('data', (chunk) => (output += chunk));
+    const read = () => output.replace(/\r/g, '');
+    await until(read, /step10\.end/);
+    await appendFile(file, `${event(11)}\n`);
+    await until(read, /step11\.end/);
+    child.stdin.write('\x03');
+    await until(read, /exit=\d+/);
+    const lines = read()
+      .split('\n')
+      .filter((line) => line.includes('step'));
+    assert.deepEqual(
+      lines.map((line) => /step\d+/.exec(line)![0]),
+      ['step8', 'step9', 'step10', 'step11'],
+    );
+    assert.equal(
+      lines.every((line) => line.startsWith('{')),
+      json,
+    );
+    assert.match(read(), /exit=0/);
+  });
+}
+
+test('a user who runs --help sees the logs command', async () => {
+  const { stdout } = await promisify(execFile)(process.execPath, [CLI, '--help']);
+  assert.match(stdout, /^ {2}logs {9}show the latest run log and follow it$/m);
 });
