@@ -220,7 +220,7 @@ test('a model that calls next_issue_start while a run is going starts nothing an
   assert.deepEqual(result.details, { started: false, root: '/repo' });
   assert.equal(
     result.content[0]?.text,
-    'A run of /repo is going already, so nothing started: next-issue #7 · implement · 3 tools. It picks up new issues by itself.',
+    'A run of /repo is going already, so nothing started: #7 · implement · 3 tools. It picks up new issues by itself.',
   );
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert.deepEqual(
@@ -298,7 +298,7 @@ test('a model that calls next_issue_status sees the run of this repository and e
   const result = await report();
   assert.equal(
     result.content[0]?.text,
-    'next-issue #191 · implement · 12 tools\n#190 done\n#189 needs a human\n#188 failed',
+    '#191 · implement · 12 tools\n#190 done\n#189 needs a human\n#188 failed',
   );
 });
 
@@ -310,7 +310,7 @@ test('a model that calls next_issue_status while the worker has no run of this r
   extension(pi as never);
   await emit('session_start');
   const result = await report();
-  assert.equal(result.content[0]?.text, 'next-issue · no run of /repo');
+  assert.equal(result.content[0]?.text, 'no run of /repo');
 });
 
 test('a model that calls next_issue_status with no worker going is told so and no worker starts', async () => {
@@ -319,7 +319,7 @@ test('a model that calls next_issue_status with no worker going is told so and n
   extension(pi as never);
   await emit('session_start');
   const result = await report();
-  assert.equal(result.content[0]?.text, 'next-issue · no worker is running');
+  assert.equal(result.content[0]?.text, 'no worker is running');
   assert.equal(spawns.length, 0);
 });
 
@@ -362,7 +362,7 @@ test('a user sees the run of this repository in the footer in the dim colour of 
     }),
   );
   await until(() => painted.at(-1)?.includes('#7') === true);
-  assert.match(painted.at(-1) ?? '', /^<dim>next-issue #7 · implement · 1 tools · \d+s<\/dim>$/);
+  assert.match(painted.at(-1) ?? '', /^<dim>#7 · implement · 1 tools · \d+s<\/dim>$/);
   assert.deepEqual(widgets, []);
 });
 
@@ -376,7 +376,7 @@ test('a user of an rpc client sees the footer status without colour codes', asyn
     '/repo',
     running({ issues: [working(7, { stage: 'review 1', tools: 3, lastTool: 'read a.ts' })] }),
   );
-  await until(() => painted.at(-1) === 'next-issue #7 · review 1 · 3 tools');
+  await until(() => painted.at(-1) === '#7 · review 1 · 3 tools');
 });
 
 test('a user sees a note per handled issue and a note when the run finishes, with the summary in the footer', async () => {
@@ -402,7 +402,7 @@ test('a user sees a note per handled issue and a note when the run finishes, wit
     'next-issue: #8 needs a human',
     'next-issue finished',
   ]);
-  assert.equal(status.at(-1), 'next-issue · finished: 1 done, 1 needs a human');
+  assert.equal(status.at(-1), 'finished: 1 done, 1 needs a human');
 });
 
 test('a user who opens pi after a run has finished sees its summary in the footer and no notes', async () => {
@@ -417,7 +417,7 @@ test('a user who opens pi after a run has finished sees its summary in the foote
   extension(pi as never);
   await emit('session_start');
   await until(() => status.length > 0);
-  assert.equal(status.at(-1), 'next-issue · finished: 0 done, 1 needs a human');
+  assert.equal(status.at(-1), 'finished: 0 done, 1 needs a human');
   assert.deepEqual(notes, []);
 });
 
@@ -467,7 +467,7 @@ test('a user in a second pi sees the run that the first pi started', async () =>
   const { pi, emit, status } = host();
   extension(pi as never);
   await emit('session_start');
-  await until(() => status.at(-1) === 'next-issue #9 · checks · 0 tools');
+  await until(() => status.at(-1) === '#9 · checks · 0 tools');
 });
 
 test('a user sees why the worker could not start a run in this repository', async () => {
@@ -542,7 +542,7 @@ test('a user sees each running issue with its stage, tool count and time spent i
       }),
       now,
     ),
-    'next-issue #12 · review 1 · 37 tools · 4m12s',
+    '#12 · review 1 · 37 tools · 4m12s',
   );
   assert.equal(
     formatStatus(
@@ -554,9 +554,25 @@ test('a user sees each running issue with its stage, tool count and time spent i
       }),
       now,
     ),
-    'next-issue #12 · review 1 · 37 tools · 4m12s | #13 · prepare · 2 tools · 40s',
+    '#12 · review 1 · 37 tools · 4m12s | #13 · prepare · 2 tools · 40s',
   );
-  assert.equal(formatStatus(progress({}), now), 'next-issue · looking for issues');
+  assert.equal(formatStatus(progress({}), now), 'looking for issues');
+});
+
+test('a user sees each running issue with the open-issue count of the latest fetch in the footer', () => {
+  assert.equal(
+    formatStatus(
+      progress({
+        open: 7,
+        issues: [
+          working(12, { stage: 'implement', tools: 3, startedAt: now - 41_000 }),
+          working(13, { stage: 'review fix 2/5', tools: 1 }),
+        ],
+      }),
+      now,
+    ),
+    '#12/7 · implement · 3 tools · 41s | #13/7 · review fix 2/5 · 1 tools',
+  );
 });
 
 test('a user sees a finished or stopped run summed up by outcome in the footer', () => {
@@ -567,28 +583,25 @@ test('a user sees a finished or stopped run summed up by outcome in the footer',
   ];
   assert.equal(
     formatStatus(progress({ status: 'finished', handled }), now),
-    'next-issue · finished: 1 done, 1 needs a human, 1 failed',
+    'finished: 1 done, 1 needs a human, 1 failed',
   );
-  assert.equal(formatStatus(progress({ status: 'stopped' }), now), 'next-issue · stopped: 0 done');
+  assert.equal(formatStatus(progress({ status: 'stopped' }), now), 'stopped: 0 done');
   assert.equal(
     formatStatus(progress({ status: 'stopping', issues: [working(4)] }), now),
-    'next-issue #4 · stopping',
+    '#4 · stopping',
   );
 });
 
 test('a user whose older worker sends progress without running issues sees the footer without an error', () => {
   const { issues: _issues, ...older } = progress({});
-  assert.equal(formatStatus(older as Progress, now), 'next-issue · looking for issues');
-  assert.equal(
-    formatStatus({ ...older, status: 'stopping' } as Progress, now),
-    'next-issue #? · stopping',
-  );
+  assert.equal(formatStatus(older as Progress, now), 'looking for issues');
+  assert.equal(formatStatus({ ...older, status: 'stopping' } as Progress, now), '#? · stopping');
 });
 
 test('a user sees the error of a failed run in the footer', () => {
   assert.equal(
     formatStatus(progress({ status: 'failed', error: 'gh failed' }), now),
-    'next-issue · failed: gh failed',
+    'failed: gh failed',
   );
 });
 

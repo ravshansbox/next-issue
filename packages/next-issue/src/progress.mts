@@ -16,6 +16,22 @@ function toolLine(record: Fields): string {
   return line.length > TOOL_LINE_MAX ? `${line.slice(0, TOOL_LINE_MAX - 1)}…` : line;
 }
 
+function stageOf(step: string, record: Fields): string {
+  const cause = record['cause'];
+  const name =
+    step === 'fix' && typeof cause === 'string'
+      ? `${cause} fix`
+      : step === 'commit-fix'
+        ? 'commit fix'
+        : step;
+  const round = record['round'];
+  const limit = record['limit'];
+  if (typeof round !== 'number') {
+    return name;
+  }
+  return typeof limit === 'number' ? `${name} ${round}/${limit}` : `${name} ${round}`;
+}
+
 function change(
   progress: Progress,
   issue: number,
@@ -58,16 +74,15 @@ export function applyEvent(progress: Progress, record: Fields): Progress {
     const issues = progress.issues.filter((current) => current.issue !== issue);
     return { ...progress, issues, handled };
   }
+  if (kind === 'issues') {
+    return { ...progress, open: Number(record['open']) };
+  }
   if (kind === 'issues.fail') {
     return { ...progress, error: String(record['error']) };
   }
   if (kind.endsWith('.start') && !NOT_STAGES.has(kind)) {
-    const stage = kind.slice(0, -'.start'.length);
-    const round = record['round'];
-    return change(progress, issue, (current) => ({
-      ...current,
-      stage: typeof round === 'number' ? `${stage} ${round}` : stage,
-    }));
+    const stage = stageOf(kind.slice(0, -'.start'.length), record);
+    return change(progress, issue, (current) => ({ ...current, stage }));
   }
   return progress;
 }

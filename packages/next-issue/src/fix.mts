@@ -22,17 +22,21 @@ export async function fixRound(
   force = false,
   from?: string,
 ): Promise<Fix> {
-  const { context, issue, log, worktree, branch } = job;
-  const { ports } = context;
+  const { context, issue, log, state, worktree, branch } = job;
+  const { ports, config } = context;
   const before = from ?? (await ports.revision(worktree));
-  const result = await log.step('fix', { reason }, () =>
+  const budget =
+    kind === 'review'
+      ? { round: state.reviewRounds, limit: config.maxReviewRounds }
+      : { round: state.ciFixes, limit: config.maxCiFixes };
+  const result = await log.step('fix', { reason, cause: kind, ...budget }, () =>
     ports.runAgent(log, {
       name: 'fixer',
       cwd: worktree,
       prompt: fixPrompt(issue, reason, detail, earlier, kind, job.reply),
       profile: CODING,
-      model: context.config.models.fixer,
-      timeoutMs: context.config.agentTimeoutMinutes * 60_000,
+      model: config.models.fixer,
+      timeoutMs: config.agentTimeoutMinutes * 60_000,
     }),
   );
   const unrelated = parseUnrelated(result.text);
@@ -56,7 +60,7 @@ export async function fixRound(
     log.event('commit.empty', { reason }, 'quiet');
     return { committed: false };
   }
-  await ports.push(worktree, context.config.remote, branch, force);
+  await ports.push(worktree, config.remote, branch, force);
   return { committed: true };
 }
 
@@ -87,15 +91,18 @@ export async function commitWork(
       await writeState(repo, state);
       const output = message(error).slice(-config.logMaxChars);
       log.event('commit.fail', { role, output }, 'quiet');
-      const fix = await log.step('commit-fix', { role }, () =>
-        ports.runAgent(log, {
-          name: role,
-          cwd: worktree,
-          prompt: hookPrompt(issue, comments, role, output),
-          profile: CODING,
-          model: config.models[role],
-          timeoutMs: config.agentTimeoutMinutes * 60_000,
-        }),
+      const fix = await log.step(
+        'commit-fix',
+        { role, round: state.commitFixes, limit: config.maxCommitFixes },
+        () =>
+          ports.runAgent(log, {
+            name: role,
+            cwd: worktree,
+            prompt: hookPrompt(issue, comments, role, output),
+            profile: CODING,
+            model: config.models[role],
+            timeoutMs: config.agentTimeoutMinutes * 60_000,
+          }),
       );
       subject = parseCommitSubject(fix.text, subject);
     }

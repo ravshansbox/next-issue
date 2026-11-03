@@ -25,6 +25,26 @@ test('a watcher sees the step of the issue, with the round when the step has one
   assert.equal(stage({ kind: 'agent.start' }), undefined);
 });
 
+test('a watcher sees each limited round with its count and its limit', () => {
+  const start = { kind: 'issue.start', issue: 12, ts: '2026-11-02T10:00:00.000Z' };
+  const stage = (record: Fields) => replay([start, { issue: 12, ...record }]).issues[0]?.stage;
+  assert.equal(stage({ kind: 'review.start', round: 2, limit: 5 }), 'review 2/5');
+  assert.equal(stage({ kind: 'fix.start', cause: 'review', round: 2, limit: 5 }), 'review fix 2/5');
+  assert.equal(stage({ kind: 'fix.start', cause: 'checks', round: 1, limit: 5 }), 'checks fix 1/5');
+  assert.equal(stage({ kind: 'commit-fix.start', round: 3, limit: 10 }), 'commit fix 3/10');
+});
+
+test('a watcher sees the open-issue count of the latest fetch', () => {
+  assert.equal(replay([{ kind: 'issues', open: 7 }]).open, 7);
+  assert.equal(
+    replay([
+      { kind: 'issues', open: 7 },
+      { kind: 'issues', open: 6 },
+    ]).open,
+    6,
+  );
+});
+
 test('a watcher sees the tool count and the last tool with the first line of its command', () => {
   const progress = replay([
     { kind: 'issue.start', issue: 12, ts: '2026-11-02T10:00:00.000Z' },

@@ -15,6 +15,7 @@ export type Progress = {
   status: RunStatus;
   issues: IssueProgress[];
   handled: Handled[];
+  open?: number;
   error?: string;
 };
 

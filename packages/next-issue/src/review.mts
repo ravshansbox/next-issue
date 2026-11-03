@@ -30,6 +30,7 @@ export async function reviewRound(job: Run): Promise<Round> {
   const patch = capDiff(full, config.diffMaxChars);
   const fields = {
     round: state.reviewRounds,
+    limit: config.maxReviewRounds,
     diffChars: full.length,
     cut: full.length > config.diffMaxChars,
   };

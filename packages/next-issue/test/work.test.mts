@@ -7,6 +7,7 @@ import type { AgentRequest, AgentResult } from '../src/agents.mts';
 import { type Config, loadConfig } from '../src/config.mts';
 import type { CheckState, Issue, WaitOptions } from '../src/github.mts';
 import { HookError } from '../src/git.mts';
+import { applyEvent, startProgress } from '../src/progress.mts';
 import { Recorder } from '../src/observe.mts';
 import {
   type Context,
@@ -339,6 +340,19 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     ports,
   };
   return state;
+}
+
+function stages(target: Harness): string[] {
+  const seen: string[] = [];
+  target.events.reduce((progress, record) => {
+    const next = applyEvent(progress, record);
+    const stage = next.issues[0]?.stage;
+    if (stage !== undefined && stage !== seen.at(-1)) {
+      seen.push(stage);
+    }
+    return next;
+  }, startProgress());
+  return seen;
 }
 
 function roles(target: Harness): string[] {
@@ -1181,6 +1195,20 @@ test('a new issue asks for its worktree to start from the base branch', async (t
   assert.deepEqual(target.starts, [true]);
 });
 
+test('a watcher sees each limited round with its count and its limit', async (t) => {
+  const target = await harness(t, {
+    verdicts: [changes('Rename it.'), APPROVE],
+    commits: [true, 'oxlint: x is never used', true, true],
+    checks: ['pass', 'fail', 'pass'],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(
+    stages(target).filter((stage) => /\//.test(stage)),
+    ['review 1/5', 'review fix 1/5', 'commit fix 1/10', 'checks fix 1/5', 'review 2/5'],
+  );
+});
+
 const SAVED: IssueState = {
   issue: 7,
   phase: 'review',
@@ -1366,6 +1394,10 @@ test('a user who resumes a run that died in the fix of main gets the fix carried
   assert.deepEqual(target.reopened, [7]);
   assert.equal(target.titles.length, 1);
   assert.deepEqual(roles(target), ['fixer', 'reviewer']);
+  assert.deepEqual(
+    stages(target).filter((stage) => /\//.test(stage)),
+    ['checks fix 1/5', 'review 1/5'],
+  );
 });
 
 test('--reset puts the budgets back and keeps the resume point', async (t) => {
