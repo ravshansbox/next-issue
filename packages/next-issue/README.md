@@ -305,11 +305,12 @@ Three levels of console output:
 - `gh`, authenticated with write access to the repository
 - pi, logged in to a model provider. The agents use the model, the thinking
   level, the extensions and the skills from your pi settings, except the
-  extension and the skills of `pi-next-issue`. The implementer and the fixer get the default tools of your pi
-  settings, the `grep`, `find` and `ls` tools and the tools of your
-  extensions. The reviewer gets all of them except `edit` and `write`. The
-  agents run with `GIT_OPTIONAL_LOCKS=0`, so a `git status` from an agent or
-  an extension does not hold the index lock while the harness commits.
+  extension and the skills of `pi-next-issue`. The implementer and the fixer
+  get the default tools of your pi settings, the `grep`, `find` and `ls` tools
+  and the tools of your extensions. The reviewer gets all of them except
+  `edit` and `write`. The agents run with `GIT_OPTIONAL_LOCKS=0`, so a
+  `git status` from an agent or an extension does not hold the index lock
+  while the harness commits.
 
 ## Configuration
 

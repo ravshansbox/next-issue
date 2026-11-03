@@ -52,7 +52,7 @@ const CODING: Profile = {
 
 export { CODING, REVIEWING };
 
-export function isOwnExtension(path: string): boolean {
+export function isOwnResource(path: string): boolean {
   return path.split(sep).includes('pi-next-issue');
 }
 
@@ -69,11 +69,11 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     agentDir,
     extensionsOverride: (base) => ({
       ...base,
-      extensions: base.extensions.filter((extension) => !isOwnExtension(extension.resolvedPath)),
+      extensions: base.extensions.filter((extension) => !isOwnResource(extension.resolvedPath)),
     }),
     skillsOverride: (base) => ({
       ...base,
-      skills: base.skills.filter((skill) => !isOwnExtension(skill.filePath)),
+      skills: base.skills.filter((skill) => !isOwnResource(skill.filePath)),
     }),
   });
   await resourceLoader.reload();

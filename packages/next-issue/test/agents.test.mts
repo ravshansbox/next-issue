@@ -10,7 +10,7 @@ import {
   type FauxResponseStep,
 } from '@earendil-works/pi-ai';
 import { ModelRuntime, SettingsManager } from '@earendil-works/pi-coding-agent';
-import { CODING, isOwnExtension, REVIEWING, runAgent, toolFields } from '../src/agents.mts';
+import { CODING, isOwnResource, REVIEWING, runAgent, toolFields } from '../src/agents.mts';
 import { Recorder } from '../src/observe.mts';
 
 async function fakePi(responses: FauxResponseStep[], tokensPerSecond?: number) {
@@ -56,9 +56,9 @@ test('a bash call without command text records only its name', () => {
 });
 
 test('an agent session leaves out the pi-next-issue extension and keeps the others', () => {
-  assert.equal(isOwnExtension('/home/me/node_modules/@ravshansbox/pi-next-issue/index.ts'), true);
-  assert.equal(isOwnExtension('/home/me/next-issue/packages/pi-next-issue/index.ts'), true);
-  assert.equal(isOwnExtension('/home/me/node_modules/@ravshansbox/pi-statusline/index.ts'), false);
+  assert.equal(isOwnResource('/home/me/node_modules/@ravshansbox/pi-next-issue/index.ts'), true);
+  assert.equal(isOwnResource('/home/me/next-issue/packages/pi-next-issue/index.ts'), true);
+  assert.equal(isOwnResource('/home/me/node_modules/@ravshansbox/pi-statusline/index.ts'), false);
 });
 
 async function addSkill(folder: string, name: string): Promise<void> {
