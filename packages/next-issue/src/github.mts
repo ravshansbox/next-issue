@@ -368,6 +368,10 @@ const REAL_CLOCK: Clock = {
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 };
 
+function pause(clock: Clock, options: Polling, rest: number): Promise<void> {
+  return clock.sleep(Math.min(options.intervalSeconds * 1000, rest));
+}
+
 export async function pollChecks(
   probe: ChecksProbe,
   options: PollOptions,
@@ -399,7 +403,7 @@ export async function pollChecks(
         return state;
       }
     }
-    await clock.sleep(Math.min(options.intervalSeconds * 1000, rest()));
+    await pause(clock, options, rest());
   }
 }
 
@@ -556,7 +560,7 @@ export async function prConflicts(
     if (mergeable !== 'UNKNOWN' || rest <= 0) {
       return mergeable === 'CONFLICTING';
     }
-    await clock.sleep(Math.min(options.intervalSeconds * 1000, rest));
+    await pause(clock, options, rest);
   }
 }
 
@@ -581,7 +585,7 @@ export async function mergeCommit(
     if (view.state === 'CLOSED' || rest <= 0) {
       return undefined;
     }
-    await clock.sleep(Math.min(options.intervalSeconds * 1000, rest));
+    await pause(clock, options, rest);
   }
 }
 
