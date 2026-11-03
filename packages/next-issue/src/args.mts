@@ -16,6 +16,23 @@ export type Args = {
   level: Level;
 };
 
+type Switch = 'once' | 'help' | 'json' | 'reset' | 'force' | 'merge' | 'watch';
+
+const SWITCHES = new Map<string, Switch>([
+  ['--force', 'force'],
+  ['--json', 'json'],
+  ['--help', 'help'],
+  ['--merge', 'merge'],
+  ['--watch', 'watch'],
+  ['--reset', 'reset'],
+  ['--once', 'once'],
+]);
+
+const LEVELS = new Map<string, Level>([
+  ['--verbose', 'verbose'],
+  ['--quiet', 'quiet'],
+]);
+
 export const USAGE = `next-issue [command] [options]
 
   init         write ${CONFIG_FILE} with the defaults
@@ -54,24 +71,10 @@ export function parseArgs(argv: string[]): Args {
         throw new Error(`Unknown command: ${arg}`);
       }
       args.command = arg;
-    } else if (arg === '--force') {
-      args.force = true;
-    } else if (arg === '--json') {
-      args.json = true;
-    } else if (arg === '--help') {
-      args.help = true;
-    } else if (arg === '--merge') {
-      args.merge = true;
-    } else if (arg === '--watch') {
-      args.watch = true;
-    } else if (arg === '--reset') {
-      args.reset = true;
-    } else if (arg === '--once') {
-      args.once = true;
-    } else if (arg === '--verbose') {
-      args.level = 'verbose';
-    } else if (arg === '--quiet') {
-      args.level = 'quiet';
+    } else if (SWITCHES.has(arg)) {
+      args[SWITCHES.get(arg)!] = true;
+    } else if (LEVELS.has(arg)) {
+      args.level = LEVELS.get(arg)!;
     } else if (arg === '--max') {
       args.max = whole(argv[++index], arg);
     } else {
