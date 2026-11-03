@@ -54,12 +54,17 @@ export async function checkGate(job: Run): Promise<Gate> {
   );
   if (!fix.committed) {
     const note = fix.unrelated;
+    if (note === undefined) {
+      return escalateAndFinish(
+        job,
+        'The fixer added no commit for the failed checks.',
+        'no fix commit',
+      );
+    }
     return escalateAndFinish(
       job,
-      note === undefined
-        ? 'The fixer added no commit for the failed checks.'
-        : `The checks fail for a reason this change did not cause: ${note}`,
-      note === undefined ? 'no fix commit' : 'unrelated failure',
+      `The checks fail for a reason this change did not cause: ${note}`,
+      'unrelated failure',
     );
   }
   return { done: false, fixed: true };

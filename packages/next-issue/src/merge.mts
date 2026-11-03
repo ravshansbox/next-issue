@@ -76,12 +76,17 @@ export async function fixBase(job: Run): Promise<Gate> {
   );
   if (!fix.committed) {
     const note = fix.unrelated;
+    if (note === undefined) {
+      return escalateAndFinish(
+        job,
+        'The fixer added no commit for the failed checks on main.',
+        'no fix commit',
+      );
+    }
     return escalateAndFinish(
       job,
-      note === undefined
-        ? 'The fixer added no commit for the failed checks on main.'
-        : `The checks on main fail for a reason this change did not cause: ${note}`,
-      note === undefined ? 'no fix commit' : 'unrelated failure',
+      `The checks on main fail for a reason this change did not cause: ${note}`,
+      'unrelated failure',
     );
   }
   await ports.reopenIssue(repo, issue.number);
