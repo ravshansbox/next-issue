@@ -148,6 +148,11 @@ export async function discardChanges(cwd: string, target: string): Promise<boole
   return true;
 }
 
+export async function setAside(cwd: string, target: string, branch: string): Promise<void> {
+  await must('git', ['branch', '--force', branch, 'HEAD'], { cwd });
+  await must('git', ['reset', '--keep', target], { cwd });
+}
+
 export async function push(
   cwd: string,
   remote: string,

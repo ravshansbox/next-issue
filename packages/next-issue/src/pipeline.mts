@@ -15,6 +15,7 @@ import {
   type Repo,
   resetToBase,
   revision,
+  setAside,
 } from './git.mts';
 import {
   commentOnPr,
@@ -99,6 +100,7 @@ export type Ports = {
     cwd: string,
     timeoutMs: number,
   ) => Promise<{ code: number; stderr: string; timedOut?: boolean }>;
+  setAside: typeof setAside;
   setLabel: typeof setLabel;
   viewIssue: typeof viewIssue;
   waitForBaseChecks: typeof waitForBaseChecks;
@@ -133,6 +135,7 @@ export const PORTS: Ports = {
   revision,
   runAgent,
   runSetup: async (command, cwd, timeoutMs) => run('bash', ['-lc', command], { cwd, timeoutMs }),
+  setAside,
   setLabel,
   viewIssue,
   waitForBaseChecks,
@@ -786,7 +789,13 @@ async function fixRound(
   );
   const unrelated = parseUnrelated(result.text);
   if (unrelated !== undefined) {
-    const stray = (await ports.revision(worktree)) !== before || (await ports.isDirty(worktree));
+    const moved = (await ports.revision(worktree)) !== before;
+    if (moved) {
+      const aside = `${branch}-dispute`;
+      await ports.setAside(worktree, before, aside);
+      log.event('fix.aside', { branch: aside }, 'quiet');
+    }
+    const stray = moved || (await ports.isDirty(worktree));
     log.event('fix.unrelated', { reason, note: unrelated, stray }, 'quiet');
     return { committed: false, unrelated, stray };
   }

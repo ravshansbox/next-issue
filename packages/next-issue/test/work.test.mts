@@ -107,6 +107,8 @@ type Harness = {
   resets: number;
   titles: string[];
   branches: string[];
+  asides: Array<{ target: string; branch: string }>;
+  head: () => string;
   run: () => Promise<IssueReport>;
   state: () => Promise<IssueState | undefined>;
 };
@@ -151,6 +153,8 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     resets: 0,
     titles: [],
     branches: [],
+    asides: [],
+    head: () => String(head),
     run: () => processIssue(state.context, issue),
     state: () => readState(repo, issue.number),
   };
@@ -250,6 +254,10 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     runSetup: async (command) => {
       state.setups.push(command);
       return { code: plan.setupCode ?? 0, stderr: '', timedOut: plan.setupTimedOut };
+    },
+    setAside: async (_worktree, target, branch) => {
+      state.asides.push({ target, branch });
+      head = Number(target);
     },
     setLabel: async (_repo, kind, number, label) => {
       state.labels.push({ kind, number, label });
@@ -584,6 +592,27 @@ test('a fixer that disputes after its own commit hands the issue to a person', a
   assert.equal(report.outcome, 'needs-human');
   assert.equal(report.reason, 'dispute with changes');
   assert.equal(target.pushes, 1);
+});
+
+test('a fixer that disputes after its own commit gets the commit moved off the branch of the pull request', async (t) => {
+  const target = await harness(t, {
+    selfCommit: true,
+    verdicts: [changes('The count is wrong.'), APPROVE],
+    fixerText: ['unrelated: the count follows the convention in CONTRIBUTING.md'],
+  });
+  await target.run();
+  assert.deepEqual(target.asides, [{ target: '2', branch: '7-dispute' }]);
+  assert.equal(target.head(), '2');
+});
+
+test('a fixer that disputes and leaves only an unclean worktree keeps the branch as it is', async (t) => {
+  const target = await harness(t, {
+    fixerWrites: true,
+    verdicts: [changes('The count is wrong.'), APPROVE],
+    fixerText: ['unrelated: the count follows the convention in CONTRIBUTING.md'],
+  });
+  await target.run();
+  assert.deepEqual(target.asides, []);
 });
 
 test('the next reviewer reads the dispute of the fixer', async (t) => {

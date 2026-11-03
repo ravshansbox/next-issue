@@ -17,6 +17,7 @@ import {
   removeWorktree,
   type Repo,
   revision,
+  setAside,
 } from '../src/git.mts';
 
 test('parseRemote reads every remote form', () => {
@@ -207,6 +208,19 @@ test('discardChanges undoes a commit that the reviewer made', async () => {
   assert.equal(await discardChanges(path, head), true);
   assert.equal(await revision(path), head);
   assert.equal(await readFile(join(path, 'a.txt'), 'utf8'), 'a.txt\n');
+});
+
+test('setAside moves a commit of the fixer to another branch and keeps its change in the worktree', async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin');
+  const head = await revision(path);
+  const disputed = await commit(path, 'fixer.txt');
+  await writeFile(join(path, 'a.txt'), 'the fixer left this\n');
+  await setAside(path, head, '3-dispute');
+  assert.equal(await revision(path), head);
+  assert.equal(await git(path, 'rev-parse', '3-dispute'), disputed);
+  assert.equal(await readFile(join(path, 'a.txt'), 'utf8'), 'the fixer left this\n');
+  assert.equal(existsSync(join(path, 'fixer.txt')), false);
 });
 
 test('discardChanges keeps an ignored file and reports a clean worktree', async () => {
