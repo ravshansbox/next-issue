@@ -206,14 +206,14 @@ export function prNumber(output: string): number | undefined {
   return match === null ? undefined : Number(match[1]);
 }
 
-async function prHead(repo: Repo, branch: string): Promise<string> {
-  return gh(repo, ["pr", "view", branch, "--json", "headRefOid", "--jq", ".headRefOid"]);
+async function prHead(repo: Repo, pr: number): Promise<string> {
+  return gh(repo, ["pr", "view", String(pr), "--json", "headRefOid", "--jq", ".headRefOid"]);
 }
 
-async function readChecks(repo: Repo, branch: string): Promise<CheckSummary[] | "none"> {
+async function readChecks(repo: Repo, pr: number): Promise<CheckSummary[] | "none"> {
   const result = await run(
     "gh",
-    ["pr", "checks", branch, "--json", "name,bucket,link,description", "--repo", slug(repo)],
+    ["pr", "checks", String(pr), "--json", "name,bucket,link,description", "--repo", slug(repo)],
     { cwd: repo.root },
   );
   const output = result.stdout.trim();
@@ -222,7 +222,7 @@ async function readChecks(repo: Repo, branch: string): Promise<CheckSummary[] | 
       return "none";
     }
     throw new Error(
-      `gh pr checks ${branch} failed with code ${result.code}: ${result.stderr.trim()}`,
+      `gh pr checks ${pr} failed with code ${result.code}: ${result.stderr.trim()}`,
     );
   }
   const checks = JSON.parse(output) as CheckSummary[];
@@ -231,14 +231,14 @@ async function readChecks(repo: Repo, branch: string): Promise<CheckSummary[] | 
 
 async function watchOnce(
   repo: Repo,
-  branch: string,
+  pr: number,
   intervalSeconds: number,
   timeoutMs: number,
   show: boolean,
 ): Promise<CheckState> {
   const watch = await run(
     "gh",
-    ["pr", "checks", branch, "--watch", "--fail-fast", "--interval", String(intervalSeconds), "--repo", slug(repo)],
+    ["pr", "checks", String(pr), "--watch", "--fail-fast", "--interval", String(intervalSeconds), "--repo", slug(repo)],
     { cwd: repo.root, show, timeoutMs },
   );
   if (watch.timedOut) {
@@ -250,12 +250,12 @@ async function watchOnce(
   if (watch.code === CHECK_PENDING_CODE) {
     return "pending";
   }
-  const checks = await readChecks(repo, branch);
+  const checks = await readChecks(repo, pr);
   if (checks !== "none" && checks.some((check) => check.bucket === "fail")) {
     return "fail";
   }
   throw new Error(
-    `gh pr checks ${branch} --watch failed with code ${watch.code} and no check failed: ${watch.stderr.trim()}`,
+    `gh pr checks ${pr} --watch failed with code ${watch.code} and no check failed: ${watch.stderr.trim()}`,
   );
 }
 
@@ -336,22 +336,22 @@ async function read(
   }
 }
 
-export function waitForChecks(repo: Repo, branch: string, options: WaitOptions): Promise<CheckState> {
+export function waitForChecks(repo: Repo, pr: number, options: WaitOptions): Promise<CheckState> {
   return pollChecks(
     {
-      head: () => prHead(repo, branch),
-      list: async () => ((await readChecks(repo, branch)) === "none" ? "none" : "some"),
+      head: () => prHead(repo, pr),
+      list: async () => ((await readChecks(repo, pr)) === "none" ? "none" : "some"),
       watch: (timeoutMs) =>
-        watchOnce(repo, branch, options.intervalSeconds, timeoutMs, options.show),
+        watchOnce(repo, pr, options.intervalSeconds, timeoutMs, options.show),
     },
     options,
   );
 }
 
-export async function failedCheckLogs(repo: Repo, branch: string, maxChars: number): Promise<string> {
-  const checks = await readChecks(repo, branch);
+export async function failedCheckLogs(repo: Repo, pr: number, maxChars: number): Promise<string> {
+  const checks = await readChecks(repo, pr);
   if (checks === "none") {
-    return "The checks failed, but gh reports no check for the branch.";
+    return "The checks failed, but gh reports no check for the pull request.";
   }
   const failed = checks
     .filter((check) => check.bucket === "fail")
