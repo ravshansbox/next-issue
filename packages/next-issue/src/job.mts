@@ -112,10 +112,11 @@ export async function setStatus(
   pr: number | undefined,
   label: string,
 ): Promise<void> {
-  const managed = managedLabels(context.config);
-  await context.ports.setLabel(context.repo, 'issue', issue, label, managed);
+  const { repo, config, ports } = context;
+  const managed = managedLabels(config);
+  await ports.setLabel(repo, 'issue', issue, label, managed);
   if (pr !== undefined) {
-    await context.ports.setLabel(context.repo, 'pr', pr, label, managed);
+    await ports.setLabel(repo, 'pr', pr, label, managed);
   }
 }
 
