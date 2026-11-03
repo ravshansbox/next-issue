@@ -86,6 +86,7 @@ type Plan = {
   baseChecks?: CheckState[];
   pressDuring?: string;
   disputes?: string[];
+  earlier?: string;
 };
 
 type Harness = {
@@ -217,6 +218,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     findPr: async () => undefined,
     findWorktree: async () => undefined,
     isDirty: async () => plan.fixerWrites === true,
+    latestSubject: async () => plan.earlier,
     issueComments: async () => [],
     markPrReady: async (_repo, pr) => {
       state.ready.push(pr);
@@ -750,6 +752,14 @@ test('an implementer that changes nothing hands the issue to a person', async (t
   assert.equal(report.reason, 'no implementation commit');
   assert.equal(report.pr, undefined);
   assert.equal(target.pushes, 0);
+});
+
+test('an implementer that changes nothing on a branch already ahead of the base gets a pull request with the title of the earlier commit', async (t) => {
+  const target = await harness(t, { commits: [false], earlier: 'fix: earlier work' });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.equal(target.pushes, 1);
+  assert.deepEqual(target.titles, ['fix: earlier work']);
 });
 
 test('a user whose issue is handed over before a pull request exists gets the reason as a comment on the issue', async (t) => {

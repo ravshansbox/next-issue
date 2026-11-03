@@ -205,6 +205,17 @@ export async function resetToBase(cwd: string, base: string, remote: string): Pr
   await must('git', ['reset', '--hard', `${remote}/${base}`], { cwd });
 }
 
+export async function latestSubject(
+  cwd: string,
+  base: string,
+  remote: string,
+): Promise<string | undefined> {
+  const subject = await must('git', ['log', '-1', '--format=%s', `${remote}/${base}..HEAD`], {
+    cwd,
+  });
+  return subject === '' ? undefined : subject;
+}
+
 export async function revision(cwd: string): Promise<string> {
   return must('git', ['rev-parse', 'HEAD'], { cwd });
 }
