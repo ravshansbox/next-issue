@@ -154,12 +154,25 @@ export async function setLabel(
   add: string,
   remove: string[],
 ): Promise<void> {
-  await ensureLabel(repo, add);
+  await createUnknownLabel(repo, add);
   const current = await labelsOf(repo, kind, number);
-  await gh(repo, [kind, 'edit', String(number), ...labelArgs(add, remove, current)]);
+  const args = [kind, 'edit', String(number), ...labelArgs(add, remove, current)];
+  try {
+    await gh(repo, args);
+  } catch (error) {
+    KNOWN_LABELS.delete(slug(repo));
+    const created = await createUnknownLabel(repo, add);
+    if (created === 'known') {
+      throw error;
+    }
+    if (created instanceof Error) {
+      throw created;
+    }
+    await gh(repo, args);
+  }
 }
 
-async function ensureLabel(repo: Repo, label: string): Promise<void> {
+async function createUnknownLabel(repo: Repo, label: string): Promise<'known' | 'created' | Error> {
   let known = KNOWN_LABELS.get(slug(repo));
   if (known === undefined) {
     const raw = await gh(repo, ['label', 'list', '--limit', '1000', '--json', 'name']);
@@ -167,14 +180,15 @@ async function ensureLabel(repo: Repo, label: string): Promise<void> {
     KNOWN_LABELS.set(slug(repo), known);
   }
   if (known.has(label)) {
-    return;
+    return 'known';
   }
-  const result = await run('gh', ['label', 'create', label, '--repo', slug(repo)], {
-    cwd: repo.root,
-  });
-  if (result.code === 0) {
-    known.add(label);
+  try {
+    await ghOnce(repo, ['label', 'create', label]);
+  } catch (error) {
+    return error instanceof Error ? error : new Error(String(error));
   }
+  known.add(label);
+  return 'created';
 }
 
 export async function findPr(repo: Repo, branch: string): Promise<number | undefined> {
