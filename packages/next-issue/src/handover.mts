@@ -12,17 +12,26 @@ export async function handOverReply(
 ): Promise<string[]> {
   const { repo, ports } = context;
   const comments = await ports.threadComments(repo, pr ?? issue);
-  const last = comments.findLastIndex((comment) => comment.body.startsWith(HAND_OVER));
+  const access = new Map<string, boolean>();
+  const writer = async (author: string): Promise<boolean> => {
+    if (!access.has(author)) {
+      access.set(author, await ports.canWrite(repo, author));
+    }
+    return access.get(author) === true;
+  };
+  let last = -1;
+  for (let index = comments.length - 1; index >= 0 && last === -1; index -= 1) {
+    const comment = comments[index]!;
+    if (comment.body.startsWith(HAND_OVER) && (await writer(comment.author))) {
+      last = index;
+    }
+  }
   if (last === -1) {
     return [];
   }
-  const access = new Map<string, boolean>();
   const reply: string[] = [];
   for (const comment of comments.slice(last + 1)) {
-    if (!access.has(comment.author)) {
-      access.set(comment.author, await ports.canWrite(repo, comment.author));
-    }
-    if (access.get(comment.author) === true) {
+    if (await writer(comment.author)) {
       reply.push(`@${comment.author}: ${comment.body}`);
     }
   }

@@ -235,10 +235,10 @@ A short text summary of the same data goes to standard output. Use `--json` to
 get the full summary object there instead, so the harness fits in a pipe. All
 progress goes to standard error.
 
-Recorded for each step: `claim`, `comments`, `reply`, `worktree`, `setup`, `implement`,
-`push`, `pull-request`, `checks`, `review` and `fix`, each with a `.start`,
-`.end` or `.error` event and a duration in `ms`. Every `git` and `gh` command
-is recorded with its exit code and duration. A `tool` event holds the tool
+Recorded for each step: `claim`, `comments`, `reply`, `worktree`, `setup`,
+`implement`, `push`, `pull-request`, `checks`, `review` and `fix`, each with a
+`.start`, `.end` or `.error` event and a duration in `ms`. Every `git` and `gh`
+command is recorded with its exit code and duration. A `tool` event holds the tool
 name, and for a `bash` tool the command too. Each agent call adds a `usage`
 event with the tokens, the cost estimate in dollars, the turn count, the
 tool-call count, the model and the session id.
@@ -392,7 +392,7 @@ To give guidance, answer the hand-over with a comment in the same place: on the
 pull request, or on the issue when there is no pull request. When the run
 resumes the issue, it reads the comments posted after its last
 `next-issue needs help:` comment there. Only comments from users with write
-access to the repository count. The implementer and every fixer of that run get
+access to the repository count, for the hand-over comment too. The implementer and every fixer of that run get
 them in their prompt, under the heading `Answer of a person to the hand-over`.
 A short reply such as "ready, take it" is enough. With no such comment, the run
 resumes with no guidance.
