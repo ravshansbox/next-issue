@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { applyEvent, type Progress, startProgress } from '../src/progress.mts';
+import { applyEvent, startProgress } from '../src/progress.mts';
+import type { Progress } from '../src/protocol.mts';
 import type { Fields } from '../src/observe.mts';
 
 function replay(records: Fields[]): Progress {
