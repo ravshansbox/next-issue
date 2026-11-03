@@ -40,16 +40,22 @@ function file(repo: Repo, issue: number): string {
   return join(stateDir(repo.root), `${issue}.json`);
 }
 
-export async function readState(repo: Repo, issue: number): Promise<IssueState | undefined> {
-  const path = file(repo, issue);
-  let text: string;
+async function unlessMissing<T>(read: () => Promise<T>): Promise<T | undefined> {
   try {
-    text = await readFile(path, 'utf8');
+    return await read();
   } catch (error) {
     if (hasCode(error, 'ENOENT')) {
       return undefined;
     }
     throw error;
+  }
+}
+
+export async function readState(repo: Repo, issue: number): Promise<IssueState | undefined> {
+  const path = file(repo, issue);
+  const text = await unlessMissing(() => readFile(path, 'utf8'));
+  if (text === undefined) {
+    return undefined;
   }
   let parsed: unknown;
   try {
@@ -105,15 +111,7 @@ function isState(value: unknown): value is IssueState {
 }
 
 export async function savedIssues(repo: Repo): Promise<number[]> {
-  let names: string[];
-  try {
-    names = await readdir(stateDir(repo.root));
-  } catch (error) {
-    if (hasCode(error, 'ENOENT')) {
-      return [];
-    }
-    throw error;
-  }
+  const names = (await unlessMissing(() => readdir(stateDir(repo.root)))) ?? [];
   return names.flatMap((name) => {
     const match = /^(\d+)\.json$/.exec(name);
     return match === null ? [] : [Number(match[1])];
