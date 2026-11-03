@@ -2,6 +2,7 @@ import { rmSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { dirname, join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { type WebSocket, WebSocketServer } from 'ws';
 import { type Args, parseArgs } from './args.mts';
 import { loadConfig } from './config.mts';
@@ -119,7 +120,7 @@ async function lock(path: string, waitMs: number): Promise<boolean> {
     } else if (Date.now() >= deadline) {
       return false;
     } else {
-      await new Promise((resolve) => setTimeout(resolve, LOCK_POLL_MS));
+      await delay(LOCK_POLL_MS);
     }
   }
 }

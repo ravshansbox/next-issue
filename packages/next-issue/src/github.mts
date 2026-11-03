@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import { lines, must, run, type RunOptions, type RunResult } from './exec.mts';
 import { isAncestor, type Repo } from './git.mts';
 
@@ -43,7 +44,7 @@ async function repeatable(repo: Repo, args: string[]): Promise<string> {
       ) {
         throw error;
       }
-      await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+      await delay(attempt * 1000);
     }
   }
 }
@@ -365,7 +366,7 @@ export type WaitOptions = PollOptions & { show: boolean };
 
 const REAL_CLOCK: Clock = {
   now: () => Date.now(),
-  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  sleep: (ms) => delay(ms),
 };
 
 function pause(clock: Clock, options: Polling, rest: number): Promise<void> {
