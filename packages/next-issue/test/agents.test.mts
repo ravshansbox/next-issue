@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, readFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -62,9 +62,59 @@ test('an agent session leaves out the pi-next-issue extension and keeps the othe
   assert.equal(isOwnExtension('/home/me/node_modules/@ravshansbox/pi-statusline/index.ts'), false);
 });
 
-test('the reviewer gets no tool that writes files', () => {
-  assert.equal(REVIEWING.tools.includes('edit'), false);
-  assert.equal(REVIEWING.tools.includes('write'), false);
+async function markExtension(root: string): Promise<string> {
+  const mark = join(root, 'marked');
+  await mkdir(join(root, 'extensions'), { recursive: true });
+  await writeFile(
+    join(root, 'extensions', 'mark.ts'),
+    `import { writeFileSync } from 'node:fs';
+export default function (pi) {
+  pi.registerTool({
+    name: 'mark',
+    label: 'Mark',
+    description: 'Leave a mark',
+    parameters: { type: 'object', properties: {} },
+    async execute() {
+      writeFileSync(${JSON.stringify(mark)}, 'yes');
+      return { content: [{ type: 'text', text: 'marked' }], details: {} };
+    },
+  });
+}
+`,
+  );
+  return mark;
+}
+
+test('an implementer can call a tool that a pi extension adds', async () => {
+  const { recorder, request } = await fakePi([
+    fauxAssistantMessage([fauxToolCall('mark', {})], { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done'),
+  ]);
+  const mark = await markExtension(request.cwd);
+  await runAgent(recorder, request);
+  assert.equal(await readFile(mark, 'utf8'), 'yes');
+});
+
+test('a reviewer that calls the write tool leaves no file', async () => {
+  const { recorder, request } = await fakePi([
+    fauxAssistantMessage([fauxToolCall('write', { path: 'note.txt', content: 'hi' })], {
+      stopReason: 'toolUse',
+    }),
+    fauxAssistantMessage('done'),
+  ]);
+  await runAgent(recorder, { ...request, profile: REVIEWING });
+  await assert.rejects(access(join(request.cwd, 'note.txt')));
+});
+
+test('an implementer that calls the write tool writes the file', async () => {
+  const { recorder, request } = await fakePi([
+    fauxAssistantMessage([fauxToolCall('write', { path: 'note.txt', content: 'hi' })], {
+      stopReason: 'toolUse',
+    }),
+    fauxAssistantMessage('done'),
+  ]);
+  await runAgent(recorder, request);
+  assert.equal(await readFile(join(request.cwd, 'note.txt'), 'utf8'), 'hi');
 });
 
 test('the harness gets the last text, the tool calls and the model of a pi agent', async () => {

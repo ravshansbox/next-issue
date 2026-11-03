@@ -48,11 +48,11 @@ export type AgentResult = {
 };
 
 const REVIEWING: Profile = {
-  tools: ['read', 'bash', 'grep', 'find', 'ls'],
+  tools: ['+grep', '+find', '+ls', '-edit', '-write'],
 };
 
 const CODING: Profile = {
-  tools: ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'],
+  tools: ['+grep', '+find', '+ls'],
 };
 
 export { CODING, REVIEWING };
@@ -113,7 +113,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     agentDir,
     resourceLoader,
     sessionManager: SessionManager.create(request.cwd, recorder.sessionDir),
-    tools: [...request.profile.tools, ...customTools.map((tool) => tool.name)],
+    tools: request.profile.tools,
     customTools,
     modelRuntime,
     ...(runtime.settingsManager === undefined ? {} : { settingsManager: runtime.settingsManager }),
