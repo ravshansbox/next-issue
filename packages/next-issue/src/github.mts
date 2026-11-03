@@ -277,8 +277,12 @@ export function prNumber(output: string): number | undefined {
   return match === null ? undefined : Number(match[1]);
 }
 
+async function prField(repo: Repo, pr: number, field: string): Promise<string> {
+  return gh(repo, ['pr', 'view', String(pr), '--json', field, '--jq', `.${field}`]);
+}
+
 async function prHead(repo: Repo, pr: number): Promise<string> {
-  return gh(repo, ['pr', 'view', String(pr), '--json', 'headRefOid', '--jq', '.headRefOid']);
+  return prField(repo, pr, 'headRefOid');
 }
 
 async function readChecks(repo: Repo, pr: number): Promise<CheckSummary[] | 'none'> {
@@ -539,9 +543,7 @@ export async function prConflicts(
 ): Promise<boolean> {
   const deadline = clock.now() + options.timeoutMs;
   for (;;) {
-    const mergeable = (
-      await gh(repo, ['pr', 'view', String(pr), '--json', 'mergeable', '--jq', '.mergeable'])
-    ).trim();
+    const mergeable = await prField(repo, pr, 'mergeable');
     const rest = deadline - clock.now();
     if (mergeable !== 'UNKNOWN' || rest <= 0) {
       return mergeable === 'CONFLICTING';
@@ -551,10 +553,7 @@ export async function prConflicts(
 }
 
 export async function prMerged(repo: Repo, pr: number): Promise<boolean> {
-  return (
-    (await gh(repo, ['pr', 'view', String(pr), '--json', 'state', '--jq', '.state'])).trim() ===
-    'MERGED'
-  );
+  return (await prField(repo, pr, 'state')) === 'MERGED';
 }
 
 export async function mergeCommit(
