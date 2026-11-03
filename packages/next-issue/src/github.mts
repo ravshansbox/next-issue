@@ -108,15 +108,15 @@ export async function viewIssue(repo: Repo, issue: number): Promise<Issue & { op
   return { ...toIssue(parsed), open: parsed.state === 'OPEN' };
 }
 
-export async function issueComments(repo: Repo, issue: number): Promise<string[]> {
+export type Comment = { author: string; body: string; url?: string };
+
+export async function issueComments(repo: Repo, issue: number): Promise<Comment[]> {
   const raw = await gh(repo, ['issue', 'view', String(issue), '--json', 'comments']);
   const parsed = JSON.parse(raw) as {
     comments: Array<{ author: { login: string }; body: string }>;
   };
-  return parsed.comments.map((comment) => `@${comment.author.login}: ${comment.body}`);
+  return parsed.comments.map((comment) => ({ author: comment.author.login, body: comment.body }));
 }
-
-export type Comment = { author: string; body: string; url?: string };
 
 export async function threadComments(repo: Repo, number: number): Promise<Comment[]> {
   const raw = await repeatable(

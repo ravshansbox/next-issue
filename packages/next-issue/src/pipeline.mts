@@ -4,7 +4,16 @@ import { commitWork } from './fix.mts';
 import { checkGate } from './gate.mts';
 import { branchName } from './git.mts';
 import type { Issue } from './github.mts';
-import { cleanUp, escalate, finish, handOver, handOverReply, skipped, stop } from './handover.mts';
+import {
+  cleanUp,
+  escalate,
+  finish,
+  handOver,
+  handOverReply,
+  skipped,
+  stop,
+  writerComments,
+} from './handover.mts';
 import { type Context, type IssueReport, openPr, type Run, setStatus } from './job.mts';
 import { afterMerge, fixBase } from './merge.mts';
 import { message, type Recorder } from './observe.mts';
@@ -174,7 +183,7 @@ async function work(
     await writeState(repo, state);
   });
 
-  const comments = await log.step('comments', {}, () => ports.issueComments(repo, issue.number));
+  const comments = await log.step('comments', {}, () => writerComments(context, log, issue.number));
   const reply = handedOver
     ? await log.step('reply', {}, () => handOverReply(context, issue.number, state.pr))
     : [];

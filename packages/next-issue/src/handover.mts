@@ -56,6 +56,24 @@ export async function waitingQuestions(
   return questions;
 }
 
+export async function writerComments(
+  context: Context,
+  log: Recorder,
+  issue: number,
+): Promise<string[]> {
+  const { repo, ports } = context;
+  const writer = writers(repo, ports);
+  const kept: string[] = [];
+  for (const comment of await ports.issueComments(repo, issue)) {
+    if (await writer(comment.author)) {
+      kept.push(`@${comment.author}: ${comment.body}`);
+    } else {
+      log.event('comment.skip', { author: comment.author }, 'quiet');
+    }
+  }
+  return kept;
+}
+
 export async function handOverReply(
   context: Context,
   issue: number,
