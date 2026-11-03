@@ -2,7 +2,7 @@ import { writeSync } from 'node:fs';
 import { open, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
-import { render } from './observe.mts';
+import { hasCode, render } from './observe.mts';
 import { STATE_DIR } from './state.mts';
 
 const POLL_MS = 200;
@@ -89,7 +89,7 @@ export async function followLog(
       wake = undefined;
     }
   } catch (error) {
-    if (!stopped && (error as NodeJS.ErrnoException).code !== 'EPIPE') {
+    if (!stopped && !hasCode(error, 'EPIPE')) {
       throw error;
     }
   } finally {

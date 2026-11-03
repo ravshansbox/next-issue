@@ -233,8 +233,8 @@ export function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function isMissing(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException).code === 'ENOENT';
+export function hasCode(error: unknown, code: string): boolean {
+  return (error as NodeJS.ErrnoException).code === code;
 }
 
 export function render(record: Fields): string {

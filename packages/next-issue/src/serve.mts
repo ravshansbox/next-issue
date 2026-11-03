@@ -9,7 +9,7 @@ import { stopChildren } from './exec.mts';
 import { detectRepo } from './git.mts';
 import { waitingQuestions } from './handover.mts';
 import type { Interrupts } from './interrupt.mts';
-import { message } from './observe.mts';
+import { hasCode, message } from './observe.mts';
 import { applyEvent, startProgress } from './progress.mts';
 import { PORTS } from './ports.mts';
 import {
@@ -79,7 +79,7 @@ function alive(pid: number): boolean {
     process.kill(pid, 0);
     return true;
   } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'EPERM';
+    return hasCode(error, 'EPERM');
   }
 }
 
@@ -103,7 +103,7 @@ async function lock(path: string, waitMs: number): Promise<boolean> {
       await writeFile(path, `${process.pid}\n`, { flag: 'wx', mode: 0o600 });
       return true;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+      if (!hasCode(error, 'EEXIST')) {
         throw error;
       }
     }
