@@ -38,14 +38,10 @@ export async function reviewRound(job: Run): Promise<Round> {
     diffChars: full.length,
     cut: full.length > config.diffMaxChars,
   };
+  const earlier = history(state.reviewLog);
   const before = await ports.revision(worktree);
   const review = await log.step('review', fields, () =>
-    runRole(
-      job,
-      'reviewer',
-      reviewPrompt(issue, comments, patch, history(state.reviewLog)),
-      REVIEWING,
-    ),
+    runRole(job, 'reviewer', reviewPrompt(issue, comments, patch, earlier), REVIEWING),
   );
   if (await ports.discardChanges(worktree, before)) {
     log.event('review.discard', { round: state.reviewRounds }, 'quiet');
@@ -94,7 +90,6 @@ export async function reviewRound(job: Run): Promise<Round> {
     return { done: true, report: await finish(job, 'done') };
   }
 
-  const earlier = history(state.reviewLog);
   const findings = formatFindings(open);
   state.reviewLog.push({ round: state.reviewRounds, findings });
   await writeState(repo, state);
