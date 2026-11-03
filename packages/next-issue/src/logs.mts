@@ -9,12 +9,7 @@ const POLL_MS = 200;
 
 export async function newestRunLog(root: string): Promise<string | undefined> {
   const dir = join(root, STATE_DIR, 'runs');
-  let names: string[];
-  try {
-    names = await readdir(dir);
-  } catch {
-    return undefined;
-  }
+  const names = await readdir(dir).catch(() => []);
   const newest = names
     .filter((name) => name.endsWith('.jsonl'))
     .sort()

@@ -206,12 +206,7 @@ export async function pruneRuns(root: string, keepDays: number): Promise<number>
     return 0;
   }
   const dir = join(root, STATE_DIR, 'runs');
-  let names: string[];
-  try {
-    names = await readdir(dir);
-  } catch {
-    return 0;
-  }
+  const names = await readdir(dir).catch(() => []);
   const cutoff = Date.now() - keepDays * 24 * 60 * 60_000;
   let dropped = 0;
   for (const name of names) {
