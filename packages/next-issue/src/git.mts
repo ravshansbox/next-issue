@@ -155,6 +155,11 @@ export async function commitAll(cwd: string, message: string): Promise<boolean> 
     return false;
   }
   await must('git', ['add', '-A'], { cwd });
+  await commitStaged(cwd, message);
+  return true;
+}
+
+async function commitStaged(cwd: string, message: string): Promise<void> {
   const folder = await mkdtemp(join(tmpdir(), 'next-issue-message-'));
   const file = join(folder, 'COMMIT_EDITMSG');
   try {
@@ -165,7 +170,6 @@ export async function commitAll(cwd: string, message: string): Promise<boolean> 
   } finally {
     await rm(folder, { recursive: true, force: true });
   }
-  return true;
 }
 
 async function runHook(cwd: string, name: string, ...args: string[]): Promise<void> {
@@ -217,13 +221,17 @@ export async function resetToBase(cwd: string, base: string, remote: string): Pr
   await must('git', ['reset', '--hard', `${remote}/${base}`], { cwd });
 }
 
-export async function startMerge(cwd: string, base: string, remote: string): Promise<string[]> {
+export async function startMerge(
+  cwd: string,
+  base: string,
+  remote: string,
+): Promise<string[] | undefined> {
   await must('git', ['fetch', remote, base], { cwd });
   const result = await run('git', ['merge', '--no-ff', '--no-commit', `${remote}/${base}`], {
     cwd,
   });
   if (result.code === 0) {
-    return [];
+    return (await merging(cwd)) ? [] : undefined;
   }
   const listed = await must('git', ['diff', '--name-only', '--diff-filter=U'], { cwd });
   const files = listed.split('\n').filter((line) => line.length > 0);
@@ -233,11 +241,15 @@ export async function startMerge(cwd: string, base: string, remote: string): Pro
   return files;
 }
 
-const CONFLICT_MARKER = /^(?:<{7}|>{7})(?: |$)|^={7}$/m;
+async function merging(cwd: string): Promise<boolean> {
+  const result = await run('git', ['rev-parse', '--quiet', '--verify', 'MERGE_HEAD'], { cwd });
+  return result.code === 0;
+}
 
-export async function commitMerge(cwd: string, files: string[]): Promise<boolean> {
-  const merging = await run('git', ['rev-parse', '--quiet', '--verify', 'MERGE_HEAD'], { cwd });
-  if (merging.code !== 0) {
+const CONFLICT_MARKER = /^(?:<{7}|>{7})(?: |$)/m;
+
+export async function commitMerge(cwd: string, files: string[], message: string): Promise<boolean> {
+  if (!(await merging(cwd))) {
     return false;
   }
   for (const file of files) {
@@ -247,7 +259,7 @@ export async function commitMerge(cwd: string, files: string[]): Promise<boolean
     }
   }
   await must('git', ['add', '-A'], { cwd });
-  await must('git', ['commit', '--no-edit', '--no-verify'], { cwd });
+  await commitStaged(cwd, message);
   return true;
 }
 

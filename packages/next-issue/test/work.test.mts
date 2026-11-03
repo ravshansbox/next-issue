@@ -83,6 +83,9 @@ type Plan = {
   conflicts?: boolean[];
   conflictFiles?: string[];
   mergeResolved?: boolean;
+  mergeHook?: string;
+  upToDate?: boolean;
+  fixerThrows?: boolean;
   open?: Issue[];
   closed?: Issue[];
   unlisted?: Issue[];
@@ -256,9 +259,13 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     prConflicts: async () => conflicts.shift() ?? false,
     startMerge: async () => {
       state.baseMerges += 1;
-      return plan.conflictFiles ?? [];
+      return plan.upToDate === true ? undefined : (plan.conflictFiles ?? []);
     },
-    commitMerge: async () => {
+    commitMerge: async (_worktree, _files, commitMessage) => {
+      state.messages.push(commitMessage);
+      if (plan.mergeHook !== undefined && state.messages.length === 2) {
+        throw new HookError(plan.mergeHook);
+      }
       if (plan.mergeResolved === false) {
         return false;
       }
@@ -301,6 +308,9 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       }
       if (plan.selfCommit === true) {
         head += 1;
+      }
+      if (request.name === 'fixer' && plan.fixerThrows === true) {
+        throw new Error('the fixer timed out');
       }
       if (request.name === 'fixer' && plan.fixerText !== undefined) {
         const next = Array.isArray(plan.fixerText) ? fixerTexts.shift() : plan.fixerText;
@@ -1066,6 +1076,45 @@ test('a user whose fixer leaves the conflict with the base unresolved gets the i
   assert.deepEqual(target.mergeAborts, ['1']);
   assert.equal(target.pushes, 1);
   assert.match(target.comments.at(-1)!, /left the conflict with the base unresolved/);
+});
+
+test('a user whose fixer fails while it resolves a conflict with the base gets the merge undone', async (t) => {
+  const target = await harness(t, {
+    checks: ['none'],
+    conflicts: [true],
+    conflictFiles: ['src/a.ts'],
+    fixerThrows: true,
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'error');
+  assert.match(report.reason!, /the fixer timed out/);
+  assert.deepEqual(target.mergeAborts, ['1']);
+});
+
+test('a user whose branch already holds the base, after a push that failed, gets the branch pushed with no hand-over', async (t) => {
+  const target = await harness(t, {
+    checks: ['none', 'pass'],
+    conflicts: [true],
+    upToDate: true,
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.equal(target.pushes, 2);
+  assert.deepEqual(target.mergeAborts, []);
+});
+
+test('a user whose merge of the base fails in a hook gets the hook output to the fixer and the merge committed with its subject', async (t) => {
+  const target = await harness(t, {
+    checks: ['none', 'pass'],
+    conflicts: [true],
+    mergeHook: 'commitlint: subject may not be empty',
+    fixerText: 'commit: chore: merge the base',
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.match(target.messages[1]!, /^chore: merge origin\/main\n\nRefs #/);
+  assert.match(target.messages[2]!, /^chore: merge the base\n/);
+  assert.match(target.prompts.at(-2)!.prompt, /commitlint: subject may not be empty/);
 });
 
 test('a user whose pull request conflicts with its base but has passing checks gets the review', async (t) => {

@@ -92,10 +92,13 @@ the run handles one issue. For each issue:
    When git merges the base cleanly, the harness commits the merge with no
    agent. When git reports conflicted files, the fixer gets the list, removes
    the conflict markers, and the harness commits the merge. The harness then
-   pushes without force, and the run goes to step 6 again. Each attempt comes
-   from the check budget, `maxCiFixes`. With the budget used up, or when the
-   fixer leaves a conflict marker or the merge unresolved, the harness undoes
-   the merge and hands the issue to a person with the reason `merge conflict`.
+   pushes without force, and the run goes to step 6 again. The merge commit
+   runs the `pre-commit` and `commit-msg` hooks like any other commit. When
+   the branch already holds the base, the harness only pushes. Each attempt
+   comes from the check budget, `maxCiFixes`. With the budget used up, or when
+   the fixer leaves a conflict marker or the merge unresolved, or the fixer
+   fails, the harness undoes the merge and hands the issue to a person with the
+   reason `merge conflict`.
 7. On a red build, give the failed job logs to the fixer agent, then go to step
    6 again. The budget is `maxCiFixes`.
 8. Let the reviewer agent judge the diff, at most `diffMaxChars` of it. The
@@ -118,8 +121,8 @@ the run handles one issue. For each issue:
     then the harness first asks whether the pull request conflicts with its
     base. A conflict starts the merge of the base from step 6, and the run
     goes to step 6 again. With no conflict, the harness squash-merges the pull
-    request, deletes the remote branch, waits until the pull request is merged, for example through a
-    merge queue, and then waits for the checks that the merge commit starts on
+    request, deletes the remote branch, waits until the pull request is merged,
+    for example through a merge queue, and then waits for the checks that the merge commit starts on
     the base branch. A cancelled run there is no failure. When those checks
     fail, the fixer gets their logs on a branch reset to the base branch, from
     the check budget, and the harness force-pushes the fix, reopens the issue
