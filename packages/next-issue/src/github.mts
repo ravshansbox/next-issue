@@ -526,6 +526,10 @@ export async function reopenIssue(repo: Repo, issue: number): Promise<void> {
   await gh(repo, ['issue', 'reopen', String(issue)]);
 }
 
+export async function commentOnIssue(repo: Repo, issue: number, body: string): Promise<void> {
+  await ghOnce(repo, ['issue', 'comment', String(issue), '--body-file', '-'], body);
+}
+
 export async function commentOnPr(repo: Repo, pr: number, body: string): Promise<void> {
   await ghOnce(repo, ['pr', 'comment', String(pr), '--body-file', '-'], body);
 }

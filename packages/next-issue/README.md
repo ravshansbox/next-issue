@@ -100,7 +100,8 @@ and exits with code 1. For each issue:
 ## Stops for a loop
 
 The harness hands the issue to a person, with the `status:needs-human` label,
-when:
+and comments the reason on the pull request, or on the issue when there is no
+pull request yet, when:
 
 - the check budget or the review budget runs out;
 - a fixer round adds no commit and gives no reason, so there is no progress;
@@ -135,7 +136,7 @@ when:
 - the setup command fails, or does not finish in `setupTimeoutMinutes`;
 - a step of the run fails with an error. A `gh` call that is safe to repeat,
   such as a read or a label edit, is tried up to three times first when the
-  network fails. A `gh pr create` or `gh pr comment` is tried once, so a lost
+  network fails. A `gh pr create`, `gh pr comment` or `gh issue comment` is tried once, so a lost
   reply never makes a duplicate.
 
 The fixer sees the findings of all earlier rounds, not only the last one, with

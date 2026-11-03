@@ -95,6 +95,7 @@ type Harness = {
   prompts: Array<{ role: string; prompt: string }>;
   messages: string[];
   comments: string[];
+  issueNotes: Array<{ number: number; body: string }>;
   checkReads: number;
   discards: number;
   setups: string[];
@@ -142,6 +143,7 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
     prompts: [],
     messages: [],
     comments: [],
+    issueNotes: [],
     checkReads: 0,
     discards: 0,
     setups: [],
@@ -169,6 +171,9 @@ async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
       state.branches.push(branch);
       state.starts.push(start);
       return { path: join(root, 'worktree'), baseUpdated: plan.baseUpdated ?? true };
+    },
+    commentOnIssue: async (_repo, number, body) => {
+      state.issueNotes.push({ number, body });
     },
     commentOnPr: async (_repo, _pr, body) => {
       state.comments.push(body);
@@ -745,6 +750,22 @@ test('an implementer that changes nothing hands the issue to a person', async (t
   assert.equal(report.reason, 'no implementation commit');
   assert.equal(report.pr, undefined);
   assert.equal(target.pushes, 0);
+});
+
+test('a user whose issue is handed over before a pull request exists gets the reason as a comment on the issue', async (t) => {
+  const target = await harness(t, { commits: [false] });
+  await target.run();
+  assert.equal(target.issueNotes.length, 1);
+  assert.equal(target.issueNotes[0]!.number, 7);
+  assert.match(target.issueNotes[0]!.body, /^next-issue needs help: /);
+  assert.deepEqual(target.comments, []);
+});
+
+test('a user whose issue is handed over after the pull request exists gets the reason on the pull request only', async (t) => {
+  const target = await harness(t, { config: { maxCiFixes: 0 }, checks: ['fail'] });
+  await target.run();
+  assert.match(target.comments.at(-1)!, /needs help: /);
+  assert.deepEqual(target.issueNotes, []);
 });
 
 test('an implementer whose commit fails in a hook gets the hook output and commits the fix', async (t) => {
