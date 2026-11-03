@@ -12,9 +12,7 @@ import { formatSummary } from './summary.mts';
 
 function write(stream: NodeJS.WriteStream, text: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    stream.write(text, (error) =>
-      error === null || error === undefined ? resolve() : reject(error),
-    );
+    stream.write(text, (error) => (error ? reject(error) : resolve()));
   });
 }
 
