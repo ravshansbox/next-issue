@@ -18,6 +18,7 @@ import {
   mergePr,
   openBlockers,
   openIssues,
+  prConflicts,
   prMerged,
   prNumber,
   reopenIssue,
@@ -508,6 +509,7 @@ test('the worker passes gh the repository and the issue or pull request number i
   await markPrReady(repo, 42);
   await mergePr(repo, 42);
   await prMerged(repo, 42);
+  await prConflicts(repo, 42);
   await reopenIssue(repo, 7);
   assert.deepEqual(seen, [
     ['repo', 'view', 'acme/tool', '--json', 'defaultBranchRef'],
@@ -540,6 +542,7 @@ test('the worker passes gh the repository and the issue or pull request number i
     ['pr', 'ready', '42', '--repo', 'acme/tool'],
     ['pr', 'merge', '42', '--squash', '--delete-branch', '--repo', 'acme/tool'],
     ['pr', 'view', '42', '--json', 'state', '--jq', '.state', '--repo', 'acme/tool'],
+    ['pr', 'view', '42', '--json', 'mergeable', '--jq', '.mergeable', '--repo', 'acme/tool'],
     ['issue', 'reopen', '7', '--repo', 'acme/tool'],
   ]);
 });

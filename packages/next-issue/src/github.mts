@@ -475,6 +475,14 @@ export async function mergePr(repo: Repo, pr: number): Promise<boolean> {
   return result.code === 0;
 }
 
+export async function prConflicts(repo: Repo, pr: number): Promise<boolean> {
+  return (
+    (
+      await gh(repo, ['pr', 'view', String(pr), '--json', 'mergeable', '--jq', '.mergeable'])
+    ).trim() === 'CONFLICTING'
+  );
+}
+
 export async function prMerged(repo: Repo, pr: number): Promise<boolean> {
   return (
     (await gh(repo, ['pr', 'view', String(pr), '--json', 'state', '--jq', '.state'])).trim() ===

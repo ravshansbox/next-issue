@@ -51,7 +51,9 @@ and exits with code 1. For each issue:
    while no check failed counts as such a read, not as a red build. A repository that reports no
    check keeps asking for `checkGraceSeconds`, because a new pull request often
    shows no check yet, and only then goes straight to the review. The later
-   gates of the same issue ask once.
+   gates of the same issue ask once. GitHub runs no check on a pull request
+   that conflicts with its base, so no check and a conflict hand the issue to
+   a person.
 7. On a red build, give the failed job logs to the fixer agent, then go to step
    6 again. The budget is `maxCiFixes`.
 8. Let the reviewer agent judge the diff, at most `diffMaxChars` of it. The
