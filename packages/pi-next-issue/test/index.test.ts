@@ -124,7 +124,12 @@ test('a model that calls next_issue_start with no worker going starts one, asks 
   let started: FakeWorker | undefined;
   const { spawns, extension } = setup({
     spawn: async (path) => {
-      started = await worker(path);
+      started = await startFakeWorker(path, '1.0.0', (self, message) => {
+        if (message.type === 'start') {
+          self.update(message.root, running());
+        }
+      });
+      workers.push(started);
     },
   });
   const { pi, emit, start } = host();
@@ -159,6 +164,25 @@ test('a model that calls next_issue_start while a run is going starts nothing an
     fake.received.filter((message) => message.type === 'start' || message.type === 'stop'),
     [],
   );
+});
+
+test('a model that calls next_issue_start gets the error when the worker refuses to start a run', async () => {
+  const { path, extension } = setup();
+  const refusing = await startFakeWorker(path, '1.0.0', (self, message) => {
+    if (message.type === 'start') {
+      self.reply({ type: 'error', root: '/other', message: 'not this one' });
+      self.reply({
+        type: 'error',
+        root: message.root,
+        message: 'the worker is restarting, try again soon',
+      });
+    }
+  });
+  workers.push(refusing);
+  const { pi, emit, start } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await assert.rejects(start(), /the worker is restarting, try again soon/);
 });
 
 test('a model that calls next_issue_start outside a git repository gets the error', async () => {

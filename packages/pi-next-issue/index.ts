@@ -204,6 +204,19 @@ export function createExtension(options: Options) {
     const going = (progress: Progress | undefined): progress is Progress =>
       progress?.status === 'running' || progress?.status === 'stopping';
 
+    const accepted = (client: WorkerClient, root: string) =>
+      new Promise<void>((resolve, reject) => {
+        const stop = client.subscribe((event) => {
+          if (event.type === 'error' && event.root === root) {
+            stop();
+            reject(new Error(event.message));
+          } else if (event.type === 'runs' && going(event.runs[root])) {
+            stop();
+            resolve();
+          }
+        });
+      });
+
     pi.registerTool({
       name: 'next_issue_start',
       label: 'Start next-issue',
@@ -224,7 +237,9 @@ export function createExtension(options: Options) {
             details: { started: false, root },
           };
         }
+        const accepting = accepted(client, root);
         client.send({ type: 'start', root, merge: true });
+        await accepting;
         return {
           content: [{ type: 'text', text: `Started a next-issue run of ${root}.` }],
           details: { started: true, root },
