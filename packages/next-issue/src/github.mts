@@ -522,12 +522,17 @@ async function runLogs(
       parts.push(logs.stdout);
       continue;
     }
-    const reason = [`The log read failed with code ${logs.code}.`, logs.stderr.trim()]
-      .filter((line) => line !== '')
-      .join(' ');
-    parts.push([logs.stdout.trim(), reason].filter((line) => line !== '').join('\n'));
+    const reason = joinFilled(
+      [`The log read failed with code ${logs.code}.`, logs.stderr.trim()],
+      ' ',
+    );
+    parts.push(joinFilled([logs.stdout.trim(), reason], '\n'));
   }
   return parts.join('\n\n');
+}
+
+function joinFilled(parts: string[], separator: string): string {
+  return parts.filter((part) => part !== '').join(separator);
 }
 
 export async function markPrReady(repo: Repo, pr: number): Promise<boolean> {
