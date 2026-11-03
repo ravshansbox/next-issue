@@ -97,11 +97,7 @@ async function handle(
   );
 
   const loop: Loop = {
-    issues: async () => {
-      const issues = await pendingIssues(context);
-      recorder.event('issues', { open: issues.length }, 'quiet');
-      return issues;
-    },
+    issues: () => pendingIssues(context),
     process: (issue) => processIssue(context, issue),
     stop: interrupts.afterIssue,
     concurrency: config.concurrency,

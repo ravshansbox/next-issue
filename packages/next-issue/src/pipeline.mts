@@ -50,6 +50,7 @@ export async function pendingIssues(context: Context): Promise<Issue[]> {
   const labels = ready.length === 0 ? [] : [ready, inProgress, inReview];
   const issues = await ports.openIssues(repo, config.issueLimit, labels);
   const listed = new Set(issues.map((issue) => issue.number));
+  let openCount = issues.length;
   for (const number of await savedIssues(repo)) {
     if (listed.has(number)) {
       continue;
@@ -60,6 +61,9 @@ export async function pendingIssues(context: Context): Promise<Issue[]> {
     }
     try {
       const { open, ...issue } = await ports.viewIssue(repo, number);
+      if (open) {
+        openCount += 1;
+      }
       if (
         saved === 'broken' ||
         open ||
@@ -73,6 +77,7 @@ export async function pendingIssues(context: Context): Promise<Issue[]> {
         .event('issue.error', { error: message(error) }, 'quiet');
     }
   }
+  context.recorder.event('issues', { open: openCount }, 'quiet');
   return issues.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
