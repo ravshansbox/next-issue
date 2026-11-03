@@ -57,6 +57,10 @@ async function gh(repo: Repo, args: string[]): Promise<string> {
   return repeatable(repo, withRepo(repo, args));
 }
 
+async function ghJson<T>(repo: Repo, args: string[]): Promise<T> {
+  return JSON.parse(await gh(repo, args)) as T;
+}
+
 async function ghOnce(repo: Repo, args: string[], input?: string): Promise<string> {
   return must('gh', withRepo(repo, args), { cwd: repo.root, input });
 }
@@ -102,7 +106,7 @@ function toIssue(item: RawIssue): Issue {
 export async function openIssues(repo: Repo, limit: number, labels: string[]): Promise<Issue[]> {
   const filter =
     labels.length === 0 ? '' : ` label:${labels.map((label) => `"${label}"`).join(',')}`;
-  const raw = await gh(repo, [
+  const parsed = await ghJson<RawIssue[]>(repo, [
     'issue',
     'list',
     '--state',
@@ -114,23 +118,26 @@ export async function openIssues(repo: Repo, limit: number, labels: string[]): P
     '--json',
     ISSUE_FIELDS,
   ]);
-  const parsed = JSON.parse(raw) as RawIssue[];
   return parsed.map(toIssue);
 }
 
 export async function viewIssue(repo: Repo, issue: number): Promise<Issue & { open: boolean }> {
-  const raw = await gh(repo, ['issue', 'view', String(issue), '--json', `${ISSUE_FIELDS},state`]);
-  const parsed = JSON.parse(raw) as RawIssue & { state: string };
+  const parsed = await ghJson<RawIssue & { state: string }>(repo, [
+    'issue',
+    'view',
+    String(issue),
+    '--json',
+    `${ISSUE_FIELDS},state`,
+  ]);
   return { ...toIssue(parsed), open: parsed.state === 'OPEN' };
 }
 
 export type Comment = { author: string; body: string; url?: string };
 
 export async function issueComments(repo: Repo, issue: number): Promise<Comment[]> {
-  const raw = await gh(repo, ['issue', 'view', String(issue), '--json', 'comments']);
-  const parsed = JSON.parse(raw) as {
+  const parsed = await ghJson<{
     comments: Array<{ author: { login: string }; body: string }>;
-  };
+  }>(repo, ['issue', 'view', String(issue), '--json', 'comments']);
   return parsed.comments.map((comment) => ({ author: comment.author.login, body: comment.body }));
 }
 
@@ -186,8 +193,13 @@ export async function openBlockers(repo: Repo, issue: number): Promise<string[]>
 }
 
 async function labelsOf(repo: Repo, kind: Kind, number: number): Promise<string[]> {
-  const raw = await gh(repo, [kind, 'view', String(number), '--json', 'labels']);
-  const parsed = JSON.parse(raw) as { labels: Array<{ name: string }> };
+  const parsed = await ghJson<{ labels: Array<{ name: string }> }>(repo, [
+    kind,
+    'view',
+    String(number),
+    '--json',
+    'labels',
+  ]);
   return names(parsed.labels);
 }
 
@@ -228,8 +240,15 @@ async function createUnknownLabel(repo: Repo, label: string): Promise<'known' | 
   const repoSlug = slug(repo);
   let known = KNOWN_LABELS.get(repoSlug);
   if (known === undefined) {
-    const raw = await gh(repo, ['label', 'list', '--limit', '1000', '--json', 'name']);
-    known = new Set(names(JSON.parse(raw) as Array<{ name: string }>));
+    const listed = await ghJson<Array<{ name: string }>>(repo, [
+      'label',
+      'list',
+      '--limit',
+      '1000',
+      '--json',
+      'name',
+    ]);
+    known = new Set(names(listed));
     KNOWN_LABELS.set(repoSlug, known);
   }
   if (known.has(label)) {
@@ -245,7 +264,7 @@ async function createUnknownLabel(repo: Repo, label: string): Promise<'known' | 
 }
 
 export async function findPr(repo: Repo, branch: string): Promise<number | undefined> {
-  const raw = await gh(repo, [
+  const parsed = await ghJson<Array<{ number: number }>>(repo, [
     'pr',
     'list',
     '--head',
@@ -255,7 +274,6 @@ export async function findPr(repo: Repo, branch: string): Promise<number | undef
     '--json',
     'number',
   ]);
-  const parsed = JSON.parse(raw) as Array<{ number: number }>;
   return parsed[0]?.number;
 }
 
@@ -470,7 +488,7 @@ export async function failedCheckLogs(repo: Repo, pr: number, maxChars: number):
 }
 
 async function baseRuns(repo: Repo, sha: string): Promise<BaseRun[]> {
-  const raw = await gh(repo, [
+  return ghJson<BaseRun[]>(repo, [
     'run',
     'list',
     '--commit',
@@ -478,7 +496,6 @@ async function baseRuns(repo: Repo, sha: string): Promise<BaseRun[]> {
     '--json',
     'databaseId,name,status,conclusion',
   ]);
-  return JSON.parse(raw) as BaseRun[];
 }
 
 function failedRun(entry: BaseRun): boolean {
@@ -582,8 +599,13 @@ export async function mergeCommit(
 ): Promise<string | undefined> {
   const deadline = clock.now() + options.timeoutMs;
   for (;;) {
-    const raw = await gh(repo, ['pr', 'view', String(pr), '--json', 'state,mergeCommit']);
-    const view = JSON.parse(raw) as { state: string; mergeCommit: { oid: string } | null };
+    const view = await ghJson<{ state: string; mergeCommit: { oid: string } | null }>(repo, [
+      'pr',
+      'view',
+      String(pr),
+      '--json',
+      'state,mergeCommit',
+    ]);
     if (view.state === 'MERGED' && view.mergeCommit?.oid) {
       return view.mergeCommit.oid;
     }
