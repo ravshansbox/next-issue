@@ -47,12 +47,12 @@ Pi does not implement the issue in that session. The worker does the work. The b
 
 ## Worker
 
-The extension does no work itself. On `/next-issue` or `next_issue_start` it connects to the `next-issue` worker on the socket file `~/.pi/agent/next-issue.sock`. When no worker answers, it starts one with `npx -y next-issue@<version> serve`, where `<version>` is the version of the extension, or `latest` when the extension runs from a source checkout with version `0.0.0`, in the background, and writes the output of the worker to `~/.pi/agent/next-issue-worker.log`.
+The extension does no work itself. On `/next-issue` or `next_issue_start` it connects to the `next-issue` worker of the repository on the socket file `.next-issue/worker.sock` in the repository. When no worker answers, it starts one in the repository with `npx -y next-issue@<version> serve`, where `<version>` is the version of the extension, or `latest` when the extension runs from a source checkout with version `0.0.0`, in the background, and writes the output of the worker to `.next-issue/worker.log` in the repository. When the path of the socket file is too long for the system, the extension says so and starts nothing.
 
-- Every pi on the machine shares the one worker, and every pi in a repository shows the run of that repository, whoever started it.
+- Each repository has its own worker. Every pi in a repository shares the worker of that repository and shows its run, whoever started it. A run, restart or upgrade in one repository never affects another.
 - Opening pi does not start a worker. It only shows a run when a worker is going.
 - The run does not belong to pi: it goes on after `/new`, `/resume`, a fork, a reload or quitting pi.
-- The worker stays when every pi is closed. Stop it with `npx next-issue stop`.
-- When the extension is newer than the worker, the worker closes once no run is going, and the extension starts the newer worker.
+- The worker exits when no run is going and no pi is connected. Stop it at once with `npx next-issue stop` in the repository.
+- When the extension is newer than the worker of a repository, that worker closes once no run is going, and the extension starts the newer worker. Workers of other repositories carry on.
 
 Each run asks the worker to merge the pull requests. [ADR 0002](https://github.com/ravshansbox/next-issue/blob/main/docs/adr/0002-merge-setting.md) compares where the merge setting could live. See the [`next-issue` README](../next-issue/README.md) for what a run does, its labels, its state and its config.

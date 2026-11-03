@@ -10,11 +10,28 @@ import { must } from '../src/exec.mts';
 
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
 
-async function stopCommand(agentDir: string): Promise<string> {
-  const { stdout } = await promisify(execFile)(process.execPath, [CLI, 'stop'], {
-    env: { ...process.env, PI_CODING_AGENT_DIR: agentDir },
-  });
+async function stopCommand(root: string): Promise<string> {
+  const { stdout } = await promisify(execFile)(process.execPath, [CLI, 'stop'], { cwd: root });
   return stdout;
+}
+
+async function repository(): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  await must('git', ['init', '-q'], { cwd: root });
+  return root;
+}
+
+async function serveWorker(root: string) {
+  const child = spawn(process.execPath, [CLI, 'serve'], { cwd: root });
+  let stderr = '';
+  child.stderr.on('data', (chunk) => (stderr += chunk));
+  const exited = new Promise<NodeJS.Signals | null>((resolve) =>
+    child.on('exit', (_code, signal) => resolve(signal)),
+  );
+  for (let left = 100; left > 0 && !stderr.includes('listening'); left -= 1) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return { child, exited, stderr: () => stderr };
 }
 
 test('a user who runs init gets .next-issue/ and .worktrees/ in .gitignore', async () => {
@@ -66,53 +83,63 @@ esac
 });
 
 test('a user who stops the worker with SIGTERM sees it exit and remove its socket and lock files', async () => {
-  const agentDir = await mkdtemp(join(tmpdir(), 'next-issue-'));
-  const child = spawn(process.execPath, [CLI, 'serve'], {
-    env: { ...process.env, PI_CODING_AGENT_DIR: agentDir },
-  });
-  let stderr = '';
-  child.stderr.on('data', (chunk) => (stderr += chunk));
-  const exited = new Promise<NodeJS.Signals | null>((resolve) =>
-    child.on('exit', (_code, signal) => resolve(signal)),
-  );
-  for (let left = 100; left > 0 && !stderr.includes('listening'); left -= 1) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  assert.match(stderr, /worker listening on .*next-issue\.sock/);
+  const root = await repository();
+  const { child, exited, stderr } = await serveWorker(root);
+  assert.match(stderr(), /worker listening on .*\.next-issue\/worker\.sock/);
   child.kill('SIGTERM');
   assert.equal(await exited, 'SIGTERM');
-  assert.deepEqual(await readdir(agentDir), []);
+  assert.deepEqual(await readdir(join(root, '.next-issue')), []);
 });
 
-test('a user who runs stop sees the worker exit and remove its socket and lock files', async (t) => {
-  const agentDir = await mkdtemp(join(tmpdir(), 'next-issue-'));
-  const child = spawn(process.execPath, [CLI, 'serve'], {
-    env: { ...process.env, PI_CODING_AGENT_DIR: agentDir },
-  });
+test('a user who runs stop sees the worker of this repository exit and remove its socket and lock files', async (t) => {
+  const root = await repository();
+  const { child, exited } = await serveWorker(root);
   t.after(() => child.kill('SIGKILL'));
-  let stderr = '';
-  child.stderr.on('data', (chunk) => (stderr += chunk));
-  const exited = new Promise<NodeJS.Signals | null>((resolve) =>
-    child.on('exit', (_code, signal) => resolve(signal)),
-  );
-  for (let left = 100; left > 0 && !stderr.includes('listening'); left -= 1) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
   assert.equal(
-    await stopCommand(agentDir),
+    await stopCommand(root),
     `next-issue: stopped the worker with process id ${child.pid}\n`,
   );
   assert.equal(await exited, 'SIGTERM');
-  assert.deepEqual(await readdir(agentDir), []);
+  assert.deepEqual(await readdir(join(root, '.next-issue')), []);
+});
+
+test('a user who runs stop in one repository leaves the worker of another repository going', async (t) => {
+  const first = await repository();
+  const second = await repository();
+  const one = await serveWorker(first);
+  const two = await serveWorker(second);
+  t.after(() => one.child.kill('SIGKILL'));
+  t.after(() => two.child.kill('SIGKILL'));
+  await stopCommand(first);
+  assert.equal(await one.exited, 'SIGTERM');
+  assert.equal(two.child.exitCode, null);
+  assert.equal(two.child.signalCode, null);
+  assert.deepEqual((await readdir(join(second, '.next-issue'))).sort(), [
+    'worker.lock',
+    'worker.sock',
+  ]);
 });
 
 test('a user who runs stop with no worker alive sees that none is running', async () => {
-  const agentDir = await mkdtemp(join(tmpdir(), 'next-issue-'));
-  assert.equal(await stopCommand(agentDir), 'next-issue: no worker is running\n');
+  const root = await repository();
+  assert.equal(await stopCommand(root), 'next-issue: no worker is running\n');
   const dead = spawn(process.execPath, ['-e', '']);
   await new Promise((resolve) => dead.on('exit', resolve));
-  await writeFile(join(agentDir, 'next-issue.lock'), `${dead.pid}\n`);
-  assert.equal(await stopCommand(agentDir), 'next-issue: no worker is running\n');
+  await mkdir(join(root, '.next-issue'));
+  await writeFile(join(root, '.next-issue', 'worker.lock'), `${dead.pid}\n`);
+  assert.equal(await stopCommand(root), 'next-issue: no worker is running\n');
+});
+
+test('a user who serves a repository whose socket path is too long sees an error that says so', async () => {
+  const root = join(await mkdtemp(join(tmpdir(), 'next-issue-')), 'a'.repeat(120));
+  await mkdir(root);
+  await must('git', ['init', '-q'], { cwd: root });
+  const error = await promisify(execFile)(process.execPath, [CLI, 'serve'], { cwd: root }).then(
+    () => undefined,
+    (failure: { code: number; stderr: string }) => failure,
+  );
+  assert.equal(error?.code, 1);
+  assert.match(error?.stderr ?? '', /the socket path .*worker\.sock is too long for this system/);
 });
 
 function event(index: number): string {

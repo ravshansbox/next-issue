@@ -108,8 +108,10 @@ const KEY = Symbol.for('pi-next-issue');
 const workers: FakeWorker[] = [];
 
 afterEach(async () => {
-  const store = globalThis as Record<symbol, WorkerClient | undefined>;
-  store[KEY]?.close();
+  const store = globalThis as Record<symbol, Map<string, WorkerClient> | undefined>;
+  for (const client of store[KEY]?.values() ?? []) {
+    client.close();
+  }
   delete store[KEY];
   await Promise.all(workers.splice(0).map((worker) => worker.close()));
 });
@@ -121,15 +123,16 @@ function setup(
     version?: string;
     spawn?: (path: string) => Promise<void>;
     gh?: (call: GhCall) => void;
+    paths?: Record<string, string>;
   } = {},
 ) {
   const path = socketPath();
   const spawns: string[] = [];
   const calls: GhCall[] = [];
   const extension = createExtension({
-    client: () =>
+    client: (root) =>
       new WorkerClient({
-        socketPath: path,
+        socketPath: options.paths?.[root] ?? path,
         version: options.version ?? '1.0.0',
         spawnWorker: (version) => {
           spawns.push(version);
@@ -525,6 +528,43 @@ test('a user with a newer extension gets a new worker once the old idle worker c
   assert.equal(
     old.received.some((message) => message.type === 'start'),
     false,
+  );
+});
+
+test('a user starts a run in one repository while a run is going in another, each with its own worker', async () => {
+  const paths = { '/one': socketPath(), '/two': socketPath() };
+  const one = await worker(paths['/one']);
+  const two = await worker(paths['/two']);
+  one.runs['/one'] = running();
+  const { extension } = setup({ paths });
+  const first = host('tui', '/one');
+  const second = host('tui', '/two');
+  extension(first.pi as never);
+  extension(second.pi as never);
+  await first.emit('session_start');
+  await second.emit('session_start');
+  await second.command();
+  await until(() => two.received.some((message) => message.type === 'start'));
+  assert.deepEqual(
+    two.received.find((message) => message.type === 'start'),
+    { type: 'start', root: '/two', merge: true },
+  );
+  assert.equal(
+    one.received.some((message) => message.type === 'start'),
+    false,
+  );
+});
+
+test('a user whose worker socket path is too long for the system sees an error that says so', async () => {
+  const long = `/${'a'.repeat(200)}/worker.sock`;
+  const { spawns, extension } = setup({ paths: { '/long': long } });
+  const { pi, command, notes } = host('tui', '/long');
+  extension(pi as never);
+  await command();
+  assert.equal(spawns.length, 0);
+  assert.match(
+    notes[0] ?? '',
+    /^next-issue cannot start: the socket path \/a+\/worker\.sock is too long for this system/,
   );
 });
 

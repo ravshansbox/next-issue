@@ -1,8 +1,7 @@
 import { rmSync } from 'node:fs';
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { join } from 'node:path';
-import { getAgentDir } from '@earendil-works/pi-coding-agent';
+import { dirname, join } from 'node:path';
 import { type WebSocket, WebSocketServer } from 'ws';
 import { type Args, parseArgs } from './args.mts';
 import { loadConfig } from './config.mts';
@@ -21,6 +20,7 @@ import {
   type WorkerMessage,
 } from './protocol.mts';
 import { runRepo, type RunControls } from './run.mts';
+import { STATE_DIR } from './state.mts';
 import { packageVersion } from './version.mts';
 
 export type RunRepo = (root: string, args: Args, controls: RunControls) => Promise<number>;
@@ -28,9 +28,9 @@ export type RunRepo = (root: string, args: Args, controls: RunControls) => Promi
 export type ListQuestions = (root: string) => Promise<Question[]>;
 
 export type WorkerOptions = {
+  root: string;
   socketPath: string;
   lockPath: string;
-  rootsPath: string;
   version: string;
   runRepo: RunRepo;
   questions: ListQuestions;
@@ -47,16 +47,21 @@ type Run = {
   wake?: () => void;
 };
 
-export function socketPaths(agentDir = getAgentDir()): {
-  socketPath: string;
-  lockPath: string;
-  rootsPath: string;
-} {
+export function workerPaths(root: string): { socketPath: string; lockPath: string } {
   return {
-    socketPath: join(agentDir, 'next-issue.sock'),
-    lockPath: join(agentDir, 'next-issue.lock'),
-    rootsPath: join(agentDir, 'next-issue.roots.json'),
+    socketPath: join(root, STATE_DIR, 'worker.sock'),
+    lockPath: join(root, STATE_DIR, 'worker.lock'),
   };
+}
+
+export function checkSocketPath(path: string, platform = process.platform): void {
+  const size = platform === 'linux' ? 108 : 104;
+  const length = Buffer.byteLength(path);
+  if (length >= size) {
+    throw new Error(
+      `the socket path ${path} is too long for this system: ${length} bytes, at most ${size - 1}`,
+    );
+  }
 }
 
 function alive(pid: number): boolean {
@@ -99,38 +104,19 @@ async function lock(path: string): Promise<boolean> {
   return false;
 }
 
-async function readRoots(path: string): Promise<Set<string>> {
-  try {
-    const value: unknown = JSON.parse(await readFile(path, 'utf8'));
-    return new Set(Array.isArray(value) ? value.filter((root) => typeof root === 'string') : []);
-  } catch {
-    return new Set();
-  }
-}
-
 export async function listQuestions(root: string): Promise<Question[]> {
   const config = await loadConfig(root);
   return waitingQuestions(await detectRepo(root, config.remote), config, PORTS);
 }
 
 export async function startWorker(options: WorkerOptions): Promise<Worker | undefined> {
+  checkSocketPath(options.socketPath);
+  await mkdir(dirname(options.lockPath), { recursive: true });
   if (!(await lock(options.lockPath))) {
     return undefined;
   }
   await rm(options.socketPath, { force: true });
   const runs = new Map<string, Run>();
-  const roots = await readRoots(options.rootsPath);
-  let saving = Promise.resolve();
-  const remember = (root: string): void => {
-    if (roots.has(root)) {
-      return;
-    }
-    roots.add(root);
-    const value = `${JSON.stringify([...roots], null, 2)}\n`;
-    saving = saving
-      .then(() => writeFile(options.rootsPath, value, { mode: 0o600 }))
-      .catch(() => undefined);
-  };
   const reads = new Map<string, number>();
   type Questions = Extract<WorkerMessage, { type: 'questions' | 'questions-error' }>;
   const delivered = new WeakMap<WebSocket, Map<string, { read: number; value: Questions }>>();
@@ -160,7 +146,6 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     targets: () => Iterable<WebSocket>,
     id?: string,
   ): Promise<void> => {
-    remember(root);
     const read = (reads.get(root) ?? 0) + 1;
     reads.set(root, read);
     let value: Questions;
@@ -186,19 +171,22 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       (run) => run.progress.status === 'running' || run.progress.status === 'stopping',
     );
 
-  const close = async (): Promise<void> => {
-    for (const socket of sockets.clients) {
-      socket.terminate();
-    }
-    await new Promise<void>((resolve) => sockets.close(() => resolve()));
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-    await rm(options.socketPath, { force: true });
-    await saving;
-    await rm(options.lockPath, { force: true });
-    finish();
+  let closing: Promise<void> | undefined;
+  const close = (): Promise<void> => {
+    closing ??= (async () => {
+      for (const socket of sockets.clients) {
+        socket.terminate();
+      }
+      await new Promise<void>((resolve) => sockets.close(() => resolve()));
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await rm(options.socketPath, { force: true });
+      await rm(options.lockPath, { force: true });
+      finish();
+    })();
+    return closing;
   };
-  const restartWhenIdle = (): void => {
-    if (restart && !busy()) {
+  const closeWhenIdle = (): void => {
+    if ((restart || sockets.clients.size === 0) && !busy()) {
       void close();
     }
   };
@@ -215,7 +203,6 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     }
     const run: Run = { progress: startProgress(), stop: false };
     runs.set(root, run);
-    remember(root);
     const interrupts: Interrupts = {
       afterIssue: () => run.stop,
       afterRound: () => run.stop,
@@ -262,7 +249,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
         },
         (error: unknown) => update({ ...run.progress, status: 'failed', error: message(error) }),
       )
-      .finally(restartWhenIdle);
+      .finally(closeWhenIdle);
   };
 
   const stop = (root: string): void => {
@@ -279,9 +266,8 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   sockets.on('connection', (socket) => {
     send(socket, { type: 'hello', version: options.version });
     send(socket, snapshot());
-    for (const root of roots) {
-      void sendQuestions(root, () => [socket]);
-    }
+    void sendQuestions(options.root, () => [socket]);
+    socket.on('close', closeWhenIdle);
     socket.on('message', (data) => {
       let value: ClientMessage;
       try {
@@ -292,7 +278,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       if (value.type === 'hello') {
         if (isNewer(value.version, options.version)) {
           restart = true;
-          restartWhenIdle();
+          closeWhenIdle();
         }
       } else if (value.type === 'start') {
         start(socket, value.root, value.merge === true);
@@ -319,9 +305,10 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   return { closed, close };
 }
 
-export async function serve(): Promise<number> {
-  const paths = socketPaths();
+export async function serve(root: string): Promise<number> {
+  const paths = workerPaths(root);
   const worker = await startWorker({
+    root,
     ...paths,
     version: await packageVersion(),
     runRepo,

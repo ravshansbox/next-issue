@@ -1,11 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  type ExtensionAPI,
-  type ExtensionContext,
-  getAgentDir,
-} from '@earendil-works/pi-coding-agent';
+import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 import { must, type RunOptions } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
@@ -15,10 +11,11 @@ import {
   spawnWorker,
   WorkerClient,
   type WorkerEvent,
+  workerPaths,
 } from './src/worker.ts';
 
 export type Options = {
-  client: () => WorkerClient;
+  client: (root: string) => WorkerClient;
   root: (cwd: string) => Promise<string>;
   gh: (args: string[], options: RunOptions) => Promise<string>;
 };
@@ -39,10 +36,15 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function shared(create: () => WorkerClient): WorkerClient {
-  const store = globalThis as Record<symbol, WorkerClient | undefined>;
-  store[KEY] ??= create();
-  return store[KEY];
+function shared(create: (root: string) => WorkerClient, root: string): WorkerClient {
+  const store = globalThis as Record<symbol, Map<string, WorkerClient> | undefined>;
+  const clients = (store[KEY] ??= new Map());
+  let client = clients.get(root);
+  if (client === undefined) {
+    client = create(root);
+    clients.set(root, client);
+  }
+  return client;
 }
 
 function duration(ms: number): string {
@@ -103,14 +105,12 @@ function packageVersion(): string {
 }
 
 const fromMachine: Options = {
-  client: () => {
-    const agentDir = getAgentDir();
-    return new WorkerClient({
-      socketPath: join(agentDir, 'next-issue.sock'),
+  client: (root) =>
+    new WorkerClient({
+      socketPath: workerPaths(root).socketPath,
       version: packageVersion(),
-      spawnWorker: (version) => spawnWorker(agentDir, version),
-    });
-  },
+      spawnWorker: (version) => spawnWorker(root, version),
+    }),
   root: repoRoot,
   gh: (args, options) => must('gh', args, options),
 };
@@ -129,7 +129,7 @@ export function createExtension(options: Options) {
     let baseline = false;
 
     const current = (): Progress | undefined =>
-      root === undefined ? undefined : shared(options.client).runs[root];
+      root === undefined ? undefined : shared(options.client, root).runs[root];
 
     const render = () => {
       const progress = current();
@@ -164,7 +164,7 @@ export function createExtension(options: Options) {
 
     const askQuestions = () => {
       if (root !== undefined) {
-        shared(options.client).send({ type: 'questions', root });
+        shared(options.client, root).send({ type: 'questions', root });
       }
     };
 
@@ -214,15 +214,16 @@ export function createExtension(options: Options) {
 
     const follow = () => {
       unsubscribe?.();
+      if (root === undefined) {
+        return;
+      }
+      const client = shared(options.client, root);
       const progress = current();
       handled = progress?.handled.length ?? 0;
       status = progress?.status;
-      waiting =
-        root === undefined
-          ? undefined
-          : shared(options.client).questions[root]?.map((question) => question.issue);
-      baseline = !shared(options.client).connected;
-      unsubscribe = shared(options.client).subscribe(onEvent);
+      waiting = client.questions[root]?.map((question) => question.issue);
+      baseline = !client.connected;
+      unsubscribe = client.subscribe(onEvent);
       render();
       paintQuestions();
       if (!baseline) {
@@ -249,7 +250,7 @@ export function createExtension(options: Options) {
         return;
       }
       follow();
-      await shared(options.client).attach();
+      await shared(options.client, root).attach();
     });
 
     pi.on('session_shutdown', async () => {
@@ -272,7 +273,7 @@ export function createExtension(options: Options) {
         show(ctx);
         follow();
       }
-      const client = shared(options.client);
+      const client = shared(options.client, root);
       await client.ensure();
       return { client, root, progress: client.runs[root] };
     };
@@ -352,7 +353,7 @@ export function createExtension(options: Options) {
       parameters: Type.Object({}),
       async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
         const root = await options.root(ctx.cwd);
-        const client = shared(options.client);
+        const client = shared(options.client, root);
         await client.attach();
         if (!client.connected) {
           return report('no worker is running', root);
