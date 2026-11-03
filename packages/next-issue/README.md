@@ -248,6 +248,13 @@ jq -r 'select(.kind=="usage") | [.issue,.role,.turns,.total] | @tsv' \
   .next-issue/runs/*.jsonl
 ```
 
+`next-issue logs` shows the newest run log, one readable line per event, and
+then prints new events as the run adds them, until `Ctrl-C`. In a terminal it
+starts with the last events that fit the screen; in a pipe it starts with all
+of them. It stops when the reader of the pipe closes it; on Linux it notices
+this only at the next event. With `--json` it prints the raw JSON lines. This also shows a run of
+the worker, whose progress goes to no terminal.
+
 Three levels of console output:
 
 | Level       | Shows                                                            |
@@ -408,13 +415,14 @@ state of an issue that a label still holds back stays as it was.
 | `init`      | Write the config file with the defaults                                                                                       |
 | `serve`     | Run the worker that pi extensions talk to, see [Worker](#worker)                                                              |
 | `stop`      | Stop the worker, see [Worker](#worker)                                                                                        |
+| `logs`      | Show the latest run log and follow it, see [Observability](#observability)                                                    |
 | `--force`   | Replace an existing config file, with `init`                                                                                  |
 | `--once`    | Stop after the first handled issue                                                                                            |
 | `--max <n>` | Handle at most n issues                                                                                                       |
 | `--merge`   | Squash-merge the pull request after the approval, delete the remote branch and fix a failure of the checks on the base branch |
 | `--watch`   | Keep running, and read the open issues again after each pass                                                                  |
 | `--reset`   | Drop the saved budgets and findings, and keep the rest of the state                                                           |
-| `--json`    | Print the machine summary instead of the text one                                                                             |
+| `--json`    | Print the machine summary instead of the text one, or the raw JSON lines with `logs`                                          |
 | `--verbose` | Show every command and all agent output                                                                                       |
 | `--quiet`   | Show only the milestones and the summary                                                                                      |
 | `--help`    | Show the option list                                                                                                          |

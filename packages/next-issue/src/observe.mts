@@ -229,7 +229,7 @@ export function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function render(record: Fields): string {
+export function render(record: Fields): string {
   const time = new Date(String(record.ts)).toTimeString().slice(0, 8);
   const issue = record.issue === undefined ? '' : ` #${record.issue}`;
   const extras = Object.entries(record)

@@ -1,7 +1,7 @@
 import { CONFIG_FILE } from './config.mts';
 import type { Level } from './observe.mts';
 
-export type Command = 'run' | 'init' | 'serve' | 'stop';
+export type Command = 'run' | 'init' | 'serve' | 'stop' | 'logs';
 
 export type Args = {
   command: Command;
@@ -21,13 +21,14 @@ export const USAGE = `next-issue [command] [options]
   init         write ${CONFIG_FILE} with the defaults
   serve        run the worker that pi extensions talk to
   stop         stop the worker
+  logs         show the latest run log and follow it
 
   --once       stop after the first handled issue
   --max <n>    handle at most n issues
   --merge      squash-merge the pull request after the approval
   --watch      keep running and read the issues again after each pass
   --reset      drop the saved budgets and findings first
-  --json       print the machine summary instead of the text one
+  --json       print the machine summary instead of the text one, or raw lines with logs
   --force      replace an existing config file, with init
   --verbose    show every command and all agent output
   --quiet      show only the milestones and the summary
@@ -49,7 +50,7 @@ export function parseArgs(argv: string[]): Args {
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]!;
     if (index === 0 && !arg.startsWith('-')) {
-      if (arg !== 'init' && arg !== 'serve' && arg !== 'stop') {
+      if (arg !== 'init' && arg !== 'serve' && arg !== 'stop' && arg !== 'logs') {
         throw new Error(`Unknown command: ${arg}`);
       }
       args.command = arg;
