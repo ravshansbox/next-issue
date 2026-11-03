@@ -104,7 +104,7 @@ and exits with code 1. For each issue:
 
 ## Issue format
 
-Every agent prompt holds the body and the comments of the issue. An issue reads best with these sections, in this order:
+Every agent prompt holds the body of the issue and the comments of users with write or admin access to the repository. An issue reads best with these sections, in this order:
 
 1. `Problem`
 2. `Context and findings`
@@ -208,12 +208,15 @@ Every agent can run a shell command. The implementer and the fixer run with the
 permission checks off; the reviewer runs with a smaller tool set, but its shell
 has no limit on the commands. They all start in the worktree, but nothing holds
 them there: they can run any command, with your rights, anywhere on the machine.
-The prompt holds the title, the body and the comments of the issue, which come
-from GitHub.
+The prompt holds the title and the body of the issue, which come from GitHub.
+It also holds the comments of the issue, but only those by users with write or
+admin access to the repository. The harness leaves out every other comment and
+writes a `comment.skip` event with its author to the run log. If an access check
+fails for a reason other than a 404, the issue stops with an error.
 
-Thus a person who can write an issue or a comment can try to give an
-instruction to the agent. Use the harness only on a repository where you trust
-the issue authors, or run it in a container.
+Thus a person who can write an issue, or a writer who can comment, can try to
+give an instruction to the agent. Use the harness only on a repository where you
+trust the issue authors, or run it in a container.
 
 ## Observability
 
