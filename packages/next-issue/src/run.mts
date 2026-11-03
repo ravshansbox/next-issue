@@ -1,17 +1,17 @@
-import { writeFile } from "node:fs/promises";
-import { join, sep } from "node:path";
-import type { Args } from "./args.mts";
-import { type Config, loadConfig } from "./config.mts";
-import { setCommandObserver, setDefaultTimeout } from "./exec.mts";
-import { detectRepo, type Repo } from "./git.mts";
-import { defaultBranch } from "./github.mts";
-import type { Interrupts } from "./interrupt.mts";
-import { exitCode, type Loop, runIssues, watchIssues } from "./loop.mts";
-import { type Fields, message, pruneRuns, Recorder } from "./observe.mts";
-import { type Context, type IssueReport, pendingIssues, PORTS, processIssue } from "./pipeline.mts";
-import { STATE_DIR } from "./state.mts";
-import type { RunSummary } from "./summary.mts";
-import { packageVersion } from "./version.mts";
+import { writeFile } from 'node:fs/promises';
+import { join, sep } from 'node:path';
+import type { Args } from './args.mts';
+import { type Config, loadConfig } from './config.mts';
+import { setCommandObserver, setDefaultTimeout } from './exec.mts';
+import { detectRepo, type Repo } from './git.mts';
+import { defaultBranch } from './github.mts';
+import type { Interrupts } from './interrupt.mts';
+import { exitCode, type Loop, runIssues, watchIssues } from './loop.mts';
+import { type Fields, message, pruneRuns, Recorder } from './observe.mts';
+import { type Context, type IssueReport, pendingIssues, PORTS, processIssue } from './pipeline.mts';
+import { STATE_DIR } from './state.mts';
+import type { RunSummary } from './summary.mts';
+import { packageVersion } from './version.mts';
 
 export type RunControls = {
   interrupts: Interrupts;
@@ -27,15 +27,15 @@ setCommandObserver((record) => {
       continue;
     }
     recorder.event(
-      record.code === 0 ? "command" : "command.fail",
+      record.code === 0 ? 'command' : 'command.fail',
       {
-        cmd: `${record.command} ${record.args.join(" ")}`,
+        cmd: `${record.command} ${record.args.join(' ')}`,
         code: record.code,
         ms: record.ms,
         stderr: record.stderr.length > 0 ? record.stderr : undefined,
         timedOut: record.timedOut ? true : undefined,
       },
-      record.code === 0 ? "verbose" : "quiet",
+      record.code === 0 ? 'verbose' : 'quiet',
     );
   }
 });
@@ -47,7 +47,7 @@ export async function runRepo(root: string, args: Args, controls: RunControls): 
   const recorder = await Recorder.create(repo.root, args.level, controls.onEvent);
   const pruned = await pruneRuns(repo.root, config.keepRunDays);
   if (pruned > 0) {
-    recorder.event("runs.pruned", { files: pruned, keepDays: config.keepRunDays }, "verbose");
+    recorder.event('runs.pruned', { files: pruned, keepDays: config.keepRunDays }, 'verbose');
   }
   recorders.set(repo.root, recorder);
   try {
@@ -78,20 +78,20 @@ async function handle(
     ports: PORTS,
   };
   recorder.event(
-    "run.start",
+    'run.start',
     {
       version: await packageVersion(),
       repo: `${repo.owner}/${repo.name}`,
       base,
       log: recorder.logFile,
     },
-    "quiet",
+    'quiet',
   );
 
   const loop: Loop = {
     issues: async () => {
       const issues = await pendingIssues(context);
-      recorder.event("issues", { open: issues.length }, "quiet");
+      recorder.event('issues', { open: issues.length }, 'quiet');
       return issues;
     },
     process: (issue) => processIssue(context, issue),
@@ -103,7 +103,7 @@ async function handle(
     ? await watchIssues(args, {
         ...loop,
         wait: (minutes) => {
-          recorder.event("watch.wait", { minutes }, "quiet");
+          recorder.event('watch.wait', { minutes }, 'quiet');
           passStart = recorder.summary();
           return interrupts.sleep(minutes * 60_000);
         },
@@ -111,25 +111,25 @@ async function handle(
       })
     : await runIssues(args, loop);
   if (stoppedAt !== undefined) {
-    recorder.event("run.stop", { issue: stoppedAt }, "quiet");
+    recorder.event('run.stop', { issue: stoppedAt }, 'quiet');
   }
   if (error !== undefined) {
-    recorder.event("issues.fail", { error: message(error) }, "quiet");
+    recorder.event('issues.fail', { error: message(error) }, 'quiet');
   }
 
   recorder.event(
-    "run.end",
+    'run.end',
     {
-      done: count(reports, "done"),
-      needsHuman: count(reports, "needs-human"),
-      failed: count(reports, "error"),
-      skipped: count(reports, "skipped"),
+      done: count(reports, 'done'),
+      needsHuman: count(reports, 'needs-human'),
+      failed: count(reports, 'error'),
+      skipped: count(reports, 'skipped'),
       tokens: recorder.summary().total.total,
     },
-    "quiet",
+    'quiet',
   );
   const summary: RunSummary = { ...recorder.summary(), issues: reports };
-  const summaryFile = join(repo.root, STATE_DIR, "runs", `${recorder.runId}.summary.json`);
+  const summaryFile = join(repo.root, STATE_DIR, 'runs', `${recorder.runId}.summary.json`);
   await writeFile(summaryFile, `${JSON.stringify(summary, null, 2)}\n`);
   if (!args.watch) {
     await print(summary);
@@ -137,6 +137,6 @@ async function handle(
   return error === undefined ? exitCode(reports) : 1;
 }
 
-function count(reports: IssueReport[], outcome: IssueReport["outcome"]): number {
+function count(reports: IssueReport[], outcome: IssueReport['outcome']): number {
   return reports.filter((report) => report.outcome === outcome).length;
 }

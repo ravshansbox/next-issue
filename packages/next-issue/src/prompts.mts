@@ -1,29 +1,29 @@
-import type { Issue } from "./github.mts";
+import type { Issue } from './github.mts';
 
 const COMMIT_RULES = [
-  "Do not run git, gh or any push command. The harness commits for you.",
-  "End your final message with one line in the form `commit: <conventional commit subject>`.",
-].join("\n");
+  'Do not run git, gh or any push command. The harness commits for you.',
+  'End your final message with one line in the form `commit: <conventional commit subject>`.',
+].join('\n');
 
 function issueBlock(issue: Issue, comments: string[]): string {
   return [
     `# Issue #${issue.number}: ${issue.title}`,
-    issue.body.length > 0 ? issue.body : "(no description)",
-    comments.length > 0 ? `## Comments\n${comments.join("\n\n")}` : "",
+    issue.body.length > 0 ? issue.body : '(no description)',
+    comments.length > 0 ? `## Comments\n${comments.join('\n\n')}` : '',
   ]
     .filter((part) => part.length > 0)
-    .join("\n\n");
+    .join('\n\n');
 }
 
 export function implementPrompt(issue: Issue, comments: string[]): string {
   return [
-    "You are the implementer. Solve the issue below in this worktree.",
+    'You are the implementer. Solve the issue below in this worktree.',
     issueBlock(issue, comments),
-    "## Rules",
-    "Read the repository conventions first. Keep the change minimal and focused on the issue.",
-    "Add or update tests when the repository has a test suite.",
+    '## Rules',
+    'Read the repository conventions first. Keep the change minimal and focused on the issue.',
+    'Add or update tests when the repository has a test suite.',
     COMMIT_RULES,
-  ].join("\n\n");
+  ].join('\n\n');
 }
 
 export function hookPrompt(issue: Issue, comments: string[], role: string, output: string): string {
@@ -31,10 +31,10 @@ export function hookPrompt(issue: Issue, comments: string[], role: string, outpu
     `You are the ${role}. The harness could not commit your work for the issue below, because a git hook failed.`,
     issueBlock(issue, comments),
     `## Hook output\n${output}`,
-    "## Rules",
-    "Fix what the hook reports and keep the rest of the work in this worktree. Do not skip or weaken the hook.",
+    '## Rules',
+    'Fix what the hook reports and keep the rest of the work in this worktree. Do not skip or weaken the hook.',
     COMMIT_RULES,
-  ].join("\n\n");
+  ].join('\n\n');
 }
 
 export function capDiff(diff: string, maxChars: number): string {
@@ -51,46 +51,46 @@ export function reviewPrompt(
 ): string {
   const scope =
     earlier.length === 0
-      ? "Check correctness, scope, repository conventions and test cover."
+      ? 'Check correctness, scope, repository conventions and test cover.'
       : [
-          "This is a later round. Judge two things only:",
-          "whether the earlier findings below are now fixed, and whether the new commits broke something.",
-          "Do not raise a new point of taste. Do not repeat a finding that is fixed.",
-          "A `The fixer disputed every finding of this round` line answers all of the findings of that round, not one of them.",
-          "Withdraw every finding of that round if the dispute is correct. Repeat them all if the dispute is wrong.",
-          `## Earlier findings\n${earlier.join("\n")}`,
-        ].join("\n");
+          'This is a later round. Judge two things only:',
+          'whether the earlier findings below are now fixed, and whether the new commits broke something.',
+          'Do not raise a new point of taste. Do not repeat a finding that is fixed.',
+          'A `The fixer disputed every finding of this round` line answers all of the findings of that round, not one of them.',
+          'Withdraw every finding of that round if the dispute is correct. Repeat them all if the dispute is wrong.',
+          `## Earlier findings\n${earlier.join('\n')}`,
+        ].join('\n');
   return [
-    "You are the reviewer. Judge whether the diff solves the issue correctly.",
+    'You are the reviewer. Judge whether the diff solves the issue correctly.',
     issueBlock(issue, comments),
-    "## Diff",
-    "```diff",
+    '## Diff',
+    '```diff',
     diff,
-    "```",
-    "## Rules",
-    "Read files and run commands to prove what you say: the tests, the type check or the linter.",
-    "The worktree is ready to use. Do not change a file. Do not write with git or gh.",
-    "The harness discards each change that you make, so a change is only lost work.",
+    '```',
+    '## Rules',
+    'Read files and run commands to prove what you say: the tests, the type check or the linter.',
+    'The worktree is ready to use. Do not change a file. Do not write with git or gh.',
+    'The harness discards each change that you make, so a change is only lost work.',
     scope,
-    "Mark a finding blocking only for a wrong result, a missing part of the issue, a regression or a broken convention.",
-    "Give the result with the submit_result tool: a short summary and one entry per finding. The findings decide the outcome, so a problem that you leave out counts as no problem.",
-  ].join("\n\n");
+    'Mark a finding blocking only for a wrong result, a missing part of the issue, a regression or a broken convention.',
+    'Give the result with the submit_result tool: a short summary and one entry per finding. The findings decide the outcome, so a problem that you leave out counts as no problem.',
+  ].join('\n\n');
 }
 
-export type FixKind = "checks" | "review";
+export type FixKind = 'checks' | 'review';
 
 const UNRELATED_RULE = [
-  "The checks can fail for a reason this change did not cause: a test that is already broken on the base branch, one that exercises code the diff does not touch, or one that fails only under load.",
-  "Establish that before you fix anything. If the failure is not yours, change nothing and end your final message with one line in the form `unrelated: <one sentence on what fails and why it is not this change>`.",
-  "A person then reads it. Do not weaken, skip or re-record a test to make the checks pass.",
-].join("\n");
+  'The checks can fail for a reason this change did not cause: a test that is already broken on the base branch, one that exercises code the diff does not touch, or one that fails only under load.',
+  'Establish that before you fix anything. If the failure is not yours, change nothing and end your final message with one line in the form `unrelated: <one sentence on what fails and why it is not this change>`.',
+  'A person then reads it. Do not weaken, skip or re-record a test to make the checks pass.',
+].join('\n');
 
 const DISPUTE_RULE = [
-  "A finding can be wrong: it can miss a convention of this repository, ask for work that the issue does not want, or describe behaviour that the code does not have.",
-  "Establish that before you change anything. If every finding is wrong, change nothing and end your final message with one line in the form `unrelated: <one sentence on why the findings are wrong>`.",
-  "If only some of the findings are wrong, fix the correct ones and change nothing for the wrong ones. Write no `unrelated` line in that round. The next round holds only the findings that are left, and you can dispute them there.",
-  "The reviewer reads that line in the next round. Do not make a change that you hold to be wrong only to end the round.",
-].join("\n");
+  'A finding can be wrong: it can miss a convention of this repository, ask for work that the issue does not want, or describe behaviour that the code does not have.',
+  'Establish that before you change anything. If every finding is wrong, change nothing and end your final message with one line in the form `unrelated: <one sentence on why the findings are wrong>`.',
+  'If only some of the findings are wrong, fix the correct ones and change nothing for the wrong ones. Write no `unrelated` line in that round. The next round holds only the findings that are left, and you can dispute them there.',
+  'The reviewer reads that line in the next round. Do not make a change that you hold to be wrong only to end the round.',
+].join('\n');
 
 export function fixPrompt(
   issue: Issue,
@@ -105,18 +105,18 @@ export function fixPrompt(
     `## Detail\n${detail}`,
     earlier.length > 0
       ? [
-          "## Earlier rounds",
-          earlier.join("\n"),
-          "Keep those earlier fixes. Do not undo work that a later round did not question.",
-        ].join("\n")
-      : "",
-    "## Rules",
-    "Fix the cause, not the symptom. Keep the change minimal.",
-    kind === "checks" ? UNRELATED_RULE : DISPUTE_RULE,
+          '## Earlier rounds',
+          earlier.join('\n'),
+          'Keep those earlier fixes. Do not undo work that a later round did not question.',
+        ].join('\n')
+      : '',
+    '## Rules',
+    'Fix the cause, not the symptom. Keep the change minimal.',
+    kind === 'checks' ? UNRELATED_RULE : DISPUTE_RULE,
     COMMIT_RULES,
   ]
     .filter((part) => part.length > 0)
-    .join("\n\n");
+    .join('\n\n');
 }
 
 export function parseUnrelated(text: string): string | undefined {
@@ -129,7 +129,7 @@ export function parseCommitSubject(text: string, fallback: string): string {
   const match = [...text.matchAll(/^commit:\s*(.+)$/gim)].at(-1);
   const subject = match?.[1]
     ?.trim()
-    .replace(/^`+|`+$/g, "")
+    .replace(/^`+|`+$/g, '')
     .trim();
   return subject && subject.length > 0 ? subject : fallback;
 }

@@ -1,5 +1,5 @@
-import { must, run, type RunOptions } from "./exec.mts";
-import type { Repo } from "./git.mts";
+import { must, run, type RunOptions } from './exec.mts';
+import type { Repo } from './git.mts';
 
 export type Issue = {
   number: number;
@@ -9,14 +9,15 @@ export type Issue = {
   labels: string[];
 };
 
-export type Kind = "issue" | "pr";
+export type Kind = 'issue' | 'pr';
 
-export type CheckState = "pass" | "fail" | "pending" | "none" | "timeout";
+export type CheckState = 'pass' | 'fail' | 'pending' | 'none' | 'timeout';
 
 const CHECK_PENDING_CODE = 8;
 const READ_TRIES = 3;
 const NETWORK_TRIES = 3;
-const NETWORK_FAULT = /unexpected EOF|connection reset|connection refused|i\/o timeout|TLS handshake timeout|HTTP 50[234]/i;
+const NETWORK_FAULT =
+  /unexpected EOF|connection reset|connection refused|i\/o timeout|TLS handshake timeout|HTTP 50[234]/i;
 const KNOWN_LABELS = new Map<string, Set<string>>();
 const NO_CHECKS = /no checks reported/i;
 
@@ -24,7 +25,7 @@ type CheckSummary = { name: string; bucket: string; link: string; description: s
 
 type BaseRun = { databaseId: number; name: string; status: string; conclusion: string };
 
-const FAILED_CONCLUSIONS = new Set(["failure", "timed_out", "startup_failure"]);
+const FAILED_CONCLUSIONS = new Set(['failure', 'timed_out', 'startup_failure']);
 
 function slug(repo: Repo): string {
   return `${repo.owner}/${repo.name}`;
@@ -33,9 +34,13 @@ function slug(repo: Repo): string {
 async function repeatable(args: string[], options: RunOptions): Promise<string> {
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return await must("gh", args, options);
+      return await must('gh', args, options);
     } catch (error) {
-      if (attempt >= NETWORK_TRIES || !(error instanceof Error) || !NETWORK_FAULT.test(error.message)) {
+      if (
+        attempt >= NETWORK_TRIES ||
+        !(error instanceof Error) ||
+        !NETWORK_FAULT.test(error.message)
+      ) {
         throw error;
       }
       await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
@@ -44,15 +49,15 @@ async function repeatable(args: string[], options: RunOptions): Promise<string> 
 }
 
 async function gh(repo: Repo, args: string[]): Promise<string> {
-  return repeatable([...args, "--repo", slug(repo)], { cwd: repo.root });
+  return repeatable([...args, '--repo', slug(repo)], { cwd: repo.root });
 }
 
 async function ghOnce(repo: Repo, args: string[], input?: string): Promise<string> {
-  return must("gh", [...args, "--repo", slug(repo)], { cwd: repo.root, input });
+  return must('gh', [...args, '--repo', slug(repo)], { cwd: repo.root, input });
 }
 
 export async function defaultBranch(repo: Repo): Promise<string> {
-  const raw = await repeatable( ["repo", "view", slug(repo), "--json", "defaultBranchRef"], {
+  const raw = await repeatable(['repo', 'view', slug(repo), '--json', 'defaultBranchRef'], {
     cwd: repo.root,
   });
   return JSON.parse(raw).defaultBranchRef.name as string;
@@ -66,30 +71,31 @@ type RawIssue = {
   labels: Array<{ name: string }>;
 };
 
-const ISSUE_FIELDS = "number,title,body,createdAt,labels";
+const ISSUE_FIELDS = 'number,title,body,createdAt,labels';
 
 function toIssue(item: RawIssue): Issue {
   return {
     number: item.number,
     title: item.title,
-    body: item.body ?? "",
+    body: item.body ?? '',
     createdAt: item.createdAt,
     labels: item.labels.map((label) => label.name),
   };
 }
 
 export async function openIssues(repo: Repo, limit: number, labels: string[]): Promise<Issue[]> {
-  const filter = labels.length === 0 ? "" : ` label:${labels.map((label) => `"${label}"`).join(",")}`;
+  const filter =
+    labels.length === 0 ? '' : ` label:${labels.map((label) => `"${label}"`).join(',')}`;
   const raw = await gh(repo, [
-    "issue",
-    "list",
-    "--state",
-    "open",
-    "--search",
+    'issue',
+    'list',
+    '--state',
+    'open',
+    '--search',
     `sort:created-asc${filter}`,
-    "--limit",
+    '--limit',
     String(limit),
-    "--json",
+    '--json',
     ISSUE_FIELDS,
   ]);
   const parsed = JSON.parse(raw) as RawIssue[];
@@ -97,44 +103,46 @@ export async function openIssues(repo: Repo, limit: number, labels: string[]): P
 }
 
 export async function viewIssue(repo: Repo, issue: number): Promise<Issue & { open: boolean }> {
-  const raw = await gh(repo, ["issue", "view", String(issue), "--json", `${ISSUE_FIELDS},state`]);
+  const raw = await gh(repo, ['issue', 'view', String(issue), '--json', `${ISSUE_FIELDS},state`]);
   const parsed = JSON.parse(raw) as RawIssue & { state: string };
-  return { ...toIssue(parsed), open: parsed.state === "OPEN" };
+  return { ...toIssue(parsed), open: parsed.state === 'OPEN' };
 }
 
 export async function issueComments(repo: Repo, issue: number): Promise<string[]> {
-  const raw = await gh(repo, ["issue", "view", String(issue), "--json", "comments"]);
-  const parsed = JSON.parse(raw) as { comments: Array<{ author: { login: string }; body: string }> };
+  const raw = await gh(repo, ['issue', 'view', String(issue), '--json', 'comments']);
+  const parsed = JSON.parse(raw) as {
+    comments: Array<{ author: { login: string }; body: string }>;
+  };
   return parsed.comments.map((comment) => `@${comment.author.login}: ${comment.body}`);
 }
 
 export async function openBlockers(repo: Repo, issue: number): Promise<string[]> {
   const raw = await repeatable(
     [
-      "api",
-      "--paginate",
+      'api',
+      '--paginate',
       `repos/${slug(repo)}/issues/${issue}/dependencies/blocked_by`,
-      "--jq",
+      '--jq',
       '.[] | select(.state == "open") | (.repository_url | split("/") | .[-2:] | join("/")) + "#" + (.number | tostring)',
     ],
     { cwd: repo.root },
   );
   return raw
-    .split("\n")
+    .split('\n')
     .filter((line) => line.length > 0)
     .map((ref) => (ref.startsWith(`${slug(repo)}#`) ? ref.slice(slug(repo).length) : ref));
 }
 
 async function labelsOf(repo: Repo, kind: Kind, number: number): Promise<string[]> {
-  const raw = await gh(repo, [kind, "view", String(number), "--json", "labels"]);
+  const raw = await gh(repo, [kind, 'view', String(number), '--json', 'labels']);
   const parsed = JSON.parse(raw) as { labels: Array<{ name: string }> };
   return parsed.labels.map((label) => label.name);
 }
 
 export function labelArgs(add: string, remove: string[], current: string[]): string[] {
-  const args = ["--add-label", add];
+  const args = ['--add-label', add];
   for (const name of remove.filter((item) => item !== add && current.includes(item))) {
-    args.push("--remove-label", name);
+    args.push('--remove-label', name);
   }
   return args;
 }
@@ -148,20 +156,20 @@ export async function setLabel(
 ): Promise<void> {
   await ensureLabel(repo, add);
   const current = await labelsOf(repo, kind, number);
-  await gh(repo, [kind, "edit", String(number), ...labelArgs(add, remove, current)]);
+  await gh(repo, [kind, 'edit', String(number), ...labelArgs(add, remove, current)]);
 }
 
 async function ensureLabel(repo: Repo, label: string): Promise<void> {
   let known = KNOWN_LABELS.get(slug(repo));
   if (known === undefined) {
-    const raw = await gh(repo, ["label", "list", "--limit", "1000", "--json", "name"]);
+    const raw = await gh(repo, ['label', 'list', '--limit', '1000', '--json', 'name']);
     known = new Set((JSON.parse(raw) as Array<{ name: string }>).map((item) => item.name));
     KNOWN_LABELS.set(slug(repo), known);
   }
   if (known.has(label)) {
     return;
   }
-  const result = await run("gh", ["label", "create", label, "--repo", slug(repo)], {
+  const result = await run('gh', ['label', 'create', label, '--repo', slug(repo)], {
     cwd: repo.root,
   });
   if (result.code === 0) {
@@ -170,7 +178,16 @@ async function ensureLabel(repo: Repo, label: string): Promise<void> {
 }
 
 export async function findPr(repo: Repo, branch: string): Promise<number | undefined> {
-  const raw = await gh(repo, ["pr", "list", "--head", branch, "--state", "open", "--json", "number"]);
+  const raw = await gh(repo, [
+    'pr',
+    'list',
+    '--head',
+    branch,
+    '--state',
+    'open',
+    '--json',
+    'number',
+  ]);
   const parsed = JSON.parse(raw) as Array<{ number: number }>;
   return parsed[0]?.number;
 }
@@ -184,17 +201,17 @@ export async function createPr(
   draft: boolean,
 ): Promise<number> {
   const created = await ghOnce(repo, [
-    "pr",
-    "create",
-    "--head",
+    'pr',
+    'create',
+    '--head',
     branch,
-    "--base",
+    '--base',
     base,
-    "--title",
+    '--title',
     title,
-    "--body",
+    '--body',
     body,
-    ...(draft ? ["--draft"] : []),
+    ...(draft ? ['--draft'] : []),
   ]);
   const number = prNumber(created) ?? (await findPr(repo, branch));
   if (number === undefined) {
@@ -209,26 +226,24 @@ export function prNumber(output: string): number | undefined {
 }
 
 async function prHead(repo: Repo, pr: number): Promise<string> {
-  return gh(repo, ["pr", "view", String(pr), "--json", "headRefOid", "--jq", ".headRefOid"]);
+  return gh(repo, ['pr', 'view', String(pr), '--json', 'headRefOid', '--jq', '.headRefOid']);
 }
 
-async function readChecks(repo: Repo, pr: number): Promise<CheckSummary[] | "none"> {
+async function readChecks(repo: Repo, pr: number): Promise<CheckSummary[] | 'none'> {
   const result = await run(
-    "gh",
-    ["pr", "checks", String(pr), "--json", "name,bucket,link,description", "--repo", slug(repo)],
+    'gh',
+    ['pr', 'checks', String(pr), '--json', 'name,bucket,link,description', '--repo', slug(repo)],
     { cwd: repo.root },
   );
   const output = result.stdout.trim();
   if (output.length === 0) {
     if (NO_CHECKS.test(result.stderr)) {
-      return "none";
+      return 'none';
     }
-    throw new Error(
-      `gh pr checks ${pr} failed with code ${result.code}: ${result.stderr.trim()}`,
-    );
+    throw new Error(`gh pr checks ${pr} failed with code ${result.code}: ${result.stderr.trim()}`);
   }
   const checks = JSON.parse(output) as CheckSummary[];
-  return checks.length === 0 ? "none" : checks;
+  return checks.length === 0 ? 'none' : checks;
 }
 
 async function watchOnce(
@@ -239,22 +254,32 @@ async function watchOnce(
   show: boolean,
 ): Promise<CheckState> {
   const watch = await run(
-    "gh",
-    ["pr", "checks", String(pr), "--watch", "--fail-fast", "--interval", String(intervalSeconds), "--repo", slug(repo)],
+    'gh',
+    [
+      'pr',
+      'checks',
+      String(pr),
+      '--watch',
+      '--fail-fast',
+      '--interval',
+      String(intervalSeconds),
+      '--repo',
+      slug(repo),
+    ],
     { cwd: repo.root, show, timeoutMs },
   );
   if (watch.timedOut) {
-    return "timeout";
+    return 'timeout';
   }
   if (watch.code === 0) {
-    return "pass";
+    return 'pass';
   }
   if (watch.code === CHECK_PENDING_CODE) {
-    return "pending";
+    return 'pending';
   }
   const checks = await readChecks(repo, pr);
-  if (checks !== "none" && checks.some((check) => check.bucket === "fail")) {
-    return "fail";
+  if (checks !== 'none' && checks.some((check) => check.bucket === 'fail')) {
+    return 'fail';
   }
   throw new Error(
     `gh pr checks ${pr} --watch failed with code ${watch.code} and no check failed: ${watch.stderr.trim()}`,
@@ -263,7 +288,7 @@ async function watchOnce(
 
 export type ChecksProbe = {
   head: () => Promise<string>;
-  list: () => Promise<"none" | "some">;
+  list: () => Promise<'none' | 'some'>;
   watch: (timeoutMs: number) => Promise<CheckState>;
 };
 
@@ -297,7 +322,7 @@ export async function pollChecks(
   let failures = 0;
   for (;;) {
     if (rest() === 0) {
-      return "timeout";
+      return 'timeout';
     }
     const state = await read(probe, options.head, rest(), () => (shown ??= clock.now()));
     if (state instanceof Error) {
@@ -307,10 +332,10 @@ export async function pollChecks(
       }
     } else {
       failures = 0;
-      if (state === "none" && clock.now() - (shown ?? 0) >= options.graceMs) {
-        return "none";
+      if (state === 'none' && clock.now() - (shown ?? 0) >= options.graceMs) {
+        return 'none';
       }
-      if (state !== "none" && state !== "behind" && state !== "pending") {
+      if (state !== 'none' && state !== 'behind' && state !== 'pending') {
         return state;
       }
     }
@@ -323,14 +348,14 @@ async function read(
   head: string | undefined,
   timeoutMs: number,
   shown: () => void,
-): Promise<CheckState | "none" | "behind" | Error> {
+): Promise<CheckState | 'none' | 'behind' | Error> {
   try {
     if (head !== undefined && (await probe.head()) !== head) {
-      return "behind";
+      return 'behind';
     }
     shown();
-    if ((await probe.list()) === "none") {
-      return "none";
+    if ((await probe.list()) === 'none') {
+      return 'none';
     }
     return await probe.watch(timeoutMs);
   } catch (error) {
@@ -342,9 +367,8 @@ export function waitForChecks(repo: Repo, pr: number, options: WaitOptions): Pro
   return pollChecks(
     {
       head: () => prHead(repo, pr),
-      list: async () => ((await readChecks(repo, pr)) === "none" ? "none" : "some"),
-      watch: (timeoutMs) =>
-        watchOnce(repo, pr, options.intervalSeconds, timeoutMs, options.show),
+      list: async () => ((await readChecks(repo, pr)) === 'none' ? 'none' : 'some'),
+      watch: (timeoutMs) => watchOnce(repo, pr, options.intervalSeconds, timeoutMs, options.show),
     },
     options,
   );
@@ -352,11 +376,11 @@ export function waitForChecks(repo: Repo, pr: number, options: WaitOptions): Pro
 
 export async function failedCheckLogs(repo: Repo, pr: number, maxChars: number): Promise<string> {
   const checks = await readChecks(repo, pr);
-  if (checks === "none") {
-    return "The checks failed, but gh reports no check for the pull request.";
+  if (checks === 'none') {
+    return 'The checks failed, but gh reports no check for the pull request.';
   }
   const failed = checks
-    .filter((check) => check.bucket === "fail")
+    .filter((check) => check.bucket === 'fail')
     .map((check) => ({
       heading: `## ${check.name}\n${check.description}`,
       runId: /\/actions\/runs\/(\d+)/.exec(check.link)?.[1],
@@ -365,22 +389,35 @@ export async function failedCheckLogs(repo: Repo, pr: number, maxChars: number):
 }
 
 async function baseRuns(repo: Repo, sha: string): Promise<BaseRun[]> {
-  const raw = await gh(repo, ["run", "list", "--commit", sha, "--json", "databaseId,name,status,conclusion"]);
+  const raw = await gh(repo, [
+    'run',
+    'list',
+    '--commit',
+    sha,
+    '--json',
+    'databaseId,name,status,conclusion',
+  ]);
   return JSON.parse(raw) as BaseRun[];
 }
 
 function baseState(runs: BaseRun[]): CheckState {
-  if (runs.some((entry) => entry.status === "completed" && FAILED_CONCLUSIONS.has(entry.conclusion))) {
-    return "fail";
+  if (
+    runs.some((entry) => entry.status === 'completed' && FAILED_CONCLUSIONS.has(entry.conclusion))
+  ) {
+    return 'fail';
   }
-  return runs.every((entry) => entry.status === "completed") ? "pass" : "pending";
+  return runs.every((entry) => entry.status === 'completed') ? 'pass' : 'pending';
 }
 
-export function waitForBaseChecks(repo: Repo, sha: string, options: PollOptions): Promise<CheckState> {
+export function waitForBaseChecks(
+  repo: Repo,
+  sha: string,
+  options: PollOptions,
+): Promise<CheckState> {
   return pollChecks(
     {
       head: async () => sha,
-      list: async () => ((await baseRuns(repo, sha)).length === 0 ? "none" : "some"),
+      list: async () => ((await baseRuns(repo, sha)).length === 0 ? 'none' : 'some'),
       watch: async () => baseState(await baseRuns(repo, sha)),
     },
     options,
@@ -389,7 +426,7 @@ export function waitForBaseChecks(repo: Repo, sha: string, options: PollOptions)
 
 export async function failedBaseLogs(repo: Repo, sha: string, maxChars: number): Promise<string> {
   const failed = (await baseRuns(repo, sha))
-    .filter((entry) => entry.status === "completed" && FAILED_CONCLUSIONS.has(entry.conclusion))
+    .filter((entry) => entry.status === 'completed' && FAILED_CONCLUSIONS.has(entry.conclusion))
     .map((entry) => ({ heading: `## ${entry.name}`, runId: String(entry.databaseId) }));
   return runLogs(repo, failed, maxChars);
 }
@@ -406,7 +443,7 @@ async function runLogs(
     if (runId === undefined) {
       continue;
     }
-    const logs = await run("gh", ["run", "view", runId, "--log-failed", "--repo", slug(repo)], {
+    const logs = await run('gh', ['run', 'view', runId, '--log-failed', '--repo', slug(repo)], {
       cwd: repo.root,
       tailChars: share,
     });
@@ -415,15 +452,15 @@ async function runLogs(
       continue;
     }
     const reason = [`The log read failed with code ${logs.code}.`, logs.stderr.trim()]
-      .filter((line) => line !== "")
-      .join(" ");
-    parts.push([logs.stdout.trim(), reason].filter((line) => line !== "").join("\n"));
+      .filter((line) => line !== '')
+      .join(' ');
+    parts.push([logs.stdout.trim(), reason].filter((line) => line !== '').join('\n'));
   }
-  return parts.join("\n\n");
+  return parts.join('\n\n');
 }
 
 export async function markPrReady(repo: Repo, pr: number): Promise<boolean> {
-  const result = await run("gh", ["pr", "ready", String(pr), "--repo", slug(repo)], {
+  const result = await run('gh', ['pr', 'ready', String(pr), '--repo', slug(repo)], {
     cwd: repo.root,
   });
   return result.code === 0;
@@ -431,15 +468,18 @@ export async function markPrReady(repo: Repo, pr: number): Promise<boolean> {
 
 export async function mergePr(repo: Repo, pr: number): Promise<boolean> {
   const result = await run(
-    "gh",
-    ["pr", "merge", String(pr), "--squash", "--delete-branch", "--repo", slug(repo)],
+    'gh',
+    ['pr', 'merge', String(pr), '--squash', '--delete-branch', '--repo', slug(repo)],
     { cwd: repo.root },
   );
   return result.code === 0;
 }
 
 export async function prMerged(repo: Repo, pr: number): Promise<boolean> {
-  return (await gh(repo, ["pr", "view", String(pr), "--json", "state", "--jq", ".state"])).trim() === "MERGED";
+  return (
+    (await gh(repo, ['pr', 'view', String(pr), '--json', 'state', '--jq', '.state'])).trim() ===
+    'MERGED'
+  );
 }
 
 export async function mergeCommit(
@@ -450,13 +490,13 @@ export async function mergeCommit(
 ): Promise<string | undefined> {
   const deadline = clock.now() + options.timeoutMs;
   for (;;) {
-    const raw = await gh(repo, ["pr", "view", String(pr), "--json", "state,mergeCommit"]);
+    const raw = await gh(repo, ['pr', 'view', String(pr), '--json', 'state,mergeCommit']);
     const view = JSON.parse(raw) as { state: string; mergeCommit: { oid: string } | null };
-    if (view.state === "MERGED" && view.mergeCommit?.oid) {
+    if (view.state === 'MERGED' && view.mergeCommit?.oid) {
       return view.mergeCommit.oid;
     }
     const rest = deadline - clock.now();
-    if (view.state === "CLOSED" || rest <= 0) {
+    if (view.state === 'CLOSED' || rest <= 0) {
       return undefined;
     }
     await clock.sleep(Math.min(options.intervalSeconds * 1000, rest));
@@ -464,9 +504,9 @@ export async function mergeCommit(
 }
 
 export async function reopenIssue(repo: Repo, issue: number): Promise<void> {
-  await gh(repo, ["issue", "reopen", String(issue)]);
+  await gh(repo, ['issue', 'reopen', String(issue)]);
 }
 
 export async function commentOnPr(repo: Repo, pr: number, body: string): Promise<void> {
-  await ghOnce(repo, ["pr", "comment", String(pr), "--body-file", "-"], body);
+  await ghOnce(repo, ['pr', 'comment', String(pr), '--body-file', '-'], body);
 }

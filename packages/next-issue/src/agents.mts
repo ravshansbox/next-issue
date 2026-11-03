@@ -1,4 +1,4 @@
-import { join, sep } from "node:path";
+import { join, sep } from 'node:path';
 import {
   type AgentSessionEvent,
   createAgentSession,
@@ -9,10 +9,10 @@ import {
   SessionManager,
   type SettingsManager,
   type ToolDefinition,
-} from "@earendil-works/pi-coding-agent";
-import type { TSchema } from "typebox";
-import { onStop } from "./exec.mts";
-import { emptyUsage, type Fields, type Recorder, type Usage } from "./observe.mts";
+} from '@earendil-works/pi-coding-agent';
+import type { TSchema } from 'typebox';
+import { onStop } from './exec.mts';
+import { emptyUsage, type Fields, type Recorder, type Usage } from './observe.mts';
 
 export type Profile = {
   tools: string[];
@@ -48,19 +48,19 @@ export type AgentResult = {
 };
 
 const REVIEWING: Profile = {
-  tools: ["read", "bash", "grep", "find", "ls"],
+  tools: ['read', 'bash', 'grep', 'find', 'ls'],
 };
 
 const CODING: Profile = {
-  tools: ["read", "bash", "edit", "write", "grep", "find", "ls"],
+  tools: ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'],
 };
 
 export { CODING, REVIEWING };
 
-export const SUBMIT_TOOL = "submit_result";
+export const SUBMIT_TOOL = 'submit_result';
 
 export function isOwnExtension(path: string): boolean {
-  return path.split(sep).includes("pi-next-issue");
+  return path.split(sep).includes('pi-next-issue');
 }
 
 export async function runAgent(recorder: Recorder, request: AgentRequest): Promise<AgentResult> {
@@ -68,7 +68,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
   const runtime = request.runtime ?? {};
   const agentDir = runtime.agentDir ?? getAgentDir();
   const started = Date.now();
-  log.event("agent.start", { model: request.model, timeoutMs: request.timeoutMs }, "normal");
+  log.event('agent.start', { model: request.model, timeoutMs: request.timeoutMs }, 'normal');
 
   let structured: unknown;
   const customTools: ToolDefinition[] = [];
@@ -76,13 +76,13 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     customTools.push(
       defineTool({
         name: SUBMIT_TOOL,
-        label: "Submit result",
-        description: "Give the result. Call it once, as your last action.",
+        label: 'Submit result',
+        description: 'Give the result. Call it once, as your last action.',
         parameters: request.outputSchema as unknown as TSchema,
         async execute(_toolCallId, params) {
           structured = params;
           return {
-            content: [{ type: "text", text: "Result saved." }],
+            content: [{ type: 'text', text: 'Result saved.' }],
             details: {},
             terminate: true,
           };
@@ -100,9 +100,11 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     }),
   });
   await resourceLoader.reload();
-  const modelRuntime = runtime.modelRuntime ?? (await ModelRuntime.create({
-      authPath: join(agentDir, "auth.json"),
-      modelsPath: join(agentDir, "models.json"),
+  const modelRuntime =
+    runtime.modelRuntime ??
+    (await ModelRuntime.create({
+      authPath: join(agentDir, 'auth.json'),
+      modelsPath: join(agentDir, 'models.json'),
     }));
   const model =
     request.model === undefined ? undefined : await findModel(modelRuntime, request.model);
@@ -118,7 +120,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     ...(model === undefined ? {} : { model }),
   });
   if (modelFallbackMessage !== undefined) {
-    log.event("agent.model", { note: modelFallbackMessage }, "quiet");
+    log.event('agent.model', { note: modelFallbackMessage }, 'quiet');
   }
 
   let timedOut = false;
@@ -137,10 +139,10 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     if (timedOut) {
       throw new Error(`The ${request.name} agent did not finish in ${request.timeoutMs} ms.`);
     }
-    const last = session.messages.findLast((message) => message.role === "assistant");
-    if (last !== undefined && "stopReason" in last && last.stopReason === "error") {
+    const last = session.messages.findLast((message) => message.role === 'assistant');
+    if (last !== undefined && 'stopReason' in last && last.stopReason === 'error') {
       throw new Error(
-        `The ${request.name} agent failed: ${last.errorMessage ?? "no reason given"}`,
+        `The ${request.name} agent failed: ${last.errorMessage ?? 'no reason given'}`,
       );
     }
     const stats = session.getSessionStats();
@@ -156,7 +158,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
       costUsd: stats.cost,
     });
     return {
-      text: (session.getLastAssistantText() ?? "").trim(),
+      text: (session.getLastAssistantText() ?? '').trim(),
       usage,
       turns: stats.assistantMessages,
       toolCalls: stats.toolCalls,
@@ -175,7 +177,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
 }
 
 async function findModel(modelRuntime: ModelRuntime, name: string) {
-  const slash = name.indexOf("/");
+  const slash = name.indexOf('/');
   if (slash <= 0) {
     throw new Error(`The model ${name} is not in the form provider/model.`);
   }
@@ -187,23 +189,23 @@ async function findModel(modelRuntime: ModelRuntime, name: string) {
 }
 
 function observe(log: Recorder, event: AgentSessionEvent): void {
-  if (event.type === "tool_execution_start") {
-    log.event("tool", toolFields(event.toolName, event.args));
-  } else if (event.type === "tool_execution_end" && event.isError) {
-    log.event("tool.error", { tool: event.toolName }, "quiet");
+  if (event.type === 'tool_execution_start') {
+    log.event('tool', toolFields(event.toolName, event.args));
+  } else if (event.type === 'tool_execution_end' && event.isError) {
+    log.event('tool.error', { tool: event.toolName }, 'quiet');
   } else if (
-    event.type === "message_update" &&
-    event.assistantMessageEvent.type === "text_delta" &&
-    log.level === "verbose"
+    event.type === 'message_update' &&
+    event.assistantMessageEvent.type === 'text_delta' &&
+    log.level === 'verbose'
   ) {
     process.stderr.write(event.assistantMessageEvent.delta);
   }
 }
 
 export function toolFields(name: string, input: unknown): Fields {
-  if (name !== "bash" || typeof input !== "object" || input === null) {
+  if (name !== 'bash' || typeof input !== 'object' || input === null) {
     return { tool: name };
   }
   const { command } = input as { command?: unknown };
-  return typeof command === "string" ? { tool: name, command } : { tool: name };
+  return typeof command === 'string' ? { tool: name, command } : { tool: name };
 }

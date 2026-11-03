@@ -1,17 +1,19 @@
 #!/usr/bin/env node
-import { parseArgs, USAGE } from "./args.mts";
-import { writeDefaultConfig } from "./config.mts";
-import { ensureIgnored, repoRoot, WORKTREE_DIR } from "./git.mts";
-import { listenForInterrupts } from "./interrupt.mts";
-import { message } from "./observe.mts";
-import { runRepo } from "./run.mts";
-import { serve, socketPaths, stopWorker } from "./serve.mts";
-import { STATE_DIR } from "./state.mts";
-import { formatSummary } from "./summary.mts";
+import { parseArgs, USAGE } from './args.mts';
+import { writeDefaultConfig } from './config.mts';
+import { ensureIgnored, repoRoot, WORKTREE_DIR } from './git.mts';
+import { listenForInterrupts } from './interrupt.mts';
+import { message } from './observe.mts';
+import { runRepo } from './run.mts';
+import { serve, socketPaths, stopWorker } from './serve.mts';
+import { STATE_DIR } from './state.mts';
+import { formatSummary } from './summary.mts';
 
 function write(stream: NodeJS.WriteStream, text: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    stream.write(text, (error) => (error === null || error === undefined ? resolve() : reject(error)));
+    stream.write(text, (error) =>
+      error === null || error === undefined ? resolve() : reject(error),
+    );
   });
 }
 
@@ -21,26 +23,31 @@ async function main(): Promise<number> {
     await write(process.stdout, USAGE);
     return 0;
   }
-  if (args.command === "serve") {
+  if (args.command === 'serve') {
     return serve();
   }
-  if (args.command === "stop") {
+  if (args.command === 'stop') {
     const pid = await stopWorker(socketPaths().lockPath);
     await write(
       process.stdout,
-      pid === undefined ? "next-issue: no worker is running\n" : `next-issue: stopped the worker with process id ${pid}\n`,
+      pid === undefined
+        ? 'next-issue: no worker is running\n'
+        : `next-issue: stopped the worker with process id ${pid}\n`,
     );
     return 0;
   }
   const root = await repoRoot(process.cwd());
-  if (args.command === "init") {
+  if (args.command === 'init') {
     return init(root, args.force);
   }
   const interrupts = listenForInterrupts((text) => void write(process.stderr, `${text}\n`));
   return runRepo(root, args, {
     interrupts,
     print: (summary) =>
-      write(process.stdout, args.json ? `${JSON.stringify(summary, null, 2)}\n` : formatSummary(summary)),
+      write(
+        process.stdout,
+        args.json ? `${JSON.stringify(summary, null, 2)}\n` : formatSummary(summary),
+      ),
   });
 }
 

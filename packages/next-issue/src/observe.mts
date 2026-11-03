@@ -1,9 +1,9 @@
-import { createWriteStream, type WriteStream } from "node:fs";
-import { mkdir, readdir, rm, stat } from "node:fs/promises";
-import { join } from "node:path";
-import { STATE_DIR } from "./state.mts";
+import { createWriteStream, type WriteStream } from 'node:fs';
+import { mkdir, readdir, rm, stat } from 'node:fs/promises';
+import { join } from 'node:path';
+import { STATE_DIR } from './state.mts';
 
-export type Level = "quiet" | "normal" | "verbose";
+export type Level = 'quiet' | 'normal' | 'verbose';
 
 export type Fields = Record<string, unknown>;
 
@@ -108,11 +108,11 @@ export class Recorder {
     level: Level,
     listener?: (record: Fields) => void,
   ): Promise<Recorder> {
-    const runId = new Date().toISOString().replace(/[:.]/g, "-");
-    const dir = join(root, STATE_DIR, "runs");
+    const runId = new Date().toISOString().replace(/[:.]/g, '-');
+    const dir = join(root, STATE_DIR, 'runs');
     await mkdir(dir, { recursive: true });
     const file = join(dir, `${runId}.jsonl`);
-    const sink = new Sink(createWriteStream(file, { flags: "a" }), level, file, listener);
+    const sink = new Sink(createWriteStream(file, { flags: 'a' }), level, file, listener);
     return new Recorder(sink, {}, runId);
   }
 
@@ -128,7 +128,7 @@ export class Recorder {
     return new Recorder(this.sink, { ...this.base, ...fields }, this.runId);
   }
 
-  event(kind: string, fields: Fields = {}, visibility: Level = "normal"): void {
+  event(kind: string, fields: Fields = {}, visibility: Level = 'normal'): void {
     this.sink.count(kind);
     const record = {
       ts: new Date().toISOString(),
@@ -145,12 +145,12 @@ export class Recorder {
 
   usage(role: string, usage: Usage, ms: number, fields: Fields = {}): void {
     this.sink.add(role, usage, ms);
-    this.event("usage", { role, ms, ...usage, ...fields }, "normal");
+    this.event('usage', { role, ms, ...usage, ...fields }, 'normal');
   }
 
   async step<T>(kind: string, fields: Fields, run: () => Promise<T>): Promise<T> {
     const started = Date.now();
-    this.event(`${kind}.start`, fields, "verbose");
+    this.event(`${kind}.start`, fields, 'verbose');
     try {
       const result = await run();
       this.event(`${kind}.end`, { ...fields, ms: Date.now() - started });
@@ -159,7 +159,7 @@ export class Recorder {
       this.event(
         `${kind}.error`,
         { ...fields, ms: Date.now() - started, error: message(error) },
-        "quiet",
+        'quiet',
       );
       throw error;
     }
@@ -197,7 +197,7 @@ export async function pruneRuns(root: string, keepDays: number): Promise<number>
   if (keepDays <= 0) {
     return 0;
   }
-  const dir = join(root, STATE_DIR, "runs");
+  const dir = join(root, STATE_DIR, 'runs');
   let names: string[];
   try {
     names = await readdir(dir);
@@ -227,21 +227,21 @@ export function message(error: unknown): string {
 
 function render(record: Fields): string {
   const time = new Date(String(record.ts)).toTimeString().slice(0, 8);
-  const issue = record.issue === undefined ? "" : ` #${record.issue}`;
+  const issue = record.issue === undefined ? '' : ` #${record.issue}`;
   const extras = Object.entries(record)
-    .filter(([key]) => !["ts", "runId", "kind", "issue"].includes(key))
+    .filter(([key]) => !['ts', 'runId', 'kind', 'issue'].includes(key))
     .map(([key, value]) => `${key}=${short(value)}`)
-    .join(" ");
-  return `${time}${issue} ${String(record.kind)}${extras.length > 0 ? ` ${extras}` : ""}\n`;
+    .join(' ');
+  return `${time}${issue} ${String(record.kind)}${extras.length > 0 ? ` ${extras}` : ''}\n`;
 }
 
 function short(value: unknown): string {
   if (value === undefined || value === null) {
-    return "-";
+    return '-';
   }
-  if (typeof value === "number") {
+  if (typeof value === 'number') {
     return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(6)));
   }
-  const text = String(value).replace(/\s+/g, " ");
+  const text = String(value).replace(/\s+/g, ' ');
   return text.length > 120 ? `${text.slice(0, 117)}...` : text;
 }

@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from "node:child_process";
+import { type ChildProcess, spawn } from 'node:child_process';
 
 export type RunResult = {
   code: number;
@@ -52,18 +52,18 @@ export function stopChildren(signal: NodeJS.Signals): void {
     } catch {}
   }
   groups.clear();
-  process.off("SIGTERM", onTerminate);
+  process.off('SIGTERM', onTerminate);
   process.kill(process.pid, signal);
 }
 
-const onTerminate = (): void => stopChildren("SIGTERM");
+const onTerminate = (): void => stopChildren('SIGTERM');
 
 function watch(pid: number | undefined): void {
   if (pid === undefined) {
     return;
   }
   if (groups.size === 0) {
-    process.on("SIGTERM", onTerminate);
+    process.on('SIGTERM', onTerminate);
   }
   groups.add(pid);
 }
@@ -74,14 +74,14 @@ function unwatch(pid: number | undefined): void {
   }
   groups.delete(pid);
   if (groups.size === 0) {
-    process.off("SIGTERM", onTerminate);
+    process.off('SIGTERM', onTerminate);
   }
 }
 
 export function track(child: ChildProcess): void {
   watch(child.pid);
-  child.on("close", () => unwatch(child.pid));
-  child.on("error", () => unwatch(child.pid));
+  child.on('close', () => unwatch(child.pid));
+  child.on('error', () => unwatch(child.pid));
 }
 
 export function setCommandObserver(next: (record: CommandRecord) => void): void {
@@ -100,19 +100,19 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
       cwd: options.cwd,
       detached: true,
       stdio: [
-        options.input === undefined ? "ignore" : "pipe",
-        options.show === true ? 2 : "pipe",
-        "pipe",
+        options.input === undefined ? 'ignore' : 'pipe',
+        options.show === true ? 2 : 'pipe',
+        'pipe',
       ],
     });
     const pid = child.pid;
     watch(pid);
-    let stdout = "";
-    let stderr = "";
+    let stdout = '';
+    let stderr = '';
     let timedOut = false;
-    child.stdout?.setEncoding("utf8");
-    child.stderr?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk: string) => {
+    child.stdout?.setEncoding('utf8');
+    child.stderr?.setEncoding('utf8');
+    child.stdout?.on('data', (chunk: string) => {
       options.onStdout?.(chunk);
       stdout += chunk;
       if (options.tailChars !== undefined && stdout.length > options.tailChars) {
@@ -120,7 +120,7 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
       }
     });
     const stderrLimit = options.tailChars ?? STDERR_TAIL;
-    child.stderr?.on("data", (chunk: string) => {
+    child.stderr?.on('data', (chunk: string) => {
       stderr += chunk;
       if (stderr.length > stderrLimit) {
         stderr = stderr.slice(-stderrLimit);
@@ -129,13 +129,13 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
     const timer = setTimeout(() => {
       timedOut = true;
       if (pid === undefined) {
-        child.kill("SIGKILL");
+        child.kill('SIGKILL');
         return;
       }
       try {
-        process.kill(-pid, "SIGKILL");
+        process.kill(-pid, 'SIGKILL');
       } catch {
-        child.kill("SIGKILL");
+        child.kill('SIGKILL');
       }
     }, limit);
     let done = false;
@@ -153,18 +153,18 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
         cwd: options.cwd,
         code: result.code,
         ms: Date.now() - started,
-        stderr: result.code === 0 ? "" : stderr.trim(),
+        stderr: result.code === 0 ? '' : stderr.trim(),
         timedOut,
       });
       resolve(result);
     };
-    child.on("error", (error) => {
+    child.on('error', (error) => {
       clearTimeout(timer);
       unwatch(pid);
       done = true;
       reject(error);
     });
-    child.on("exit", (code) => {
+    child.on('exit', (code) => {
       if (!timedOut) {
         return;
       }
@@ -172,21 +172,27 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
       child.stderr?.destroy();
       settle(code);
     });
-    child.on("close", settle);
+    child.on('close', settle);
     if (options.input !== undefined) {
-      child.stdin?.on("error", () => undefined);
+      child.stdin?.on('error', () => undefined);
       child.stdin?.end(options.input);
     }
   });
 }
 
-export async function must(command: string, args: string[], options: RunOptions = {}): Promise<string> {
+export async function must(
+  command: string,
+  args: string[],
+  options: RunOptions = {},
+): Promise<string> {
   const result = await run(command, args, options);
   if (result.timedOut) {
-    throw new Error(`${command} ${args.join(" ")} did not finish in time.`);
+    throw new Error(`${command} ${args.join(' ')} did not finish in time.`);
   }
   if (result.code !== 0) {
-    throw new Error(`${command} ${args.join(" ")} failed with code ${result.code}: ${result.stderr.trim()}`);
+    throw new Error(
+      `${command} ${args.join(' ')} failed with code ${result.code}: ${result.stderr.trim()}`,
+    );
   }
   return result.stdout.trim();
 }

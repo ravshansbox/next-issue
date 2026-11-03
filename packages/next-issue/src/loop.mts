@@ -1,6 +1,6 @@
-import type { Args } from "./args.mts";
-import type { Issue } from "./github.mts";
-import type { IssueReport } from "./pipeline.mts";
+import type { Args } from './args.mts';
+import type { Issue } from './github.mts';
+import type { IssueReport } from './pipeline.mts';
 
 export type Loop = {
   issues: () => Promise<Issue[]>;
@@ -17,7 +17,7 @@ export const BACK_OFF_MINUTES = [1, 2, 3, 5, 10];
 
 export type LoopResult = { reports: IssueReport[]; stoppedAt?: number; error?: unknown };
 
-export async function runIssues(args: Pick<Args, "max" | "once">, loop: Loop): Promise<LoopResult> {
+export async function runIssues(args: Pick<Args, 'max' | 'once'>, loop: Loop): Promise<LoopResult> {
   const reports: IssueReport[] = [];
   const seen = new Set<number>();
   while (args.max === undefined || handled(reports) < args.max) {
@@ -37,14 +37,17 @@ export async function runIssues(args: Pick<Args, "max" | "once">, loop: Loop): P
     if (loop.stop() || report.halt === true) {
       return { reports, stoppedAt: issue.number };
     }
-    if (args.once && report.outcome !== "skipped") {
+    if (args.once && report.outcome !== 'skipped') {
       break;
     }
   }
   return { reports };
 }
 
-export async function watchIssues(args: Pick<Args, "max" | "once">, watch: Watch): Promise<LoopResult> {
+export async function watchIssues(
+  args: Pick<Args, 'max' | 'once'>,
+  watch: Watch,
+): Promise<LoopResult> {
   const limit = args.once ? 1 : args.max;
   const reports: IssueReport[] = [];
   let step = 0;
@@ -73,9 +76,11 @@ export async function watchIssues(args: Pick<Args, "max" | "once">, watch: Watch
 }
 
 export function exitCode(reports: IssueReport[]): number {
-  return reports.some((report) => report.outcome === "needs-human" || report.outcome === "error") ? 1 : 0;
+  return reports.some((report) => report.outcome === 'needs-human' || report.outcome === 'error')
+    ? 1
+    : 0;
 }
 
 function handled(reports: IssueReport[]): number {
-  return reports.filter((report) => report.outcome !== "skipped").length;
+  return reports.filter((report) => report.outcome !== 'skipped').length;
 }

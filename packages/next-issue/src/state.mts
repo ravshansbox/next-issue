@@ -1,10 +1,10 @@
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import type { Repo } from "./git.mts";
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import type { Repo } from './git.mts';
 
-export const STATE_DIR = ".next-issue";
+export const STATE_DIR = '.next-issue';
 
-export type Phase = "claimed" | "implemented" | "review";
+export type Phase = 'claimed' | 'implemented' | 'review';
 
 export type IssueState = {
   issue: number;
@@ -43,9 +43,9 @@ export async function readState(repo: Repo, issue: number): Promise<IssueState |
   const path = file(repo, issue);
   let text: string;
   try {
-    text = await readFile(path, "utf8");
+    text = await readFile(path, 'utf8');
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return undefined;
     }
     throw error;
@@ -62,42 +62,42 @@ export async function readState(repo: Repo, issue: number): Promise<IssueState |
   return parsed;
 }
 
-const PHASES: readonly unknown[] = ["claimed", "implemented", "review"];
+const PHASES: readonly unknown[] = ['claimed', 'implemented', 'review'];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return typeof value === 'object' && value !== null;
 }
 
-function isOptional(value: unknown, type: "number" | "string"): boolean {
+function isOptional(value: unknown, type: 'number' | 'string'): boolean {
   return value === undefined || typeof value === type;
 }
 
 function isBaseFix(value: unknown): value is BaseFix {
-  return isRecord(value) && typeof value.sha === "string" && typeof value.head === "string";
+  return isRecord(value) && typeof value.sha === 'string' && typeof value.head === 'string';
 }
 
 function isReviewRound(value: unknown): value is ReviewRound {
   return (
     isRecord(value) &&
-    typeof value.round === "number" &&
-    typeof value.fingerprint === "string" &&
-    typeof value.findings === "string" &&
-    isOptional(value.dispute, "string")
+    typeof value.round === 'number' &&
+    typeof value.fingerprint === 'string' &&
+    typeof value.findings === 'string' &&
+    isOptional(value.dispute, 'string')
   );
 }
 
 function isState(value: unknown): value is IssueState {
   return (
     isRecord(value) &&
-    typeof value.issue === "number" &&
+    typeof value.issue === 'number' &&
     PHASES.includes(value.phase) &&
-    typeof value.branch === "string" &&
-    isOptional(value.pr, "number") &&
-    isOptional(value.title, "string") &&
-    typeof value.ciFixes === "number" &&
-    isOptional(value.commitFixes, "number") &&
+    typeof value.branch === 'string' &&
+    isOptional(value.pr, 'number') &&
+    isOptional(value.title, 'string') &&
+    typeof value.ciFixes === 'number' &&
+    isOptional(value.commitFixes, 'number') &&
     (value.baseFix === undefined || isBaseFix(value.baseFix)) &&
-    typeof value.reviewRounds === "number" &&
+    typeof value.reviewRounds === 'number' &&
     Array.isArray(value.reviewLog) &&
     value.reviewLog.every(isReviewRound)
   );
@@ -108,7 +108,7 @@ export async function savedIssues(repo: Repo): Promise<number[]> {
   try {
     names = await readdir(dir(repo));
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return [];
     }
     throw error;

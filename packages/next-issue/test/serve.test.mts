@@ -1,19 +1,19 @@
-import assert from "node:assert/strict";
-import { stat, writeFile } from "node:fs/promises";
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { test, type TestContext } from "node:test";
-import { WebSocket } from "ws";
-import type { Args } from "../src/args.mts";
-import type { RunControls } from "../src/run.mts";
+import assert from 'node:assert/strict';
+import { stat, writeFile } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { test, type TestContext } from 'node:test';
+import { WebSocket } from 'ws';
+import type { Args } from '../src/args.mts';
+import type { RunControls } from '../src/run.mts';
 import {
   type ClientMessage,
   isNewer,
   type RunRepo,
   startWorker,
   type WorkerMessage,
-} from "../src/serve.mts";
+} from '../src/serve.mts';
 
 type Client = {
   send: (value: ClientMessage) => void;
@@ -25,16 +25,16 @@ async function connect(t: TestContext, socketPath: string): Promise<Client> {
   const socket = new WebSocket(`ws+unix://${socketPath}:/`);
   const seen: WorkerMessage[] = [];
   const waiters: (() => void)[] = [];
-  socket.on("message", (data) => {
+  socket.on('message', (data) => {
     seen.push(JSON.parse(String(data)) as WorkerMessage);
     for (const waiter of waiters.splice(0)) {
       waiter();
     }
   });
-  const closed = new Promise<void>((resolve) => socket.once("close", () => resolve()));
+  const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()));
   await new Promise<void>((resolve, reject) => {
-    socket.once("open", () => resolve());
-    socket.once("error", reject);
+    socket.once('open', () => resolve());
+    socket.once('error', reject);
   });
   t.after(() => socket.terminate());
   return {
@@ -77,135 +77,143 @@ function fakeRuns(): Fake {
   };
 }
 
-async function worker(t: TestContext, fake: Fake, version = "2.0.0") {
-  const dir = await mkdtemp(join(tmpdir(), "next-issue-"));
-  const paths = { socketPath: join(dir, "w.sock"), lockPath: join(dir, "w.lock") };
+async function worker(t: TestContext, fake: Fake, version = '2.0.0') {
+  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const paths = { socketPath: join(dir, 'w.sock'), lockPath: join(dir, 'w.lock') };
   const started = await startWorker({ ...paths, version, runRepo: fake.runRepo });
   assert.ok(started);
   t.after(() => started.close());
   return { ...paths, worker: started };
 }
 
-const runsOf = (value: WorkerMessage) => value.type === "runs";
+const runsOf = (value: WorkerMessage) => value.type === 'runs';
 
-test("a client that connects gets the worker version and the runs", async (t) => {
+test('a client that connects gets the worker version and the runs', async (t) => {
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  assert.deepEqual(await client.next((value) => value.type === "hello"), {
-    type: "hello",
-    version: "2.0.0",
+  assert.deepEqual(await client.next((value) => value.type === 'hello'), {
+    type: 'hello',
+    version: '2.0.0',
   });
-  assert.deepEqual(await client.next(runsOf), { type: "runs", runs: {} });
+  assert.deepEqual(await client.next(runsOf), { type: 'runs', runs: {} });
 });
 
-test("only the user who starts the worker can open its socket file", async (t) => {
+test('only the user who starts the worker can open its socket file', async (t) => {
   const { socketPath } = await worker(t, fakeRuns());
   assert.equal((await stat(socketPath)).mode & 0o777, 0o600);
 });
 
-test("a client that starts a run sees the progress of the run in every client", async (t) => {
+test('a client that starts a run sees the progress of the run in every client', async (t) => {
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const starter = await connect(t, socketPath);
   const watcher = await connect(t, socketPath);
   await watcher.next(runsOf);
-  starter.send({ type: "start", root: "/repo", merge: true });
-  await watcher.next((value) => value.type === "runs" && value.runs["/repo"] !== undefined);
-  assert.equal(fake.calls[0]!.root, "/repo");
+  starter.send({ type: 'start', root: '/repo', merge: true });
+  await watcher.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
+  assert.equal(fake.calls[0]!.root, '/repo');
   assert.equal(fake.calls[0]!.args.merge, true);
-  fake.controls().onEvent!({ kind: "issue.start", issue: 7, ts: "2026-11-02T10:00:00.000Z" });
+  fake.controls().onEvent!({ kind: 'issue.start', issue: 7, ts: '2026-11-02T10:00:00.000Z' });
   const running = await watcher.next(
-    (value) => value.type === "runs" && value.runs["/repo"]?.issue === 7,
+    (value) => value.type === 'runs' && value.runs['/repo']?.issue === 7,
   );
-  assert.equal(running.type === "runs" && running.runs["/repo"]!.status, "running");
+  assert.equal(running.type === 'runs' && running.runs['/repo']!.status, 'running');
   fake.finish();
   await watcher.next(
-    (value) => value.type === "runs" && value.runs["/repo"]?.status === "finished",
+    (value) => value.type === 'runs' && value.runs['/repo']?.status === 'finished',
   );
 });
 
-test("a client that starts a second run in the same repository gets an error", async (t) => {
+test('a client that starts a second run in the same repository gets an error', async (t) => {
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: "start", root: "/repo", merge: true });
-  client.send({ type: "start", root: "/repo", merge: true });
-  assert.deepEqual(await client.next((value) => value.type === "error"), {
-    type: "error",
-    root: "/repo",
-    message: "a run is going in this repository already",
+  client.send({ type: 'start', root: '/repo', merge: true });
+  client.send({ type: 'start', root: '/repo', merge: true });
+  assert.deepEqual(await client.next((value) => value.type === 'error'), {
+    type: 'error',
+    root: '/repo',
+    message: 'a run is going in this repository already',
   });
   assert.equal(fake.calls.length, 1);
 });
 
-test("a client that stops a run sees it stop after the round and end as stopped", async (t) => {
+test('a client that stops a run sees it stop after the round and end as stopped', async (t) => {
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: "start", root: "/repo", merge: false });
-  await client.next((value) => value.type === "runs" && value.runs["/repo"] !== undefined);
+  client.send({ type: 'start', root: '/repo', merge: false });
+  await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
   const controls = fake.controls();
   const asleep = controls.interrupts.sleep(60_000);
-  client.send({ type: "stop", root: "/repo" });
-  await client.next((value) => value.type === "runs" && value.runs["/repo"]?.status === "stopping");
+  client.send({ type: 'stop', root: '/repo' });
+  await client.next((value) => value.type === 'runs' && value.runs['/repo']?.status === 'stopping');
   assert.equal(controls.interrupts.afterRound(), true);
   assert.equal(controls.interrupts.afterIssue(), true);
   assert.equal(await asleep, false);
   fake.finish();
-  await client.next((value) => value.type === "runs" && value.runs["/repo"]?.status === "stopped");
+  await client.next((value) => value.type === 'runs' && value.runs['/repo']?.status === 'stopped');
 });
 
-test("a second worker does not start while the first one holds the lock", async (t) => {
+test('a second worker does not start while the first one holds the lock', async (t) => {
   const fake = fakeRuns();
   const { socketPath, lockPath } = await worker(t, fake);
-  assert.equal(await startWorker({ socketPath, lockPath, version: "2.0.0", runRepo: fake.runRepo }), undefined);
+  assert.equal(
+    await startWorker({ socketPath, lockPath, version: '2.0.0', runRepo: fake.runRepo }),
+    undefined,
+  );
 });
 
-test("a worker takes over the lock and the socket file that a dead worker left", async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), "next-issue-"));
-  const socketPath = join(dir, "w.sock");
-  const lockPath = join(dir, "w.lock");
-  await writeFile(lockPath, "999999999\n");
-  await writeFile(socketPath, "");
-  const started = await startWorker({ socketPath, lockPath, version: "2.0.0", runRepo: fakeRuns().runRepo });
+test('a worker takes over the lock and the socket file that a dead worker left', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const socketPath = join(dir, 'w.sock');
+  const lockPath = join(dir, 'w.lock');
+  await writeFile(lockPath, '999999999\n');
+  await writeFile(socketPath, '');
+  const started = await startWorker({
+    socketPath,
+    lockPath,
+    version: '2.0.0',
+    runRepo: fakeRuns().runRepo,
+  });
   assert.ok(started);
   t.after(() => started.close());
   await connect(t, socketPath);
 });
 
-test("a worker that meets a newer client closes once no run is going", async (t) => {
+test('a worker that meets a newer client closes once no run is going', async (t) => {
   const fake = fakeRuns();
   const { socketPath, worker: started } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: "start", root: "/repo", merge: true });
-  await client.next((value) => value.type === "runs" && value.runs["/repo"] !== undefined);
-  client.send({ type: "hello", version: "2.1.0" });
-  client.send({ type: "start", root: "/other", merge: true });
-  assert.deepEqual(await client.next((value) => value.type === "error"), {
-    type: "error",
-    root: "/other",
-    message: "the worker is restarting, try again soon",
+  client.send({ type: 'start', root: '/repo', merge: true });
+  await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
+  client.send({ type: 'hello', version: '2.1.0' });
+  client.send({ type: 'start', root: '/other', merge: true });
+  assert.deepEqual(await client.next((value) => value.type === 'error'), {
+    type: 'error',
+    root: '/other',
+    message: 'the worker is restarting, try again soon',
   });
   fake.finish();
   await started.closed;
   await client.closed;
 });
 
-test("a worker that meets an older or equal client keeps running", async (t) => {
+test('a worker that meets an older or equal client keeps running', async (t) => {
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: "hello", version: "1.9.9" });
-  client.send({ type: "hello", version: "2.0.0" });
-  client.send({ type: "start", root: "/repo", merge: true });
-  await client.next((value) => value.type === "runs" && value.runs["/repo"] !== undefined);
+  client.send({ type: 'hello', version: '1.9.9' });
+  client.send({ type: 'hello', version: '2.0.0' });
+  client.send({ type: 'start', root: '/repo', merge: true });
+  await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
   assert.equal(fake.calls.length, 1);
 });
 
-test("a version is newer only when a part of it is greater", () => {
-  assert.equal(isNewer("2.0.1", "2.0.0"), true);
-  assert.equal(isNewer("2.10.0", "2.9.0"), true);
-  assert.equal(isNewer("2.0.0", "2.0.0"), false);
-  assert.equal(isNewer("1.9.9", "2.0.0"), false);
+test('a version is newer only when a part of it is greater', () => {
+  assert.equal(isNewer('2.0.1', '2.0.0'), true);
+  assert.equal(isNewer('2.10.0', '2.9.0'), true);
+  assert.equal(isNewer('2.0.0', '2.0.0'), false);
+  assert.equal(isNewer('1.9.9', '2.0.0'), false);
 });
