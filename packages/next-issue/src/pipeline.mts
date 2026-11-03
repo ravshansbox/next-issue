@@ -232,9 +232,15 @@ export async function pendingIssues(context: Context): Promise<Issue[]> {
     if (saved === undefined) {
       continue;
     }
-    const { open, ...issue } = await ports.viewIssue(repo, number);
-    if (open || (saved.pr !== undefined && (await ports.prMerged(repo, saved.pr)))) {
-      issues.push(issue);
+    try {
+      const { open, ...issue } = await ports.viewIssue(repo, number);
+      if (open || (saved.pr !== undefined && (await ports.prMerged(repo, saved.pr)))) {
+        issues.push(issue);
+      }
+    } catch (error) {
+      context.recorder
+        .scope({ issue: number })
+        .event('issue.error', { error: message(error) }, 'quiet');
     }
   }
   return issues.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
