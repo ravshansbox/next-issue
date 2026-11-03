@@ -31,7 +31,8 @@ export type WorkerMessage =
 
 export type WorkerEvent =
   | { type: 'runs'; runs: Record<string, Progress> }
-  | { type: 'error'; root: string; message: string };
+  | { type: 'error'; root: string; message: string }
+  | { type: 'closed' };
 
 export type WorkerOptions = {
   socketPath: string;
@@ -227,6 +228,7 @@ export class WorkerClient {
       socket.once('close', () => {
         if (this.socket === socket) {
           this.socket = undefined;
+          this.emit({ type: 'closed' });
           this.scheduleReconnect();
         }
         if (!hello) {

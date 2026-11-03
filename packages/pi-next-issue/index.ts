@@ -5,6 +5,7 @@ import {
   type ExtensionContext,
   getAgentDir,
 } from '@earendil-works/pi-coding-agent';
+import { Type } from 'typebox';
 import { repoRoot } from './src/git.ts';
 import { type Progress, spawnWorker, WorkerClient, type WorkerEvent } from './src/worker.ts';
 
@@ -144,7 +145,7 @@ export function createExtension(options: Options) {
         render();
       } else if (event.type === 'runs') {
         onProgress(root === undefined ? undefined : event.runs[root]);
-      } else if (event.root === root) {
+      } else if (event.type === 'error' && event.root === root) {
         ui?.notify(`next-issue cannot start: ${event.message}`, 'error');
       }
     };
@@ -189,19 +190,84 @@ export function createExtension(options: Options) {
       ui = undefined;
     });
 
+    const connect = async (ctx: ExtensionContext) => {
+      root = await options.root(ctx.cwd);
+      if (ctx.hasUI) {
+        show(ctx);
+        follow();
+      }
+      const client = shared(options.client);
+      await client.ensure();
+      return { client, root, progress: client.runs[root] };
+    };
+
+    const going = (progress: Progress | undefined): progress is Progress =>
+      progress?.status === 'running' || progress?.status === 'stopping';
+
+    const accepted = (client: WorkerClient, root: string, signal: AbortSignal | undefined) =>
+      new Promise<void>((resolve, reject) => {
+        const finish = (error?: Error) => {
+          stop();
+          signal?.removeEventListener('abort', abort);
+          if (error === undefined) {
+            resolve();
+          } else {
+            reject(error);
+          }
+        };
+        const abort = () => finish(new Error('next_issue_start was cancelled'));
+        const stop = client.subscribe((event) => {
+          if (event.type === 'error' && event.root === root) {
+            finish(new Error(event.message));
+          } else if (event.type === 'closed') {
+            finish(new Error('the worker closed the connection'));
+          } else if (event.type === 'runs' && going(event.runs[root])) {
+            finish();
+          }
+        });
+        if (signal?.aborted) {
+          abort();
+        } else {
+          signal?.addEventListener('abort', abort, { once: true });
+        }
+      });
+
+    pi.registerTool({
+      name: 'next_issue_start',
+      label: 'Start next-issue',
+      description:
+        'Start a next-issue run of the GitHub issues of this repository when none is going. Starts the worker when needed. When a run is going, starts nothing and reports that run, which picks up new issues by itself.',
+      promptSnippet: 'Start a next-issue run of this repository when none is going',
+      parameters: Type.Object({}),
+      async execute(_toolCallId, _params, signal, _onUpdate, ctx) {
+        const { client, root, progress } = await connect(ctx);
+        if (going(progress)) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `A run of ${root} is going already, so nothing started: ${formatStatus(progress, Date.now())}. It picks up new issues by itself.`,
+              },
+            ],
+            details: { started: false, root },
+          };
+        }
+        const accepting = accepted(client, root, signal);
+        client.send({ type: 'start', root, merge: true });
+        await accepting;
+        return {
+          content: [{ type: 'text', text: `Started a next-issue run of ${root}.` }],
+          details: { started: true, root },
+        };
+      },
+    });
+
     pi.registerCommand('next-issue', {
       description: 'Start or stop working through the GitHub issues of this repository',
       handler: async (_args, ctx) => {
         try {
-          root = await options.root(ctx.cwd);
-          if (ctx.hasUI) {
-            show(ctx);
-            follow();
-          }
-          const client = shared(options.client);
-          await client.ensure();
-          const progress = client.runs[root];
-          if (progress?.status === 'running' || progress?.status === 'stopping') {
+          const { client, root, progress } = await connect(ctx);
+          if (going(progress)) {
             client.send({ type: 'stop', root });
           } else {
             client.send({ type: 'start', root, merge: true });

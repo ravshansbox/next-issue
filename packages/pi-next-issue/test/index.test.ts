@@ -5,11 +5,25 @@ import { type Progress, WorkerClient } from '../src/worker.ts';
 import { type FakeWorker, running, socketPath, startFakeWorker, until } from './fake-worker.ts';
 
 type Handler = (event: unknown, ctx: unknown) => unknown;
+type ToolResult = {
+  content: Array<{ type: string; text: string }>;
+  details: { started: boolean; root: string };
+};
+type ToolExecute = (
+  toolCallId: string,
+  params: unknown,
+  signal: unknown,
+  onUpdate: unknown,
+  ctx: unknown,
+) => Promise<ToolResult>;
 
 function host(mode = 'tui', cwd = '/repo') {
   const commands = new Map<string, (args: string, ctx: unknown) => Promise<void>>();
   const handlers = new Map<string, Handler[]>();
+  const tools = new Map<string, ToolExecute>();
   const pi = {
+    registerTool: (options: { name: string; execute: ToolExecute }) =>
+      tools.set(options.name, options.execute),
     registerCommand: (
       name: string,
       options: { handler: (args: string, ctx: unknown) => Promise<void> },
@@ -42,7 +56,9 @@ function host(mode = 'tui', cwd = '/repo') {
     }
   };
   const command = () => commands.get('next-issue')!('', ctx);
-  return { pi, ctx, status, painted, widgets, notes, emit, command };
+  const start = (signal?: AbortSignal) =>
+    tools.get('next_issue_start')!('call', {}, signal, undefined, ctx);
+  return { pi, ctx, status, painted, widgets, notes, emit, command, start };
 }
 
 const KEY = Symbol.for('pi-next-issue');
@@ -103,6 +119,104 @@ test('a user who runs /next-issue with no worker going starts one and asks it to
     started!.received.find((message) => message.type === 'start'),
     { type: 'start', root: '/repo', merge: true },
   );
+});
+
+test('a model that calls next_issue_start with no worker going starts one, asks it to run this repository with merge on and reports the start', async () => {
+  let started: FakeWorker | undefined;
+  const { spawns, extension } = setup({
+    spawn: async (path) => {
+      started = await startFakeWorker(path, '1.0.0', (self, message) => {
+        if (message.type === 'start') {
+          self.update(message.root, running());
+        }
+      });
+      workers.push(started);
+    },
+  });
+  const { pi, emit, start } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const result = await start();
+  assert.equal(spawns.length, 1);
+  assert.deepEqual(result.details, { started: true, root: '/repo' });
+  assert.equal(result.content[0]?.text, 'Started a next-issue run of /repo.');
+  await until(() => started?.received.some((message) => message.type === 'start') === true);
+  assert.deepEqual(
+    started!.received.find((message) => message.type === 'start'),
+    { type: 'start', root: '/repo', merge: true },
+  );
+});
+
+test('a model that calls next_issue_start while a run is going starts nothing and reports the current run', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({ issue: 7, stage: 'implement', tools: 3 });
+  const { pi, emit, start } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const result = await start();
+  assert.deepEqual(result.details, { started: false, root: '/repo' });
+  assert.equal(
+    result.content[0]?.text,
+    'A run of /repo is going already, so nothing started: next-issue #7 · implement · 3 tools. It picks up new issues by itself.',
+  );
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(
+    fake.received.filter((message) => message.type === 'start' || message.type === 'stop'),
+    [],
+  );
+});
+
+test('a model that calls next_issue_start gets the error when the worker refuses to start a run', async () => {
+  const { path, extension } = setup();
+  const refusing = await startFakeWorker(path, '1.0.0', (self, message) => {
+    if (message.type === 'start') {
+      self.reply({ type: 'error', root: '/other', message: 'not this one' });
+      self.reply({
+        type: 'error',
+        root: message.root,
+        message: 'the worker is restarting, try again soon',
+      });
+    }
+  });
+  workers.push(refusing);
+  const { pi, emit, start } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await assert.rejects(start(), /the worker is restarting, try again soon/);
+});
+
+test('a model that calls next_issue_start gets an error when the worker closes the connection before the run starts', async () => {
+  const { path, extension } = setup();
+  const closing = await startFakeWorker(path, '1.0.0', (self, message) => {
+    if (message.type === 'start') {
+      void self.close();
+    }
+  });
+  workers.push(closing);
+  const { pi, emit, start } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await assert.rejects(start(), /the worker closed the connection/);
+});
+
+test('a model that cancels next_issue_start while the worker does not answer gets an error', async () => {
+  const { path, extension } = setup();
+  workers.push(await worker(path));
+  const { pi, emit, start } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const controller = new AbortController();
+  const result = start(controller.signal);
+  controller.abort();
+  await assert.rejects(result, /cancelled/);
+});
+
+test('a model that calls next_issue_start outside a git repository gets the error', async () => {
+  const { extension } = setup();
+  const { pi, start } = host('tui', '/outside');
+  extension(pi as never);
+  await assert.rejects(start(), /not a git repository/);
 });
 
 test('a user who runs /next-issue with no worker going starts the worker release that matches the extension version', async () => {
