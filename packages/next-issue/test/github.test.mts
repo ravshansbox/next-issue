@@ -633,15 +633,19 @@ async function fakeApiGh(t: TestContext, script: string): Promise<string> {
   return dir;
 }
 
-test('threadComments reads the author and the body of each comment of an issue or pull request', async (t) => {
+test('threadComments reads the author, the body and the url of each comment of an issue or pull request', async (t) => {
   const dir = await fakeApiGh(
     t,
     `[ "$3" = "repos/acme/tool/issues/42/comments" ] || exit 1
-printf '%s\\n' '["owner","line one\\nline two"]' '["bot",null]'`,
+printf '%s\\n' '["owner","line one\\nline two","https://github.com/acme/tool/issues/42#issuecomment-1"]' '["bot",null]'`,
   );
   const repo = { owner: 'acme', name: 'tool', root: dir };
   assert.deepEqual(await threadComments(repo, 42), [
-    { author: 'owner', body: 'line one\nline two' },
+    {
+      author: 'owner',
+      body: 'line one\nline two',
+      url: 'https://github.com/acme/tool/issues/42#issuecomment-1',
+    },
     { author: 'bot', body: '' },
   ]);
 });

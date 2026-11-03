@@ -116,7 +116,7 @@ export async function issueComments(repo: Repo, issue: number): Promise<string[]
   return parsed.comments.map((comment) => `@${comment.author.login}: ${comment.body}`);
 }
 
-export type Comment = { author: string; body: string };
+export type Comment = { author: string; body: string; url?: string };
 
 export async function threadComments(repo: Repo, number: number): Promise<Comment[]> {
   const raw = await repeatable(
@@ -125,7 +125,7 @@ export async function threadComments(repo: Repo, number: number): Promise<Commen
       '--paginate',
       `repos/${slug(repo)}/issues/${number}/comments`,
       '--jq',
-      '.[] | [.user.login, .body] | @json',
+      '.[] | [.user.login, .body, .html_url] | @json',
     ],
     { cwd: repo.root },
   );
@@ -133,14 +133,14 @@ export async function threadComments(repo: Repo, number: number): Promise<Commen
     .split('\n')
     .filter((line) => line.length > 0)
     .map((line) => {
-      let parsed: [string, string | null];
+      let parsed: [string, string | null, string?];
       try {
-        parsed = JSON.parse(line) as [string, string | null];
+        parsed = JSON.parse(line) as [string, string | null, string?];
       } catch {
         throw new Error(`gh gave a comment of #${number} that is not valid JSON: ${line}`);
       }
-      const [author, body] = parsed;
-      return { author, body: body ?? '' };
+      const [author, body, url] = parsed;
+      return url === undefined ? { author, body: body ?? '' } : { author, body: body ?? '', url };
     });
 }
 

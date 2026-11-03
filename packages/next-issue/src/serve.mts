@@ -5,21 +5,35 @@ import { join } from 'node:path';
 import { getAgentDir } from '@earendil-works/pi-coding-agent';
 import { type WebSocket, WebSocketServer } from 'ws';
 import { type Args, parseArgs } from './args.mts';
+import { loadConfig } from './config.mts';
 import { stopChildren } from './exec.mts';
+import { detectRepo } from './git.mts';
+import { waitingQuestions } from './handover.mts';
 import type { Interrupts } from './interrupt.mts';
 import { message } from './observe.mts';
 import { applyEvent, startProgress } from './progress.mts';
-import { type ClientMessage, isNewer, type Progress, type WorkerMessage } from './protocol.mts';
+import { PORTS } from './ports.mts';
+import {
+  type ClientMessage,
+  isNewer,
+  type Progress,
+  type Question,
+  type WorkerMessage,
+} from './protocol.mts';
 import { runRepo, type RunControls } from './run.mts';
 import { packageVersion } from './version.mts';
 
 export type RunRepo = (root: string, args: Args, controls: RunControls) => Promise<number>;
 
+export type ListQuestions = (root: string) => Promise<Question[]>;
+
 export type WorkerOptions = {
   socketPath: string;
   lockPath: string;
+  rootsPath: string;
   version: string;
   runRepo: RunRepo;
+  questions: ListQuestions;
 };
 
 export type Worker = {
@@ -33,10 +47,15 @@ type Run = {
   wake?: () => void;
 };
 
-export function socketPaths(agentDir = getAgentDir()): { socketPath: string; lockPath: string } {
+export function socketPaths(agentDir = getAgentDir()): {
+  socketPath: string;
+  lockPath: string;
+  rootsPath: string;
+} {
   return {
     socketPath: join(agentDir, 'next-issue.sock'),
     lockPath: join(agentDir, 'next-issue.lock'),
+    rootsPath: join(agentDir, 'next-issue.roots.json'),
   };
 }
 
@@ -80,12 +99,40 @@ async function lock(path: string): Promise<boolean> {
   return false;
 }
 
+async function readRoots(path: string): Promise<Set<string>> {
+  try {
+    const value: unknown = JSON.parse(await readFile(path, 'utf8'));
+    return new Set(Array.isArray(value) ? value.filter((root) => typeof root === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export async function listQuestions(root: string): Promise<Question[]> {
+  const config = await loadConfig(root);
+  return waitingQuestions(await detectRepo(root, config.remote), config, PORTS);
+}
+
 export async function startWorker(options: WorkerOptions): Promise<Worker | undefined> {
   if (!(await lock(options.lockPath))) {
     return undefined;
   }
   await rm(options.socketPath, { force: true });
   const runs = new Map<string, Run>();
+  const roots = await readRoots(options.rootsPath);
+  let saving = Promise.resolve();
+  const remember = (root: string): void => {
+    if (roots.has(root)) {
+      return;
+    }
+    roots.add(root);
+    const value = `${JSON.stringify([...roots], null, 2)}\n`;
+    saving = saving
+      .then(() => writeFile(options.rootsPath, value, { mode: 0o600 }))
+      .catch(() => undefined);
+  };
+  const reads = new Map<string, number>();
+  const delivered = new WeakMap<WebSocket, Map<string, number>>();
   let restart = false;
   let finish: () => void = () => undefined;
   const closed = new Promise<void>((resolve) => {
@@ -107,6 +154,25 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       send(socket, value);
     }
   };
+  const sendQuestions = async (root: string, targets: () => Iterable<WebSocket>): Promise<void> => {
+    remember(root);
+    const read = (reads.get(root) ?? 0) + 1;
+    reads.set(root, read);
+    let value: WorkerMessage;
+    try {
+      value = { type: 'questions', root, questions: await options.questions(root) };
+    } catch (error) {
+      value = { type: 'questions-error', root, message: message(error) };
+    }
+    for (const socket of targets()) {
+      const seen = delivered.get(socket) ?? new Map<string, number>();
+      if ((seen.get(root) ?? 0) < read) {
+        seen.set(root, read);
+        delivered.set(socket, seen);
+        send(socket, value);
+      }
+    }
+  };
   const busy = (): boolean =>
     [...runs.values()].some(
       (run) => run.progress.status === 'running' || run.progress.status === 'stopping',
@@ -119,6 +185,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     await new Promise<void>((resolve) => sockets.close(() => resolve()));
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(options.socketPath, { force: true });
+    await saving;
     await rm(options.lockPath, { force: true });
     finish();
   };
@@ -140,6 +207,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     }
     const run: Run = { progress: startProgress(), stop: false };
     runs.set(root, run);
+    remember(root);
     const interrupts: Interrupts = {
       afterIssue: () => run.stop,
       afterRound: () => run.stop,
@@ -167,7 +235,12 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
         { ...parseArgs([]), merge },
         {
           interrupts,
-          onEvent: (record) => update(applyEvent(run.progress, record)),
+          onEvent: (record) => {
+            update(applyEvent(run.progress, record));
+            if (record['kind'] === 'issue.end' || record['kind'] === 'issue.error') {
+              void sendQuestions(root, () => sockets.clients);
+            }
+          },
         },
       )
       .then(
@@ -198,6 +271,9 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   sockets.on('connection', (socket) => {
     send(socket, { type: 'hello', version: options.version });
     send(socket, snapshot());
+    for (const root of roots) {
+      void sendQuestions(root, () => [socket]);
+    }
     socket.on('message', (data) => {
       let value: ClientMessage;
       try {
@@ -214,6 +290,8 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
         start(socket, value.root, value.merge === true);
       } else if (value.type === 'stop') {
         stop(value.root);
+      } else if (value.type === 'questions') {
+        void sendQuestions(value.root, () => [socket]);
       }
     });
   });
@@ -239,6 +317,7 @@ export async function serve(): Promise<number> {
     ...paths,
     version: await packageVersion(),
     runRepo,
+    questions: listQuestions,
   });
   if (worker === undefined) {
     process.stderr.write('next-issue: another worker is running\n');
