@@ -99,7 +99,7 @@ export async function openIssues(repo: Repo, limit: number, labels: string[]): P
     ISSUE_FIELDS,
   ]);
   const parsed = JSON.parse(raw) as RawIssue[];
-  return parsed.map(toIssue).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return parsed.map(toIssue);
 }
 
 export async function viewIssue(repo: Repo, issue: number): Promise<Issue & { open: boolean }> {
