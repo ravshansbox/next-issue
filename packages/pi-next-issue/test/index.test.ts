@@ -172,6 +172,22 @@ test('a user sees a note per handled issue and a note when the run finishes, wit
   assert.equal(status.at(-1), 'next-issue · finished: 1 done, 1 needs a human');
 });
 
+test('a user who opens pi after a run has finished sees its summary in the footer and no notes', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = {
+    status: 'finished',
+    tools: 0,
+    handled: [{ issue: 8, outcome: 'needs-human' }],
+  };
+  const { pi, emit, notes, status } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await until(() => status.length > 0);
+  assert.equal(status.at(-1), 'next-issue · finished: 0 done, 1 needs a human');
+  assert.deepEqual(notes, []);
+});
+
 test('a user who runs /next-issue while a run is going asks the worker to stop it', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
