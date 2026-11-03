@@ -5,18 +5,18 @@ import { ISSUE_SECTIONS } from '../../next-issue/src/issue-format.mts';
 
 const skillFolder = new URL('../skills/create-issue/', import.meta.url);
 
-test('the create-issue template holds the issue sections of next-issue in order', async () => {
+test('an agent who reads the create-issue template finds the issue sections of next-issue in order', async () => {
   const template = await readFile(new URL('template.md', skillFolder), 'utf8');
   const headings = [...template.matchAll(/^## (.+)$/gm)].map((match) => match[1]);
   assert.deepEqual(headings, [...ISSUE_SECTIONS]);
 });
 
-test('the create-issue template leaves the open questions empty', async () => {
+test('an agent who fills in the create-issue template finds the open questions section empty', async () => {
   const template = await readFile(new URL('template.md', skillFolder), 'utf8');
   assert.match(template, /## Open questions\s*$/);
 });
 
-test('the package ships the create-issue skill', async () => {
+test('a user who installs pi-next-issue gets the create-issue skill', async () => {
   const manifest = JSON.parse(
     await readFile(new URL('../package.json', import.meta.url), 'utf8'),
   ) as { files: string[]; pi: { skills: string[] } };
