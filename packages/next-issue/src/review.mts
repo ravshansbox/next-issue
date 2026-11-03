@@ -95,19 +95,11 @@ export async function reviewRound(job: Run): Promise<Round> {
   }
 
   const earlier = history(state.reviewLog);
-  state.reviewLog.push({
-    round: state.reviewRounds,
-    findings: formatFindings(open),
-  });
+  const findings = formatFindings(open);
+  state.reviewLog.push({ round: state.reviewRounds, findings });
   await writeState(repo, state);
 
-  const fix = await fixRound(
-    job,
-    'The reviewer requested changes.',
-    formatFindings(open),
-    earlier,
-    'review',
-  );
+  const fix = await fixRound(job, 'The reviewer requested changes.', findings, earlier, 'review');
   if (!fix.committed) {
     const note = fix.unrelated;
     if (note === undefined) {
