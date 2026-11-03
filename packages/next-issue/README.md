@@ -41,7 +41,10 @@ and exits with code 1. For each issue:
    fixes it, and the harness commits again. A `commit:` line in the reply of
    the agent replaces the subject, so a hook that rejects the subject can pass.
    The budget is `maxCommitFixes`. Any other git failure in the commit stops
-   the run with an error.
+   the run with an error. An implementer that makes no change hands the issue
+   to a person, unless the branch is already ahead of the base, for example
+   after the state file was lost: the run then carries on with the commits on
+   the branch, and the newest of them gives the title of the pull request.
 5. Open a draft pull request that closes the issue. Its title is the subject
    of the commit that starts it, so a squash merge gives a conventional
    commit.

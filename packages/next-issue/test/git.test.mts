@@ -16,6 +16,7 @@ import {
   HookError,
   isAncestor,
   isDirty,
+  latestSubject,
   parseRemote,
   push,
   removeWorktree,
@@ -95,6 +96,14 @@ test('a pull request head that lags the pushed commit counts as an ancestor, but
   const foreign = await commit(other, 'c.txt');
   assert.equal(await isAncestor(repo.root, lagging, pushed), true);
   assert.equal(await isAncestor(repo.root, foreign, pushed), false);
+});
+
+test('latestSubject gives the subject of the newest commit ahead of the base, and nothing on a branch that is not ahead', async () => {
+  const { repo } = await clones();
+  assert.equal(await latestSubject(repo.root, 'main', 'origin'), undefined);
+  await commit(repo.root, 'b.txt');
+  await commit(repo.root, 'c.txt');
+  assert.equal(await latestSubject(repo.root, 'main', 'origin'), 'c.txt');
 });
 
 test('addWorktree takes a branch that exists only on the remote', async () => {

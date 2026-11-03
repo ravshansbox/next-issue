@@ -12,6 +12,7 @@ import {
   findWorktree,
   HookError,
   isDirty,
+  latestSubject,
   push,
   removeWorktree,
   type Repo,
@@ -88,6 +89,7 @@ export type Ports = {
   findPr: typeof findPr;
   findWorktree: typeof findWorktree;
   isDirty: typeof isDirty;
+  latestSubject: typeof latestSubject;
   issueComments: typeof issueComments;
   markPrReady: typeof markPrReady;
   mergeCommit: typeof mergeCommit;
@@ -131,6 +133,7 @@ export const PORTS: Ports = {
   findWorktree,
   isDirty,
   issueComments,
+  latestSubject,
   markPrReady,
   mergeCommit,
   mergePr,
@@ -394,8 +397,13 @@ async function work(
     );
     const subject = parseCommitSubject(result.text, `fix: resolve issue #${issue.number}`);
     if (!(await commitWork(job, before, subject, 'implementer'))) {
-      await escalate(job, 'The implementer produced no change.');
-      return finish(job, 'needs-human', 'no implementation commit');
+      const earlier = await ports.latestSubject(worktree, context.base, config.remote);
+      if (earlier === undefined) {
+        await escalate(job, 'The implementer produced no change.');
+        return finish(job, 'needs-human', 'no implementation commit');
+      }
+      log.event('implement.earlier', { subject: earlier }, 'quiet');
+      state.title = earlier;
     }
     state.phase = 'implemented';
     await writeState(repo, state);
