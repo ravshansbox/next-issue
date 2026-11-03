@@ -1,5 +1,5 @@
 import { fixRound } from './fix.mts';
-import { escalate, finish } from './handover.mts';
+import { escalateAndFinish, finish } from './handover.mts';
 import { type Gate, openPr, type Round, type Run, setStatus } from './job.mts';
 import { writeState } from './state.mts';
 
@@ -24,8 +24,11 @@ async function watchBase(job: Run): Promise<Gate> {
     timeoutMs: config.checkTimeoutMinutes * 60_000,
   });
   if (sha === undefined) {
-    await escalate(job, 'The pull request did not merge in time, or it closed without a merge.');
-    return { done: true, report: await finish(job, 'needs-human', 'not merged') };
+    return escalateAndFinish(
+      job,
+      'The pull request did not merge in time, or it closed without a merge.',
+      'not merged',
+    );
   }
   const checks = await log.step('main-checks', { pr: state.pr, sha }, () =>
     ports.waitForBaseChecks(repo, sha, {
@@ -40,15 +43,18 @@ async function watchBase(job: Run): Promise<Gate> {
   }
   job.mainBroken = true;
   if (checks !== 'fail') {
-    await escalate(job, 'The checks on main did not finish in time.');
-    return { done: true, report: await finish(job, 'needs-human', 'main checks timeout') };
+    return escalateAndFinish(
+      job,
+      'The checks on main did not finish in time.',
+      'main checks timeout',
+    );
   }
   if (state.ciFixes >= config.maxCiFixes) {
-    await escalate(
+    return escalateAndFinish(
       job,
       `The checks on main failed and the limit of ${config.maxCiFixes} check fixes was reached.`,
+      'check budget',
     );
-    return { done: true, report: await finish(job, 'needs-human', 'check budget') };
   }
   await ports.resetToBase(worktree, context.base, config.remote);
   state.ciFixes += 1;
@@ -74,20 +80,13 @@ export async function fixBase(job: Run): Promise<Gate> {
   );
   if (!fix.committed) {
     const note = fix.unrelated;
-    await escalate(
+    return escalateAndFinish(
       job,
       note === undefined
         ? 'The fixer added no commit for the failed checks on main.'
         : `The checks on main fail for a reason this change did not cause: ${note}`,
+      note === undefined ? 'no fix commit' : 'unrelated failure',
     );
-    return {
-      done: true,
-      report: await finish(
-        job,
-        'needs-human',
-        note === undefined ? 'no fix commit' : 'unrelated failure',
-      ),
-    };
   }
   await ports.reopenIssue(repo, issue.number);
   state.reviewRounds = 0;

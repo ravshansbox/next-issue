@@ -2,7 +2,7 @@ import { REVIEWING } from './agents.mts';
 import { conflicts, resolveConflict } from './conflict.mts';
 import { fixRound } from './fix.mts';
 import { checkGate } from './gate.mts';
-import { escalate, finish } from './handover.mts';
+import { escalateAndFinish, finish } from './handover.mts';
 import { history, type Round, type Run, setStatus } from './job.mts';
 import { afterMerge } from './merge.mts';
 import { capDiff, reviewPrompt } from './prompts.mts';
@@ -20,8 +20,11 @@ export async function reviewRound(job: Run): Promise<Round> {
   const { repo, config, ports } = context;
   const pr = state.pr!;
   if (state.reviewRounds >= config.maxReviewRounds) {
-    await escalate(job, `The limit of ${config.maxReviewRounds} review rounds was reached.`);
-    return { done: true, report: await finish(job, 'needs-human', 'review budget') };
+    return escalateAndFinish(
+      job,
+      `The limit of ${config.maxReviewRounds} review rounds was reached.`,
+      'review budget',
+    );
   }
   state.reviewRounds += 1;
   await writeState(repo, state);
@@ -51,8 +54,7 @@ export async function reviewRound(job: Run): Promise<Round> {
   }
   const verdict = parseVerdict(review.text);
   if (verdict === undefined) {
-    await escalate(job, 'The reviewer gave no verdict.');
-    return { done: true, report: await finish(job, 'needs-human', 'no verdict') };
+    return escalateAndFinish(job, 'The reviewer gave no verdict.', 'no verdict');
   }
   const blocking = blockingFindings(verdict);
   const open = openFindings(verdict, state.reviewRounds >= config.maxReviewRounds);
@@ -86,8 +88,7 @@ export async function reviewRound(job: Run): Promise<Round> {
         return resolved.done ? { done: true, report: resolved.report } : { done: false };
       }
       if (!(await ports.mergePr(repo, pr))) {
-        await escalate(job, 'The merge of the pull request failed.');
-        return { done: true, report: await finish(job, 'needs-human', 'merge failed') };
+        return escalateAndFinish(job, 'The merge of the pull request failed.', 'merge failed');
       }
       return afterMerge(job);
     }
@@ -112,12 +113,18 @@ export async function reviewRound(job: Run): Promise<Round> {
   if (!fix.committed) {
     const note = fix.unrelated;
     if (note === undefined) {
-      await escalate(job, 'The fixer added no commit for the review findings.');
-      return { done: true, report: await finish(job, 'needs-human', 'no fix commit') };
+      return escalateAndFinish(
+        job,
+        'The fixer added no commit for the review findings.',
+        'no fix commit',
+      );
     }
     if (fix.stray === true) {
-      await escalate(job, `The fixer disputed the findings and left a change behind: ${note}`);
-      return { done: true, report: await finish(job, 'needs-human', 'dispute with changes') };
+      return escalateAndFinish(
+        job,
+        `The fixer disputed the findings and left a change behind: ${note}`,
+        'dispute with changes',
+      );
     }
     state.reviewLog.at(-1)!.dispute = note;
     await writeState(repo, state);

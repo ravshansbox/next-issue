@@ -1,6 +1,6 @@
 import { CODING } from './agents.mts';
 import { commitWork } from './fix.mts';
-import { escalate, finish } from './handover.mts';
+import { escalateAndFinish } from './handover.mts';
 import type { Gate, Run } from './job.mts';
 import { fixPrompt, parseCommitSubject } from './prompts.mts';
 import { writeState } from './state.mts';
@@ -17,11 +17,11 @@ export async function resolveConflict(job: Run): Promise<Gate> {
   const { context, log, state, worktree, branch } = job;
   const { repo, config, ports } = context;
   if (state.ciFixes >= config.maxCiFixes) {
-    await escalate(
+    return escalateAndFinish(
       job,
       `The pull request conflicts with its base, and the limit of ${config.maxCiFixes} check fixes was reached.`,
+      'merge conflict',
     );
-    return { done: true, report: await finish(job, 'needs-human', 'merge conflict') };
   }
   state.ciFixes += 1;
   await writeState(repo, state);
@@ -32,8 +32,11 @@ export async function resolveConflict(job: Run): Promise<Gate> {
   log.event('merge-base.conflicts', { files }, 'quiet');
   if (files !== undefined && !(await mergeBase(job, before, files))) {
     await ports.abortMerge(worktree, before);
-    await escalate(job, 'The fixer left the conflict with the base unresolved.');
-    return { done: true, report: await finish(job, 'needs-human', 'merge conflict') };
+    return escalateAndFinish(
+      job,
+      'The fixer left the conflict with the base unresolved.',
+      'merge conflict',
+    );
   }
   await ports.push(worktree, config.remote, branch);
   return { done: false, fixed: true };
