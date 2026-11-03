@@ -132,7 +132,8 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   const runs = new Map<string, Run>();
   const reads = new Map<string, number>();
   type Questions = Extract<WorkerMessage, { type: 'questions' | 'questions-error' }>;
-  const delivered = new WeakMap<WebSocket, Map<string, { read: number; value: Questions }>>();
+  type Delivery = { read: number; value: Questions };
+  const delivered = new WeakMap<WebSocket, Map<string, Delivery>>();
   let restart = false;
   let finish: () => void = () => undefined;
   const closed = new Promise<void>((resolve) => {
@@ -168,7 +169,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       value = { type: 'questions-error', root, message: message(error) };
     }
     for (const socket of targets()) {
-      const seen = delivered.get(socket) ?? new Map<string, { read: number; value: Questions }>();
+      const seen = delivered.get(socket) ?? new Map<string, Delivery>();
       const last = seen.get(root);
       if (last === undefined || last.read < read) {
         seen.set(root, { read, value });
