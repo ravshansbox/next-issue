@@ -10,31 +10,6 @@ export type Verdict = {
   findings: Finding[];
 };
 
-export const VERDICT_SCHEMA: Record<string, unknown> = {
-  type: 'object',
-  properties: {
-    summary: { type: 'string', description: 'Short summary of the review' },
-    findings: {
-      type: 'array',
-      description: 'One entry per problem. Empty when nothing is wrong.',
-      items: {
-        type: 'object',
-        properties: {
-          severity: {
-            type: 'string',
-            enum: ['blocking', 'minor'],
-            description:
-              'blocking for a wrong result, a missing part of the issue, a regression or a broken convention; minor for taste and style',
-          },
-          detail: { type: 'string', description: 'What is wrong and where' },
-        },
-        required: ['severity', 'detail'],
-      },
-    },
-  },
-  required: ['summary', 'findings'],
-};
-
 const SEVERITIES: string[] = ['blocking', 'minor'];
 
 export function readVerdict(value: unknown): Verdict | undefined {
@@ -61,6 +36,20 @@ export function readVerdict(value: unknown): Verdict | undefined {
     checked.push({ severity: severity as Severity, detail });
   }
   return { summary, findings: checked };
+}
+
+const JSON_BLOCK = /```json[^\n]*\n([\s\S]*?)```/g;
+
+export function parseVerdict(text: string): Verdict | undefined {
+  const last = [...text.matchAll(JSON_BLOCK)].at(-1);
+  if (last === undefined) {
+    return undefined;
+  }
+  try {
+    return readVerdict(JSON.parse(last[1]!));
+  } catch {
+    return undefined;
+  }
 }
 
 export function blockingFindings(verdict: Verdict): Finding[] {

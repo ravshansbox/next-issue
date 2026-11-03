@@ -64,8 +64,9 @@ and exits with code 1. For each issue:
    reviewer reads files and runs commands in the worktree, so it can prove a
    finding with the tests or the type check. The harness then throws away every
    change that the reviewer left, so no such change can reach a later commit.
-   The reviewer returns its verdict with a `submit_result` tool: a summary and one entry per
-   finding, each rated `blocking` or `minor`. The findings are the only ground
+   The reviewer ends its last message with its verdict as a json block: a
+   summary and one entry per finding, each rated `blocking` or `minor`. A
+   reply without a valid block hands the issue to a person. The findings are the only ground
    truth. The reviewer gives no approve or reject field, because such a field
    can contradict the findings. The harness puts the result on the pull
    request.

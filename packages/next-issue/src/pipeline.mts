@@ -69,8 +69,7 @@ import {
   formatFindings,
   formatVerdict,
   openFindings,
-  readVerdict,
-  VERDICT_SCHEMA,
+  parseVerdict,
 } from './verdict.mts';
 
 export type Ports = {
@@ -583,13 +582,12 @@ async function reviewRound(job: Run): Promise<Round> {
       profile: REVIEWING,
       model: config.models.reviewer,
       timeoutMs: config.agentTimeoutMinutes * 60_000,
-      outputSchema: VERDICT_SCHEMA,
     }),
   );
   if (await ports.discardChanges(worktree, before)) {
     log.event('review.discard', { round: state.reviewRounds }, 'quiet');
   }
-  const verdict = readVerdict(review.structured);
+  const verdict = parseVerdict(review.text);
   if (verdict === undefined) {
     await escalate(job, 'The reviewer gave no verdict.');
     return { done: true, report: await finish(job, 'needs-human', 'no verdict') };

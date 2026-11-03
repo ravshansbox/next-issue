@@ -120,6 +120,13 @@ test('reviewPrompt asks for a full review when no earlier finding exists', () =>
   assert.match(prompt, /Check correctness/);
 });
 
+test('reviewPrompt asks for the verdict as a json block at the end', () => {
+  const prompt = reviewPrompt(ISSUE, [], 'diff', []);
+  assert.match(prompt, /End your final message with the result as a json block/);
+  assert.match(prompt, /"severity": "blocking" or "minor"/);
+  assert.doesNotMatch(prompt, /submit_result/);
+});
+
 test('reviewPrompt narrows a later round to the earlier findings', () => {
   const prompt = reviewPrompt(ISSUE, [], 'diff', ['Round 1:\n- The count is wrong.']);
   assert.match(prompt, /## Earlier findings\nRound 1:\n- The count is wrong\./);
