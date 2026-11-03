@@ -195,6 +195,15 @@ test('a user who watches with --once stops after the first handled issue', async
   assert.deepEqual(fake.processed, [1, 1]);
 });
 
+test('a user who watches sees an issue that failed tried only once across passes', async () => {
+  const fake = watcher([['error', 'done'], ['error', 'done'], ['error']]);
+  const result = await watchIssues(ARGS, fake);
+  assert.deepEqual(fake.processed, [1, 2, 2]);
+  assert.deepEqual(fake.passes, [[1, 2], [2]]);
+  assert.deepEqual(fake.waits, [1, 1, 2]);
+  assert.equal(exitCode(result.reports), 1);
+});
+
 test('a user who presses Ctrl-C during a wait stops watching at once', async () => {
   const fake = watcher([['done'], ['done']], [false]);
   const result = await watchIssues(ARGS, fake);

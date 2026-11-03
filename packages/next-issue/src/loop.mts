@@ -17,9 +17,12 @@ export const BACK_OFF_MINUTES = [1, 2, 3, 5, 10];
 
 export type LoopResult = { reports: IssueReport[]; stoppedAt?: number; error?: unknown };
 
-export async function runIssues(args: Pick<Args, 'max' | 'once'>, loop: Loop): Promise<LoopResult> {
+export async function runIssues(
+  args: Pick<Args, 'max' | 'once'>,
+  loop: Loop,
+  seen = new Set<number>(),
+): Promise<LoopResult> {
   const reports: IssueReport[] = [];
-  const seen = new Set<number>();
   while (args.max === undefined || handled(reports) < args.max) {
     let issues: Issue[];
     try {
@@ -50,13 +53,20 @@ export async function watchIssues(
 ): Promise<LoopResult> {
   const limit = args.once ? 1 : args.max;
   const reports: IssueReport[] = [];
+  const failed = new Set<number>();
   let step = 0;
   for (;;) {
     const pass = await runIssues(
       { once: false, max: limit === undefined ? undefined : limit - handled(reports) },
       watch,
+      new Set(failed),
     );
     reports.push(...pass.reports);
+    for (const report of pass.reports) {
+      if (report.outcome === 'error') {
+        failed.add(report.issue);
+      }
+    }
     if (handled(pass.reports) > 0) {
       await watch.passEnd(pass.reports);
       step = 0;

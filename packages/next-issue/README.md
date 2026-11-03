@@ -378,7 +378,8 @@ A run without `--watch` ends when no unseen issue is left. With `--watch`, the
 harness then waits, reads the open issues again and runs another pass, so it
 picks up an issue that someone opens during the run, or one whose blocker
 merges. Each pass tries every open issue again, also one that an earlier pass
-skipped.
+skipped. An issue that failed in an earlier pass is not tried again until the
+next run.
 
 The waits follow a fixed back-off in minutes: 1, 2, 3, 5, 10, then 10 from then
 on. A pass that handles an issue, with any outcome other than `skipped`, resets
