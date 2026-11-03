@@ -246,9 +246,9 @@ Three levels of console output:
 - `gh`, authenticated with write access to the repository
 - pi, logged in to a model provider. The agents use the model, the thinking
   level and the extensions from your pi settings, except the `pi-next-issue`
-  extension. The implementer and the fixer get the `read`, `bash`, `edit`,
-  `write`, `grep`, `find` and `ls` tools, and the reviewer gets all of them
-  except `edit` and `write`.
+  extension. The implementer and the fixer get the default tools of your pi
+  settings, the `grep`, `find` and `ls` tools and the tools of your
+  extensions. The reviewer gets all of them except `edit` and `write`.
 
 ## Configuration
 
