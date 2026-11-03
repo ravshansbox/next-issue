@@ -332,6 +332,37 @@ export function createExtension(options: Options) {
       },
     });
 
+    const report = (text: string, root: string) => ({
+      content: [{ type: 'text' as const, text }],
+      details: { root },
+    });
+
+    pi.registerTool({
+      name: 'next_issue_status',
+      label: 'next-issue status',
+      description:
+        'Report the next-issue run of this repository: its status line, then each handled issue with its outcome. Never starts a worker.',
+      promptSnippet: 'Report the next-issue run of this repository',
+      parameters: Type.Object({}),
+      async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
+        const root = await options.root(ctx.cwd);
+        const client = shared(options.client);
+        await client.attach();
+        if (!client.connected) {
+          return report('next-issue · no worker is running', root);
+        }
+        const progress = client.runs[root];
+        if (progress === undefined) {
+          return report(`next-issue · no run of ${root}`, root);
+        }
+        const lines = [
+          formatStatus(progress, Date.now()),
+          ...progress.handled.map((item) => `#${item.issue} ${OUTCOME_NOTES[item.outcome]}`),
+        ];
+        return report(lines.join('\n'), root);
+      },
+    });
+
     const fresh = (client: WorkerClient, root: string) =>
       new Promise<Question[]>((resolve, reject) => {
         const id = randomUUID();

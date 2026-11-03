@@ -14,6 +14,7 @@ Run this in pi, inside a git repository:
 
 - `/next-issue` starts a run of this repository when none is going, and stops the run when one is going. A stop takes effect after the current round, and the issue keeps its saved state, so the next run resumes it.
 - The `next_issue_start` tool lets the model start a run. When no run is going, it starts a run like `/next-issue`. When a run is going, it starts nothing and reports the current run, which picks up new issues by itself. It never stops a run, and it does not ask for confirmation. Its result says whether it started a run.
+- The `next_issue_status` tool lets the model see the run of this repository. It returns the footer line, then one line per handled issue with its outcome, for example `#190 done`. When the worker has no run of this repository, it returns `next-issue · no run of <root>`. When no worker is going, it returns `next-issue · no worker is running` and does not start one. It reports no other repository.
 
 The footer shows the issue, the stage, the number of tool calls and the time spent on the issue, for example `next-issue #12 · review 1 · 37 tools · 4m12s`. After a run ends, it keeps the last summary. In the terminal, it uses the dim colour of the theme, like the rest of the footer. A note appears when an issue is done, needs a human or fails while pi is open. Pi does not repeat the notes of a run that ended before it opened.
 
