@@ -131,6 +131,11 @@ export function createExtension(options: Options) {
     const current = (): Progress | undefined =>
       root === undefined ? undefined : shared(options.client, root).runs[root];
 
+    const remember = (progress: Progress | undefined) => {
+      handled = progress?.handled.length ?? 0;
+      status = progress?.status;
+    };
+
     const dim = (text: string) => (coloured && ui !== undefined ? ui.theme.fg('dim', text) : text);
 
     const render = () => {
@@ -198,9 +203,7 @@ export function createExtension(options: Options) {
     const onEvent = (event: WorkerEvent) => {
       if (event.type === 'runs' && baseline) {
         baseline = false;
-        const progress = root === undefined ? undefined : event.runs[root];
-        handled = progress?.handled.length ?? 0;
-        status = progress?.status;
+        remember(root === undefined ? undefined : event.runs[root]);
         render();
         askQuestions();
       } else if (event.type === 'runs') {
@@ -218,9 +221,7 @@ export function createExtension(options: Options) {
         return;
       }
       const client = shared(options.client, root);
-      const progress = current();
-      handled = progress?.handled.length ?? 0;
-      status = progress?.status;
+      remember(current());
       waiting = client.questions[root]?.map((question) => question.issue);
       baseline = !client.connected;
       unsubscribe = client.subscribe(onEvent);
