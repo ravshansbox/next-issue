@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { statSync } from 'node:fs';
 import { stat, writeFile } from 'node:fs/promises';
+import { Server } from 'node:net';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -102,6 +104,23 @@ test('a client that connects gets the worker version and the runs', async (t) =>
 test('only the user who starts the worker can open its socket file', async (t) => {
   const { socketPath } = await worker(t, fakeRuns());
   assert.equal((await stat(socketPath)).mode & 0o777, 0o600);
+});
+
+test('a worker that starts under an open umask never leaves its socket file open to others', async (t) => {
+  const before = process.umask(0);
+  t.after(() => process.umask(before));
+  const modes: number[] = [];
+  const listen = Server.prototype.listen;
+  t.mock.method(Server.prototype, 'listen', function (this: Server, ...args: unknown[]) {
+    const result = listen.apply(this, args as Parameters<typeof listen>);
+    if (typeof args[0] === 'string') {
+      modes.push(statSync(args[0]).mode & 0o777);
+    }
+    return result;
+  });
+  await worker(t, fakeRuns());
+  assert.deepEqual(modes, [0o600]);
+  assert.equal(process.umask(0), 0);
 });
 
 test('a client that starts a run sees the progress of the run in every client', async (t) => {
