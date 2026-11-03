@@ -5,7 +5,7 @@ const COMMIT_RULES = [
   'End your final message with one line in the form `commit: <conventional commit subject>`.',
 ].join('\n');
 
-function paragraphs(parts: string[]): string {
+export function paragraphs(parts: string[]): string {
   return parts.filter((part) => part.length > 0).join('\n\n');
 }
 

@@ -1,3 +1,5 @@
+import { paragraphs } from './prompts.mts';
+
 export type Severity = 'blocking' | 'minor';
 
 export type Finding = {
@@ -66,9 +68,7 @@ export function formatVerdict(verdict: Verdict, open: Finding[]): string {
   const head = approved ? 'Review: approved' : 'Review: changes requested';
   const lines = verdict.findings.map((finding) => `- **${finding.severity}** ${finding.detail}`);
   const note = approved && verdict.findings.length > 0 ? LEFT : '';
-  return [`### ${head}`, verdict.summary, lines.join('\n'), note]
-    .filter((part) => part.length > 0)
-    .join('\n\n');
+  return paragraphs([`### ${head}`, verdict.summary, lines.join('\n'), note]);
 }
 
 export function formatFindings(findings: Finding[]): string {
