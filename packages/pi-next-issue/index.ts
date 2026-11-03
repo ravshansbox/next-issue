@@ -145,7 +145,7 @@ export function createExtension(options: Options) {
         render();
       } else if (event.type === 'runs') {
         onProgress(root === undefined ? undefined : event.runs[root]);
-      } else if (event.root === root) {
+      } else if (event.type === 'error' && event.root === root) {
         ui?.notify(`next-issue cannot start: ${event.message}`, 'error');
       }
     };
@@ -204,17 +204,32 @@ export function createExtension(options: Options) {
     const going = (progress: Progress | undefined): progress is Progress =>
       progress?.status === 'running' || progress?.status === 'stopping';
 
-    const accepted = (client: WorkerClient, root: string) =>
+    const accepted = (client: WorkerClient, root: string, signal: AbortSignal | undefined) =>
       new Promise<void>((resolve, reject) => {
+        const finish = (error?: Error) => {
+          stop();
+          signal?.removeEventListener('abort', abort);
+          if (error === undefined) {
+            resolve();
+          } else {
+            reject(error);
+          }
+        };
+        const abort = () => finish(new Error('next_issue_start was cancelled'));
         const stop = client.subscribe((event) => {
           if (event.type === 'error' && event.root === root) {
-            stop();
-            reject(new Error(event.message));
+            finish(new Error(event.message));
+          } else if (event.type === 'closed') {
+            finish(new Error('the worker closed the connection'));
           } else if (event.type === 'runs' && going(event.runs[root])) {
-            stop();
-            resolve();
+            finish();
           }
         });
+        if (signal?.aborted) {
+          abort();
+        } else {
+          signal?.addEventListener('abort', abort, { once: true });
+        }
       });
 
     pi.registerTool({
@@ -224,7 +239,7 @@ export function createExtension(options: Options) {
         'Start a next-issue run of the GitHub issues of this repository when none is going. Starts the worker when needed. When a run is going, starts nothing and reports that run, which picks up new issues by itself.',
       promptSnippet: 'Start a next-issue run of this repository when none is going',
       parameters: Type.Object({}),
-      async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
+      async execute(_toolCallId, _params, signal, _onUpdate, ctx) {
         const { client, root, progress } = await connect(ctx);
         if (going(progress)) {
           return {
@@ -237,7 +252,7 @@ export function createExtension(options: Options) {
             details: { started: false, root },
           };
         }
-        const accepting = accepted(client, root);
+        const accepting = accepted(client, root, signal);
         client.send({ type: 'start', root, merge: true });
         await accepting;
         return {

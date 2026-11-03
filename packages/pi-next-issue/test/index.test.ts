@@ -56,7 +56,8 @@ function host(mode = 'tui', cwd = '/repo') {
     }
   };
   const command = () => commands.get('next-issue')!('', ctx);
-  const start = () => tools.get('next_issue_start')!('call', {}, undefined, undefined, ctx);
+  const start = (signal?: AbortSignal) =>
+    tools.get('next_issue_start')!('call', {}, signal, undefined, ctx);
   return { pi, ctx, status, painted, widgets, notes, emit, command, start };
 }
 
@@ -183,6 +184,32 @@ test('a model that calls next_issue_start gets the error when the worker refuses
   extension(pi as never);
   await emit('session_start');
   await assert.rejects(start(), /the worker is restarting, try again soon/);
+});
+
+test('a model that calls next_issue_start gets an error when the worker closes the connection before the run starts', async () => {
+  const { path, extension } = setup();
+  const closing = await startFakeWorker(path, '1.0.0', (self, message) => {
+    if (message.type === 'start') {
+      void self.close();
+    }
+  });
+  workers.push(closing);
+  const { pi, emit, start } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await assert.rejects(start(), /the worker closed the connection/);
+});
+
+test('a model that cancels next_issue_start while the worker does not answer gets an error', async () => {
+  const { path, extension } = setup();
+  workers.push(await worker(path));
+  const { pi, emit, start } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const controller = new AbortController();
+  const result = start(controller.signal);
+  controller.abort();
+  await assert.rejects(result, /cancelled/);
 });
 
 test('a model that calls next_issue_start outside a git repository gets the error', async () => {
