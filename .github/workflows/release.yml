@@ -59,6 +59,9 @@ jobs:
         run: |
           last=${{ steps.bump.outputs.last }}
           base=${last#v}
+          if [ -n "$base" ]; then
+            .github/scripts/wait-for-npm.sh "$base" 600
+          fi
           npm version --no-git-tag-version --allow-same-version -w next-issue "${base:-0.0.0}" > /dev/null
           npm version --no-git-tag-version -w next-issue "${{ steps.bump.outputs.bump }}" > /dev/null
           version=$(node -p "require('./packages/next-issue/package.json').version")
