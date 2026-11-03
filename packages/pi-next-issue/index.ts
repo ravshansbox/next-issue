@@ -94,6 +94,7 @@ export function createExtension(options: Options) {
     let unsubscribe: (() => void) | undefined;
     let handled = 0;
     let status: Progress['status'] | undefined;
+    let baseline = false;
 
     const current = (): Progress | undefined =>
       root === undefined ? undefined : shared(options.client).runs[root];
@@ -135,7 +136,13 @@ export function createExtension(options: Options) {
     };
 
     const onEvent = (event: WorkerEvent) => {
-      if (event.type === 'runs') {
+      if (event.type === 'runs' && baseline) {
+        baseline = false;
+        const progress = root === undefined ? undefined : event.runs[root];
+        handled = progress?.handled.length ?? 0;
+        status = progress?.status;
+        render();
+      } else if (event.type === 'runs') {
         onProgress(root === undefined ? undefined : event.runs[root]);
       } else if (event.root === root) {
         ui?.notify(`next-issue cannot start: ${event.message}`, 'error');
@@ -147,6 +154,7 @@ export function createExtension(options: Options) {
       const progress = current();
       handled = progress?.handled.length ?? 0;
       status = progress?.status;
+      baseline = !shared(options.client).connected;
       unsubscribe = shared(options.client).subscribe(onEvent);
       render();
     };
