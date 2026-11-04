@@ -46,6 +46,10 @@ function promptOf(question: Question): string {
   return `#${question.issue} ${question.title}\n\n${question.reason || 'No reason given.'}`;
 }
 
+function answeredOf(question: Question, choice: string): string {
+  return `next-issue: #${question.issue} ${choice === GIVE_UP ? 'given up' : 'will be retried'}`;
+}
+
 function labelsOf(question: Question, choice: string): string[] {
   const remove = ['--remove-label', question.labels.needsHuman];
   return choice === GIVE_UP ? [...remove, '--add-label', question.labels.skip] : remove;
@@ -451,10 +455,7 @@ export function createExtension(options: Options) {
           }
         }
         await reply(root, question, choice, guidance);
-        ctx.ui.notify(
-          `next-issue: #${question.issue} ${choice === GIVE_UP ? 'given up' : 'will be retried'}`,
-          'info',
-        );
+        ctx.ui.notify(answeredOf(question, choice), 'info');
       }
     };
 
