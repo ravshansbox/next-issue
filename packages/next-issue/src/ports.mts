@@ -1,7 +1,6 @@
 import { runAgent } from './agents.mts';
 import { run } from './exec.mts';
 import {
-  commitAll,
   deleteBranch,
   diff,
   discardChanges,
@@ -13,6 +12,7 @@ import {
   revision,
   setAside,
 } from './git.mts';
+import { commitAll } from './git-commit.mts';
 import {
   canWrite,
   commentOnIssue,

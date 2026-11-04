@@ -1,5 +1,5 @@
 import { CODING } from './agents.mts';
-import { HookError } from './git.mts';
+import { HookError } from './git-commit.mts';
 import { type Run, runRole } from './job.mts';
 import { message } from './errors.mts';
 import {

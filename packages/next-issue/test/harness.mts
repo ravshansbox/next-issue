@@ -5,7 +5,7 @@ import { type Config, loadConfig } from '../src/config.mts';
 import type { CheckState } from '../src/check-poll.mts';
 import type { WaitOptions } from '../src/checks.mts';
 import type { Issue } from '../src/github.mts';
-import { HookError } from '../src/git.mts';
+import { HookError } from '../src/git-commit.mts';
 import { applyEvent, startProgress } from '../src/progress.mts';
 import type { Progress } from '../src/protocol.mts';
 import { Recorder } from '../src/observe.mts';

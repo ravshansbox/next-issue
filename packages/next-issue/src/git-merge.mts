@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { lines, run } from './exec.mts';
-import { commitEverything, fetchBase, git, resetHard, succeeds } from './git.mts';
+import { commitEverything } from './git-commit.mts';
+import { fetchBase, git, resetHard, succeeds } from './git.mts';
 
 export async function startMerge(
   cwd: string,
