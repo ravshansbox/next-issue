@@ -4,7 +4,6 @@ import { chmod, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { must } from '../src/exec.mts';
 import {
   abortMerge,
   branchName,
@@ -19,12 +18,12 @@ import {
   latestSubject,
   parseRemote,
   push,
-  type Repo,
   revision,
   setAside,
   startMerge,
 } from '../src/git.mts';
 import { addWorktree, findWorktree, removeWorktree } from '../src/worktree.mts';
+import { clones, commit, git } from './clones.mts';
 
 test('parseRemote reads every remote form', () => {
   const expected = { owner: 'acme', name: 'tool' };
@@ -64,31 +63,6 @@ test('ensureIgnored leaves an entry that is present', async () => {
   assert.equal(await ensureIgnored(path, '.next-issue/'), false);
   assert.equal(await readFile(join(path, '.gitignore'), 'utf8'), '  .next-issue/  \n');
 });
-
-function git(cwd: string, ...args: string[]): Promise<string> {
-  return must('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd });
-}
-
-async function commit(cwd: string, name: string): Promise<string> {
-  await writeFile(join(cwd, name), `${name}\n`);
-  await git(cwd, 'add', name);
-  await git(cwd, 'commit', '-q', '-m', name);
-  return git(cwd, 'rev-parse', 'HEAD');
-}
-
-async function clones(): Promise<{ repo: Repo; other: string }> {
-  const base = await mkdtemp(join(tmpdir(), 'next-issue-'));
-  const remote = join(base, 'remote.git');
-  await git(base, 'init', '-q', '--bare', '-b', 'main', remote);
-  const other = join(base, 'other');
-  await git(base, 'clone', '-q', remote, other);
-  await git(other, 'checkout', '-q', '-B', 'main');
-  await commit(other, 'a.txt');
-  await git(other, 'push', '-q', 'origin', 'main');
-  const root = join(base, 'tool');
-  await git(base, 'clone', '-q', remote, root);
-  return { repo: { owner: 'acme', name: 'tool', root }, other };
-}
 
 test('a pull request head that lags the pushed commit counts as an ancestor, but a commit someone else pushed does not', async () => {
   const { repo, other } = await clones();
