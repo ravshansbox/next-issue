@@ -24,8 +24,6 @@ import {
   commentOnIssue,
   commentOnPr,
   createPr,
-  failedBaseLogs,
-  failedCheckLogs,
   findPr,
   issueComments,
   markPrReady,
@@ -38,9 +36,8 @@ import {
   reopenIssue,
   threadComments,
   viewIssue,
-  waitForBaseChecks,
-  waitForChecks,
 } from './github.mts';
+import { failedBaseLogs, failedCheckLogs, waitForBaseChecks, waitForChecks } from './checks.mts';
 import { setLabel } from './labels.mts';
 import { detectSetupCommand } from './setup.mts';
 

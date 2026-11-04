@@ -9,8 +9,6 @@ import {
   commentOnPr,
   createPr,
   defaultBranch,
-  failedBaseLogs,
-  failedCheckLogs,
   canWrite,
   findPr,
   issueComments,
@@ -25,9 +23,13 @@ import {
   reopenIssue,
   threadComments,
   viewIssue,
+} from '../src/github.mts';
+import {
+  failedBaseLogs,
+  failedCheckLogs,
   waitForBaseChecks,
   waitForChecks,
-} from '../src/github.mts';
+} from '../src/checks.mts';
 import { labelArgs, setLabel } from '../src/labels.mts';
 
 const MANAGED = ['status:todo', 'status:in-progress', 'status:in-review', 'status:done'];
