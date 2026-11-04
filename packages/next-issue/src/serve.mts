@@ -108,6 +108,22 @@ function runInterrupts(run: Run): Interrupts {
   };
 }
 
+function runControls(
+  run: Run,
+  update: (next: Progress) => void,
+  issueEnded: () => void,
+): RunControls {
+  return {
+    interrupts: runInterrupts(run),
+    onEvent: (record) => {
+      update(applyEvent(run.progress, record));
+      if (endsIssue(record)) {
+        issueEnded();
+      }
+    },
+  };
+}
+
 export function workerPaths(root: string): { socketPath: string; lockPath: string } {
   const dir = stateDir(root);
   return {
@@ -331,15 +347,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       .runRepo(
         root,
         { ...parseArgs([]), merge },
-        {
-          interrupts: runInterrupts(run),
-          onEvent: (record) => {
-            update(applyEvent(run.progress, record));
-            if (endsIssue(record)) {
-              void sendQuestions(root, () => sockets.clients);
-            }
-          },
-        },
+        runControls(run, update, () => void sendQuestions(root, () => sockets.clients)),
       )
       .then(
         () => update({ ...run.progress, status: endStatus(run) }),
