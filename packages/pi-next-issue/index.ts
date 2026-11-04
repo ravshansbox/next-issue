@@ -257,6 +257,14 @@ async function startRun(
   };
 }
 
+function toggle(client: WorkerClient, root: string, progress: Progress | undefined): void {
+  if (going(progress)) {
+    client.send({ type: 'stop', root });
+  } else {
+    client.send({ type: 'start', root, merge: true });
+  }
+}
+
 const fromMachine: Options = {
   client: (root) =>
     new WorkerClient({
@@ -502,11 +510,7 @@ export function createExtension(options: Options) {
         }
         try {
           const { client, root, progress } = await connect(ctx);
-          if (going(progress)) {
-            client.send({ type: 'stop', root });
-          } else {
-            client.send({ type: 'start', root, merge: true });
-          }
+          toggle(client, root, progress);
         } catch (error) {
           ctx.ui.notify(`next-issue cannot start: ${errorText(error)}`, 'error');
         }
