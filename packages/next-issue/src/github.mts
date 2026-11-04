@@ -1,5 +1,5 @@
-import { setTimeout as delay } from 'node:timers/promises';
-import { lines, must, run, type RunOptions, type RunResult } from './exec.mts';
+import { lines } from './exec.mts';
+import { gh, ghApi, ghJson, ghOnce, ghRun, ghSucceeds, repeatable, slug } from './gh.mts';
 import { isAncestor, type Repo } from './git.mts';
 import { type Clock, type Polling, pause, pollUntil, REAL_CLOCK } from './poll.mts';
 
@@ -17,9 +17,6 @@ export type CheckState = 'pass' | 'fail' | 'pending' | 'none' | 'timeout' | 'mov
 
 const CHECK_PENDING_CODE = 8;
 const READ_TRIES = 3;
-const NETWORK_TRIES = 3;
-const NETWORK_FAULT =
-  /unexpected EOF|connection reset|connection refused|i\/o timeout|TLS handshake timeout|HTTP 50[234]/i;
 const KNOWN_LABELS = new Map<string, Set<string>>();
 const NO_CHECKS = /no checks reported/i;
 
@@ -28,62 +25,6 @@ type CheckSummary = { name: string; bucket: string; link: string; description: s
 type BaseRun = { databaseId: number; name: string; status: string; conclusion: string };
 
 const FAILED_CONCLUSIONS = new Set(['failure', 'timed_out', 'startup_failure']);
-
-function slug(repo: Repo): string {
-  return `${repo.owner}/${repo.name}`;
-}
-
-async function repeatable(repo: Repo, args: string[]): Promise<string> {
-  for (let attempt = 1; ; attempt += 1) {
-    try {
-      return await must('gh', args, { cwd: repo.root });
-    } catch (error) {
-      if (attempt >= NETWORK_TRIES || !networkFault(error)) {
-        throw error;
-      }
-      await delay(attempt * 1000);
-    }
-  }
-}
-
-function networkFault(error: unknown): boolean {
-  return error instanceof Error && NETWORK_FAULT.test(error.message);
-}
-
-function withRepo(repo: Repo, args: string[]): string[] {
-  return [...args, '--repo', slug(repo)];
-}
-
-async function gh(repo: Repo, args: string[]): Promise<string> {
-  return repeatable(repo, withRepo(repo, args));
-}
-
-async function ghJson<T>(repo: Repo, args: string[]): Promise<T> {
-  return JSON.parse(await gh(repo, args)) as T;
-}
-
-async function ghOnce(repo: Repo, args: string[], input?: string): Promise<string> {
-  return must('gh', withRepo(repo, args), { cwd: repo.root, input });
-}
-
-async function ghRun(repo: Repo, args: string[], options: RunOptions = {}): Promise<RunResult> {
-  return run('gh', withRepo(repo, args), { ...options, cwd: repo.root });
-}
-
-async function ghApi(
-  repo: Repo,
-  path: string,
-  jq: string,
-  { paginate = false }: { paginate?: boolean } = {},
-): Promise<string> {
-  const pages = paginate ? ['--paginate'] : [];
-  return repeatable(repo, ['api', ...pages, `repos/${slug(repo)}/${path}`, '--jq', jq]);
-}
-
-async function ghSucceeds(repo: Repo, args: string[]): Promise<boolean> {
-  const result = await ghRun(repo, args);
-  return result.code === 0;
-}
 
 export async function defaultBranch(repo: Repo): Promise<string> {
   const raw = await repeatable(repo, ['repo', 'view', slug(repo), '--json', 'defaultBranchRef']);
