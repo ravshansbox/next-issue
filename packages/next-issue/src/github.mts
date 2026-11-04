@@ -459,15 +459,24 @@ export async function pollChecks(
       }
     } else {
       failures = 0;
-      if (state === 'none' && clock.now() - (shown ?? 0) >= options.graceMs) {
-        return 'none';
-      }
-      if (state !== 'none' && state !== 'behind' && state !== 'pending') {
-        return state;
+      const outcome = settled(state, clock.now() - (shown ?? 0), options.graceMs);
+      if (outcome !== undefined) {
+        return outcome;
       }
     }
     await pause(clock, options, rest());
   }
+}
+
+function settled(
+  state: CheckState | 'behind',
+  waitedMs: number,
+  graceMs: number,
+): CheckState | undefined {
+  if (state === 'none') {
+    return waitedMs >= graceMs ? 'none' : undefined;
+  }
+  return state === 'behind' || state === 'pending' ? undefined : state;
 }
 
 async function read(
