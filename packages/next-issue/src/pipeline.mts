@@ -276,7 +276,7 @@ async function openJob(
   handedOver: boolean,
 ): Promise<Run> {
   const started = Date.now();
-  const { repo, config, ports } = context;
+  const { repo, config } = context;
   const branch = state.branch;
 
   await log.step('claim', { label: config.labels.inProgress }, async () => {
@@ -288,15 +288,7 @@ async function openJob(
   const reply = handedOver
     ? await log.step('reply', {}, () => handOverReply(context, issue.number, state.pr))
     : [];
-  const added = await log.step('worktree', { branch }, () =>
-    oneAtATime(repo.root, () =>
-      ports.addWorktree(repo, issue.number, branch, context.base, config.remote, start),
-    ),
-  );
-  const worktree = added.path;
-  if (!added.baseUpdated) {
-    log.event('base.behind', { base: context.base }, 'quiet');
-  }
+  const worktree = await openWorktree(context, issue, log, branch, start);
   return {
     context,
     issue,
@@ -310,6 +302,25 @@ async function openJob(
     noChecks: false,
     mainBroken: false,
   };
+}
+
+async function openWorktree(
+  context: Context,
+  issue: Issue,
+  log: Recorder,
+  branch: string,
+  start: boolean,
+): Promise<string> {
+  const { repo, config, ports } = context;
+  const added = await log.step('worktree', { branch }, () =>
+    oneAtATime(repo.root, () =>
+      ports.addWorktree(repo, issue.number, branch, context.base, config.remote, start),
+    ),
+  );
+  if (!added.baseUpdated) {
+    log.event('base.behind', { base: context.base }, 'quiet');
+  }
+  return added.path;
 }
 
 async function work(
