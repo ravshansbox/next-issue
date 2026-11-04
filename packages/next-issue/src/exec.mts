@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { spawn } from 'node:child_process';
+import { type ChildProcess, spawn } from 'node:child_process';
 
 export type RunResult = {
   code: number;
@@ -81,6 +81,18 @@ function unwatch(pid: number | undefined): void {
   }
 }
 
+function killTree(child: ChildProcess): void {
+  if (child.pid === undefined) {
+    child.kill('SIGKILL');
+    return;
+  }
+  try {
+    process.kill(-child.pid, 'SIGKILL');
+  } catch {
+    child.kill('SIGKILL');
+  }
+}
+
 function keepTail(text: string, limit: number | undefined): string {
   return limit !== undefined && text.length > limit ? text.slice(-limit) : text;
 }
@@ -123,15 +135,7 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
     });
     const timer = setTimeout(() => {
       timedOut = true;
-      if (pid === undefined) {
-        child.kill('SIGKILL');
-        return;
-      }
-      try {
-        process.kill(-pid, 'SIGKILL');
-      } catch {
-        child.kill('SIGKILL');
-      }
+      killTree(child);
     }, limit);
     let done = false;
     const settle = (code: number | null): void => {
