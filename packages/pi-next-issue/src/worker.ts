@@ -71,12 +71,16 @@ export function isNewer(candidate: string, current: string): boolean {
       return difference > 0;
     }
   }
-  if (leftPrerelease.length === 0 || rightPrerelease.length === 0) {
-    return leftPrerelease.length === 0 && rightPrerelease.length > 0;
+  return isNewerPrerelease(leftPrerelease, rightPrerelease);
+}
+
+function isNewerPrerelease(left: string[], right: string[]): boolean {
+  if (left.length === 0 || right.length === 0) {
+    return left.length === 0 && right.length > 0;
   }
-  for (let index = 0; index < Math.max(leftPrerelease.length, rightPrerelease.length); index += 1) {
-    const leftPart = leftPrerelease[index];
-    const rightPart = rightPrerelease[index];
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const leftPart = left[index];
+    const rightPart = right[index];
     if (leftPart === undefined || rightPart === undefined) {
       return rightPart === undefined;
     }
