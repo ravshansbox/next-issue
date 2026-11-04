@@ -1,5 +1,5 @@
 import { writeSync } from 'node:fs';
-import { open, readdir } from 'node:fs/promises';
+import { type FileHandle, open, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { hasCode, render, runsDir } from './observe.mts';
@@ -41,6 +41,19 @@ function stdoutOpen(): boolean {
   } catch {
     return false;
   }
+}
+
+const CHUNK_BYTES = 64 * 1024;
+
+async function readChunk(
+  handle: FileHandle,
+  position: number,
+  decoder: StringDecoder,
+): Promise<{ bytesRead: number; text: string; full: boolean }> {
+  const buffer = Buffer.alloc(CHUNK_BYTES);
+  const { bytesRead } = await handle.read(buffer, 0, buffer.length, position);
+  const text = bytesRead > 0 ? decoder.write(buffer.subarray(0, bytesRead)) : '';
+  return { bytesRead, text, full: bytesRead === buffer.length };
 }
 
 type Stopper = { readonly stopped: boolean; stop: () => void; pause: () => Promise<void> };
@@ -85,14 +98,11 @@ export async function followLog(
   let first = true;
   try {
     while (!control.stopped) {
-      const buffer = Buffer.alloc(64 * 1024);
-      const { bytesRead } = await handle.read(buffer, 0, buffer.length, position);
-      if (bytesRead > 0) {
-        position += bytesRead;
-        rest += decoder.write(buffer.subarray(0, bytesRead));
-        if (bytesRead === buffer.length) {
-          continue;
-        }
+      const chunk = await readChunk(handle, position, decoder);
+      position += chunk.bytesRead;
+      rest += chunk.text;
+      if (chunk.full) {
+        continue;
       }
       const complete = completeLines(rest, first ? options.tail : undefined);
       rest = complete.rest;
