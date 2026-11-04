@@ -16,6 +16,17 @@ function isSeverity(value: unknown): value is Severity {
   return value === 'blocking' || value === 'minor';
 }
 
+function readFinding(item: unknown): Finding | undefined {
+  if (typeof item !== 'object' || item === null) {
+    return undefined;
+  }
+  const { severity, detail } = item as Record<string, unknown>;
+  if (!isSeverity(severity) || typeof detail !== 'string') {
+    return undefined;
+  }
+  return { severity, detail };
+}
+
 export function readVerdict(value: unknown): Verdict | undefined {
   if (typeof value !== 'object' || value === null) {
     return undefined;
@@ -26,14 +37,11 @@ export function readVerdict(value: unknown): Verdict | undefined {
   }
   const checked: Finding[] = [];
   for (const item of findings) {
-    if (typeof item !== 'object' || item === null) {
+    const finding = readFinding(item);
+    if (finding === undefined) {
       return undefined;
     }
-    const { severity, detail } = item as Record<string, unknown>;
-    if (!isSeverity(severity) || typeof detail !== 'string') {
-      return undefined;
-    }
-    checked.push({ severity, detail });
+    checked.push(finding);
   }
   return { summary, findings: checked };
 }
