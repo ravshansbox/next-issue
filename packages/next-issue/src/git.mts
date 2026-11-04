@@ -214,9 +214,14 @@ export async function push(
   await git(cwd, ['push', '-u', ...(force ? ['--force'] : []), remote, branch]);
 }
 
-export async function resetToBase(cwd: string, base: string, remote: string): Promise<void> {
+async function fetchBase(cwd: string, base: string, remote: string): Promise<string> {
   await git(cwd, ['fetch', remote, base]);
-  await git(cwd, ['reset', '--hard', `${remote}/${base}`]);
+  return `${remote}/${base}`;
+}
+
+export async function resetToBase(cwd: string, base: string, remote: string): Promise<void> {
+  const target = await fetchBase(cwd, base, remote);
+  await git(cwd, ['reset', '--hard', target]);
 }
 
 export async function startMerge(
@@ -224,17 +229,15 @@ export async function startMerge(
   base: string,
   remote: string,
 ): Promise<string[] | undefined> {
-  await git(cwd, ['fetch', remote, base]);
-  const result = await run('git', ['merge', '--no-ff', '--no-commit', `${remote}/${base}`], {
-    cwd,
-  });
+  const target = await fetchBase(cwd, base, remote);
+  const result = await run('git', ['merge', '--no-ff', '--no-commit', target], { cwd });
   if (result.code === 0) {
     return (await merging(cwd)) ? [] : undefined;
   }
   const listed = await git(cwd, ['diff', '--name-only', '--diff-filter=U']);
   const files = lines(listed);
   if (files.length === 0) {
-    throw new Error(`git merge ${remote}/${base} failed: ${result.stderr.trim()}`);
+    throw new Error(`git merge ${target} failed: ${result.stderr.trim()}`);
   }
   return files;
 }
