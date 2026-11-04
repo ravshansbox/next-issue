@@ -153,24 +153,36 @@ function parseConfig(value: unknown): Config {
     config.setupCommand = text(file.setupCommand, 'setupCommand', false);
   }
   if (file.models !== undefined) {
-    const models = record(file.models, 'models');
-    rejectUnknown(models, MODEL_ROLES, 'model role');
-    for (const role of MODEL_ROLES) {
-      if (models[role] !== undefined && models[role] !== null) {
-        config.models[role] = text(models[role], `models.${role}`, false);
-      }
-    }
+    config.models = parseModels(file.models);
   }
   if (file.labels !== undefined) {
-    const labels = record(file.labels, 'labels');
-    rejectUnknown(labels, LABEL_NAMES, 'label name');
-    for (const name of LABEL_NAMES) {
-      if (labels[name] !== undefined) {
-        config.labels[name] = text(labels[name], `labels.${name}`, name === 'ready');
-      }
-    }
+    config.labels = parseLabels(file.labels, config.labels);
   }
   return config;
+}
+
+function parseModels(value: unknown): Config['models'] {
+  const models = record(value, 'models');
+  rejectUnknown(models, MODEL_ROLES, 'model role');
+  const parsed: Config['models'] = {};
+  for (const role of MODEL_ROLES) {
+    if (models[role] !== undefined && models[role] !== null) {
+      parsed[role] = text(models[role], `models.${role}`, false);
+    }
+  }
+  return parsed;
+}
+
+function parseLabels(value: unknown, defaultLabels: Config['labels']): Config['labels'] {
+  const labels = record(value, 'labels');
+  rejectUnknown(labels, LABEL_NAMES, 'label name');
+  const parsed = { ...defaultLabels };
+  for (const name of LABEL_NAMES) {
+    if (labels[name] !== undefined) {
+      parsed[name] = text(labels[name], `labels.${name}`, name === 'ready');
+    }
+  }
+  return parsed;
 }
 
 function record(value: unknown, what: string): Record<string, unknown> {
