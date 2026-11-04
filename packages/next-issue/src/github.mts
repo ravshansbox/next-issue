@@ -37,16 +37,16 @@ async function repeatable(repo: Repo, args: string[]): Promise<string> {
     try {
       return await must('gh', args, { cwd: repo.root });
     } catch (error) {
-      if (
-        attempt >= NETWORK_TRIES ||
-        !(error instanceof Error) ||
-        !NETWORK_FAULT.test(error.message)
-      ) {
+      if (attempt >= NETWORK_TRIES || !networkFault(error)) {
         throw error;
       }
       await delay(attempt * 1000);
     }
   }
+}
+
+function networkFault(error: unknown): boolean {
+  return error instanceof Error && NETWORK_FAULT.test(error.message);
 }
 
 function withRepo(repo: Repo, args: string[]): string[] {
