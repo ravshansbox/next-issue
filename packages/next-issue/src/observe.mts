@@ -91,12 +91,16 @@ export class Recorder {
     return this.sink.file;
   }
 
+  private get runStem(): string {
+    return this.sink.file.replace(/\.jsonl$/, '');
+  }
+
   get sessionDir(): string {
-    return join(this.sink.file.replace(/\.jsonl$/, ''), 'sessions');
+    return join(this.runStem, 'sessions');
   }
 
   get summaryFile(): string {
-    return this.sink.file.replace(/\.jsonl$/, '.summary.json');
+    return `${this.runStem}.summary.json`;
   }
 
   get level(): Level {
