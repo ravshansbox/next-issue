@@ -66,7 +66,7 @@ async function read(
   head: string | undefined,
   timeoutMs: number,
   shown: () => void,
-): Promise<CheckState | 'none' | 'behind' | Error> {
+): Promise<CheckState | 'behind' | Error> {
   try {
     if (head !== undefined) {
       const current = await probe.head();
