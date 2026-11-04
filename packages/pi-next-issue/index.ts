@@ -5,7 +5,7 @@ import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-a
 import { Type } from 'typebox';
 import { errorText, must, type RunOptions } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
-import { going, type Progress, type Question } from './src/protocol.ts';
+import { going, type Handled, type Progress, type Question } from './src/protocol.ts';
 import { spawnWorker, WorkerClient, type WorkerEvent, workerPaths } from './src/worker.ts';
 
 export type Options = {
@@ -77,6 +77,10 @@ function outcomes(progress: Progress): string {
     .filter((outcome) => outcome === 'done' || count(outcome) > 0)
     .map((outcome) => `${count(outcome)} ${OUTCOME_NOTES[outcome]}`)
     .join(', ');
+}
+
+function handledNote(item: Handled): string {
+  return `#${item.issue} ${OUTCOME_NOTES[item.outcome]}`;
 }
 
 export function formatStatus(progress: Progress, now: number): string {
@@ -224,10 +228,7 @@ async function statusOf(client: WorkerClient, root: string) {
   if (progress === undefined) {
     return report(`no run of ${root}`, root);
   }
-  const lines = [
-    formatStatus(progress, Date.now()),
-    ...progress.handled.map((item) => `#${item.issue} ${OUTCOME_NOTES[item.outcome]}`),
-  ];
+  const lines = [formatStatus(progress, Date.now()), ...progress.handled.map(handledNote)];
   return report(lines.join('\n'), root);
 }
 
@@ -349,7 +350,7 @@ export function createExtension(options: Options) {
       }
       for (const item of progress.handled.slice(handled)) {
         ui?.notify(
-          `next-issue: #${item.issue} ${OUTCOME_NOTES[item.outcome]}`,
+          `next-issue: ${handledNote(item)}`,
           item.outcome === 'done' ? 'info' : 'warning',
         );
       }
