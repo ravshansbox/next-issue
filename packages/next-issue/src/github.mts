@@ -229,16 +229,25 @@ export async function setLabel(
   try {
     await gh(repo, args);
   } catch (error) {
-    KNOWN_LABELS.delete(slug(repo));
-    const created = await createUnknownLabel(repo, add);
-    if (created === 'known') {
-      throw error;
-    }
-    if (created instanceof Error) {
-      throw created;
-    }
-    await gh(repo, args);
+    await retryWithLabel(repo, args, add, error);
   }
+}
+
+async function retryWithLabel(
+  repo: Repo,
+  args: string[],
+  label: string,
+  error: unknown,
+): Promise<void> {
+  KNOWN_LABELS.delete(slug(repo));
+  const created = await createUnknownLabel(repo, label);
+  if (created === 'known') {
+    throw error;
+  }
+  if (created instanceof Error) {
+    throw created;
+  }
+  await gh(repo, args);
 }
 
 async function knownLabels(repo: Repo): Promise<Set<string>> {
