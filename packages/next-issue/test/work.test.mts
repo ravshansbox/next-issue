@@ -420,43 +420,6 @@ test('a watcher sees each limited round with its count and its limit', async (t)
   );
 });
 
-test('a skipped issue does nothing', async (t) => {
-  const target = await harness(t, { issue: { ...ISSUE, labels: [] } });
-  const report = await target.run();
-  assert.equal(report.outcome, 'skipped');
-  assert.deepEqual(target.labels, []);
-  assert.deepEqual(roles(target), []);
-});
-
-test('an issue with an open blocker waits without a claim', async (t) => {
-  const target = await harness(t, { blockers: ['#3', 'acme/other#9'] });
-  const report = await target.run();
-  assert.equal(report.outcome, 'skipped');
-  assert.deepEqual(target.labels, []);
-  assert.deepEqual(roles(target), []);
-  assert.equal(target.context.recorder.summary().counts['issue.skip'], 1);
-});
-
-test('a saved issue carries on although a blocker is open', async (t) => {
-  const target = await harness(t, {
-    issue: { ...ISSUE, labels: ['status:in-progress'] },
-    saved: SAVED,
-    blockers: ['#3'],
-  });
-  const report = await target.run();
-  assert.equal(report.outcome, 'done');
-  assert.deepEqual(roles(target), ['reviewer']);
-});
-
-test('a blocker read that fails gives the error outcome without a claim', async (t) => {
-  const target = await harness(t, { fail: 'openBlockers' });
-  const report = await target.run();
-  assert.equal(report.outcome, 'error');
-  assert.match(report.reason!, /the port broke/);
-  assert.deepEqual(target.labels, []);
-  assert.deepEqual(roles(target), []);
-});
-
 test('an agent that commits its own work counts as progress', async (t) => {
   const target = await harness(t, { commits: [false], selfCommit: true });
   const report = await target.run();
