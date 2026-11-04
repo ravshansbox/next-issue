@@ -1,9 +1,10 @@
-import { appendFile, readFile } from 'node:fs/promises';
+import { appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { readTextOrEmpty } from './files.mts';
 
 export async function ensureIgnored(root: string, entry: string): Promise<boolean> {
   const path = join(root, '.gitignore');
-  const current = await readFile(path, 'utf8').catch(() => '');
+  const current = await readTextOrEmpty(path);
   if (current.split('\n').some((line) => line.trim() === entry)) {
     return false;
   }

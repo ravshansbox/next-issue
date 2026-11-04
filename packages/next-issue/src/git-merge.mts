@@ -1,6 +1,6 @@
-import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { lines, run } from './exec.mts';
+import { readTextOrEmpty } from './files.mts';
 import { commitEverything } from './git-commit.mts';
 import { fetchBase, git, resetHard, succeeds } from './git.mts';
 
@@ -38,7 +38,7 @@ export async function commitMerge(cwd: string, files: string[], message: string)
 
 async function hasConflictMarkers(cwd: string, files: string[]): Promise<boolean> {
   for (const file of files) {
-    const text = await readFile(join(cwd, file), 'utf8').catch(() => '');
+    const text = await readTextOrEmpty(join(cwd, file));
     if (CONFLICT_MARKER.test(text)) {
       return true;
     }

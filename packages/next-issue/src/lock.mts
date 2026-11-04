@@ -1,6 +1,7 @@
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { rm, writeFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { hasCode } from './errors.mts';
+import { readTextOrEmpty } from './files.mts';
 
 const LOCK_POLL_MS = 100;
 
@@ -14,7 +15,7 @@ function alive(pid: number): boolean {
 }
 
 async function holder(lockPath: string): Promise<number | undefined> {
-  const pid = Number((await readFile(lockPath, 'utf8').catch(() => '')).trim());
+  const pid = Number((await readTextOrEmpty(lockPath)).trim());
   return pid > 0 && alive(pid) ? pid : undefined;
 }
 
