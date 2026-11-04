@@ -1,4 +1,4 @@
-import { must, optionalFlag, run } from './exec.mts';
+import { must, optionalFlag, run, succeeded } from './exec.mts';
 import { lines } from './text.mts';
 
 export type Repo = {
@@ -116,7 +116,7 @@ export async function revision(cwd: string): Promise<string> {
 
 export async function currentBranch(cwd: string): Promise<string | undefined> {
   const result = await run('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], { cwd });
-  return result.code === 0 ? result.stdout.trim() : undefined;
+  return succeeded(result) ? result.stdout.trim() : undefined;
 }
 
 export async function isAncestor(
@@ -133,7 +133,7 @@ export async function deleteBranch(repo: Repo, branch: string): Promise<boolean>
 
 export async function succeeds(cwd: string, args: string[]): Promise<boolean> {
   const result = await run('git', args, { cwd });
-  return result.code === 0;
+  return succeeded(result);
 }
 
 export async function git(cwd: string, args: string[]): Promise<string> {

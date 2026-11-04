@@ -1,3 +1,4 @@
+import { succeeded } from './exec.mts';
 import { ghRun } from './gh.mts';
 import type { Repo } from './git.mts';
 import { joinFilled } from './text.mts';
@@ -21,7 +22,7 @@ export async function runLogs(
 
 async function runLog(repo: Repo, runId: string, share: number): Promise<string> {
   const logs = await ghRun(repo, ['run', 'view', runId, '--log-failed'], { tailChars: share });
-  if (logs.code === 0) {
+  if (succeeded(logs)) {
     return logs.stdout;
   }
   const reason = joinFilled(

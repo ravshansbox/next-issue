@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { run } from './exec.mts';
+import { run, succeeded } from './exec.mts';
 import { lines } from './text.mts';
 import { readTextOrEmpty } from './files.mts';
 import { commitEverything } from './git-commit.mts';
@@ -12,7 +12,7 @@ export async function startMerge(
 ): Promise<string[] | undefined> {
   const target = await fetchBase(cwd, base, remote);
   const result = await run('git', ['merge', '--no-ff', '--no-commit', target], { cwd });
-  if (result.code === 0) {
+  if (succeeded(result)) {
     return (await merging(cwd)) ? [] : undefined;
   }
   const listed = await git(cwd, ['diff', '--name-only', '--diff-filter=U']);

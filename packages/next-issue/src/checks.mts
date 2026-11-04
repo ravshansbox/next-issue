@@ -1,5 +1,5 @@
 import { type CheckState, pollChecks, type PollOptions } from './check-poll.mts';
-import { failedWith } from './exec.mts';
+import { failedWith, succeeded } from './exec.mts';
 import { ghRun } from './gh.mts';
 import { isAncestor, type Repo } from './git.mts';
 import { prField } from './pull-requests.mts';
@@ -48,7 +48,7 @@ async function watchOnce(
   if (watch.timedOut) {
     return 'timeout';
   }
-  if (watch.code === 0) {
+  if (succeeded(watch)) {
     return 'pass';
   }
   if (watch.code === CHECK_PENDING_CODE) {

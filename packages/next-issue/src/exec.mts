@@ -99,7 +99,7 @@ function notify(
     cwd: options.cwd,
     code: result.code,
     ms: elapsedMs(started),
-    stderr: result.code === 0 ? '' : result.stderr.trim(),
+    stderr: succeeded(result) ? '' : result.stderr.trim(),
     timedOut: result.timedOut,
   });
 }
@@ -146,6 +146,10 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
   });
 }
 
+export function succeeded(result: { code: number }): boolean {
+  return result.code === 0;
+}
+
 export function optionalFlag(enabled: boolean, flag: string): string[] {
   return enabled ? [flag] : [];
 }
@@ -164,7 +168,7 @@ export async function must(
   if (result.timedOut) {
     throw new Error(`${commandLine} did not finish in time.`);
   }
-  if (result.code !== 0) {
+  if (!succeeded(result)) {
     throw new Error(failedWith(commandLine, result));
   }
   return result.stdout.trim();

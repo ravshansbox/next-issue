@@ -1,7 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { secondsToMs } from './durations.mts';
 import { errorMatches } from './errors.mts';
-import { must, optionalFlag, run, type RunOptions, type RunResult } from './exec.mts';
+import { must, optionalFlag, run, type RunOptions, type RunResult, succeeded } from './exec.mts';
 import type { Repo } from './git.mts';
 
 const NETWORK_TRIES = 3;
@@ -77,7 +77,7 @@ export async function ghApi(
 
 export async function ghSucceeds(repo: Repo, args: string[]): Promise<boolean> {
   const result = await ghRun(repo, args);
-  return result.code === 0;
+  return succeeded(result);
 }
 
 export type Named = { name: string };
