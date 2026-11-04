@@ -1,5 +1,4 @@
 import { enterReview } from './enter-review.mts';
-import { elapsedMs } from './durations.mts';
 import { message } from './errors.mts';
 import { checkGate } from './gate.mts';
 import { branchName } from './git.mts';
@@ -10,7 +9,7 @@ import type { Context, IssueReport, Run } from './job.mts';
 import type { Recorder } from './observe.mts';
 import { openJob } from './open-job.mts';
 import { reviewRound } from './review.mts';
-import { skipReport, unclaimedError } from './skip.mts';
+import { logIssueError, skipReport, unclaimedError } from './skip.mts';
 import { type IssueState, readState, resetState } from './state.mts';
 import { setUp } from './worktree-setup.mts';
 
@@ -74,8 +73,7 @@ async function claimedError(
   error: unknown,
   started: number,
 ): Promise<IssueReport> {
-  const reason = message(error);
-  log.event('issue.error', { error: reason, ms: elapsedMs(started) }, 'quiet');
+  const { reason } = logIssueError(log, error, started);
   try {
     await handOver(context, log, issue.number, state, `The run failed: ${reason}`);
   } catch (failure) {

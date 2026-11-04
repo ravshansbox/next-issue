@@ -61,8 +61,17 @@ export function unclaimedError(
   error: unknown,
   started: number,
 ): IssueReport {
+  const { reason, ms } = logIssueError(log, error, started);
+  return { ...skipped(issue), outcome: 'error', reason, ms };
+}
+
+export function logIssueError(
+  log: Recorder,
+  error: unknown,
+  started: number,
+): { reason: string; ms: number } {
   const reason = message(error);
   const ms = elapsedMs(started);
   log.event('issue.error', { error: reason, ms }, 'quiet');
-  return { ...skipped(issue), outcome: 'error', reason, ms };
+  return { reason, ms };
 }
