@@ -3,6 +3,7 @@ import type { Repo } from './git.mts';
 import type { Comment, Issue } from './github.mts';
 import {
   type Context,
+  type Finished,
   type IssueReport,
   type Outcome,
   oneAtATime,
@@ -106,11 +107,7 @@ export async function handOverReply(
   return reply;
 }
 
-export async function escalateAndFinish(
-  job: Run,
-  note: string,
-  reason: string,
-): Promise<{ done: true; report: IssueReport }> {
+export async function escalateAndFinish(job: Run, note: string, reason: string): Promise<Finished> {
   await handOver(job.context, job.log, job.issue.number, job.state, note);
   return { done: true, report: await finish(job, 'needs-human', reason) };
 }
@@ -119,7 +116,7 @@ export function escalateCheckFix(
   job: Run,
   unrelated: string | undefined,
   checks: string,
-): Promise<{ done: true; report: IssueReport }> {
+): Promise<Finished> {
   if (unrelated === undefined) {
     return escalateAndFinish(
       job,

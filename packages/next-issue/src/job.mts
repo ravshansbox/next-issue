@@ -45,9 +45,11 @@ export type Run = {
   mainBroken: boolean;
 };
 
-export type Gate = { done: true; report: IssueReport } | { done: false; fixed: boolean };
+export type Finished = { done: true; report: IssueReport };
 
-export type Round = { done: true; report: IssueReport } | { done: false };
+export type Gate = Finished | { done: false; fixed: boolean };
+
+export type Round = Finished | { done: false };
 
 export function runRole(
   job: Run,
