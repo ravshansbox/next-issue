@@ -222,6 +222,10 @@ function questionsReply(
   return id === undefined ? undefined : { ...last.value, id };
 }
 
+function send(socket: WebSocket, value: WorkerMessage): void {
+  socket.send(JSON.stringify(value));
+}
+
 function runsMessage(runs: Map<string, Run>): WorkerMessage {
   return {
     type: 'runs',
@@ -261,9 +265,6 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
 
   const server = createServer();
   const sockets = new WebSocketServer({ server });
-  const send = (socket: WebSocket, value: WorkerMessage): void => {
-    socket.send(JSON.stringify(value));
-  };
   const broadcast = (): void => {
     const value = runsMessage(runs);
     for (const socket of sockets.clients) {
