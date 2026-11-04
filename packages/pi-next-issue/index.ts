@@ -178,6 +178,28 @@ function fresh(client: WorkerClient, root: string): Promise<Question[]> {
   });
 }
 
+async function reply(
+  gh: Options['gh'],
+  root: string,
+  question: Question,
+  choice: string,
+  guidance: string,
+): Promise<void> {
+  const threads = threadsOf(question);
+  const repo = ['--repo', question.repo];
+  if (choice === GUIDE) {
+    const [kind, number] = threads.at(-1)!;
+    await gh([kind, 'comment', String(number), ...repo, '--body-file', '-'], {
+      cwd: root,
+      input: guidance,
+    });
+  }
+  const labels = labelsOf(question, choice);
+  for (const [kind, number] of threads) {
+    await gh([kind, 'edit', String(number), ...repo, ...labels], { cwd: root });
+  }
+}
+
 const fromMachine: Options = {
   client: (root) =>
     new WorkerClient({
@@ -415,22 +437,6 @@ export function createExtension(options: Options) {
       },
     });
 
-    const reply = async (root: string, question: Question, choice: string, guidance: string) => {
-      const threads = threadsOf(question);
-      const repo = ['--repo', question.repo];
-      if (choice === GUIDE) {
-        const [kind, number] = threads.at(-1)!;
-        await options.gh([kind, 'comment', String(number), ...repo, '--body-file', '-'], {
-          cwd: root,
-          input: guidance,
-        });
-      }
-      const labels = labelsOf(question, choice);
-      for (const [kind, number] of threads) {
-        await options.gh([kind, 'edit', String(number), ...repo, ...labels], { cwd: root });
-      }
-    };
-
     const answer = async (ctx: ExtensionContext) => {
       const { client, root } = await connect(ctx);
       const passed = new Set<number>();
@@ -454,7 +460,7 @@ export function createExtension(options: Options) {
             return;
           }
         }
-        await reply(root, question, choice, guidance);
+        await reply(options.gh, root, question, choice, guidance);
         ctx.ui.notify(answeredOf(question, choice), 'info');
       }
     };
