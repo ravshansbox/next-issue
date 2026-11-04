@@ -1,11 +1,10 @@
-import { writeFile } from 'node:fs/promises';
 import type { Args } from './args.mts';
 import { recordCommands } from './command-records.mts';
 import { type Config, loadConfig } from './config.mts';
 import { minutesToMs } from './durations.mts';
 import { message } from './errors.mts';
 import { withDefaultTimeout } from './exec.mts';
-import { prettyJson } from './files.mts';
+import { writeJson } from './files.mts';
 import { slug } from './gh.mts';
 import { detectRepo, type Repo } from './git.mts';
 import { defaultBranch } from './github.mts';
@@ -153,6 +152,6 @@ async function endRun(recorder: Recorder, reports: IssueReport[]): Promise<RunSu
     'quiet',
   );
   const summary: RunSummary = { ...recorder.summary(), issues: reports };
-  await writeFile(recorder.summaryFile, prettyJson(summary));
+  await writeJson(recorder.summaryFile, summary);
   return summary;
 }

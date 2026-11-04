@@ -1,8 +1,7 @@
-import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { CONFIG_FILE, flag, record, rejectUnknown, text, whole } from './config-fields.mts';
 import { hasCode, message } from './errors.mts';
-import { prettyJson, readTextIfPresent } from './files.mts';
+import { readTextIfPresent, writeJson } from './files.mts';
 
 export type Config = {
   remote: string;
@@ -104,9 +103,7 @@ function configFile(root: string): string {
 export async function writeDefaultConfig(root: string, force: boolean): Promise<string> {
   const path = configFile(root);
   try {
-    await writeFile(path, prettyJson(FILE_DEFAULTS), {
-      flag: force ? 'w' : 'wx',
-    });
+    await writeJson(path, FILE_DEFAULTS, { flag: force ? 'w' : 'wx' });
   } catch (error) {
     if (hasCode(error, 'EEXIST')) {
       throw new Error(`${CONFIG_FILE} exists already. Use --force to replace it.`);

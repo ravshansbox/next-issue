@@ -1,6 +1,6 @@
-import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { prettyJson, readTextIfPresent, unlessMissing } from './files.mts';
+import { readTextIfPresent, unlessMissing, writeJson } from './files.mts';
 import type { Repo } from './git.mts';
 
 export const STATE_DIR = '.next-issue';
@@ -122,7 +122,7 @@ export function resetState(state: IssueState): IssueState {
 
 export async function writeState(repo: Repo, state: IssueState): Promise<void> {
   await mkdir(stateDir(repo.root), { recursive: true });
-  await writeFile(file(repo, state.issue), prettyJson(state));
+  await writeJson(file(repo, state.issue), state);
 }
 
 export async function dropState(repo: Repo, issue: number): Promise<void> {

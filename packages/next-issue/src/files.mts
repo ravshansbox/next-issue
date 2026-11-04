@@ -1,4 +1,4 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { hasCode } from './errors.mts';
 
 export function readTextOrEmpty(path: string): Promise<string> {
@@ -11,6 +11,10 @@ export function listOrEmpty(dir: string): Promise<string[]> {
 
 export function prettyJson(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+export function writeJson(path: string, value: unknown, options?: { flag: string }): Promise<void> {
+  return writeFile(path, prettyJson(value), options);
 }
 
 export async function unlessMissing<T>(read: () => Promise<T>): Promise<T | undefined> {
