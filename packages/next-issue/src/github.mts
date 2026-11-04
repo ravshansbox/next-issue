@@ -572,18 +572,21 @@ async function runLogs(
     if (runId === undefined) {
       continue;
     }
-    const logs = await ghRun(repo, ['run', 'view', runId, '--log-failed'], { tailChars: share });
-    if (logs.code === 0) {
-      parts.push(logs.stdout);
-      continue;
-    }
-    const reason = joinFilled(
-      [`The log read failed with code ${logs.code}.`, logs.stderr.trim()],
-      ' ',
-    );
-    parts.push(joinFilled([logs.stdout.trim(), reason], '\n'));
+    parts.push(await runLog(repo, runId, share));
   }
   return parts.join('\n\n');
+}
+
+async function runLog(repo: Repo, runId: string, share: number): Promise<string> {
+  const logs = await ghRun(repo, ['run', 'view', runId, '--log-failed'], { tailChars: share });
+  if (logs.code === 0) {
+    return logs.stdout;
+  }
+  const reason = joinFilled(
+    [`The log read failed with code ${logs.code}.`, logs.stderr.trim()],
+    ' ',
+  );
+  return joinFilled([logs.stdout.trim(), reason], '\n');
 }
 
 function joinFilled(parts: string[], separator: string): string {
