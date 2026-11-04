@@ -168,6 +168,12 @@ export class WorkerClient {
     return this.options.startTimeoutMs ?? START_TIMEOUT_MS;
   }
 
+  private get busy(): boolean {
+    return Object.values(this.runs).some(
+      (run) => run.status === 'running' || run.status === 'stopping',
+    );
+  }
+
   get connected(): boolean {
     return this.socket?.readyState === WebSocket.OPEN;
   }
@@ -192,14 +198,13 @@ export class WorkerClient {
     if (!this.connected) {
       await this.connect();
     }
-    if (this.workerVersion !== undefined && isNewer(this.options.version, this.workerVersion)) {
-      const busy = Object.values(this.runs).some(
-        (run) => run.status === 'running' || run.status === 'stopping',
-      );
-      if (!busy) {
-        await this.waitForClose();
-        await this.connect();
-      }
+    if (
+      this.workerVersion !== undefined &&
+      isNewer(this.options.version, this.workerVersion) &&
+      !this.busy
+    ) {
+      await this.waitForClose();
+      await this.connect();
     }
   }
 
