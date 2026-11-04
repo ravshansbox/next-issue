@@ -1,3 +1,4 @@
+import { isRecord } from './records.mts';
 import { paragraphs } from './text.mts';
 
 type Severity = 'blocking' | 'minor';
@@ -17,10 +18,10 @@ function isSeverity(value: unknown): value is Severity {
 }
 
 function readFinding(item: unknown): Finding | undefined {
-  if (typeof item !== 'object' || item === null) {
+  if (!isRecord(item)) {
     return undefined;
   }
-  const { severity, detail } = item as Record<string, unknown>;
+  const { severity, detail } = item;
   if (!isSeverity(severity) || typeof detail !== 'string') {
     return undefined;
   }
@@ -28,10 +29,10 @@ function readFinding(item: unknown): Finding | undefined {
 }
 
 export function readVerdict(value: unknown): Verdict | undefined {
-  if (typeof value !== 'object' || value === null) {
+  if (!isRecord(value)) {
     return undefined;
   }
-  const { summary, findings } = value as Record<string, unknown>;
+  const { summary, findings } = value;
   if (typeof summary !== 'string' || !Array.isArray(findings)) {
     return undefined;
   }

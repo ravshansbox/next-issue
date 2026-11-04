@@ -2,6 +2,7 @@ import { mkdir, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { readTextIfPresent, unlessMissing, writeJson } from './files.mts';
 import type { Repo } from './git.mts';
+import { isRecord } from './records.mts';
 
 export const STATE_DIR = '.next-issue';
 
@@ -67,10 +68,6 @@ function parseState(path: string, text: string): IssueState {
 }
 
 const PHASES: readonly unknown[] = ['claimed', 'implemented', 'review'];
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
 
 function isOptional(value: unknown, type: 'boolean' | 'number' | 'string'): boolean {
   return value === undefined || typeof value === type;
