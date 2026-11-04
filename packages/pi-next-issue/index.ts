@@ -108,6 +108,14 @@ export function formatStatus(progress: Progress, now: number): string {
   }
 }
 
+function going(progress: Progress | undefined): progress is Progress {
+  return progress?.status === 'running' || progress?.status === 'stopping';
+}
+
+function report(text: string, root: string) {
+  return { content: [{ type: 'text' as const, text }], details: { root } };
+}
+
 function packageVersion(): string {
   const raw = readFileSync(join(import.meta.dirname, 'package.json'), 'utf8');
   return (JSON.parse(raw) as { version: string }).version;
@@ -294,9 +302,6 @@ export function createExtension(options: Options) {
       return { client, root, progress: client.runs[root] };
     };
 
-    const going = (progress: Progress | undefined): progress is Progress =>
-      progress?.status === 'running' || progress?.status === 'stopping';
-
     const accepted = (client: WorkerClient, root: string, signal: AbortSignal | undefined) =>
       new Promise<void>((resolve, reject) => {
         const finish = (error?: Error) => {
@@ -353,11 +358,6 @@ export function createExtension(options: Options) {
           details: { started: true, root },
         };
       },
-    });
-
-    const report = (text: string, root: string) => ({
-      content: [{ type: 'text' as const, text }],
-      details: { root },
     });
 
     pi.registerTool({
