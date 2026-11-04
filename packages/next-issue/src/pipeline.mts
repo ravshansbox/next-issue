@@ -62,30 +62,43 @@ export async function pendingIssues(context: Context): Promise<Issue[]> {
     if (listed.has(number)) {
       continue;
     }
-    const saved = await readState(repo, number).catch(() => 'broken' as const);
-    if (saved === undefined) {
-      continue;
+    const { open, issue } = await savedIssue(context, number);
+    if (open) {
+      openCount += 1;
     }
-    try {
-      const { open, ...issue } = await ports.viewIssue(repo, number);
-      if (open) {
-        openCount += 1;
-      }
-      if (
-        saved === 'broken' ||
-        open ||
-        (saved.pr !== undefined && (await ports.prMerged(repo, saved.pr)))
-      ) {
-        issues.push(issue);
-      }
-    } catch (error) {
-      context.recorder
-        .scope({ issue: number })
-        .event('issue.error', { error: message(error) }, 'quiet');
+    if (issue !== undefined) {
+      issues.push(issue);
     }
   }
   context.recorder.event('issues', { open: openCount }, 'quiet');
   return issues.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+async function savedIssue(
+  context: Context,
+  number: number,
+): Promise<{ open: boolean; issue?: Issue }> {
+  const { repo, ports } = context;
+  const saved = await readState(repo, number).catch(() => 'broken' as const);
+  if (saved === undefined) {
+    return { open: false };
+  }
+  try {
+    const { open, ...issue } = await ports.viewIssue(repo, number);
+    if (
+      saved === 'broken' ||
+      open ||
+      (saved.pr !== undefined && (await ports.prMerged(repo, saved.pr)))
+    ) {
+      return { open, issue };
+    }
+    return { open };
+  } catch (error) {
+    context.recorder
+      .scope({ issue: number })
+      .event('issue.error', { error: message(error) }, 'quiet');
+    return { open: false };
+  }
 }
 
 export async function processIssue(context: Context, issue: Issue): Promise<IssueReport> {
