@@ -10,7 +10,7 @@ import type { Recorder } from './observe.mts';
 import { openJob } from './open-job.mts';
 import { reviewRound } from './review.mts';
 import { logIssueError, skipReport, unclaimedError } from './skip.mts';
-import { type IssueState, readState, resetState } from './state.mts';
+import { type IssueState, newState, readState, resetState } from './state.mts';
 import { setUp } from './worktree-setup.mts';
 
 export async function processIssue(context: Context, issue: Issue): Promise<IssueReport> {
@@ -53,14 +53,7 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
 
 function startState(context: Context, issue: Issue, saved: IssueState | undefined): IssueState {
   if (saved === undefined) {
-    return {
-      issue: issue.number,
-      phase: 'claimed',
-      branch: branchName(issue.number),
-      ciFixes: 0,
-      reviewRounds: 0,
-      reviewLog: [],
-    };
+    return newState(issue.number, branchName(issue.number));
   }
   return context.reset || saved.handedOver === true ? resetState(saved) : saved;
 }

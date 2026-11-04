@@ -112,6 +112,10 @@ export async function savedIssues(repo: Repo): Promise<number[]> {
   });
 }
 
+export function newState(issue: number, branch: string): IssueState {
+  return { issue, phase: 'claimed', branch, ciFixes: 0, reviewRounds: 0, reviewLog: [] };
+}
+
 export function resetState(state: IssueState): IssueState {
   const { handedOver: _handedOver, ...rest } = state;
   return { ...rest, ciFixes: 0, commitFixes: 0, reviewRounds: 0, reviewLog: [] };
