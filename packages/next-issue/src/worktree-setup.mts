@@ -1,6 +1,7 @@
 import { minutesToMs } from './durations.mts';
 import { escalateAndFinish } from './handover.mts';
 import type { Round, Run } from './job.mts';
+import type { SetupResult } from './ports.mts';
 
 export async function setUp(job: Run): Promise<Round> {
   const { context, log, worktree } = job;
@@ -20,10 +21,7 @@ export async function setUp(job: Run): Promise<Round> {
   return setupFailed(job, setup);
 }
 
-async function setupFailed(
-  job: Run,
-  setup: { code: number; stderr: string; timedOut?: boolean },
-): Promise<Round> {
+async function setupFailed(job: Run, setup: SetupResult): Promise<Round> {
   const late = setup.timedOut === true;
   job.log.event(
     'setup.fail',

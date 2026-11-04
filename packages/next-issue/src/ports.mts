@@ -40,11 +40,9 @@ import {
 import { detectSetupCommand } from './setup.mts';
 import { addWorktree, findWorktree, removeWorktree } from './worktree.mts';
 
-async function runSetup(
-  command: string,
-  cwd: string,
-  timeoutMs: number,
-): Promise<{ code: number; stderr: string; timedOut?: boolean }> {
+export type SetupResult = { code: number; stderr: string; timedOut?: boolean };
+
+async function runSetup(command: string, cwd: string, timeoutMs: number): Promise<SetupResult> {
   return run('bash', ['-lc', command], { cwd, timeoutMs });
 }
 
