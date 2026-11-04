@@ -1,5 +1,5 @@
 import { finishDone } from './handover.mts';
-import { openPr, type Round, type Run } from './job.mts';
+import { openPr, ROUND_CONTINUE, type Round, type Run } from './job.mts';
 import { afterMerge, fixBase } from './merge.mts';
 
 export async function enterReview(job: Run): Promise<Round> {
@@ -19,7 +19,7 @@ export async function enterReview(job: Run): Promise<Round> {
   await log.step('push', { branch }, () => ports.push(worktree, config.remote, branch));
   state.phase = 'review';
   await openPr(job);
-  return { done: false };
+  return ROUND_CONTINUE;
 }
 
 async function alreadyMerged(job: Run, pr: number): Promise<Round> {

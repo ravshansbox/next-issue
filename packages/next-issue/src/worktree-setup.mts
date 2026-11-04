@@ -1,7 +1,7 @@
 import { minutesToMs } from './durations.mts';
 import { succeeded } from './exec.mts';
 import { escalateAndFinish } from './handover.mts';
-import type { Round, Run } from './job.mts';
+import { ROUND_CONTINUE, type Round, type Run } from './job.mts';
 import type { SetupResult } from './ports.mts';
 import { keepTail } from './text.mts';
 
@@ -10,7 +10,7 @@ export async function setUp(job: Run): Promise<Round> {
   const { config, ports } = context;
   const setupCommand = config.setupCommand ?? (await ports.detectSetupCommand(worktree));
   if (setupCommand === undefined) {
-    return { done: false };
+    return ROUND_CONTINUE;
   }
   const setup = await log.step(
     'setup',
@@ -18,7 +18,7 @@ export async function setUp(job: Run): Promise<Round> {
     () => ports.runSetup(setupCommand, worktree, minutesToMs(config.setupTimeoutMinutes)),
   );
   if (succeeded(setup)) {
-    return { done: false };
+    return ROUND_CONTINUE;
   }
   return setupFailed(job, setup);
 }

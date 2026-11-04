@@ -52,6 +52,8 @@ export type Gate = Finished | { done: false; fixed: boolean };
 
 export type Round = Finished | { done: false };
 
+export const ROUND_CONTINUE: Round = { done: false };
+
 export const GATE_PASSED: Gate = { done: false, fixed: false };
 
 export const GATE_FIXED: Gate = { done: false, fixed: true };
@@ -60,7 +62,7 @@ export function gateRound(gate: Gate): Round | undefined {
   if (gate.done) {
     return gate;
   }
-  return gate.fixed ? { done: false } : undefined;
+  return gate.fixed ? ROUND_CONTINUE : undefined;
 }
 
 export function runRole(

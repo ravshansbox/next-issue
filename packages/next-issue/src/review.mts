@@ -3,7 +3,15 @@ import { conflicts, resolveConflict } from './conflict.mts';
 import { type Fix, fixRound } from './fix.mts';
 import { checkGate } from './gate.mts';
 import { escalateAndFinish, finishDone } from './handover.mts';
-import { gateRound, history, type Round, type Run, runRole, setStatus } from './job.mts';
+import {
+  gateRound,
+  history,
+  ROUND_CONTINUE,
+  type Round,
+  type Run,
+  runRole,
+  setStatus,
+} from './job.mts';
 import { afterMerge } from './merge.mts';
 import { capDiff, reviewPrompt } from './prompts.mts';
 import { writeState } from './state.mts';
@@ -57,7 +65,7 @@ async function changesRequestedRound(job: Run, open: Finding[], earlier: string[
   if (!fix.committed) {
     return unfixedRound(job, fix);
   }
-  return { done: false };
+  return ROUND_CONTINUE;
 }
 
 function recordVerdict(job: Run, verdict: Verdict, open: Finding[]): void {
@@ -117,7 +125,7 @@ async function unfixedRound(job: Run, fix: Extract<Fix, { committed: false }>): 
   state.reviewLog.at(-1)!.dispute = note;
   await writeState(repo, state);
   await ports.commentOnPr(repo, state.pr!, `### Fixer: no change\n\n${note}`);
-  return { done: false };
+  return ROUND_CONTINUE;
 }
 
 async function approvedRound(job: Run): Promise<Round> {
@@ -141,7 +149,7 @@ async function mergeApproved(job: Run): Promise<Round> {
   const { context, state } = job;
   if (await conflicts(job)) {
     const resolved = await resolveConflict(job);
-    return resolved.done ? resolved : { done: false };
+    return resolved.done ? resolved : ROUND_CONTINUE;
   }
   if (!(await context.ports.mergePr(context.repo, state.pr!))) {
     return escalateAndFinish(job, 'The merge of the pull request failed.', 'merge failed');
