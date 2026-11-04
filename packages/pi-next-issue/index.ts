@@ -231,6 +231,32 @@ async function statusOf(client: WorkerClient, root: string) {
   return report(lines.join('\n'), root);
 }
 
+async function startRun(
+  client: WorkerClient,
+  root: string,
+  progress: Progress | undefined,
+  signal: AbortSignal | undefined,
+) {
+  if (going(progress)) {
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: `A run of ${root} is going already, so nothing started: ${formatStatus(progress, Date.now())}. It picks up new issues by itself.`,
+        },
+      ],
+      details: { started: false, root },
+    };
+  }
+  const accepting = accepted(client, root, signal);
+  client.send({ type: 'start', root, merge: true });
+  await accepting;
+  return {
+    content: [{ type: 'text' as const, text: `Started a next-issue run of ${root}.` }],
+    details: { started: true, root },
+  };
+}
+
 const fromMachine: Options = {
   client: (root) =>
     new WorkerClient({
@@ -421,24 +447,7 @@ export function createExtension(options: Options) {
       parameters: Type.Object({}),
       async execute(_toolCallId, _params, signal, _onUpdate, ctx) {
         const { client, root, progress } = await connect(ctx);
-        if (going(progress)) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: `A run of ${root} is going already, so nothing started: ${formatStatus(progress, Date.now())}. It picks up new issues by itself.`,
-              },
-            ],
-            details: { started: false, root },
-          };
-        }
-        const accepting = accepted(client, root, signal);
-        client.send({ type: 'start', root, merge: true });
-        await accepting;
-        return {
-          content: [{ type: 'text', text: `Started a next-issue run of ${root}.` }],
-          details: { started: true, root },
-        };
+        return startRun(client, root, progress, signal);
       },
     });
 
