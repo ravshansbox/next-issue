@@ -7,26 +7,24 @@ import { test } from 'node:test';
 import { must } from '../src/exec.mts';
 import {
   abortMerge,
-  addWorktree,
   branchName,
   commitAll,
   commitMerge,
   discardChanges,
   disputeBranches,
   ensureIgnored,
-  findWorktree,
   HookError,
   isAncestor,
   isDirty,
   latestSubject,
   parseRemote,
   push,
-  removeWorktree,
   type Repo,
   revision,
   setAside,
   startMerge,
 } from '../src/git.mts';
+import { addWorktree, findWorktree, removeWorktree } from '../src/worktree.mts';
 
 test('parseRemote reads every remote form', () => {
   const expected = { owner: 'acme', name: 'tool' };

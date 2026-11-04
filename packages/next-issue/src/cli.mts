@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { type Args, parseArgs, USAGE } from './args.mts';
 import { writeDefaultConfig } from './config.mts';
-import { ensureIgnored, repoRoot, WORKTREE_DIR } from './git.mts';
+import { ensureIgnored, repoRoot } from './git.mts';
 import { listenForInterrupts } from './interrupt.mts';
 import { stopWorker } from './lock.mts';
 import { followLog, newestRunLog } from './logs.mts';
@@ -10,6 +10,7 @@ import { runRepo } from './run.mts';
 import { serve, workerPaths } from './serve.mts';
 import { STATE_DIR } from './state.mts';
 import { formatSummary } from './summary.mts';
+import { WORKTREE_DIR } from './worktree.mts';
 
 function write(stream: NodeJS.WriteStream, text: string): Promise<void> {
   return new Promise((resolve, reject) => {

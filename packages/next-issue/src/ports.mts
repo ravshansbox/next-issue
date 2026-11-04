@@ -2,18 +2,15 @@ import { runAgent } from './agents.mts';
 import { run } from './exec.mts';
 import {
   abortMerge,
-  addWorktree,
   commitAll,
   commitMerge,
   deleteBranch,
   diff,
   discardChanges,
   disputeBranches,
-  findWorktree,
   isDirty,
   latestSubject,
   push,
-  removeWorktree,
   resetToBase,
   revision,
   setAside,
@@ -40,6 +37,7 @@ import {
 import { failedBaseLogs, failedCheckLogs, waitForBaseChecks, waitForChecks } from './checks.mts';
 import { setLabel } from './labels.mts';
 import { detectSetupCommand } from './setup.mts';
+import { addWorktree, findWorktree, removeWorktree } from './worktree.mts';
 
 async function runSetup(
   command: string,
