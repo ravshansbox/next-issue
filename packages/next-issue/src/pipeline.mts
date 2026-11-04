@@ -130,20 +130,7 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
   }
   log.event('issue.start', { title: issue.title, createdAt: issue.createdAt }, 'quiet');
 
-  const fresh: IssueState = {
-    issue: issue.number,
-    phase: 'claimed',
-    branch: branchName(issue.number),
-    ciFixes: 0,
-    reviewRounds: 0,
-    reviewLog: [],
-  };
-  const state =
-    saved === undefined
-      ? fresh
-      : context.reset || saved.handedOver === true
-        ? resetState(saved)
-        : saved;
+  const state = startState(context, issue, saved);
 
   try {
     const report = await work(
@@ -163,6 +150,20 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
   } catch (error) {
     return claimedError(context, log, issue, state, error, started);
   }
+}
+
+function startState(context: Context, issue: Issue, saved: IssueState | undefined): IssueState {
+  if (saved === undefined) {
+    return {
+      issue: issue.number,
+      phase: 'claimed',
+      branch: branchName(issue.number),
+      ciFixes: 0,
+      reviewRounds: 0,
+      reviewLog: [],
+    };
+  }
+  return context.reset || saved.handedOver === true ? resetState(saved) : saved;
 }
 
 async function claimedError(
