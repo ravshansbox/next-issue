@@ -1,5 +1,5 @@
 import { lines } from './exec.mts';
-import { gh, ghApi, ghJson, ghOnce, names, repeatable, slug } from './gh.mts';
+import { gh, ghApi, ghJson, ghOnce, type Named, names, repeatable, slug } from './gh.mts';
 import type { Repo } from './git.mts';
 
 export type Issue = {
@@ -22,7 +22,7 @@ type RawIssue = {
   title: string;
   body: string | null;
   createdAt: string;
-  labels: Array<{ name: string }>;
+  labels: Named[];
 };
 
 const ISSUE_FIELDS = 'number,title,body,createdAt,labels';

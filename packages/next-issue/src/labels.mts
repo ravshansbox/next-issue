@@ -1,11 +1,11 @@
-import { asError, gh, ghJson, ghOnce, names, slug } from './gh.mts';
+import { asError, gh, ghJson, ghOnce, type Named, names, slug } from './gh.mts';
 import type { Repo } from './git.mts';
 import type { Kind } from './github.mts';
 
 const KNOWN_LABELS = new Map<string, Set<string>>();
 
 async function labelsOf(repo: Repo, kind: Kind, number: number): Promise<string[]> {
-  const parsed = await ghJson<{ labels: Array<{ name: string }> }>(repo, [
+  const parsed = await ghJson<{ labels: Named[] }>(repo, [
     kind,
     'view',
     String(number),
@@ -63,7 +63,7 @@ async function knownLabels(repo: Repo): Promise<Set<string>> {
   if (cached !== undefined) {
     return cached;
   }
-  const listed = await ghJson<Array<{ name: string }>>(repo, [
+  const listed = await ghJson<Named[]>(repo, [
     'label',
     'list',
     '--limit',

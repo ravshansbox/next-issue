@@ -67,7 +67,9 @@ export async function ghSucceeds(repo: Repo, args: string[]): Promise<boolean> {
   return result.code === 0;
 }
 
-export function names(items: Array<{ name: string }>): string[] {
+export type Named = { name: string };
+
+export function names(items: Named[]): string[] {
   return items.map((item) => item.name);
 }
 
