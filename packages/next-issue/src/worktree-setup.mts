@@ -2,6 +2,7 @@ import { minutesToMs } from './durations.mts';
 import { escalateAndFinish } from './handover.mts';
 import type { Round, Run } from './job.mts';
 import type { SetupResult } from './ports.mts';
+import { keepTail } from './text.mts';
 
 export async function setUp(job: Run): Promise<Round> {
   const { context, log, worktree } = job;
@@ -25,7 +26,7 @@ async function setupFailed(job: Run, setup: SetupResult): Promise<Round> {
   const late = setup.timedOut === true;
   job.log.event(
     'setup.fail',
-    { code: setup.code, timedOut: late, stderr: setup.stderr.trim().slice(-2000) },
+    { code: setup.code, timedOut: late, stderr: keepTail(setup.stderr.trim(), 2000) },
     'quiet',
   );
   return escalateAndFinish(

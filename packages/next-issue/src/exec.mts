@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { type ChildProcess, spawn } from 'node:child_process';
 import { killTree, unwatch, watch } from './children.mts';
 import { deadline, elapsedMs, minutesToMs } from './durations.mts';
+import { keepTail } from './text.mts';
 
 export type RunResult = {
   code: number;
@@ -36,10 +37,6 @@ const DEFAULT_TIMEOUT_MS = minutesToMs(10);
 const defaultTimeout = new AsyncLocalStorage<number>();
 
 const STDERR_TAIL = 200_000;
-
-function keepTail(text: string, limit: number | undefined): string {
-  return limit !== undefined && text.length > limit ? text.slice(-limit) : text;
-}
 
 export function setCommandObserver(next: (record: CommandRecord) => void): void {
   observer = next;

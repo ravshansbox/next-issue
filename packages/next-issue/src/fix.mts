@@ -5,6 +5,7 @@ import { HookError } from './git-commit.mts';
 import { type Run, runRole } from './job.mts';
 import { type FixKind, fixPrompt, hookPrompt } from './prompts.mts';
 import { writeState } from './state.mts';
+import { keepTail } from './text.mts';
 
 export type Fix = { committed: true } | { committed: false; unrelated?: string; stray?: boolean };
 
@@ -108,7 +109,7 @@ async function hookFix(
   }
   state.commitFixes = used + 1;
   await writeState(repo, state);
-  const output = message(error).slice(-config.logMaxChars);
+  const output = keepTail(message(error), config.logMaxChars);
   log.event('commit.fail', { role, output }, 'quiet');
   const fix = await log.step(
     'commit-fix',
