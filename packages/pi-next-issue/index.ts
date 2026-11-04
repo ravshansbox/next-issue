@@ -227,6 +227,10 @@ async function statusOf(client: WorkerClient, root: string) {
   return report(lines.join('\n'), root);
 }
 
+function sendStart(client: WorkerClient, root: string): void {
+  client.send({ type: 'start', root, merge: true });
+}
+
 async function startRun(
   client: WorkerClient,
   root: string,
@@ -245,7 +249,7 @@ async function startRun(
     };
   }
   const accepting = accepted(client, root, signal);
-  client.send({ type: 'start', root, merge: true });
+  sendStart(client, root);
   await accepting;
   return {
     content: [{ type: 'text' as const, text: `Started a next-issue run of ${root}.` }],
@@ -257,7 +261,7 @@ function toggle(client: WorkerClient, root: string, progress: Progress | undefin
   if (going(progress)) {
     client.send({ type: 'stop', root });
   } else {
-    client.send({ type: 'start', root, merge: true });
+    sendStart(client, root);
   }
 }
 
