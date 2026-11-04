@@ -63,20 +63,13 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
   log.event('agent.start', { model: request.model, timeoutMs: request.timeoutMs }, 'normal');
   const session = await openSession(recorder, log, request, agentDir);
 
-  let timedOut = false;
-  const timer =
-    request.timeoutMs === undefined
-      ? undefined
-      : setTimeout(() => {
-          timedOut = true;
-          void session.abort();
-        }, request.timeoutMs);
+  const deadline = abortAfter(session, request.timeoutMs);
   const unsubscribe = session.subscribe((event) => observe(log, event));
   const release = onStop(() => void session.abort());
   try {
     await session.bindExtensions({});
     await session.prompt(request.prompt, { expandPromptTemplates: false });
-    if (timedOut) {
+    if (deadline.timedOut()) {
       throw new Error(`The ${request.name} agent did not finish in ${request.timeoutMs} ms.`);
     }
     const failure = lastFailure(session);
@@ -85,11 +78,26 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     }
     return sessionResult(recorder, request, session, started);
   } finally {
-    clearTimeout(timer);
+    deadline.clear();
     release();
     unsubscribe();
     session.dispose();
   }
+}
+
+function abortAfter(
+  session: AgentSession,
+  timeoutMs: number | undefined,
+): { timedOut: () => boolean; clear: () => void } {
+  let timedOut = false;
+  const timer =
+    timeoutMs === undefined
+      ? undefined
+      : setTimeout(() => {
+          timedOut = true;
+          void session.abort();
+        }, timeoutMs);
+  return { timedOut: () => timedOut, clear: () => clearTimeout(timer) };
 }
 
 function lastFailure(session: AgentSession): string | undefined {
