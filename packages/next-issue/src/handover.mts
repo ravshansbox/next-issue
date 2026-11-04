@@ -162,14 +162,10 @@ function progress(job: Run): Pick<IssueReport, 'pr' | 'ciFixes' | 'reviewRounds'
 
 export async function finish(job: Run, outcome: Outcome, reason?: string): Promise<IssueReport> {
   const { context, issue, log, branch } = job;
-  const { repo, ports } = context;
+  const { repo } = context;
   await cleanUp(context, log, branch);
   if (outcome === 'done') {
-    for (const name of [branch, ...(await ports.disputeBranches(repo, branch))]) {
-      if (!(await oneAtATime(repo.root, () => ports.deleteBranch(repo, name)))) {
-        log.event('branch.kept', { branch: name }, 'quiet');
-      }
-    }
+    await deleteBranches(context, log, branch);
     await dropState(repo, issue.number);
   }
   return {
@@ -179,6 +175,15 @@ export async function finish(job: Run, outcome: Outcome, reason?: string): Promi
     ...progress(job),
     ...(job.mainBroken && outcome !== 'done' ? { halt: true } : {}),
   };
+}
+
+async function deleteBranches(context: Context, log: Recorder, branch: string): Promise<void> {
+  const { repo, ports } = context;
+  for (const name of [branch, ...(await ports.disputeBranches(repo, branch))]) {
+    if (!(await oneAtATime(repo.root, () => ports.deleteBranch(repo, name)))) {
+      log.event('branch.kept', { branch: name }, 'quiet');
+    }
+  }
 }
 
 export async function cleanUp(context: Context, log: Recorder, branch: string): Promise<void> {
