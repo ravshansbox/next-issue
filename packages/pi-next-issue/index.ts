@@ -33,6 +33,15 @@ function formatQuestions(count: number): string {
   return `${count} ${count === 1 ? 'question' : 'questions'} waiting`;
 }
 
+function threadsOf(question: Question): Array<[string, number]> {
+  return question.pr === undefined
+    ? [['issue', question.issue]]
+    : [
+        ['issue', question.issue],
+        ['pr', question.pr],
+      ];
+}
+
 function shared(create: (root: string) => WorkerClient, root: string): WorkerClient {
   const store = globalThis as Record<symbol, Map<string, WorkerClient> | undefined>;
   const clients = (store[KEY] ??= new Map());
@@ -394,10 +403,7 @@ export function createExtension(options: Options) {
       });
 
     const reply = async (root: string, question: Question, choice: string, guidance: string) => {
-      const threads: Array<[string, number]> = [['issue', question.issue]];
-      if (question.pr !== undefined) {
-        threads.push(['pr', question.pr]);
-      }
+      const threads = threadsOf(question);
       const repo = ['--repo', question.repo];
       if (choice === GUIDE) {
         const [kind, number] = threads.at(-1)!;
