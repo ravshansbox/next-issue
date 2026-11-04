@@ -59,29 +59,41 @@ async function lastHandOver(comments: Comment[], writer: Writer): Promise<number
   return -1;
 }
 
+type QuestionPorts = Pick<Ports, 'canWrite' | 'openIssues' | 'threadComments'>;
+
 export async function waitingQuestions(
   repo: Repo,
   config: Config,
-  ports: Pick<Ports, 'canWrite' | 'openIssues' | 'threadComments'>,
+  ports: QuestionPorts,
 ): Promise<Question[]> {
   const writer = writers(repo, ports);
   const issues = await ports.openIssues(repo, config.issueLimit, [config.labels.needsHuman]);
   const questions: Question[] = [];
   for (const issue of issues) {
-    const pr = (await readState(repo, issue.number))?.pr;
-    const comments = await ports.threadComments(repo, pr ?? issue.number);
-    const comment = comments[await lastHandOver(comments, writer)];
-    questions.push({
-      issue: issue.number,
-      title: issue.title,
-      reason: comment?.body.slice(HAND_OVER.length).trim() ?? '',
-      url: comment?.url ?? '',
-      repo: `${repo.owner}/${repo.name}`,
-      ...(pr === undefined ? {} : { pr }),
-      labels: { needsHuman: config.labels.needsHuman, skip: config.labels.skip },
-    });
+    questions.push(await waitingQuestion(repo, config, ports, writer, issue));
   }
   return questions;
+}
+
+async function waitingQuestion(
+  repo: Repo,
+  config: Config,
+  ports: QuestionPorts,
+  writer: Writer,
+  issue: Issue,
+): Promise<Question> {
+  const pr = (await readState(repo, issue.number))?.pr;
+  const comments = await ports.threadComments(repo, pr ?? issue.number);
+  const comment = comments[await lastHandOver(comments, writer)];
+  return {
+    issue: issue.number,
+    title: issue.title,
+    reason: comment?.body.slice(HAND_OVER.length).trim() ?? '',
+    url: comment?.url ?? '',
+    repo: `${repo.owner}/${repo.name}`,
+    ...(pr === undefined ? {} : { pr }),
+    labels: { needsHuman: config.labels.needsHuman, skip: config.labels.skip },
+  };
 }
 
 export async function writerComments(
