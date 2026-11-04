@@ -59,19 +59,23 @@ function addHandled(handled: Handled[], issue: number, outcome: unknown): Handle
     : handled;
 }
 
+function started(issue: number, record: Fields): IssueProgress {
+  const next: IssueProgress = {
+    issue,
+    tools: 0,
+    startedAt: Date.parse(String(record['ts'])),
+  };
+  if (typeof record['title'] === 'string') {
+    next.title = record['title'];
+  }
+  return next;
+}
+
 export function applyEvent(progress: Progress, record: Fields): Progress {
   const kind = String(record['kind']);
   const issue = Number(record['issue']);
   if (kind === 'issue.start') {
-    const next: IssueProgress = {
-      issue,
-      tools: 0,
-      startedAt: Date.parse(String(record['ts'])),
-    };
-    if (typeof record['title'] === 'string') {
-      next.title = record['title'];
-    }
-    return { ...progress, issues: [...without(progress.issues, issue), next] };
+    return { ...progress, issues: [...without(progress.issues, issue), started(issue, record)] };
   }
   if (kind === 'tool') {
     return change(progress, issue, (current) => ({
