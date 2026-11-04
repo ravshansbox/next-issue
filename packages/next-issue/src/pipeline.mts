@@ -218,6 +218,31 @@ async function setUp(job: Run): Promise<Round> {
   );
 }
 
+async function implement(job: Run): Promise<Round> {
+  const { context, issue, log, state, worktree, comments, reply } = job;
+  const { repo, config, ports } = context;
+  const before = await ports.revision(worktree);
+  const result = await log.step('implement', {}, () =>
+    runRole(job, 'implementer', implementPrompt(issue, comments, reply), CODING),
+  );
+  const subject = parseCommitSubject(result.text, fallbackTitle(issue));
+  if (!(await commitWork(job, before, subject, 'implementer'))) {
+    const earlier = await ports.latestSubject(worktree, context.base, config.remote);
+    if (earlier === undefined) {
+      return escalateAndFinish(
+        job,
+        'The implementer produced no change.',
+        'no implementation commit',
+      );
+    }
+    log.event('implement.earlier', { subject: earlier }, 'quiet');
+    state.title = earlier;
+  }
+  state.phase = 'implemented';
+  await writeState(repo, state);
+  return { done: false };
+}
+
 async function work(
   context: Context,
   issue: Issue,
@@ -268,26 +293,10 @@ async function work(
   }
 
   if (state.phase === 'claimed') {
-    const before = await ports.revision(worktree);
-    const result = await log.step('implement', {}, () =>
-      runRole(job, 'implementer', implementPrompt(issue, comments, reply), CODING),
-    );
-    const subject = parseCommitSubject(result.text, fallbackTitle(issue));
-    if (!(await commitWork(job, before, subject, 'implementer'))) {
-      const earlier = await ports.latestSubject(worktree, context.base, config.remote);
-      if (earlier === undefined) {
-        const empty = await escalateAndFinish(
-          job,
-          'The implementer produced no change.',
-          'no implementation commit',
-        );
-        return empty.report;
-      }
-      log.event('implement.earlier', { subject: earlier }, 'quiet');
-      state.title = earlier;
+    const implemented = await implement(job);
+    if (implemented.done) {
+      return implemented.report;
     }
-    state.phase = 'implemented';
-    await writeState(repo, state);
   }
   if (context.stopAfterRound()) {
     return stop(job);
