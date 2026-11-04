@@ -197,7 +197,7 @@ export class WorkerClient {
       });
       socket.once('open', () => {
         this.socket = socket;
-        socket.send(JSON.stringify({ type: 'hello', version: this.options.version }));
+        this.send({ type: 'hello', version: this.options.version });
       });
       socket.once('close', () => {
         this.release(socket);
