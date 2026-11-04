@@ -6,6 +6,7 @@ import { minutesToMs } from './durations.mts';
 import { message } from './errors.mts';
 import { withDefaultTimeout } from './exec.mts';
 import { prettyJson } from './files.mts';
+import { slug } from './gh.mts';
 import { detectRepo, type Repo } from './git.mts';
 import { defaultBranch } from './github.mts';
 import type { Interrupts } from './interrupt.mts';
@@ -121,7 +122,7 @@ async function startRun(
     'run.start',
     {
       version: await packageVersion(),
-      repo: `${repo.owner}/${repo.name}`,
+      repo: slug(repo),
       base,
       log: recorder.logFile,
     },

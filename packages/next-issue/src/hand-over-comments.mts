@@ -1,4 +1,5 @@
 import type { Config } from './config.mts';
+import { slug } from './gh.mts';
 import type { Repo } from './git.mts';
 import type { Comment, Issue } from './github.mts';
 import type { Context } from './job.mts';
@@ -82,7 +83,7 @@ async function waitingQuestion(
     title: issue.title,
     reason: comment?.body.slice(HAND_OVER.length).trim() ?? '',
     url: comment?.url ?? '',
-    repo: `${repo.owner}/${repo.name}`,
+    repo: slug(repo),
     ...(pr === undefined ? {} : { pr }),
     labels: { needsHuman: config.labels.needsHuman, skip: config.labels.skip },
   };
