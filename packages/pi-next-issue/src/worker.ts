@@ -200,16 +200,21 @@ export class WorkerClient {
         socket.send(JSON.stringify({ type: 'hello', version: this.options.version }));
       });
       socket.once('close', () => {
-        if (this.socket === socket) {
-          this.socket = undefined;
-          this.emit({ type: 'closed' });
-          this.scheduleReconnect();
-        }
+        this.release(socket);
         if (!hello) {
           reject(new Error('the worker closed the connection'));
         }
       });
     });
+  }
+
+  private release(socket: WebSocket): void {
+    if (this.socket !== socket) {
+      return;
+    }
+    this.socket = undefined;
+    this.emit({ type: 'closed' });
+    this.scheduleReconnect();
   }
 
   private receive(message: WorkerMessage): void {
