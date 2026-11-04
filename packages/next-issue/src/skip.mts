@@ -60,11 +60,8 @@ export function unclaimedError(
   error: unknown,
   started: number,
 ): IssueReport {
-  log.event('issue.error', { error: message(error), ms: Date.now() - started }, 'quiet');
-  return {
-    ...skipped(issue),
-    outcome: 'error',
-    reason: message(error),
-    ms: Date.now() - started,
-  };
+  const reason = message(error);
+  const ms = Date.now() - started;
+  log.event('issue.error', { error: reason, ms }, 'quiet');
+  return { ...skipped(issue), outcome: 'error', reason, ms };
 }
