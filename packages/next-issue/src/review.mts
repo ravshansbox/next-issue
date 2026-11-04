@@ -1,6 +1,6 @@
 import { REVIEWING } from './agents.mts';
 import { conflicts, resolveConflict } from './conflict.mts';
-import { fixRound } from './fix.mts';
+import { type Fix, fixRound } from './fix.mts';
 import { checkGate } from './gate.mts';
 import { escalateAndFinish, finishDone } from './handover.mts';
 import { history, type Round, type Run, runRole, setStatus } from './job.mts';
@@ -75,25 +75,32 @@ export async function reviewRound(job: Run): Promise<Round> {
 
   const fix = await fixRound(job, 'The reviewer requested changes.', findings, earlier, 'review');
   if (!fix.committed) {
-    const note = fix.unrelated;
-    if (note === undefined) {
-      return escalateAndFinish(
-        job,
-        'The fixer added no commit for the review findings.',
-        'no fix commit',
-      );
-    }
-    if (fix.stray === true) {
-      return escalateAndFinish(
-        job,
-        `The fixer disputed the findings and left a change behind: ${note}`,
-        'dispute with changes',
-      );
-    }
-    state.reviewLog.at(-1)!.dispute = note;
-    await writeState(repo, state);
-    await ports.commentOnPr(repo, pr, `### Fixer: no change\n\n${note}`);
+    return unfixedRound(job, fix);
   }
+  return { done: false };
+}
+
+async function unfixedRound(job: Run, fix: Extract<Fix, { committed: false }>): Promise<Round> {
+  const { context, state } = job;
+  const { repo, ports } = context;
+  const note = fix.unrelated;
+  if (note === undefined) {
+    return escalateAndFinish(
+      job,
+      'The fixer added no commit for the review findings.',
+      'no fix commit',
+    );
+  }
+  if (fix.stray === true) {
+    return escalateAndFinish(
+      job,
+      `The fixer disputed the findings and left a change behind: ${note}`,
+      'dispute with changes',
+    );
+  }
+  state.reviewLog.at(-1)!.dispute = note;
+  await writeState(repo, state);
+  await ports.commentOnPr(repo, state.pr!, `### Fixer: no change\n\n${note}`);
   return { done: false };
 }
 
