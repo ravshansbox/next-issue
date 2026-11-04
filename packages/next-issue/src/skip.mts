@@ -3,7 +3,7 @@ import { message } from './errors.mts';
 import type { Issue } from './github.mts';
 import { skipped } from './handover.mts';
 import type { Context, IssueReport } from './job.mts';
-import { type Recorder } from './observe.mts';
+import type { Recorder } from './observe.mts';
 import type { IssueState } from './state.mts';
 
 type Skip = 'stop-label' | 'not-ready' | 'in-flight';
