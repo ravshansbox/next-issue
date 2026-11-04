@@ -632,12 +632,16 @@ export async function reopenIssue(repo: Repo, issue: number): Promise<void> {
   await gh(repo, ['issue', 'reopen', String(issue)]);
 }
 
+async function comment(repo: Repo, kind: Kind, number: number, body: string): Promise<void> {
+  await ghOnce(repo, [kind, 'comment', String(number), '--body-file', '-'], body);
+}
+
 export async function commentOnIssue(repo: Repo, issue: number, body: string): Promise<void> {
-  await ghOnce(repo, ['issue', 'comment', String(issue), '--body-file', '-'], body);
+  await comment(repo, 'issue', issue, body);
 }
 
 export async function commentOnPr(repo: Repo, pr: number, body: string): Promise<void> {
-  await ghOnce(repo, ['pr', 'comment', String(pr), '--body-file', '-'], body);
+  await comment(repo, 'pr', pr, body);
 }
 
 function asError(error: unknown): Error {
