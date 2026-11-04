@@ -22,7 +22,14 @@ import {
   runsMessage,
   startRefusal,
 } from './worker-run.mts';
-import { broadcast, listen, parseMessage, shutdown } from './worker-server.mts';
+import {
+  broadcast,
+  closer,
+  listen,
+  parseMessage,
+  shutdown,
+  type Worker,
+} from './worker-server.mts';
 
 export type RunRepo = (root: string, args: Args, controls: RunControls) => Promise<number>;
 
@@ -40,11 +47,6 @@ type WorkerOptions = {
 const LOCK_WAIT_MS = 5_000;
 const IDLE_MS = 30_000;
 
-type Worker = {
-  closed: Promise<void>;
-  close: () => Promise<void>;
-};
-
 function stopRun(sockets: WebSocketServer, runs: Map<string, Run>, root: string): void {
   const run = runs.get(root);
   if (run === undefined || run.progress.status !== 'running') {
@@ -52,19 +54,6 @@ function stopRun(sockets: WebSocketServer, runs: Map<string, Run>, root: string)
   }
   requestStop(run);
   broadcast(sockets, runs);
-}
-
-function closer(stop: () => Promise<void>): Worker {
-  let finish: () => void = () => undefined;
-  const closed = new Promise<void>((resolve) => {
-    finish = resolve;
-  });
-  let closing: Promise<void> | undefined;
-  const close = (): Promise<void> => {
-    closing ??= stop().then(finish);
-    return closing;
-  };
-  return { closed, close };
 }
 
 export async function startWorker(options: WorkerOptions): Promise<Worker | undefined> {

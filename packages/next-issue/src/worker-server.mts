@@ -48,3 +48,21 @@ export async function shutdown(
   await rm(paths.socketPath, { force: true });
   await rm(paths.lockPath, { force: true });
 }
+
+export type Worker = {
+  closed: Promise<void>;
+  close: () => Promise<void>;
+};
+
+export function closer(stop: () => Promise<void>): Worker {
+  let finish: () => void = () => undefined;
+  const closed = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  let closing: Promise<void> | undefined;
+  const close = (): Promise<void> => {
+    closing ??= stop().then(finish);
+    return closing;
+  };
+  return { closed, close };
+}
