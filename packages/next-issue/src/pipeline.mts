@@ -1,6 +1,4 @@
-import { CODING } from './agents.mts';
 import { type Config, minutesToMs } from './config.mts';
-import { commitWork } from './fix.mts';
 import { checkGate } from './gate.mts';
 import { branchName } from './git.mts';
 import type { Issue } from './github.mts';
@@ -14,20 +12,18 @@ import {
   stop,
   writerComments,
 } from './handover.mts';
+import { implement } from './implement.mts';
 import {
   type Context,
-  fallbackTitle,
   type IssueReport,
   oneAtATime,
   openPr,
   type Round,
   type Run,
-  runRole,
   setStatus,
 } from './job.mts';
 import { afterMerge, fixBase } from './merge.mts';
 import { message, type Recorder } from './observe.mts';
-import { implementPrompt, parseCommitSubject } from './prompts.mts';
 import { reviewRound } from './review.mts';
 import { type IssueState, readState, resetState, writeState } from './state.mts';
 
@@ -202,39 +198,6 @@ async function setupFailed(
       : 'The setup command failed in the worktree.',
     late ? 'setup timeout' : 'setup failed',
   );
-}
-
-async function implement(job: Run): Promise<Round> {
-  const { context, issue, log, state, worktree, comments, reply } = job;
-  const before = await context.ports.revision(worktree);
-  const result = await log.step('implement', {}, () =>
-    runRole(job, 'implementer', implementPrompt(issue, comments, reply), CODING),
-  );
-  const subject = parseCommitSubject(result.text, fallbackTitle(issue));
-  if (!(await commitWork(job, before, subject, 'implementer'))) {
-    const escalated = await useEarlierCommit(job);
-    if (escalated !== undefined) {
-      return escalated;
-    }
-  }
-  state.phase = 'implemented';
-  await writeState(context.repo, state);
-  return { done: false };
-}
-
-async function useEarlierCommit(job: Run): Promise<Round | undefined> {
-  const { context, log, state, worktree } = job;
-  const earlier = await context.ports.latestSubject(worktree, context.base, context.config.remote);
-  if (earlier === undefined) {
-    return escalateAndFinish(
-      job,
-      'The implementer produced no change.',
-      'no implementation commit',
-    );
-  }
-  log.event('implement.earlier', { subject: earlier }, 'quiet');
-  state.title = earlier;
-  return undefined;
 }
 
 async function enterReview(job: Run): Promise<Round> {
