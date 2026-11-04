@@ -3,7 +3,7 @@ import { message } from './errors.mts';
 import { checkGate } from './gate.mts';
 import { branchName } from './git.mts';
 import type { Issue } from './github.mts';
-import { cleanUp, handOver, stop } from './handover.mts';
+import { cleanUp, handOver, progress, stop } from './handover.mts';
 import { implement } from './implement.mts';
 import type { Context, IssueReport, Run } from './job.mts';
 import type { Recorder } from './observe.mts';
@@ -84,10 +84,7 @@ async function claimedError(
     issue: issue.number,
     outcome: 'error',
     reason: message(error),
-    pr: state.pr,
-    ciFixes: state.ciFixes,
-    reviewRounds: state.reviewRounds,
-    ms: Date.now() - started,
+    ...progress(state, started),
   };
 }
 

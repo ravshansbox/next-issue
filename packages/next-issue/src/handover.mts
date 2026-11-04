@@ -63,17 +63,19 @@ export function stop(job: Run): IssueReport {
   return {
     issue: issue.number,
     outcome: 'stopped',
-    ...progress(job),
+    ...progress(job.state, job.started),
   };
 }
 
-function progress(job: Run): Pick<IssueReport, 'pr' | 'ciFixes' | 'reviewRounds' | 'ms'> {
-  const { state } = job;
+export function progress(
+  state: IssueState,
+  started: number,
+): Pick<IssueReport, 'pr' | 'ciFixes' | 'reviewRounds' | 'ms'> {
   return {
     pr: state.pr,
     ciFixes: state.ciFixes,
     reviewRounds: state.reviewRounds,
-    ms: Date.now() - job.started,
+    ms: Date.now() - started,
   };
 }
 
@@ -89,7 +91,7 @@ export async function finish(job: Run, outcome: Outcome, reason?: string): Promi
     issue: issue.number,
     outcome,
     reason,
-    ...progress(job),
+    ...progress(job.state, job.started),
     ...(job.mainBroken && outcome !== 'done' ? { halt: true } : {}),
   };
 }
