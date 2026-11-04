@@ -16,7 +16,7 @@ export async function afterMerge(job: Run): Promise<Round> {
 }
 
 async function watchBase(job: Run): Promise<Gate> {
-  const { context, log, state, worktree } = job;
+  const { context, log, state } = job;
   const { repo, config, ports } = context;
   const polling = checkPolling(config);
   const sha = await ports.mergeCommit(repo, state.pr!, polling);
@@ -45,6 +45,12 @@ async function watchBase(job: Run): Promise<Gate> {
       'main checks timeout',
     );
   }
+  return failedBaseFix(job, sha);
+}
+
+async function failedBaseFix(job: Run, sha: string): Promise<Gate> {
+  const { context, state, worktree } = job;
+  const { repo, config, ports } = context;
   if (state.ciFixes >= config.maxCiFixes) {
     return escalateAndFinish(
       job,
