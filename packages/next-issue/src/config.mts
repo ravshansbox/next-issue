@@ -97,8 +97,12 @@ const FILE_DEFAULTS = {
   models: Object.fromEntries(MODEL_ROLES.map((role) => [role, null])),
 };
 
+function configFile(root: string): string {
+  return join(root, CONFIG_FILE);
+}
+
 export async function writeDefaultConfig(root: string, force: boolean): Promise<string> {
-  const path = join(root, CONFIG_FILE);
+  const path = configFile(root);
   try {
     await writeFile(path, prettyJson(FILE_DEFAULTS), {
       flag: force ? 'w' : 'wx',
@@ -115,7 +119,7 @@ export async function writeDefaultConfig(root: string, force: boolean): Promise<
 export async function loadConfig(root: string): Promise<Config> {
   let raw: string | undefined;
   try {
-    raw = await unlessMissing(() => readFile(join(root, CONFIG_FILE), 'utf8'));
+    raw = await unlessMissing(() => readFile(configFile(root), 'utf8'));
   } catch (error) {
     throw new Error(`${CONFIG_FILE} cannot be read: ${message(error)}`);
   }
