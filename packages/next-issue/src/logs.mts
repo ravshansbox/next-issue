@@ -92,6 +92,15 @@ function stopper(): Stopper {
   };
 }
 
+function listenForStop(stop: () => void): () => void {
+  process.on('SIGINT', stop);
+  process.stdout.on('error', stop);
+  return () => {
+    process.off('SIGINT', stop);
+    process.stdout.off('error', stop);
+  };
+}
+
 export async function followLog(
   file: string,
   options: { json: boolean; tail?: number },
@@ -100,8 +109,7 @@ export async function followLog(
   const handle = await open(file, 'r');
   const control = stopper();
   const { stop } = control;
-  process.on('SIGINT', stop);
-  process.stdout.on('error', stop);
+  const unlisten = listenForStop(stop);
   const decoder = new StringDecoder('utf8');
   let position = 0;
   let rest = '';
@@ -131,8 +139,7 @@ export async function followLog(
       throw error;
     }
   } finally {
-    process.off('SIGINT', stop);
-    process.stdout.off('error', stop);
+    unlisten();
     await handle.close();
   }
   return 0;
