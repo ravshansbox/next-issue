@@ -1,10 +1,10 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Args } from './args.mts';
+import { recordCommands } from './command-records.mts';
 import { type Config, loadConfig } from './config.mts';
 import { minutesToMs } from './durations.mts';
-import { setCommandObserver, withDefaultTimeout } from './exec.mts';
+import { withDefaultTimeout } from './exec.mts';
 import { detectRepo, type Repo } from './git.mts';
 import { defaultBranch } from './github.mts';
 import type { Interrupts } from './interrupt.mts';
@@ -25,26 +25,6 @@ export type RunControls = {
   print?: (summary: RunSummary) => Promise<void>;
   onEvent?: (record: Fields) => void;
 };
-
-const commandRecorder = new AsyncLocalStorage<Recorder>();
-
-setCommandObserver((record) => {
-  commandRecorder.getStore()?.event(
-    record.code === 0 ? 'command' : 'command.fail',
-    {
-      cmd: `${record.command} ${record.args.join(' ')}`,
-      code: record.code,
-      ms: record.ms,
-      stderr: record.stderr.length > 0 ? record.stderr : undefined,
-      timedOut: record.timedOut ? true : undefined,
-    },
-    record.code === 0 ? 'verbose' : 'quiet',
-  );
-});
-
-export function recordCommands<T>(recorder: Recorder, work: () => Promise<T>): Promise<T> {
-  return commandRecorder.run(recorder, work);
-}
 
 export async function runRepo(root: string, args: Args, controls: RunControls): Promise<number> {
   const config = await loadConfig(root);
