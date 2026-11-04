@@ -158,16 +158,18 @@ export async function threadComments(repo: Repo, number: number): Promise<Commen
     '.[] | [.user.login, .body, .html_url] | @json',
     { paginate: true },
   );
-  return lines(raw).map((line) => {
-    let parsed: [string, string | null, string?];
-    try {
-      parsed = JSON.parse(line) as [string, string | null, string?];
-    } catch {
-      throw new Error(`gh gave a comment of #${number} that is not valid JSON: ${line}`);
-    }
-    const [author, body, url] = parsed;
-    return url === undefined ? { author, body: body ?? '' } : { author, body: body ?? '', url };
-  });
+  return lines(raw).map((line) => parseComment(line, number));
+}
+
+function parseComment(line: string, number: number): Comment {
+  let parsed: [string, string | null, string?];
+  try {
+    parsed = JSON.parse(line) as [string, string | null, string?];
+  } catch {
+    throw new Error(`gh gave a comment of #${number} that is not valid JSON: ${line}`);
+  }
+  const [author, body, url] = parsed;
+  return url === undefined ? { author, body: body ?? '' } : { author, body: body ?? '', url };
 }
 
 export async function canWrite(repo: Repo, login: string): Promise<boolean> {
