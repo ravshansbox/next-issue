@@ -7,7 +7,7 @@ import { setCommandObserver, withDefaultTimeout } from './exec.mts';
 import { detectRepo, type Repo } from './git.mts';
 import { defaultBranch } from './github.mts';
 import type { Interrupts } from './interrupt.mts';
-import { exitCode, type Loop, runIssues, watchIssues } from './loop.mts';
+import { exitCode, type Loop, type LoopResult, runIssues, watchIssues } from './loop.mts';
 import { type Fields, message, pruneRuns, Recorder, runsDir } from './observe.mts';
 import type { Context, IssueReport } from './job.mts';
 import { pendingIssues, processIssue } from './pipeline.mts';
@@ -84,17 +84,8 @@ async function handle(
     concurrency: config.concurrency,
   };
   const print = controls.print ?? (async () => undefined);
-  let passStart = recorder.summary();
   const { reports, stoppedAt, error } = args.watch
-    ? await watchIssues(args, {
-        ...loop,
-        wait: (minutes) => {
-          recorder.event('watch.wait', { minutes }, 'quiet');
-          passStart = recorder.summary();
-          return interrupts.sleep(minutesToMs(minutes));
-        },
-        passEnd: (issues) => print({ ...recorder.summary(passStart), issues }),
-      })
+    ? await watchRun(args, loop, recorder, interrupts, print)
     : await runIssues(args, loop);
   recordLoopEnd(recorder, stoppedAt, error);
 
@@ -103,6 +94,25 @@ async function handle(
     await print(summary);
   }
   return error === undefined ? exitCode(reports) : 1;
+}
+
+function watchRun(
+  args: Args,
+  loop: Loop,
+  recorder: Recorder,
+  interrupts: Interrupts,
+  print: (summary: RunSummary) => Promise<void>,
+): Promise<LoopResult> {
+  let passStart = recorder.summary();
+  return watchIssues(args, {
+    ...loop,
+    wait: (minutes) => {
+      recorder.event('watch.wait', { minutes }, 'quiet');
+      passStart = recorder.summary();
+      return interrupts.sleep(minutesToMs(minutes));
+    },
+    passEnd: (issues) => print({ ...recorder.summary(passStart), issues }),
+  });
 }
 
 function recordLoopEnd(recorder: Recorder, stoppedAt: number | undefined, error: unknown): void {
