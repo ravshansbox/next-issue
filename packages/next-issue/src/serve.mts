@@ -65,6 +65,25 @@ function endStatus(run: Run): Progress['status'] {
   return run.progress.error === undefined ? 'finished' : 'failed';
 }
 
+function runInterrupts(run: Run): Interrupts {
+  return {
+    afterIssue: () => run.stop,
+    afterRound: () => run.stop,
+    sleep: (ms) =>
+      new Promise((resolve) => {
+        if (run.stop) {
+          resolve(false);
+          return;
+        }
+        const timer = setTimeout(() => resolve(true), ms);
+        run.wake = () => {
+          clearTimeout(timer);
+          resolve(false);
+        };
+      }),
+  };
+}
+
 export function workerPaths(root: string): { socketPath: string; lockPath: string } {
   const dir = stateDir(root);
   return {
@@ -224,22 +243,6 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     }
     const run: Run = { progress: startProgress(), stop: false };
     runs.set(root, run);
-    const interrupts: Interrupts = {
-      afterIssue: () => run.stop,
-      afterRound: () => run.stop,
-      sleep: (ms) =>
-        new Promise((resolve) => {
-          if (run.stop) {
-            resolve(false);
-            return;
-          }
-          const timer = setTimeout(() => resolve(true), ms);
-          run.wake = () => {
-            clearTimeout(timer);
-            resolve(false);
-          };
-        }),
-    };
     const update = (next: Progress): void => {
       run.progress = next;
       broadcast();
@@ -250,7 +253,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
         root,
         { ...parseArgs([]), merge },
         {
-          interrupts,
+          interrupts: runInterrupts(run),
           onEvent: (record) => {
             update(applyEvent(run.progress, record));
             if (record['kind'] === 'issue.end' || record['kind'] === 'issue.error') {
