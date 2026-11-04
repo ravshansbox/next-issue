@@ -267,14 +267,14 @@ async function enterReview(job: Run): Promise<Round> {
   return { done: false };
 }
 
-async function work(
+async function openJob(
   context: Context,
   issue: Issue,
   log: Recorder,
   state: IssueState,
   start: boolean,
   handedOver: boolean,
-): Promise<IssueReport> {
+): Promise<Run> {
   const started = Date.now();
   const { repo, config, ports } = context;
   const branch = state.branch;
@@ -297,7 +297,7 @@ async function work(
   if (!added.baseUpdated) {
     log.event('base.behind', { base: context.base }, 'quiet');
   }
-  const job: Run = {
+  return {
     context,
     issue,
     log,
@@ -310,7 +310,17 @@ async function work(
     noChecks: false,
     mainBroken: false,
   };
+}
 
+async function work(
+  context: Context,
+  issue: Issue,
+  log: Recorder,
+  state: IssueState,
+  start: boolean,
+  handedOver: boolean,
+): Promise<IssueReport> {
+  const job = await openJob(context, issue, log, state, start, handedOver);
   const setup = await setUp(job);
   if (setup.done) {
     return setup.report;
