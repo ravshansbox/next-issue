@@ -52,6 +52,13 @@ export type Gate = Finished | { done: false; fixed: boolean };
 
 export type Round = Finished | { done: false };
 
+export function gateRound(gate: Gate): Round | undefined {
+  if (gate.done) {
+    return gate;
+  }
+  return gate.fixed ? { done: false } : undefined;
+}
+
 export function runRole(
   job: Run,
   role: keyof Config['models'],

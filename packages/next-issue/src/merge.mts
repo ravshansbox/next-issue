@@ -1,16 +1,13 @@
 import { secondsToMs } from './durations.mts';
 import { fixRound } from './fix.mts';
 import { escalateAndFinish, escalateCheckFix, finishDone } from './handover.mts';
-import { checkPolling, type Gate, openPr, type Round, type Run } from './job.mts';
+import { checkPolling, type Gate, gateRound, openPr, type Round, type Run } from './job.mts';
 import { writeState } from './state.mts';
 
 export async function afterMerge(job: Run): Promise<Round> {
-  const watched = await watchBase(job);
-  if (watched.done) {
-    return watched;
-  }
-  if (watched.fixed) {
-    return { done: false };
+  const round = gateRound(await watchBase(job));
+  if (round) {
+    return round;
   }
   return { done: true, report: await finishDone(job) };
 }

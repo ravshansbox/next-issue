@@ -3,7 +3,7 @@ import { conflicts, resolveConflict } from './conflict.mts';
 import { type Fix, fixRound } from './fix.mts';
 import { checkGate } from './gate.mts';
 import { escalateAndFinish, finishDone } from './handover.mts';
-import { history, type Round, type Run, runRole, setStatus } from './job.mts';
+import { gateRound, history, type Round, type Run, runRole, setStatus } from './job.mts';
 import { afterMerge } from './merge.mts';
 import { capDiff, reviewPrompt } from './prompts.mts';
 import { writeState } from './state.mts';
@@ -124,12 +124,9 @@ async function approvedRound(job: Run): Promise<Round> {
   const { context, log, state } = job;
   const { repo, config, ports } = context;
   const pr = state.pr!;
-  const gate = await checkGate(job);
-  if (gate.done) {
-    return gate;
-  }
-  if (gate.fixed) {
-    return { done: false };
+  const round = gateRound(await checkGate(job));
+  if (round) {
+    return round;
   }
   if (config.draftPullRequest && !(await ports.markPrReady(repo, pr))) {
     log.event('pull-request.undraft.fail', { pr }, 'quiet');
