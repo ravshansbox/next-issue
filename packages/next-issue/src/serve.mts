@@ -26,7 +26,7 @@ import { broadcast, listen, parseMessage, shutdown } from './worker-server.mts';
 
 export type RunRepo = (root: string, args: Args, controls: RunControls) => Promise<number>;
 
-export type WorkerOptions = {
+type WorkerOptions = {
   root: string;
   socketPath: string;
   lockPath: string;
@@ -40,7 +40,7 @@ export type WorkerOptions = {
 const LOCK_WAIT_MS = 5_000;
 const IDLE_MS = 30_000;
 
-export type Worker = {
+type Worker = {
   closed: Promise<void>;
   close: () => Promise<void>;
 };

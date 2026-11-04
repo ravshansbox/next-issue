@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { run } from './exec.mts';
 import { discardChanges, git, isAncestor, type Repo, succeeds } from './git.mts';
 
-export type Worktree = {
+type Worktree = {
   path: string;
   baseUpdated: boolean;
 };

@@ -1,7 +1,7 @@
 import { CONFIG_FILE } from './config-fields.mts';
 import type { Level } from './observe.mts';
 
-export type Command = 'run' | 'init' | 'serve' | 'stop' | 'logs';
+type Command = 'run' | 'init' | 'serve' | 'stop' | 'logs';
 
 export type Args = {
   command: Command;

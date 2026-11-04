@@ -6,7 +6,7 @@ import type { Context, IssueReport } from './job.mts';
 import { type Recorder } from './observe.mts';
 import type { IssueState } from './state.mts';
 
-export type Skip = 'stop-label' | 'not-ready' | 'in-flight';
+type Skip = 'stop-label' | 'not-ready' | 'in-flight';
 
 export function skipReason(issue: Issue, config: Config, resuming: boolean): Skip | undefined {
   const labels = new Set(issue.labels);

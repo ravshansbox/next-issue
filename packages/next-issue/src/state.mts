@@ -5,7 +5,7 @@ import type { Repo } from './git.mts';
 
 export const STATE_DIR = '.next-issue';
 
-export type Phase = 'claimed' | 'implemented' | 'review';
+type Phase = 'claimed' | 'implemented' | 'review';
 
 export type IssueState = {
   issue: number;
@@ -21,7 +21,7 @@ export type IssueState = {
   handedOver?: boolean;
 };
 
-export type BaseFix = {
+type BaseFix = {
   sha: string;
   head: string;
 };

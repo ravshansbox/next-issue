@@ -1,6 +1,6 @@
 import { paragraphs } from './prompts.mts';
 
-export type Severity = 'blocking' | 'minor';
+type Severity = 'blocking' | 'minor';
 
 export type Finding = {
   severity: Severity;

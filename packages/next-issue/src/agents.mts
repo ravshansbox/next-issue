@@ -14,7 +14,7 @@ export type Profile = {
   tools: string[];
 };
 
-export type Runtime = {
+type Runtime = {
   agentDir?: string;
   modelRuntime?: ModelRuntime;
   settingsManager?: SettingsManager;
