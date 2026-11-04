@@ -230,18 +230,24 @@ export async function pruneRuns(root: string, keepDays: number): Promise<number>
   const cutoff = Date.now() - keepDays * 24 * 60 * 60_000;
   let dropped = 0;
   for (const name of names) {
-    const path = join(dir, name);
-    try {
-      const info = await stat(path);
-      if (info.mtimeMs < cutoff) {
-        await rm(path, { force: true, recursive: true });
-        dropped += 1;
-      }
-    } catch {
-      continue;
+    if (await dropIfOlder(join(dir, name), cutoff)) {
+      dropped += 1;
     }
   }
   return dropped;
+}
+
+async function dropIfOlder(path: string, cutoff: number): Promise<boolean> {
+  try {
+    const info = await stat(path);
+    if (info.mtimeMs >= cutoff) {
+      return false;
+    }
+    await rm(path, { force: true, recursive: true });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function message(error: unknown): string {
