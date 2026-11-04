@@ -107,11 +107,7 @@ export async function watchIssues(
       new Set(failed),
     );
     reports.push(...pass.reports);
-    for (const report of pass.reports) {
-      if (report.outcome === 'error') {
-        failed.add(report.issue);
-      }
-    }
+    recordFailures(failed, pass.reports);
     if (handled(pass.reports) > 0) {
       await watch.passEnd(pass.reports);
       step = 0;
@@ -134,6 +130,14 @@ export function exitCode(reports: IssueReport[]): number {
   return reports.some((report) => report.outcome === 'needs-human' || report.outcome === 'error')
     ? 1
     : 0;
+}
+
+function recordFailures(failed: Set<number>, reports: IssueReport[]): void {
+  for (const report of reports) {
+    if (report.outcome === 'error') {
+      failed.add(report.issue);
+    }
+  }
 }
 
 function backOffMinutes(step: number): number {
