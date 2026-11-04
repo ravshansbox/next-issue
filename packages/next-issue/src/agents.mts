@@ -62,19 +62,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
   process.env.GIT_OPTIONAL_LOCKS = '0';
   log.event('agent.start', { model: request.model, timeoutMs: request.timeoutMs }, 'normal');
 
-  const resourceLoader = new DefaultResourceLoader({
-    cwd: request.cwd,
-    agentDir,
-    extensionsOverride: (base) => ({
-      ...base,
-      extensions: base.extensions.filter((extension) => !isOwnResource(extension.resolvedPath)),
-    }),
-    skillsOverride: (base) => ({
-      ...base,
-      skills: base.skills.filter((skill) => !isOwnResource(skill.filePath)),
-    }),
-  });
-  await resourceLoader.reload();
+  const resourceLoader = await loadResources(request.cwd, agentDir);
   const modelRuntime =
     runtime.modelRuntime ??
     (await ModelRuntime.create({
@@ -147,6 +135,23 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     unsubscribe();
     session.dispose();
   }
+}
+
+async function loadResources(cwd: string, agentDir: string): Promise<DefaultResourceLoader> {
+  const resourceLoader = new DefaultResourceLoader({
+    cwd,
+    agentDir,
+    extensionsOverride: (base) => ({
+      ...base,
+      extensions: base.extensions.filter((extension) => !isOwnResource(extension.resolvedPath)),
+    }),
+    skillsOverride: (base) => ({
+      ...base,
+      skills: base.skills.filter((skill) => !isOwnResource(skill.filePath)),
+    }),
+  });
+  await resourceLoader.reload();
+  return resourceLoader;
 }
 
 async function findModel(modelRuntime: ModelRuntime, name: string) {
