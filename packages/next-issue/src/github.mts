@@ -69,6 +69,16 @@ async function ghRun(repo: Repo, args: string[], options: RunOptions = {}): Prom
   return run('gh', withRepo(repo, args), { ...options, cwd: repo.root });
 }
 
+async function ghApi(
+  repo: Repo,
+  path: string,
+  jq: string,
+  { paginate = false }: { paginate?: boolean } = {},
+): Promise<string> {
+  const pages = paginate ? ['--paginate'] : [];
+  return repeatable(repo, ['api', ...pages, `repos/${slug(repo)}/${path}`, '--jq', jq]);
+}
+
 async function ghSucceeds(repo: Repo, args: string[]): Promise<boolean> {
   const result = await ghRun(repo, args);
   return result.code === 0;
@@ -142,13 +152,12 @@ export async function issueComments(repo: Repo, issue: number): Promise<Comment[
 }
 
 export async function threadComments(repo: Repo, number: number): Promise<Comment[]> {
-  const raw = await repeatable(repo, [
-    'api',
-    '--paginate',
-    `repos/${slug(repo)}/issues/${number}/comments`,
-    '--jq',
+  const raw = await ghApi(
+    repo,
+    `issues/${number}/comments`,
     '.[] | [.user.login, .body, .html_url] | @json',
-  ]);
+    { paginate: true },
+  );
   return lines(raw).map((line) => {
     let parsed: [string, string | null, string?];
     try {
@@ -163,12 +172,7 @@ export async function threadComments(repo: Repo, number: number): Promise<Commen
 
 export async function canWrite(repo: Repo, login: string): Promise<boolean> {
   try {
-    const permission = await repeatable(repo, [
-      'api',
-      `repos/${slug(repo)}/collaborators/${login}/permission`,
-      '--jq',
-      '.permission',
-    ]);
+    const permission = await ghApi(repo, `collaborators/${login}/permission`, '.permission');
     return ['admin', 'write'].includes(permission);
   } catch (error) {
     if (error instanceof Error && /HTTP 404/.test(error.message)) {
@@ -180,13 +184,12 @@ export async function canWrite(repo: Repo, login: string): Promise<boolean> {
 
 export async function openBlockers(repo: Repo, issue: number): Promise<string[]> {
   const repoSlug = slug(repo);
-  const raw = await repeatable(repo, [
-    'api',
-    '--paginate',
-    `repos/${repoSlug}/issues/${issue}/dependencies/blocked_by`,
-    '--jq',
+  const raw = await ghApi(
+    repo,
+    `issues/${issue}/dependencies/blocked_by`,
     '.[] | select(.state == "open") | (.repository_url | split("/") | .[-2:] | join("/")) + "#" + (.number | tostring)',
-  ]);
+    { paginate: true },
+  );
   return lines(raw).map((ref) =>
     ref.startsWith(`${repoSlug}#`) ? ref.slice(repoSlug.length) : ref,
   );
