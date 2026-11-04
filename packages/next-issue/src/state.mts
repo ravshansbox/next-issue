@@ -36,6 +36,10 @@ export function stateDir(root: string): string {
   return join(root, STATE_DIR);
 }
 
+export function runsDir(root: string): string {
+  return join(stateDir(root), 'runs');
+}
+
 function file(repo: Repo, issue: number): string {
   return join(stateDir(repo.root), `${issue}.json`);
 }

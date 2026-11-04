@@ -2,7 +2,7 @@ import { createWriteStream, type WriteStream } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { message } from './errors.mts';
-import { stateDir } from './state.mts';
+import { runsDir } from './state.mts';
 import {
   addUsage,
   countsSince,
@@ -18,10 +18,6 @@ export type Level = 'quiet' | 'normal' | 'verbose';
 export type Fields = Record<string, unknown>;
 
 const VISIBILITY: Record<Level, number> = { quiet: 0, normal: 1, verbose: 2 };
-
-export function runsDir(root: string): string {
-  return join(stateDir(root), 'runs');
-}
 
 class Sink {
   readonly totals = new Map<string, RoleTotals>();

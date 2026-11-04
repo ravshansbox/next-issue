@@ -1,6 +1,6 @@
 import { readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { runsDir } from './observe.mts';
+import { runsDir } from './state.mts';
 
 export async function pruneRuns(root: string, keepDays: number): Promise<number> {
   if (keepDays <= 0) {

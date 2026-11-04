@@ -10,12 +10,13 @@ import { defaultBranch } from './github.mts';
 import type { Interrupts } from './interrupt.mts';
 import { exitCode, type Loop, type LoopResult, runIssues, watchIssues } from './loop.mts';
 import { message } from './errors.mts';
-import { type Fields, Recorder, runsDir } from './observe.mts';
+import { type Fields, Recorder } from './observe.mts';
 import { pruneRuns } from './prune-runs.mts';
 import type { Context, IssueReport } from './job.mts';
 import { pendingIssues } from './pending.mts';
 import { processIssue } from './pipeline.mts';
 import { PORTS } from './ports.mts';
+import { runsDir } from './state.mts';
 import { count, type RunSummary } from './summary.mts';
 import { packageVersion } from './version.mts';
 
