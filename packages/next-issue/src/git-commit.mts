@@ -6,20 +6,20 @@ import { git, isDirty } from './git.mts';
 
 export class HookError extends Error {}
 
-export async function commitAll(cwd: string, message: string): Promise<boolean> {
+export async function commitAll(cwd: string, commitMessage: string): Promise<boolean> {
   if (!(await isDirty(cwd))) {
     return false;
   }
-  await commitEverything(cwd, message);
+  await commitEverything(cwd, commitMessage);
   return true;
 }
 
-export async function commitEverything(cwd: string, message: string): Promise<void> {
+export async function commitEverything(cwd: string, commitMessage: string): Promise<void> {
   await git(cwd, ['add', '-A']);
   const folder = await mkdtemp(join(tmpdir(), 'next-issue-message-'));
   const file = join(folder, 'COMMIT_EDITMSG');
   try {
-    await writeFile(file, `${message}\n`);
+    await writeFile(file, `${commitMessage}\n`);
     await runHook(cwd, 'pre-commit');
     await runHook(cwd, 'commit-msg', file);
     await git(cwd, ['commit', '--no-verify', '-F', file]);
