@@ -38,20 +38,7 @@ export async function runIssues(
   for (;;) {
     if (claiming && room()) {
       try {
-        const issues = await loop.issues();
-        for (const issue of issues.filter((candidate) => !seen.has(candidate.number))) {
-          if (!room()) {
-            break;
-          }
-          seen.add(issue.number);
-          running.set(
-            issue.number,
-            loop.process(issue).then(
-              (report) => ({ issue: issue.number, report }),
-              (failure: unknown) => ({ issue: issue.number, failure }),
-            ),
-          );
-        }
+        await claimIssues(loop, seen, running, room);
       } catch (failure) {
         error = failure;
         claiming = false;
@@ -81,6 +68,28 @@ export async function runIssues(
     ...(stoppedAt === undefined ? {} : { stoppedAt }),
     ...(error === undefined ? {} : { error }),
   };
+}
+
+async function claimIssues(
+  loop: Loop,
+  seen: Set<number>,
+  running: Map<number, Promise<Settled>>,
+  room: () => boolean,
+): Promise<void> {
+  const issues = await loop.issues();
+  for (const issue of issues.filter((candidate) => !seen.has(candidate.number))) {
+    if (!room()) {
+      break;
+    }
+    seen.add(issue.number);
+    running.set(
+      issue.number,
+      loop.process(issue).then(
+        (report) => ({ issue: issue.number, report }),
+        (failure: unknown) => ({ issue: issue.number, failure }),
+      ),
+    );
+  }
 }
 
 export async function watchIssues(
