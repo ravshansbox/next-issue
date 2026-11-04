@@ -56,23 +56,25 @@ export function capDiff(diff: string, maxChars: number): string {
     : `${diff.slice(0, maxChars)}\n... The diff is cut here, after ${maxChars} characters.`;
 }
 
+function reviewScope(earlier: string[]): string {
+  return earlier.length === 0
+    ? 'Check correctness, scope, repository conventions and test cover.'
+    : [
+        'This is a later round. Judge two things only:',
+        'whether the earlier findings below are now fixed, and whether the new commits broke something.',
+        'Do not raise a new point of taste. Do not repeat a finding that is fixed.',
+        'A `The fixer disputed every finding of this round` line answers all of the findings of that round, not one of them.',
+        'Withdraw every finding of that round if the dispute is correct. Repeat them all if the dispute is wrong.',
+        `## Earlier findings\n${earlier.join('\n')}`,
+      ].join('\n');
+}
+
 export function reviewPrompt(
   issue: Issue,
   comments: string[],
   diff: string,
   earlier: string[],
 ): string {
-  const scope =
-    earlier.length === 0
-      ? 'Check correctness, scope, repository conventions and test cover.'
-      : [
-          'This is a later round. Judge two things only:',
-          'whether the earlier findings below are now fixed, and whether the new commits broke something.',
-          'Do not raise a new point of taste. Do not repeat a finding that is fixed.',
-          'A `The fixer disputed every finding of this round` line answers all of the findings of that round, not one of them.',
-          'Withdraw every finding of that round if the dispute is correct. Repeat them all if the dispute is wrong.',
-          `## Earlier findings\n${earlier.join('\n')}`,
-        ].join('\n');
   return [
     'You are the reviewer. Judge whether the diff solves the issue correctly.',
     issueBlock(issue, comments),
@@ -84,7 +86,7 @@ export function reviewPrompt(
     'Read files and run commands to prove what you say: the tests, the type check or the linter.',
     'The worktree is ready to use. Do not change a file. Do not write with git or gh.',
     'The harness discards each change that you make, so a change is only lost work.',
-    scope,
+    reviewScope(earlier),
     'Mark a finding blocking only for a wrong result, a missing part of the issue, a regression or a broken convention.',
     'End your final message with the result as a json block in a ```json fence, in the form {"summary": "<short summary>", "findings": [{"severity": "blocking" or "minor", "detail": "<what is wrong and where>"}]}.',
     'Give one entry per finding, and an empty list when nothing is wrong. The findings decide the outcome, so a problem that you leave out counts as no problem.',
