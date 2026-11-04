@@ -5,7 +5,7 @@ import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-a
 import { Type } from 'typebox';
 import { errorText, must, type RunOptions } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
-import type { Progress, Question } from './src/protocol.ts';
+import { going, type Progress, type Question } from './src/protocol.ts';
 import { spawnWorker, WorkerClient, type WorkerEvent, workerPaths } from './src/worker.ts';
 
 export type Options = {
@@ -106,10 +106,6 @@ export function formatStatus(progress: Progress, now: number): string {
     case 'failed':
       return `failed: ${progress.error ?? 'unknown error'}`;
   }
-}
-
-function going(progress: Progress | undefined): progress is Progress {
-  return progress?.status === 'running' || progress?.status === 'stopping';
 }
 
 function report(text: string, root: string) {

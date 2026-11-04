@@ -42,6 +42,10 @@ export type WorkerMessage =
   | { type: 'questions-error'; root: string; message: string; id?: string }
   | { type: 'error'; root: string; message: string };
 
+export function going(progress: Progress | undefined): progress is Progress {
+  return progress?.status === 'running' || progress?.status === 'stopping';
+}
+
 export function isNewer(candidate: string, current: string): boolean {
   const { core: left, prerelease: leftPrerelease } = parseVersion(candidate);
   const { core: right, prerelease: rightPrerelease } = parseVersion(current);

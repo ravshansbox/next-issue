@@ -5,6 +5,7 @@ import WebSocket from 'ws';
 import { errorText } from './exec.ts';
 import {
   type ClientMessage,
+  going,
   isNewer,
   type Progress,
   type Question,
@@ -94,9 +95,7 @@ export class WorkerClient {
   }
 
   private get busy(): boolean {
-    return Object.values(this.runs).some(
-      (run) => run.status === 'running' || run.status === 'stopping',
-    );
+    return Object.values(this.runs).some(going);
   }
 
   private get outdated(): boolean {
