@@ -43,18 +43,40 @@ function stdoutOpen(): boolean {
   }
 }
 
+type Stopper = { readonly stopped: boolean; stop: () => void; pause: () => Promise<void> };
+
+function stopper(): Stopper {
+  let stopped = false;
+  let wake: (() => void) | undefined;
+  return {
+    get stopped() {
+      return stopped;
+    },
+    stop() {
+      stopped = true;
+      wake?.();
+    },
+    async pause() {
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, POLL_MS);
+        wake = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+      });
+      wake = undefined;
+    },
+  };
+}
+
 export async function followLog(
   file: string,
   options: { json: boolean; tail?: number },
   print: (text: string) => Promise<void>,
 ): Promise<number> {
   const handle = await open(file, 'r');
-  let stopped = false;
-  let wake: (() => void) | undefined;
-  const stop = (): void => {
-    stopped = true;
-    wake?.();
-  };
+  const control = stopper();
+  const { stop } = control;
   process.on('SIGINT', stop);
   process.stdout.on('error', stop);
   const decoder = new StringDecoder('utf8');
@@ -62,7 +84,7 @@ export async function followLog(
   let rest = '';
   let first = true;
   try {
-    while (!stopped) {
+    while (!control.stopped) {
       const buffer = Buffer.alloc(64 * 1024);
       const { bytesRead } = await handle.read(buffer, 0, buffer.length, position);
       if (bytesRead > 0) {
@@ -82,20 +104,13 @@ export async function followLog(
       if (!stdoutOpen()) {
         stop();
       }
-      if (stopped) {
+      if (control.stopped) {
         break;
       }
-      await new Promise<void>((resolve) => {
-        const timer = setTimeout(resolve, POLL_MS);
-        wake = () => {
-          clearTimeout(timer);
-          resolve();
-        };
-      });
-      wake = undefined;
+      await control.pause();
     }
   } catch (error) {
-    if (!stopped && !hasCode(error, 'EPIPE')) {
+    if (!control.stopped && !hasCode(error, 'EPIPE')) {
       throw error;
     }
   } finally {
