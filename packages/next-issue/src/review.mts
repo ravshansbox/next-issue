@@ -134,7 +134,7 @@ async function approvedRound(job: Run): Promise<Round> {
   if (context.merge) {
     return mergeApproved(job);
   }
-  return { done: true, report: await finishDone(job) };
+  return finishDone(job);
 }
 
 async function mergeApproved(job: Run): Promise<Round> {

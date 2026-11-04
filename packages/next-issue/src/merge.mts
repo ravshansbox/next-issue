@@ -9,7 +9,7 @@ export async function afterMerge(job: Run): Promise<Round> {
   if (round) {
     return round;
   }
-  return { done: true, report: await finishDone(job) };
+  return finishDone(job);
 }
 
 async function watchBase(job: Run): Promise<Gate> {

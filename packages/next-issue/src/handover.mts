@@ -52,10 +52,10 @@ export function escalateCheckFix(
   );
 }
 
-export async function finishDone(job: Run): Promise<IssueReport> {
+export async function finishDone(job: Run): Promise<Finished> {
   const { context, issue, state } = job;
   await setStatus(context, issue.number, state.pr, context.config.labels.done);
-  return finish(job, 'done');
+  return { done: true, report: await finish(job, 'done') };
 }
 
 export function stop(job: Run): IssueReport {

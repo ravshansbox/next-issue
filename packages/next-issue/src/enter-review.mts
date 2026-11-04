@@ -25,7 +25,7 @@ export async function enterReview(job: Run): Promise<Round> {
 async function alreadyMerged(job: Run, pr: number): Promise<Round> {
   job.log.event('pull-request.merged', { pr }, 'quiet');
   if (!job.context.merge) {
-    return { done: true, report: await finishDone(job) };
+    return finishDone(job);
   }
   return afterMerge(job);
 }
