@@ -72,7 +72,3 @@ export type Named = { name: string };
 export function names(items: Named[]): string[] {
   return items.map((item) => item.name);
 }
-
-export function asError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error));
-}

@@ -1,4 +1,5 @@
-import { asError, gh, ghJson, ghOnce, type Named, names, slug } from './gh.mts';
+import { asError } from './errors.mts';
+import { gh, ghJson, ghOnce, type Named, names, slug } from './gh.mts';
 import type { Repo } from './git.mts';
 import type { Kind } from './github.mts';
 
