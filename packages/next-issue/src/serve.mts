@@ -47,15 +47,6 @@ type WorkerOptions = {
 const LOCK_WAIT_MS = 5_000;
 const IDLE_MS = 30_000;
 
-function stopRun(sockets: WebSocketServer, runs: Map<string, Run>, root: string): void {
-  const run = runs.get(root);
-  if (run === undefined || run.progress.status !== 'running') {
-    return;
-  }
-  requestStop(run);
-  broadcast(sockets, runs);
-}
-
 export async function startWorker(options: WorkerOptions): Promise<Worker | undefined> {
   checkSocketPath(options.socketPath);
   await mkdir(dirname(options.lockPath), { recursive: true });
@@ -117,7 +108,9 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     } else if (value.type === 'start') {
       start(socket, value.root, value.merge === true);
     } else if (value.type === 'stop') {
-      stopRun(sockets, runs, value.root);
+      if (requestStop(runs.get(value.root))) {
+        broadcast(sockets, runs);
+      }
     } else if (value.type === 'questions') {
       void sendQuestions(value.root, () => [socket], value.id);
     }

@@ -43,10 +43,14 @@ function endsIssue(record: Fields): boolean {
   return record['kind'] === 'issue.end' || record['kind'] === 'issue.error';
 }
 
-export function requestStop(run: Run): void {
+export function requestStop(run: Run | undefined): boolean {
+  if (run === undefined || run.progress.status !== 'running') {
+    return false;
+  }
   run.stop = true;
   run.wake?.();
   run.progress = { ...run.progress, status: 'stopping' };
+  return true;
 }
 
 function runInterrupts(run: Run): Interrupts {
