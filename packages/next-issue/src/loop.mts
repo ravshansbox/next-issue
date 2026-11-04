@@ -63,6 +63,14 @@ export async function runIssues(
   if (crash !== undefined) {
     throw crash.failure;
   }
+  return loopResult(reports, stoppedAt, error);
+}
+
+function loopResult(
+  reports: IssueReport[],
+  stoppedAt: number | undefined,
+  error: unknown,
+): LoopResult {
   return {
     reports,
     ...(stoppedAt === undefined ? {} : { stoppedAt }),
