@@ -1,6 +1,6 @@
 import { REVIEWING } from './agents.mts';
 import { conflicts, resolveConflict } from './conflict.mts';
-import { type Fix, fixRound } from './fix.mts';
+import { fixRound, type Unfixed } from './fix.mts';
 import { checkGate } from './gate.mts';
 import { escalateAndFinish, finishDone } from './handover.mts';
 import {
@@ -104,7 +104,7 @@ async function runReviewer(job: Run, earlier: string[]): Promise<string> {
   return review.text;
 }
 
-async function unfixedRound(job: Run, fix: Extract<Fix, { committed: false }>): Promise<Round> {
+async function unfixedRound(job: Run, fix: Unfixed): Promise<Round> {
   const { context, state } = job;
   const { repo, ports } = context;
   const note = fix.unrelated;

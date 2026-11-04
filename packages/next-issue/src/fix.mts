@@ -7,7 +7,9 @@ import { type FixKind, fixPrompt, hookPrompt } from './prompts.mts';
 import { writeState } from './state.mts';
 import { keepTail } from './text.mts';
 
-export type Fix = { committed: true } | { committed: false; unrelated?: string; stray?: boolean };
+export type Unfixed = { committed: false; unrelated?: string; stray?: boolean };
+
+export type Fix = { committed: true } | Unfixed;
 
 type CommitRole = 'implementer' | 'fixer';
 
