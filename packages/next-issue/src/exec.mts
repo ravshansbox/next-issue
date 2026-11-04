@@ -105,19 +105,23 @@ export function withDefaultTimeout<T>(ms: number, body: () => Promise<T>): Promi
   return defaultTimeout.run(ms, body);
 }
 
+function spawnChild(command: string, args: string[], options: RunOptions): ChildProcess {
+  return spawn(command, args, {
+    cwd: options.cwd,
+    detached: true,
+    stdio: [
+      options.input === undefined ? 'ignore' : 'pipe',
+      options.show === true ? 2 : 'pipe',
+      'pipe',
+    ],
+  });
+}
+
 export function run(command: string, args: string[], options: RunOptions = {}): Promise<RunResult> {
   const started = Date.now();
   const limit = options.timeoutMs ?? defaultTimeout.getStore() ?? DEFAULT_TIMEOUT_MS;
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd: options.cwd,
-      detached: true,
-      stdio: [
-        options.input === undefined ? 'ignore' : 'pipe',
-        options.show === true ? 2 : 'pipe',
-        'pipe',
-      ],
-    });
+    const child = spawnChild(command, args, options);
     const pid = child.pid;
     watch(pid);
     let stdout = '';
