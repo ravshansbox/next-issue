@@ -221,6 +221,20 @@ function runsMessage(runs: Map<string, Run>): WorkerMessage {
   };
 }
 
+async function shutdown(
+  server: Server,
+  sockets: WebSocketServer,
+  paths: { socketPath: string; lockPath: string },
+): Promise<void> {
+  for (const socket of sockets.clients) {
+    socket.terminate();
+  }
+  await new Promise<void>((resolve) => sockets.close(() => resolve()));
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await rm(paths.socketPath, { force: true });
+  await rm(paths.lockPath, { force: true });
+}
+
 export async function startWorker(options: WorkerOptions): Promise<Worker | undefined> {
   checkSocketPath(options.socketPath);
   await mkdir(dirname(options.lockPath), { recursive: true });
@@ -275,13 +289,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   const close = (): Promise<void> => {
     closing ??= (async () => {
       clearTimeout(idleTimer);
-      for (const socket of sockets.clients) {
-        socket.terminate();
-      }
-      await new Promise<void>((resolve) => sockets.close(() => resolve()));
-      await new Promise<void>((resolve) => server.close(() => resolve()));
-      await rm(options.socketPath, { force: true });
-      await rm(options.lockPath, { force: true });
+      await shutdown(server, sockets, options);
       finish();
     })();
     return closing;
