@@ -166,6 +166,18 @@ export function createExtension(options: Options) {
       }
     };
 
+    const announce = (progress: Progress) => {
+      if (progress.status === status) {
+        return;
+      }
+      status = progress.status;
+      if (status === 'finished' || status === 'stopped') {
+        ui?.notify(`next-issue ${status}`, 'info');
+      } else if (status === 'failed') {
+        ui?.notify(`next-issue failed: ${progress.error ?? 'unknown error'}`, 'error');
+      }
+    };
+
     const onProgress = (progress: Progress | undefined) => {
       if (progress === undefined) {
         return;
@@ -180,14 +192,7 @@ export function createExtension(options: Options) {
         );
       }
       handled = progress.handled.length;
-      if (progress.status !== status) {
-        status = progress.status;
-        if (status === 'finished' || status === 'stopped') {
-          ui?.notify(`next-issue ${status}`, 'info');
-        } else if (status === 'failed') {
-          ui?.notify(`next-issue failed: ${progress.error ?? 'unknown error'}`, 'error');
-        }
-      }
+      announce(progress);
       render();
     };
 
