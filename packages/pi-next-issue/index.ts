@@ -256,14 +256,10 @@ export function createExtension(options: Options) {
     pi.on('session_shutdown', async () => {
       unsubscribe?.();
       unsubscribe = undefined;
-      if (timer !== undefined) {
-        clearInterval(timer);
-        timer = undefined;
-      }
-      if (poll !== undefined) {
-        clearInterval(poll);
-        poll = undefined;
-      }
+      clearInterval(timer);
+      timer = undefined;
+      clearInterval(poll);
+      poll = undefined;
       ui = undefined;
     });
 
