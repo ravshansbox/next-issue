@@ -35,6 +35,12 @@ export async function checkGate(job: Run): Promise<Gate> {
   if (checks !== 'fail') {
     return { done: false, fixed: false };
   }
+  return failedChecksFix(job);
+}
+
+async function failedChecksFix(job: Run): Promise<Gate> {
+  const { context, log, state } = job;
+  const { repo, config, ports } = context;
   if (state.ciFixes >= config.maxCiFixes) {
     return escalateAndFinish(
       job,
