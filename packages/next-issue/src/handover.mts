@@ -33,6 +33,22 @@ function quote(comment: Comment): string {
   return `@${comment.author}: ${comment.body}`;
 }
 
+async function writerQuotes(
+  comments: Comment[],
+  writer: Writer,
+  skip: (comment: Comment) => void = () => {},
+): Promise<string[]> {
+  const kept: string[] = [];
+  for (const comment of comments) {
+    if (await writer(comment.author)) {
+      kept.push(quote(comment));
+    } else {
+      skip(comment);
+    }
+  }
+  return kept;
+}
+
 async function lastHandOver(comments: Comment[], writer: Writer): Promise<number> {
   for (let index = comments.length - 1; index >= 0; index -= 1) {
     const comment = comments[index]!;
@@ -74,16 +90,9 @@ export async function writerComments(
   issue: number,
 ): Promise<string[]> {
   const { repo, ports } = context;
-  const writer = writers(repo, ports);
-  const kept: string[] = [];
-  for (const comment of await ports.issueComments(repo, issue)) {
-    if (await writer(comment.author)) {
-      kept.push(quote(comment));
-    } else {
-      log.event('comment.skip', { author: comment.author }, 'quiet');
-    }
-  }
-  return kept;
+  return writerQuotes(await ports.issueComments(repo, issue), writers(repo, ports), (comment) =>
+    log.event('comment.skip', { author: comment.author }, 'quiet'),
+  );
 }
 
 export async function handOverReply(
@@ -98,13 +107,7 @@ export async function handOverReply(
   if (last === -1) {
     return [];
   }
-  const reply: string[] = [];
-  for (const comment of comments.slice(last + 1)) {
-    if (await writer(comment.author)) {
-      reply.push(quote(comment));
-    }
-  }
-  return reply;
+  return writerQuotes(comments.slice(last + 1), writer);
 }
 
 export async function escalateAndFinish(job: Run, note: string, reason: string): Promise<Finished> {
