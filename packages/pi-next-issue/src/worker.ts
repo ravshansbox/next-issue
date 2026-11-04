@@ -182,6 +182,10 @@ export class WorkerClient {
     );
   }
 
+  private get outdated(): boolean {
+    return this.workerVersion !== undefined && isNewer(this.options.version, this.workerVersion);
+  }
+
   get connected(): boolean {
     return this.socket?.readyState === WebSocket.OPEN;
   }
@@ -206,11 +210,7 @@ export class WorkerClient {
     if (!this.connected) {
       await this.connect();
     }
-    if (
-      this.workerVersion !== undefined &&
-      isNewer(this.options.version, this.workerVersion) &&
-      !this.busy
-    ) {
+    if (this.outdated && !this.busy) {
       await this.waitForClose();
       await this.connect();
     }
