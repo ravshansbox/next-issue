@@ -42,7 +42,7 @@ export async function fixRound(
   return { committed: true };
 }
 
-function fixBudget(job: Run, kind: FixKind): { round: number; limit: number } {
+export function fixBudget(job: Run, kind: FixKind): { round: number; limit: number } {
   const { state, context } = job;
   return kind === 'review'
     ? { round: state.reviewRounds, limit: context.config.maxReviewRounds }

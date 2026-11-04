@@ -1,6 +1,6 @@
 import { parseCommitSubject } from './agent-reply.mts';
 import { CODING } from './agents.mts';
-import { commitWork } from './fix.mts';
+import { commitWork, fixBudget } from './fix.mts';
 import { escalateAndFinish, spendCiFix } from './handover.mts';
 import { checkPolling, type Gate, GATE_FIXED, type Run, runRole } from './job.mts';
 import { fixPrompt } from './prompts.mts';
@@ -39,11 +39,11 @@ export async function resolveConflict(job: Run): Promise<Gate> {
 }
 
 async function fixConflict(job: Run, files: string[]): Promise<string> {
-  const { context, issue, log, state } = job;
+  const { issue, log } = job;
   const reason = 'The pull request conflicts with its base.';
   const result = await log.step(
     'fix',
-    { reason, cause: 'conflict', round: state.ciFixes, limit: context.config.maxCiFixes },
+    { reason, cause: 'conflict', ...fixBudget(job, 'conflict') },
     () =>
       runRole(
         job,
