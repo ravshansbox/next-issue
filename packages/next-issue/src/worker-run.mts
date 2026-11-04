@@ -1,7 +1,7 @@
 import type { Interrupts } from './interrupt.mts';
 import type { Fields } from './observe.mts';
 import { applyEvent } from './progress.mts';
-import type { Progress } from './protocol.mts';
+import type { Progress, WorkerMessage } from './protocol.mts';
 import type { RunControls } from './run.mts';
 
 export type Run = {
@@ -29,6 +29,13 @@ export function startRefusal(run: Run | undefined, restart: boolean): string | u
     return 'the worker is restarting, try again soon';
   }
   return undefined;
+}
+
+export function runsMessage(runs: Map<string, Run>): WorkerMessage {
+  return {
+    type: 'runs',
+    runs: Object.fromEntries([...runs].map(([root, run]) => [root, run.progress])),
+  };
 }
 
 function endsIssue(record: Fields): boolean {

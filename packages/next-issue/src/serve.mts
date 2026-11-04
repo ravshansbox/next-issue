@@ -8,7 +8,7 @@ import { stopChildren } from './children.mts';
 import { lock } from './lock.mts';
 import { message } from './errors.mts';
 import { startProgress } from './progress.mts';
-import { type ClientMessage, isNewer, type Progress, type WorkerMessage } from './protocol.mts';
+import { type ClientMessage, isNewer, type Progress } from './protocol.mts';
 import { type ListQuestions, listQuestions, questionSender, send } from './questions.mts';
 import { runRepo, type RunControls } from './run.mts';
 import { packageVersion } from './version.mts';
@@ -19,6 +19,7 @@ import {
   requestStop,
   type Run,
   runControls,
+  runsMessage,
   startRefusal,
 } from './worker-run.mts';
 
@@ -80,13 +81,6 @@ function stopRun(sockets: WebSocketServer, runs: Map<string, Run>, root: string)
   }
   requestStop(run);
   broadcast(sockets, runs);
-}
-
-function runsMessage(runs: Map<string, Run>): WorkerMessage {
-  return {
-    type: 'runs',
-    runs: Object.fromEntries([...runs].map(([root, run]) => [root, run.progress])),
-  };
 }
 
 async function shutdown(
