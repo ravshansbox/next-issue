@@ -182,3 +182,43 @@ test('a run that finds a state file of the wrong shape reports an error that nam
   assert.match(report.reason!, /7\.json does not hold a valid state/);
   assert.deepEqual(roles(target), []);
 });
+
+test('a user who resumes an implemented issue gets the pull request titled with the saved subject', async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: ['status:in-progress'] },
+    saved: { ...SAVED, phase: 'implemented', pr: undefined, title: 'feat: add the saved flag' },
+  });
+  await target.run();
+  assert.deepEqual(target.titles, ['feat: add the saved flag']);
+});
+
+test('a user who resumes from a state file without a title gets a conventional pull request title', async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: ['status:in-progress'] },
+    saved: { ...SAVED, phase: 'implemented', pr: undefined },
+  });
+  await target.run();
+  assert.deepEqual(target.titles, ['fix: resolve issue #7']);
+});
+
+test('a saved state carries on and does not implement again', async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: ['status:in-progress'] },
+    saved: {
+      issue: 7,
+      phase: 'review',
+      branch: 'issue-7',
+      pr: 101,
+      ciFixes: 2,
+      reviewRounds: 1,
+      reviewLog: [{ round: 1, findings: '- old' }],
+    },
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.equal(report.ciFixes, 2);
+  assert.equal(report.reviewRounds, 2);
+  assert.deepEqual(roles(target), ['reviewer']);
+  assert.deepEqual(target.branches, ['issue-7']);
+  assert.deepEqual(target.starts, [false]);
+});

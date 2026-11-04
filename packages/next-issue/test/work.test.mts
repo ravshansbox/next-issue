@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { processIssue } from '../src/pipeline.mts';
-import { APPROVE, changes, harness, ISSUE, roles, SAVED, stages } from './harness.mts';
+import { APPROVE, changes, harness, ISSUE, roles, stages } from './harness.mts';
 
 test('a clean run implements, reviews and finishes', async (t) => {
   const target = await harness(t);
@@ -44,24 +44,6 @@ test("a user gets the pull request titled with the subject of the implementer's 
   const target = await harness(t, { implementerText: ['Done.\ncommit: feat: add the flag'] });
   await target.run();
   assert.deepEqual(target.titles, ['feat: add the flag']);
-});
-
-test('a user who resumes an implemented issue gets the pull request titled with the saved subject', async (t) => {
-  const target = await harness(t, {
-    issue: { ...ISSUE, labels: ['status:in-progress'] },
-    saved: { ...SAVED, phase: 'implemented', pr: undefined, title: 'feat: add the saved flag' },
-  });
-  await target.run();
-  assert.deepEqual(target.titles, ['feat: add the saved flag']);
-});
-
-test('a user who resumes from a state file without a title gets a conventional pull request title', async (t) => {
-  const target = await harness(t, {
-    issue: { ...ISSUE, labels: ['status:in-progress'] },
-    saved: { ...SAVED, phase: 'implemented', pr: undefined },
-  });
-  await target.run();
-  assert.deepEqual(target.titles, ['fix: resolve issue #7']);
 });
 
 test('a base that stays behind goes to the log', async (t) => {
@@ -202,28 +184,6 @@ test('a step that throws gives the error outcome and hands the issue over', asyn
   assert.match(report.reason!, /the port broke/);
   assert.equal(target.labels.at(-1)?.label, 'status:needs-human');
   assert.equal((await target.state())?.phase, 'implemented');
-});
-
-test('a saved state carries on and does not implement again', async (t) => {
-  const target = await harness(t, {
-    issue: { ...ISSUE, labels: ['status:in-progress'] },
-    saved: {
-      issue: 7,
-      phase: 'review',
-      branch: 'issue-7',
-      pr: 101,
-      ciFixes: 2,
-      reviewRounds: 1,
-      reviewLog: [{ round: 1, findings: '- old' }],
-    },
-  });
-  const report = await target.run();
-  assert.equal(report.outcome, 'done');
-  assert.equal(report.ciFixes, 2);
-  assert.equal(report.reviewRounds, 2);
-  assert.deepEqual(roles(target), ['reviewer']);
-  assert.deepEqual(target.branches, ['issue-7']);
-  assert.deepEqual(target.starts, [false]);
 });
 
 test('a new issue asks for its worktree to start from the base branch', async (t) => {
