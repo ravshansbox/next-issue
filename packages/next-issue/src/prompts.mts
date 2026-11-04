@@ -120,6 +120,16 @@ const KIND_RULES: Record<FixKind, string> = {
   conflict: CONFLICT_RULE,
 };
 
+function earlierBlock(earlier: string[]): string {
+  return earlier.length > 0
+    ? [
+        '## Earlier rounds',
+        earlier.join('\n'),
+        'Keep those earlier fixes. Do not undo work that a later round did not question.',
+      ].join('\n')
+    : '';
+}
+
 export function fixPrompt(
   issue: Issue,
   reason: string,
@@ -132,13 +142,7 @@ export function fixPrompt(
     `You are the fixer. Correct the work for issue #${issue.number}: ${issue.title}.`,
     `## Reason\n${reason}`,
     `## Detail\n${detail}`,
-    earlier.length > 0
-      ? [
-          '## Earlier rounds',
-          earlier.join('\n'),
-          'Keep those earlier fixes. Do not undo work that a later round did not question.',
-        ].join('\n')
-      : '',
+    earlierBlock(earlier),
     replyBlock(reply),
     '## Rules',
     'Fix the cause, not the symptom. Keep the change minimal.',
