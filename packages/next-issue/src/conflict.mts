@@ -1,9 +1,8 @@
 import { CODING } from './agents.mts';
 import { commitWork } from './fix.mts';
-import { escalateAndFinish } from './handover.mts';
+import { escalateAndFinish, spendCiFix } from './handover.mts';
 import { checkPolling, type Gate, type Run, runRole } from './job.mts';
 import { fixPrompt, parseCommitSubject } from './prompts.mts';
-import { writeState } from './state.mts';
 
 export async function conflicts(job: Run): Promise<boolean> {
   const { repo, config, ports } = job.context;
@@ -11,17 +10,16 @@ export async function conflicts(job: Run): Promise<boolean> {
 }
 
 export async function resolveConflict(job: Run): Promise<Gate> {
-  const { context, log, state, worktree, branch } = job;
-  const { repo, config, ports } = context;
-  if (state.ciFixes >= config.maxCiFixes) {
-    return escalateAndFinish(
-      job,
-      `The pull request conflicts with its base, and the limit of ${config.maxCiFixes} check fixes was reached.`,
-      'merge conflict',
-    );
+  const { context, log, worktree, branch } = job;
+  const { config, ports } = context;
+  const exhausted = await spendCiFix(
+    job,
+    `The pull request conflicts with its base, and the limit of ${config.maxCiFixes} check fixes was reached.`,
+    'merge conflict',
+  );
+  if (exhausted) {
+    return exhausted;
   }
-  state.ciFixes += 1;
-  await writeState(repo, state);
   const before = await ports.revision(worktree);
   const files = await log.step('merge-base', { base: context.base }, () =>
     ports.startMerge(worktree, context.base, config.remote),

@@ -127,6 +127,20 @@ export async function escalateAndFinish(job: Run, note: string, reason: string):
   return { done: true, report: await finish(job, 'needs-human', reason) };
 }
 
+export async function spendCiFix(
+  job: Run,
+  note: string,
+  reason: string,
+): Promise<Finished | undefined> {
+  const { context, state } = job;
+  if (state.ciFixes >= context.config.maxCiFixes) {
+    return escalateAndFinish(job, note, reason);
+  }
+  state.ciFixes += 1;
+  await writeState(context.repo, state);
+  return undefined;
+}
+
 export function escalateCheckFix(
   job: Run,
   unrelated: string | undefined,
