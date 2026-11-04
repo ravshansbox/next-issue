@@ -197,6 +197,14 @@ async function listQuestions(root: string): Promise<Question[]> {
   return waitingQuestions(await detectRepo(root, config.remote), config, PORTS);
 }
 
+async function readQuestions(list: ListQuestions, root: string): Promise<Questions> {
+  try {
+    return { type: 'questions', root, questions: await list(root) };
+  } catch (error) {
+    return { type: 'questions-error', root, message: message(error) };
+  }
+}
+
 function questionsReply(
   delivered: WeakMap<WebSocket, Map<string, Delivery>>,
   socket: WebSocket,
@@ -269,12 +277,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   ): Promise<void> => {
     const read = (reads.get(root) ?? 0) + 1;
     reads.set(root, read);
-    let value: Questions;
-    try {
-      value = { type: 'questions', root, questions: await options.questions(root) };
-    } catch (error) {
-      value = { type: 'questions-error', root, message: message(error) };
-    }
+    const value = await readQuestions(options.questions, root);
     for (const socket of targets()) {
       const reply = questionsReply(delivered, socket, root, { read, value }, id);
       if (reply !== undefined) {
