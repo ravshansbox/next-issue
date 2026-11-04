@@ -23,17 +23,12 @@ export async function fixRound(
   const { context, issue, log, worktree, branch } = job;
   const { ports, config } = context;
   const before = from ?? (await ports.revision(worktree));
-  const result = await log.step('fix', { reason, cause: kind, ...fixBudget(job, kind) }, () =>
-    runRole(job, 'fixer', fixPrompt(issue, reason, detail, earlier, kind, job.reply), CODING),
-  );
-  const unrelated = parseUnrelated(result.text);
+  const text = await runFixer(job, reason, detail, earlier, kind);
+  const unrelated = parseUnrelated(text);
   if (unrelated !== undefined) {
     return disputedFix(job, before, reason, unrelated);
   }
-  const subject = parseCommitSubject(
-    result.text,
-    `fix: address feedback on issue #${issue.number}`,
-  );
+  const subject = parseCommitSubject(text, `fix: address feedback on issue #${issue.number}`);
   if (!(await commitWork(job, before, subject, 'fixer'))) {
     log.event('commit.empty', { reason }, 'quiet');
     return { committed: false };
@@ -42,7 +37,21 @@ export async function fixRound(
   return { committed: true };
 }
 
-export function fixBudget(job: Run, kind: FixKind): { round: number; limit: number } {
+export async function runFixer(
+  job: Run,
+  reason: string,
+  detail: string,
+  earlier: string[],
+  kind: FixKind,
+): Promise<string> {
+  const { issue, log } = job;
+  const result = await log.step('fix', { reason, cause: kind, ...fixBudget(job, kind) }, () =>
+    runRole(job, 'fixer', fixPrompt(issue, reason, detail, earlier, kind, job.reply), CODING),
+  );
+  return result.text;
+}
+
+function fixBudget(job: Run, kind: FixKind): { round: number; limit: number } {
   const { state, context } = job;
   return kind === 'review'
     ? { round: state.reviewRounds, limit: context.config.maxReviewRounds }

@@ -1,9 +1,7 @@
 import { parseCommitSubject } from './agent-reply.mts';
-import { CODING } from './agents.mts';
-import { commitWork, fixBudget } from './fix.mts';
+import { commitWork, runFixer } from './fix.mts';
 import { escalateAndFinish, spendCiFix } from './handover.mts';
-import { checkPolling, type Gate, GATE_FIXED, type Run, runRole } from './job.mts';
-import { fixPrompt } from './prompts.mts';
+import { checkPolling, type Gate, GATE_FIXED, type Run } from './job.mts';
 
 export async function conflicts(job: Run): Promise<boolean> {
   const { repo, config, ports } = job.context;
@@ -38,21 +36,9 @@ export async function resolveConflict(job: Run): Promise<Gate> {
   return GATE_FIXED;
 }
 
-async function fixConflict(job: Run, files: string[]): Promise<string> {
-  const { issue, log } = job;
+function fixConflict(job: Run, files: string[]): Promise<string> {
   const reason = 'The pull request conflicts with its base.';
-  const result = await log.step(
-    'fix',
-    { reason, cause: 'conflict', ...fixBudget(job, 'conflict') },
-    () =>
-      runRole(
-        job,
-        'fixer',
-        fixPrompt(issue, reason, files.join('\n'), [], 'conflict', job.reply),
-        CODING,
-      ),
-  );
-  return result.text;
+  return runFixer(job, reason, files.join('\n'), [], 'conflict');
 }
 
 async function mergeBase(job: Run, before: string, files: string[]): Promise<boolean> {
