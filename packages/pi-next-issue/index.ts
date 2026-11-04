@@ -42,6 +42,10 @@ function threadsOf(question: Question): Array<[string, number]> {
       ];
 }
 
+function promptOf(question: Question): string {
+  return `#${question.issue} ${question.title}\n\n${question.reason || 'No reason given.'}`;
+}
+
 function labelsOf(question: Question, choice: string): string[] {
   const remove = ['--remove-label', question.labels.needsHuman];
   return choice === GIVE_UP ? [...remove, '--add-label', question.labels.skip] : remove;
@@ -435,10 +439,7 @@ export function createExtension(options: Options) {
           return;
         }
         passed.add(question.issue);
-        const choice = await ctx.ui.select(
-          `#${question.issue} ${question.title}\n\n${question.reason || 'No reason given.'}`,
-          [RETRY, GUIDE, GIVE_UP],
-        );
+        const choice = await ctx.ui.select(promptOf(question), [RETRY, GUIDE, GIVE_UP]);
         if (choice === undefined) {
           return;
         }
