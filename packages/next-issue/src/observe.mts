@@ -178,31 +178,47 @@ export class Recorder {
   }
 
   summary(since?: Totals): Totals & { runId: string; logFile: string } {
-    const total = emptyUsage();
-    const roles: Record<string, RoleTotals> = {};
-    for (const [role, value] of this.sink.totals) {
-      const earlier = since?.roles[role] ?? emptyRoleTotals();
-      if (value.calls === earlier.calls) {
-        continue;
-      }
-      const usage = { ...value, calls: value.calls - earlier.calls, ms: value.ms - earlier.ms };
-      addUsage(usage, negate(earlier));
-      roles[role] = usage;
-      addUsage(total, usage);
-    }
-    const counts: Record<string, number> = {};
-    for (const [kind, value] of this.sink.counts) {
-      const count = value - (since?.counts[kind] ?? 0);
-      if (count > 0) {
-        counts[kind] = count;
-      }
-    }
-    return { runId: this.runId, logFile: this.sink.file, roles, counts, total };
+    return {
+      runId: this.runId,
+      logFile: this.sink.file,
+      ...rolesSince(this.sink.totals, since),
+      counts: countsSince(this.sink.counts, since),
+    };
   }
 
   async close(): Promise<void> {
     await this.sink.close();
   }
+}
+
+function rolesSince(
+  totals: Map<string, RoleTotals>,
+  since?: Totals,
+): { roles: Record<string, RoleTotals>; total: Usage } {
+  const total = emptyUsage();
+  const roles: Record<string, RoleTotals> = {};
+  for (const [role, value] of totals) {
+    const earlier = since?.roles[role] ?? emptyRoleTotals();
+    if (value.calls === earlier.calls) {
+      continue;
+    }
+    const usage = { ...value, calls: value.calls - earlier.calls, ms: value.ms - earlier.ms };
+    addUsage(usage, negate(earlier));
+    roles[role] = usage;
+    addUsage(total, usage);
+  }
+  return { roles, total };
+}
+
+function countsSince(counts: Map<string, number>, since?: Totals): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const [kind, value] of counts) {
+    const count = value - (since?.counts[kind] ?? 0);
+    if (count > 0) {
+      result[kind] = count;
+    }
+  }
+  return result;
 }
 
 export async function pruneRuns(root: string, keepDays: number): Promise<number> {
