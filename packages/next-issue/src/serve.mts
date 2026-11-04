@@ -194,6 +194,13 @@ function questionsReply(
   return id === undefined ? undefined : { ...last.value, id };
 }
 
+function runsMessage(runs: Map<string, Run>): WorkerMessage {
+  return {
+    type: 'runs',
+    runs: Object.fromEntries([...runs].map(([root, run]) => [root, run.progress])),
+  };
+}
+
 export async function startWorker(options: WorkerOptions): Promise<Worker | undefined> {
   checkSocketPath(options.socketPath);
   await mkdir(dirname(options.lockPath), { recursive: true });
@@ -212,15 +219,11 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
 
   const server = createServer();
   const sockets = new WebSocketServer({ server });
-  const snapshot = (): WorkerMessage => ({
-    type: 'runs',
-    runs: Object.fromEntries([...runs].map(([root, run]) => [root, run.progress])),
-  });
   const send = (socket: WebSocket, value: WorkerMessage): void => {
     socket.send(JSON.stringify(value));
   };
   const broadcast = (): void => {
-    const value = snapshot();
+    const value = runsMessage(runs);
     for (const socket of sockets.clients) {
       send(socket, value);
     }
@@ -319,7 +322,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
 
   sockets.on('connection', (socket) => {
     send(socket, { type: 'hello', version: options.version });
-    send(socket, snapshot());
+    send(socket, runsMessage(runs));
     void sendQuestions(options.root, () => [socket]);
     socket.on('close', closeWhenIdle);
     socket.on('message', (data) => {
