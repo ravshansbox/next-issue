@@ -66,27 +66,7 @@ export async function reviewRound(job: Run): Promise<Round> {
   await ports.commentOnPr(repo, pr, formatVerdict(verdict, open));
 
   if (open.length === 0) {
-    const gate = await checkGate(job);
-    if (gate.done) {
-      return gate;
-    }
-    if (gate.fixed) {
-      return { done: false };
-    }
-    if (config.draftPullRequest && !(await ports.markPrReady(repo, pr))) {
-      log.event('pull-request.undraft.fail', { pr }, 'quiet');
-    }
-    if (context.merge) {
-      if (await conflicts(job)) {
-        const resolved = await resolveConflict(job);
-        return resolved.done ? resolved : { done: false };
-      }
-      if (!(await ports.mergePr(repo, pr))) {
-        return escalateAndFinish(job, 'The merge of the pull request failed.', 'merge failed');
-      }
-      return afterMerge(job);
-    }
-    return { done: true, report: await finishDone(job) };
+    return approvedRound(job);
   }
 
   const findings = formatFindings(open);
@@ -115,4 +95,31 @@ export async function reviewRound(job: Run): Promise<Round> {
     await ports.commentOnPr(repo, pr, `### Fixer: no change\n\n${note}`);
   }
   return { done: false };
+}
+
+async function approvedRound(job: Run): Promise<Round> {
+  const { context, log, state } = job;
+  const { repo, config, ports } = context;
+  const pr = state.pr!;
+  const gate = await checkGate(job);
+  if (gate.done) {
+    return gate;
+  }
+  if (gate.fixed) {
+    return { done: false };
+  }
+  if (config.draftPullRequest && !(await ports.markPrReady(repo, pr))) {
+    log.event('pull-request.undraft.fail', { pr }, 'quiet');
+  }
+  if (context.merge) {
+    if (await conflicts(job)) {
+      const resolved = await resolveConflict(job);
+      return resolved.done ? resolved : { done: false };
+    }
+    if (!(await ports.mergePr(repo, pr))) {
+      return escalateAndFinish(job, 'The merge of the pull request failed.', 'merge failed');
+    }
+    return afterMerge(job);
+  }
+  return { done: true, report: await finishDone(job) };
 }
