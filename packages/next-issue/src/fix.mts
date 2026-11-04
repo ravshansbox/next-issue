@@ -22,14 +22,10 @@ export async function fixRound(
   force = false,
   from?: string,
 ): Promise<Fix> {
-  const { context, issue, log, state, worktree, branch } = job;
+  const { context, issue, log, worktree, branch } = job;
   const { ports, config } = context;
   const before = from ?? (await ports.revision(worktree));
-  const budget =
-    kind === 'review'
-      ? { round: state.reviewRounds, limit: config.maxReviewRounds }
-      : { round: state.ciFixes, limit: config.maxCiFixes };
-  const result = await log.step('fix', { reason, cause: kind, ...budget }, () =>
+  const result = await log.step('fix', { reason, cause: kind, ...fixBudget(job, kind) }, () =>
     runRole(job, 'fixer', fixPrompt(issue, reason, detail, earlier, kind, job.reply), CODING),
   );
   const unrelated = parseUnrelated(result.text);
@@ -46,6 +42,13 @@ export async function fixRound(
   }
   await ports.push(worktree, config.remote, branch, force);
   return { committed: true };
+}
+
+function fixBudget(job: Run, kind: FixKind): { round: number; limit: number } {
+  const { state, context } = job;
+  return kind === 'review'
+    ? { round: state.reviewRounds, limit: context.config.maxReviewRounds }
+    : { round: state.ciFixes, limit: context.config.maxCiFixes };
 }
 
 async function disputedFix(
