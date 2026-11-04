@@ -113,16 +113,18 @@ function toIssue(item: RawIssue): Issue {
   };
 }
 
+function labelFilter(labels: string[]): string {
+  return labels.length === 0 ? '' : ` label:${labels.map((label) => `"${label}"`).join(',')}`;
+}
+
 export async function openIssues(repo: Repo, limit: number, labels: string[]): Promise<Issue[]> {
-  const filter =
-    labels.length === 0 ? '' : ` label:${labels.map((label) => `"${label}"`).join(',')}`;
   const parsed = await ghJson<RawIssue[]>(repo, [
     'issue',
     'list',
     '--state',
     'open',
     '--search',
-    `sort:created-asc${filter}`,
+    `sort:created-asc${labelFilter(labels)}`,
     '--limit',
     String(limit),
     '--json',
