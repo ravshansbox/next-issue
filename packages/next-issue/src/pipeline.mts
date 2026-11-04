@@ -73,9 +73,10 @@ async function claimedError(
   error: unknown,
   started: number,
 ): Promise<IssueReport> {
-  log.event('issue.error', { error: message(error), ms: Date.now() - started }, 'quiet');
+  const reason = message(error);
+  log.event('issue.error', { error: reason, ms: Date.now() - started }, 'quiet');
   try {
-    await handOver(context, log, issue.number, state, `The run failed: ${message(error)}`);
+    await handOver(context, log, issue.number, state, `The run failed: ${reason}`);
   } catch (failure) {
     log.event('hand-over.error', { error: message(failure) }, 'quiet');
   }
@@ -83,7 +84,7 @@ async function claimedError(
   return {
     issue: issue.number,
     outcome: 'error',
-    reason: message(error),
+    reason,
     ...progress(state, started),
   };
 }
