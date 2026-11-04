@@ -90,7 +90,7 @@ export async function threadComments(repo: Repo, number: number): Promise<Commen
 function parseComment(line: string, number: number): Comment {
   let parsed: [string, string | null, string?];
   try {
-    parsed = JSON.parse(line) as [string, string | null, string?];
+    parsed = JSON.parse(line);
   } catch {
     throw new Error(`gh gave a comment of #${number} that is not valid JSON: ${line}`);
   }
