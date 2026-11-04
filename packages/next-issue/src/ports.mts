@@ -1,9 +1,7 @@
 import { runAgent } from './agents.mts';
 import { run } from './exec.mts';
 import {
-  abortMerge,
   commitAll,
-  commitMerge,
   deleteBranch,
   diff,
   discardChanges,
@@ -14,7 +12,6 @@ import {
   resetToBase,
   revision,
   setAside,
-  startMerge,
 } from './git.mts';
 import {
   canWrite,
@@ -36,6 +33,7 @@ import {
   prConflicts,
   prMerged,
 } from './pull-requests.mts';
+import { abortMerge, commitMerge, startMerge } from './git-merge.mts';
 import { failedBaseLogs, waitForBaseChecks } from './base-checks.mts';
 import { failedCheckLogs, waitForChecks } from './checks.mts';
 import { setLabel } from './labels.mts';
