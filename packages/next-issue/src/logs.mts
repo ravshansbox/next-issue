@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { hasCode } from './errors.mts';
 import { listOrEmpty } from './files.mts';
+import { type Sleeper, wakeableSleep } from './interrupt.mts';
 import { render } from './render.mts';
 import { runsDir } from './state.mts';
 
@@ -73,24 +74,17 @@ type Stopper = { readonly stopped: boolean; stop: () => void; pause: () => Promi
 
 function stopper(): Stopper {
   let stopped = false;
-  let wake: (() => void) | undefined;
+  const sleeper: Sleeper = {};
   return {
     get stopped() {
       return stopped;
     },
     stop() {
       stopped = true;
-      wake?.();
+      sleeper.wake?.();
     },
     async pause() {
-      await new Promise<void>((resolve) => {
-        const timer = setTimeout(resolve, POLL_MS);
-        wake = () => {
-          clearTimeout(timer);
-          resolve();
-        };
-      });
-      wake = undefined;
+      await wakeableSleep(sleeper, POLL_MS, stopped);
     },
   };
 }

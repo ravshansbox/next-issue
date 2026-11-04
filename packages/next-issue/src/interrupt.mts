@@ -6,7 +6,7 @@ export type Interrupts = {
   sleep: (ms: number) => Promise<boolean>;
 };
 
-type Sleeper = { wake?: () => void };
+export type Sleeper = { wake?: () => void };
 
 export function wakeableSleep(sleeper: Sleeper, ms: number, stopped: boolean): Promise<boolean> {
   return new Promise((resolve) => {
