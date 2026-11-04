@@ -1,8 +1,7 @@
 import { rmSync } from 'node:fs';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { dirname, join } from 'node:path';
-import { setTimeout as delay } from 'node:timers/promises';
 import { type WebSocket, WebSocketServer } from 'ws';
 import { type Args, parseArgs } from './args.mts';
 import { loadConfig } from './config.mts';
@@ -10,7 +9,8 @@ import { stopChildren } from './exec.mts';
 import { detectRepo } from './git.mts';
 import { waitingQuestions } from './handover.mts';
 import type { Interrupts } from './interrupt.mts';
-import { type Fields, hasCode, message } from './observe.mts';
+import { lock } from './lock.mts';
+import { type Fields, message } from './observe.mts';
 import { applyEvent, startProgress } from './progress.mts';
 import { PORTS } from './ports.mts';
 import {
@@ -40,7 +40,6 @@ export type WorkerOptions = {
 };
 
 const LOCK_WAIT_MS = 5_000;
-const LOCK_POLL_MS = 100;
 const IDLE_MS = 30_000;
 
 export type Worker = {
@@ -139,49 +138,6 @@ export function checkSocketPath(path: string, platform = process.platform): void
     throw new Error(
       `the socket path ${path} is too long for this system: ${length} bytes, at most ${size - 1}`,
     );
-  }
-}
-
-function alive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return hasCode(error, 'EPERM');
-  }
-}
-
-async function holder(lockPath: string): Promise<number | undefined> {
-  const pid = Number((await readFile(lockPath, 'utf8').catch(() => '')).trim());
-  return pid > 0 && alive(pid) ? pid : undefined;
-}
-
-export async function stopWorker(lockPath: string): Promise<number | undefined> {
-  const pid = await holder(lockPath);
-  if (pid !== undefined) {
-    process.kill(pid, 'SIGTERM');
-  }
-  return pid;
-}
-
-async function lock(path: string, waitMs: number): Promise<boolean> {
-  const deadline = Date.now() + waitMs;
-  for (;;) {
-    try {
-      await writeFile(path, `${process.pid}\n`, { flag: 'wx', mode: 0o600 });
-      return true;
-    } catch (error) {
-      if (!hasCode(error, 'EEXIST')) {
-        throw error;
-      }
-    }
-    if ((await holder(path)) === undefined) {
-      await rm(path, { force: true });
-    } else if (Date.now() >= deadline) {
-      return false;
-    } else {
-      await delay(LOCK_POLL_MS);
-    }
   }
 }
 

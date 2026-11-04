@@ -3,10 +3,11 @@ import { type Args, parseArgs, USAGE } from './args.mts';
 import { writeDefaultConfig } from './config.mts';
 import { ensureIgnored, repoRoot, WORKTREE_DIR } from './git.mts';
 import { listenForInterrupts } from './interrupt.mts';
+import { stopWorker } from './lock.mts';
 import { followLog, newestRunLog } from './logs.mts';
 import { message } from './observe.mts';
 import { runRepo } from './run.mts';
-import { serve, stopWorker, workerPaths } from './serve.mts';
+import { serve, workerPaths } from './serve.mts';
 import { STATE_DIR } from './state.mts';
 import { formatSummary } from './summary.mts';
 
