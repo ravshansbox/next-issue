@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Outcome } from '../src/job.mts';
-import { exitCode, type Watch, watchIssues } from '../src/loop.mts';
+import { exitCode } from '../src/loop.mts';
+import { type Watch, watchIssues } from '../src/watch.mts';
 import { ARGS, issue, report } from './loop-harness.mts';
 
 type FakeWatch = Watch & { processed: number[]; waits: number[]; passes: number[][] };
