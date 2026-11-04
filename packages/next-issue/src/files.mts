@@ -1,4 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises';
+import { hasCode } from './errors.mts';
 
 export function readTextOrEmpty(path: string): Promise<string> {
   return readFile(path, 'utf8').catch(() => '');
@@ -10,4 +11,15 @@ export function listOrEmpty(dir: string): Promise<string[]> {
 
 export function prettyJson(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+export async function unlessMissing<T>(read: () => Promise<T>): Promise<T | undefined> {
+  try {
+    return await read();
+  } catch (error) {
+    if (hasCode(error, 'ENOENT')) {
+      return undefined;
+    }
+    throw error;
+  }
 }

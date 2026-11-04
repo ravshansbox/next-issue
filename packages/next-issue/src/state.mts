@@ -1,7 +1,6 @@
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { hasCode } from './errors.mts';
-import { prettyJson } from './files.mts';
+import { prettyJson, unlessMissing } from './files.mts';
 import type { Repo } from './git.mts';
 
 export const STATE_DIR = '.next-issue';
@@ -43,17 +42,6 @@ export function runsDir(root: string): string {
 
 function file(repo: Repo, issue: number): string {
   return join(stateDir(repo.root), `${issue}.json`);
-}
-
-async function unlessMissing<T>(read: () => Promise<T>): Promise<T | undefined> {
-  try {
-    return await read();
-  } catch (error) {
-    if (hasCode(error, 'ENOENT')) {
-      return undefined;
-    }
-    throw error;
-  }
 }
 
 export async function readState(repo: Repo, issue: number): Promise<IssueState | undefined> {
