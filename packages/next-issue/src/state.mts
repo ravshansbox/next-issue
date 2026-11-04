@@ -57,6 +57,10 @@ export async function readState(repo: Repo, issue: number): Promise<IssueState |
   if (text === undefined) {
     return undefined;
   }
+  return parseState(path, text);
+}
+
+function parseState(path: string, text: string): IssueState {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
