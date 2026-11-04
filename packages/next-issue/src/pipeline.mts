@@ -232,8 +232,15 @@ async function setUp(job: Run): Promise<Round> {
   if (setup.code === 0) {
     return { done: false };
   }
+  return setupFailed(job, setup);
+}
+
+async function setupFailed(
+  job: Run,
+  setup: { code: number; stderr: string; timedOut?: boolean },
+): Promise<Round> {
   const late = setup.timedOut === true;
-  log.event(
+  job.log.event(
     'setup.fail',
     { code: setup.code, timedOut: late, stderr: setup.stderr.trim().slice(-2000) },
     'quiet',
@@ -241,7 +248,7 @@ async function setUp(job: Run): Promise<Round> {
   return escalateAndFinish(
     job,
     late
-      ? `The setup command did not finish in ${config.setupTimeoutMinutes} minutes.`
+      ? `The setup command did not finish in ${job.context.config.setupTimeoutMinutes} minutes.`
       : 'The setup command failed in the worktree.',
     late ? 'setup timeout' : 'setup failed',
   );
