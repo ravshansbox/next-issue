@@ -1,6 +1,6 @@
 import { rmSync } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
-import { createServer, type Server } from 'node:http';
+import { createServer } from 'node:http';
 import { dirname } from 'node:path';
 import { type WebSocket, WebSocketServer } from 'ws';
 import { type Args, parseArgs } from './args.mts';
@@ -13,6 +13,7 @@ import { type ListQuestions, listQuestions, questionSender, send } from './quest
 import { runRepo, type RunControls } from './run.mts';
 import { packageVersion } from './version.mts';
 import { checkSocketPath, workerPaths } from './worker-paths.mts';
+import { listen, shutdown } from './worker-server.mts';
 import {
   active,
   endStatus,
@@ -44,21 +45,6 @@ export type Worker = {
   close: () => Promise<void>;
 };
 
-function listen(server: Server, path: string): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    const umask = process.umask(0o177);
-    try {
-      server.listen(path, () => {
-        server.off('error', reject);
-        resolve();
-      });
-    } finally {
-      process.umask(umask);
-    }
-  });
-}
-
 function parseMessage(text: string): ClientMessage | undefined {
   try {
     return JSON.parse(text) as ClientMessage;
@@ -81,20 +67,6 @@ function stopRun(sockets: WebSocketServer, runs: Map<string, Run>, root: string)
   }
   requestStop(run);
   broadcast(sockets, runs);
-}
-
-async function shutdown(
-  server: Server,
-  sockets: WebSocketServer,
-  paths: { socketPath: string; lockPath: string },
-): Promise<void> {
-  for (const socket of sockets.clients) {
-    socket.terminate();
-  }
-  await new Promise<void>((resolve) => sockets.close(() => resolve()));
-  await new Promise<void>((resolve) => server.close(() => resolve()));
-  await rm(paths.socketPath, { force: true });
-  await rm(paths.lockPath, { force: true });
 }
 
 function closer(stop: () => Promise<void>): Worker {
