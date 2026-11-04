@@ -200,6 +200,21 @@ async function reply(
   }
 }
 
+async function ask(
+  ui: ExtensionContext['ui'],
+  question: Question,
+): Promise<{ choice: string; guidance: string } | undefined> {
+  const choice = await ui.select(promptOf(question), [RETRY, GUIDE, GIVE_UP]);
+  if (choice === undefined) {
+    return undefined;
+  }
+  if (choice !== GUIDE) {
+    return { choice, guidance: '' };
+  }
+  const guidance = (await ui.editor(`Guidance for #${question.issue}`))?.trim() ?? '';
+  return guidance === '' ? undefined : { choice, guidance };
+}
+
 async function statusOf(client: WorkerClient, root: string) {
   await client.attach();
   if (!client.connected) {
@@ -452,17 +467,11 @@ export function createExtension(options: Options) {
           return;
         }
         passed.add(question.issue);
-        const choice = await ctx.ui.select(promptOf(question), [RETRY, GUIDE, GIVE_UP]);
-        if (choice === undefined) {
+        const picked = await ask(ctx.ui, question);
+        if (picked === undefined) {
           return;
         }
-        let guidance = '';
-        if (choice === GUIDE) {
-          guidance = (await ctx.ui.editor(`Guidance for #${question.issue}`))?.trim() ?? '';
-          if (guidance === '') {
-            return;
-          }
-        }
+        const { choice, guidance } = picked;
         await reply(options.gh, root, question, choice, guidance);
         ctx.ui.notify(answeredOf(question, choice), 'info');
       }
