@@ -301,6 +301,19 @@ async function shutdown(
   await rm(paths.lockPath, { force: true });
 }
 
+function closer(stop: () => Promise<void>): Worker {
+  let finish: () => void = () => undefined;
+  const closed = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  let closing: Promise<void> | undefined;
+  const close = (): Promise<void> => {
+    closing ??= stop().then(finish);
+    return closing;
+  };
+  return { closed, close };
+}
+
 export async function startWorker(options: WorkerOptions): Promise<Worker | undefined> {
   checkSocketPath(options.socketPath);
   await mkdir(dirname(options.lockPath), { recursive: true });
@@ -310,26 +323,17 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   await rm(options.socketPath, { force: true });
   const runs = new Map<string, Run>();
   let restart = false;
-  let finish: () => void = () => undefined;
-  const closed = new Promise<void>((resolve) => {
-    finish = resolve;
-  });
 
   const server = createServer();
   const sockets = new WebSocketServer({ server });
   const sendQuestions = questionSender(options.questions);
   const busy = (): boolean => [...runs.values()].some(active);
 
-  let closing: Promise<void> | undefined;
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
-  const close = (): Promise<void> => {
-    closing ??= (async () => {
-      clearTimeout(idleTimer);
-      await shutdown(server, sockets, options);
-      finish();
-    })();
-    return closing;
-  };
+  const { closed, close } = closer(async () => {
+    clearTimeout(idleTimer);
+    await shutdown(server, sockets, options);
+  });
   const closeWhenIdle = (): void => {
     if ((restart || sockets.clients.size === 0) && !busy()) {
       void close();
