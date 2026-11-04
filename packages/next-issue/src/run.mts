@@ -75,27 +75,7 @@ async function handle(
   controls: RunControls,
 ): Promise<number> {
   const { interrupts } = controls;
-  const base = await defaultBranch(repo);
-  const context: Context = {
-    repo,
-    config,
-    base,
-    reset: args.reset,
-    merge: args.merge,
-    stopAfterRound: interrupts.afterRound,
-    recorder,
-    ports: PORTS,
-  };
-  recorder.event(
-    'run.start',
-    {
-      version: await packageVersion(),
-      repo: `${repo.owner}/${repo.name}`,
-      base,
-      log: recorder.logFile,
-    },
-    'quiet',
-  );
+  const context = await startRun(args, config, repo, recorder, interrupts);
 
   const loop: Loop = {
     issues: () => pendingIssues(context),
@@ -128,6 +108,36 @@ async function handle(
     await print(summary);
   }
   return error === undefined ? exitCode(reports) : 1;
+}
+
+async function startRun(
+  args: Args,
+  config: Config,
+  repo: Repo,
+  recorder: Recorder,
+  interrupts: Interrupts,
+): Promise<Context> {
+  const base = await defaultBranch(repo);
+  recorder.event(
+    'run.start',
+    {
+      version: await packageVersion(),
+      repo: `${repo.owner}/${repo.name}`,
+      base,
+      log: recorder.logFile,
+    },
+    'quiet',
+  );
+  return {
+    repo,
+    config,
+    base,
+    reset: args.reset,
+    merge: args.merge,
+    stopAfterRound: interrupts.afterRound,
+    recorder,
+    ports: PORTS,
+  };
 }
 
 async function endRun(repo: Repo, recorder: Recorder, reports: IssueReport[]): Promise<RunSummary> {
