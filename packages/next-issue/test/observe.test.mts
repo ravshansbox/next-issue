@@ -3,14 +3,8 @@ import { mkdir, mkdtemp, readdir, readFile, utimes, writeFile } from 'node:fs/pr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import {
-  addUsage,
-  emptyUsage,
-  type Fields,
-  message,
-  pruneRuns,
-  Recorder,
-} from '../src/observe.mts';
+import { addUsage, emptyUsage, type Fields, message, Recorder } from '../src/observe.mts';
+import { pruneRuns } from '../src/prune-runs.mts';
 import { STATE_DIR } from '../src/state.mts';
 
 async function recorder(): Promise<Recorder> {

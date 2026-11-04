@@ -1,5 +1,5 @@
 import { createWriteStream, type WriteStream } from 'node:fs';
-import { mkdir, readdir, rm, stat } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { stateDir } from './state.mts';
 
@@ -219,35 +219,6 @@ function countsSince(counts: Map<string, number>, since?: Totals): Record<string
     }
   }
   return result;
-}
-
-export async function pruneRuns(root: string, keepDays: number): Promise<number> {
-  if (keepDays <= 0) {
-    return 0;
-  }
-  const dir = runsDir(root);
-  const names = await readdir(dir).catch(() => []);
-  const cutoff = Date.now() - keepDays * 24 * 60 * 60_000;
-  let dropped = 0;
-  for (const name of names) {
-    if (await dropIfOlder(join(dir, name), cutoff)) {
-      dropped += 1;
-    }
-  }
-  return dropped;
-}
-
-async function dropIfOlder(path: string, cutoff: number): Promise<boolean> {
-  try {
-    const info = await stat(path);
-    if (info.mtimeMs >= cutoff) {
-      return false;
-    }
-    await rm(path, { force: true, recursive: true });
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export function message(error: unknown): string {
