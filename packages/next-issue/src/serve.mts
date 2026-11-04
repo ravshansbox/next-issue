@@ -10,7 +10,7 @@ import { stopChildren } from './exec.mts';
 import { detectRepo } from './git.mts';
 import { waitingQuestions } from './handover.mts';
 import type { Interrupts } from './interrupt.mts';
-import { hasCode, message } from './observe.mts';
+import { type Fields, hasCode, message } from './observe.mts';
 import { applyEvent, startProgress } from './progress.mts';
 import { PORTS } from './ports.mts';
 import {
@@ -67,6 +67,10 @@ function endStatus(run: Run): Progress['status'] {
     return 'stopped';
   }
   return run.progress.error === undefined ? 'finished' : 'failed';
+}
+
+function endsIssue(record: Fields): boolean {
+  return record['kind'] === 'issue.end' || record['kind'] === 'issue.error';
 }
 
 function runInterrupts(run: Run): Interrupts {
@@ -296,7 +300,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
           interrupts: runInterrupts(run),
           onEvent: (record) => {
             update(applyEvent(run.progress, record));
-            if (record['kind'] === 'issue.end' || record['kind'] === 'issue.error') {
+            if (endsIssue(record)) {
               void sendQuestions(root, () => sockets.clients);
             }
           },
