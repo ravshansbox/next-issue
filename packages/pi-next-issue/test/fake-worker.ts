@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WebSocketServer } from 'ws';
-import type { ClientMessage, IssueProgress, Progress, WorkerMessage } from '../src/worker.ts';
+import type { ClientMessage, IssueProgress, Progress, WorkerMessage } from '../src/protocol.ts';
 
 export type FakeWorker = {
   received: ClientMessage[];

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 import { createExtension, formatStatus } from '../index.ts';
-import { type Progress, type Question, WorkerClient } from '../src/worker.ts';
+import type { Progress, Question } from '../src/protocol.ts';
+import { WorkerClient } from '../src/worker.ts';
 import {
   type FakeWorker,
   running,

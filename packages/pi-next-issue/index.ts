@@ -5,14 +5,8 @@ import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-a
 import { Type } from 'typebox';
 import { errorText, must, type RunOptions } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
-import {
-  type Progress,
-  type Question,
-  spawnWorker,
-  WorkerClient,
-  type WorkerEvent,
-  workerPaths,
-} from './src/worker.ts';
+import type { Progress, Question } from './src/protocol.ts';
+import { spawnWorker, WorkerClient, type WorkerEvent, workerPaths } from './src/worker.ts';
 
 export type Options = {
   client: (root: string) => WorkerClient;
