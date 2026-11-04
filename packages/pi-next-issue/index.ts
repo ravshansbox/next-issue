@@ -178,10 +178,7 @@ export function createExtension(options: Options) {
       }
     };
 
-    const onProgress = (progress: Progress | undefined) => {
-      if (progress === undefined) {
-        return;
-      }
+    const notifyHandled = (progress: Progress) => {
       if (progress.handled.length < handled) {
         handled = 0;
       }
@@ -192,6 +189,13 @@ export function createExtension(options: Options) {
         );
       }
       handled = progress.handled.length;
+    };
+
+    const onProgress = (progress: Progress | undefined) => {
+      if (progress === undefined) {
+        return;
+      }
+      notifyHandled(progress);
       announce(progress);
       render();
     };
