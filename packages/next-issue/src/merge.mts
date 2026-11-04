@@ -1,8 +1,7 @@
+import { checkPolling, checkWaiting } from './config.mts';
 import { fixRound } from './fix.mts';
 import { escalateAndFinish, escalateCheckFix, finishDone } from './handover.mts';
 import {
-  checkPolling,
-  checkWaiting,
   type Gate,
   GATE_FIXED,
   GATE_PASSED,

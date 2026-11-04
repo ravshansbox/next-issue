@@ -1,7 +1,8 @@
+import { checkWaiting } from './config.mts';
 import { conflicts, resolveConflict } from './conflict.mts';
 import { fixRound } from './fix.mts';
 import { escalateAndFinish, escalateCheckFix, spendCiFix } from './handover.mts';
-import { checkWaiting, type Gate, GATE_FIXED, GATE_PASSED, type Run } from './job.mts';
+import { type Gate, GATE_FIXED, GATE_PASSED, type Run } from './job.mts';
 import { history } from './prompts.mts';
 
 export async function checkGate(job: Run): Promise<Gate> {
