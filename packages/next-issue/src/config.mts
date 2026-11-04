@@ -144,10 +144,7 @@ function parseConfig(value: unknown): Config {
     }
   }
   if (file.draftPullRequest !== undefined) {
-    if (typeof file.draftPullRequest !== 'boolean') {
-      throw new Error(`${CONFIG_FILE}: draftPullRequest must be true or false.`);
-    }
-    config.draftPullRequest = file.draftPullRequest;
+    config.draftPullRequest = flag(file.draftPullRequest, 'draftPullRequest');
   }
   if (file.setupCommand !== undefined) {
     config.setupCommand = text(file.setupCommand, 'setupCommand', false);
@@ -207,6 +204,13 @@ function rejectUnknown(
 function whole(value: unknown, field: string, least: number): number {
   if (typeof value !== 'number' || !Number.isInteger(value) || value < least) {
     throw new Error(`${CONFIG_FILE}: ${field} must be a whole number of ${least} or more.`);
+  }
+  return value;
+}
+
+function flag(value: unknown, field: string): boolean {
+  if (typeof value !== 'boolean') {
+    throw new Error(`${CONFIG_FILE}: ${field} must be true or false.`);
   }
   return value;
 }
