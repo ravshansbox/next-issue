@@ -16,7 +16,7 @@ import {
 } from './verdict.mts';
 
 export async function reviewRound(job: Run): Promise<Round> {
-  const { context, issue, log, state, worktree, comments } = job;
+  const { context, issue, log, state } = job;
   const { repo, config, ports } = context;
   const pr = state.pr!;
   if (state.reviewRounds >= config.maxReviewRounds) {
@@ -30,23 +30,8 @@ export async function reviewRound(job: Run): Promise<Round> {
   await writeState(repo, state);
 
   await setStatus(context, issue.number, pr, config.labels.inReview);
-  const full = await ports.diff(worktree, context.base, config.remote);
-  const patch = capDiff(full, config.diffMaxChars);
-  const fields = {
-    round: state.reviewRounds,
-    limit: config.maxReviewRounds,
-    diffChars: full.length,
-    cut: full.length > config.diffMaxChars,
-  };
   const earlier = history(state.reviewLog);
-  const before = await ports.revision(worktree);
-  const review = await log.step('review', fields, () =>
-    runRole(job, 'reviewer', reviewPrompt(issue, comments, patch, earlier), REVIEWING),
-  );
-  if (await ports.discardChanges(worktree, before)) {
-    log.event('review.discard', { round: state.reviewRounds }, 'quiet');
-  }
-  const verdict = parseVerdict(review.text);
+  const verdict = parseVerdict(await runReviewer(job, earlier));
   if (verdict === undefined) {
     return escalateAndFinish(job, 'The reviewer gave no verdict.', 'no verdict');
   }
@@ -78,6 +63,27 @@ export async function reviewRound(job: Run): Promise<Round> {
     return unfixedRound(job, fix);
   }
   return { done: false };
+}
+
+async function runReviewer(job: Run, earlier: string[]): Promise<string> {
+  const { context, issue, log, state, worktree, comments } = job;
+  const { config, ports } = context;
+  const full = await ports.diff(worktree, context.base, config.remote);
+  const patch = capDiff(full, config.diffMaxChars);
+  const fields = {
+    round: state.reviewRounds,
+    limit: config.maxReviewRounds,
+    diffChars: full.length,
+    cut: full.length > config.diffMaxChars,
+  };
+  const before = await ports.revision(worktree);
+  const review = await log.step('review', fields, () =>
+    runRole(job, 'reviewer', reviewPrompt(issue, comments, patch, earlier), REVIEWING),
+  );
+  if (await ports.discardChanges(worktree, before)) {
+    log.event('review.discard', { round: state.reviewRounds }, 'quiet');
+  }
+  return review.text;
 }
 
 async function unfixedRound(job: Run, fix: Extract<Fix, { committed: false }>): Promise<Round> {
