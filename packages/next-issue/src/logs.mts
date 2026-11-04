@@ -3,7 +3,7 @@ import { type FileHandle, open, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { hasCode } from './errors.mts';
-import { render } from './observe.mts';
+import { render } from './render.mts';
 import { runsDir } from './state.mts';
 
 const POLL_MS = 200;
