@@ -160,6 +160,14 @@ function listen(server: Server, path: string): Promise<void> {
   });
 }
 
+function parseMessage(text: string): ClientMessage | undefined {
+  try {
+    return JSON.parse(text) as ClientMessage;
+  } catch {
+    return undefined;
+  }
+}
+
 async function listQuestions(root: string): Promise<Question[]> {
   const config = await loadConfig(root);
   return waitingQuestions(await detectRepo(root, config.remote), config, PORTS);
@@ -301,10 +309,8 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     void sendQuestions(options.root, () => [socket]);
     socket.on('close', closeWhenIdle);
     socket.on('message', (data) => {
-      let value: ClientMessage;
-      try {
-        value = JSON.parse(String(data)) as ClientMessage;
-      } catch {
+      const value = parseMessage(String(data));
+      if (value === undefined) {
         return;
       }
       if (value.type === 'hello') {
