@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { hasCode } from './errors.mts';
 import { listOrEmpty } from './files.mts';
-import { type Sleeper, wakeableSleep } from './interrupt.mts';
+import { type Sleeper, wakeableSleep } from './durations.mts';
 import { render } from './render.mts';
 import { runsDir } from './state.mts';
 

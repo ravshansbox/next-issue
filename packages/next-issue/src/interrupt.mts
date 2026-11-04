@@ -1,28 +1,11 @@
 import { stopChildren } from './children.mts';
+import { type Sleeper, wakeableSleep } from './durations.mts';
 
 export type Interrupts = {
   afterIssue: () => boolean;
   afterRound: () => boolean;
   sleep: (ms: number) => Promise<boolean>;
 };
-
-export type Sleeper = { wake?: () => void };
-
-export function wakeableSleep(sleeper: Sleeper, ms: number, stopped: boolean): Promise<boolean> {
-  return new Promise((resolve) => {
-    if (stopped) {
-      resolve(false);
-      return;
-    }
-    const settle = (slept: boolean): void => {
-      clearTimeout(timer);
-      sleeper.wake = undefined;
-      resolve(slept);
-    };
-    const timer = setTimeout(() => settle(true), ms);
-    sleeper.wake = () => settle(false);
-  });
-}
 
 export function listenForInterrupts(say: (text: string) => void): Interrupts {
   let presses = 0;

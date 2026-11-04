@@ -1,4 +1,5 @@
-import { type Interrupts, wakeableSleep } from './interrupt.mts';
+import { wakeableSleep } from './durations.mts';
+import type { Interrupts } from './interrupt.mts';
 import type { Fields } from './observe.mts';
 import { applyEvent } from './progress.mts';
 import type { Progress, WorkerMessage } from './protocol.mts';

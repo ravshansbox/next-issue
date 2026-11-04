@@ -30,3 +30,21 @@ export function deadline(ms: number | undefined, onExpire: () => void): Deadline
 export function elapsedMs(started: number): number {
   return Date.now() - started;
 }
+
+export type Sleeper = { wake?: () => void };
+
+export function wakeableSleep(sleeper: Sleeper, ms: number, stopped: boolean): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (stopped) {
+      resolve(false);
+      return;
+    }
+    const settle = (slept: boolean): void => {
+      clearTimeout(timer);
+      sleeper.wake = undefined;
+      resolve(slept);
+    };
+    const timer = setTimeout(() => settle(true), ms);
+    sleeper.wake = () => settle(false);
+  });
+}
