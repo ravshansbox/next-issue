@@ -75,8 +75,8 @@ export async function commitWork(
   role: 'implementer' | 'fixer',
   commit?: (worktree: string, message: string) => Promise<boolean>,
 ): Promise<boolean> {
-  const { context, issue, log, state, worktree, comments } = job;
-  const { repo, config, ports } = context;
+  const { context, issue, log, state, worktree } = job;
+  const { ports } = context;
   const commitChanges = commit ?? ports.commitAll;
   for (;;) {
     try {
@@ -89,20 +89,31 @@ export async function commitWork(
       state.title = subject;
       return true;
     } catch (error) {
-      const used = state.commitFixes ?? 0;
-      if (!(error instanceof HookError) || used >= config.maxCommitFixes) {
-        throw error;
-      }
-      state.commitFixes = used + 1;
-      await writeState(repo, state);
-      const output = message(error).slice(-config.logMaxChars);
-      log.event('commit.fail', { role, output }, 'quiet');
-      const fix = await log.step(
-        'commit-fix',
-        { role, round: state.commitFixes, limit: config.maxCommitFixes },
-        () => runRole(job, role, hookPrompt(issue, comments, role, output), CODING),
-      );
-      subject = parseCommitSubject(fix.text, subject);
+      subject = await hookFix(job, error, subject, role);
     }
   }
+}
+
+async function hookFix(
+  job: Run,
+  error: unknown,
+  subject: string,
+  role: 'implementer' | 'fixer',
+): Promise<string> {
+  const { context, issue, log, state, comments } = job;
+  const { repo, config } = context;
+  const used = state.commitFixes ?? 0;
+  if (!(error instanceof HookError) || used >= config.maxCommitFixes) {
+    throw error;
+  }
+  state.commitFixes = used + 1;
+  await writeState(repo, state);
+  const output = message(error).slice(-config.logMaxChars);
+  log.event('commit.fail', { role, output }, 'quiet');
+  const fix = await log.step(
+    'commit-fix',
+    { role, round: state.commitFixes, limit: config.maxCommitFixes },
+    () => runRole(job, role, hookPrompt(issue, comments, role, output), CODING),
+  );
+  return parseCommitSubject(fix.text, subject);
 }
