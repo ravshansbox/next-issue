@@ -249,17 +249,21 @@ async function merging(cwd: string): Promise<boolean> {
 const CONFLICT_MARKER = /^(?:<{7}|>{7})(?: |$)/m;
 
 export async function commitMerge(cwd: string, files: string[], message: string): Promise<boolean> {
-  if (!(await merging(cwd))) {
+  if (!(await merging(cwd)) || (await hasConflictMarkers(cwd, files))) {
     return false;
-  }
-  for (const file of files) {
-    const text = await readFile(join(cwd, file), 'utf8').catch(() => '');
-    if (CONFLICT_MARKER.test(text)) {
-      return false;
-    }
   }
   await commitEverything(cwd, message);
   return true;
+}
+
+async function hasConflictMarkers(cwd: string, files: string[]): Promise<boolean> {
+  for (const file of files) {
+    const text = await readFile(join(cwd, file), 'utf8').catch(() => '');
+    if (CONFLICT_MARKER.test(text)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export async function abortMerge(cwd: string, target: string): Promise<void> {
