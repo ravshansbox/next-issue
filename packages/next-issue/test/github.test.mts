@@ -25,6 +25,7 @@ import {
   viewIssue,
 } from '../src/github.mts';
 import { setLabel } from '../src/labels.mts';
+import { installGh } from './fake-gh.mts';
 
 async function flakyGh(t: TestContext, failures: number, error: string): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
@@ -44,12 +45,7 @@ case "$1 $2" in
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `;
-  await writeFile(join(dir, 'gh'), script, { mode: 0o755 });
-  const path = process.env.PATH;
-  process.env.PATH = `${dir}:${path}`;
-  t.after(() => {
-    process.env.PATH = path;
-  });
+  await installGh(t, dir, script);
   return dir;
 }
 
@@ -135,12 +131,7 @@ test('openBlockers lists the open blockers and names those of another repository
 [ "$1 $2 $3" = "api --paginate repos/acme/tool/issues/7/dependencies/blocked_by" ] || { echo "unexpected: $*" >&2; exit 1; }
 jq -r "$5" "${join(dir, 'response.json')}"
 `;
-  await writeFile(join(dir, 'gh'), script, { mode: 0o755 });
-  const path = process.env.PATH;
-  process.env.PATH = `${dir}:${path}`;
-  t.after(() => {
-    process.env.PATH = path;
-  });
+  await installGh(t, dir, script);
   assert.deepEqual(await openBlockers({ owner: 'acme', name: 'tool', root: dir }, 7), [
     '#3',
     'acme/other#9',
@@ -159,12 +150,7 @@ ${cases}
   *) echo '${views.at(-1)}' ;;
 esac
 `;
-  await writeFile(join(dir, 'gh'), script, { mode: 0o755 });
-  const path = process.env.PATH;
-  process.env.PATH = `${dir}:${path}`;
-  t.after(() => {
-    process.env.PATH = path;
-  });
+  await installGh(t, dir, script);
   return dir;
 }
 
@@ -227,12 +213,7 @@ case "$*" in
   *) echo '[{"number":1,"title":"old","body":"","createdAt":"2026-01-01T00:00:00Z","labels":[]}]' ;;
 esac
 `;
-  await writeFile(join(dir, 'gh'), script, { mode: 0o755 });
-  const path = process.env.PATH;
-  process.env.PATH = `${dir}:${path}`;
-  t.after(() => {
-    process.env.PATH = path;
-  });
+  await installGh(t, dir, script);
   const repo = { owner: 'acme', name: 'many', root: dir };
   const issues = await openIssues(repo, 1, ['status:todo', 'status:in-progress']);
   assert.deepEqual(
@@ -254,12 +235,7 @@ case "$1 $2" in
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `;
-  await writeFile(join(dir, 'gh'), script, { mode: 0o755 });
-  const path = process.env.PATH;
-  process.env.PATH = `${dir}:${path}`;
-  t.after(() => {
-    process.env.PATH = path;
-  });
+  await installGh(t, dir, script);
   return dir;
 }
 
@@ -317,12 +293,7 @@ test('the worker passes gh the repository and the issue or pull request number i
 
 async function fakeApiGh(t: TestContext, script: string): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
-  await writeFile(join(dir, 'gh'), `#!/bin/sh\n${script}\n`, { mode: 0o755 });
-  const path = process.env.PATH;
-  process.env.PATH = `${dir}:${path}`;
-  t.after(() => {
-    process.env.PATH = path;
-  });
+  await installGh(t, dir, `#!/bin/sh\n${script}\n`);
   return dir;
 }
 

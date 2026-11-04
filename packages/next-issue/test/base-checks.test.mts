@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { failedBaseLogs, waitForBaseChecks } from '../src/base-checks.mts';
+import { installGh } from './fake-gh.mts';
 
 async function fakeRunsGh(t: TestContext, runs: unknown[]): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
@@ -14,12 +15,7 @@ case "$1 $2" in
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `;
-  await writeFile(join(dir, 'gh'), script, { mode: 0o755 });
-  const path = process.env.PATH;
-  process.env.PATH = `${dir}:${path}`;
-  t.after(() => {
-    process.env.PATH = path;
-  });
+  await installGh(t, dir, script);
   return dir;
 }
 

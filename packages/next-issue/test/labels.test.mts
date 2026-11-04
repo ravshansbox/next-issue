@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { type CommandRecord, setCommandObserver } from '../src/exec.mts';
 import { labelArgs, setLabel } from '../src/labels.mts';
+import { installGh } from './fake-gh.mts';
 
 const MANAGED = ['status:todo', 'status:in-progress', 'status:in-review', 'status:done'];
 
@@ -45,12 +46,7 @@ case "$1 $2" in
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `;
-  await writeFile(join(dir, 'gh'), script, { mode: 0o755 });
-  const path = process.env.PATH;
-  process.env.PATH = `${dir}:${path}`;
-  t.after(() => {
-    process.env.PATH = path;
-  });
+  await installGh(t, dir, script);
   return dir;
 }
 
@@ -97,12 +93,7 @@ case "$1 $2" in
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `;
-  await writeFile(join(dir, 'gh'), script, { mode: 0o755 });
-  const path = process.env.PATH;
-  process.env.PATH = `${dir}:${path}`;
-  t.after(() => {
-    process.env.PATH = path;
-  });
+  await installGh(t, dir, script);
   const repo = { owner: 'acme', name: 'deleted', root: dir };
   await setLabel(repo, 'issue', 1, 'status:todo', []);
   await writeFile(labels, '');
@@ -121,12 +112,7 @@ case "$1 $2" in
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `;
-  await writeFile(join(dir, 'gh'), script, { mode: 0o755 });
-  const path = process.env.PATH;
-  process.env.PATH = `${dir}:${path}`;
-  t.after(() => {
-    process.env.PATH = path;
-  });
+  await installGh(t, dir, script);
   const repo = { owner: 'acme', name: 'forbidden', root: dir };
   await assert.rejects(
     setLabel(repo, 'issue', 1, 'status:todo', []),

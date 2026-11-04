@@ -11,6 +11,7 @@ import {
   waitForChecks,
 } from '../src/checks.mts';
 import type { Clock } from '../src/poll.mts';
+import { installGh } from './fake-gh.mts';
 
 const OPTIONS = { intervalSeconds: 10, graceMs: 60_000, timeoutMs: 300_000 };
 
@@ -256,12 +257,7 @@ case "$1 $2" in
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `;
-  await writeFile(join(dir, 'gh'), script, { mode: 0o755 });
-  const path = process.env.PATH;
-  process.env.PATH = `${dir}:${path}`;
-  t.after(() => {
-    process.env.PATH = path;
-  });
+  await installGh(t, dir, script);
   return dir;
 }
 
@@ -300,12 +296,7 @@ case "$1 $2 $4" in
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `;
-  await writeFile(join(dir, 'gh'), script, { mode: 0o755 });
-  const path = process.env.PATH;
-  process.env.PATH = `${dir}:${path}`;
-  t.after(() => {
-    process.env.PATH = path;
-  });
+  await installGh(t, dir, script);
   return dir;
 }
 
@@ -341,12 +332,7 @@ case "$1 $2 $3" in
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `;
-  await writeFile(join(dir, 'gh'), script, { mode: 0o755 });
-  const path = process.env.PATH;
-  process.env.PATH = `${dir}:${path}`;
-  t.after(() => {
-    process.env.PATH = path;
-  });
+  await installGh(t, dir, script);
   return dir;
 }
 
