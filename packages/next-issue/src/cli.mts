@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { parseArgs, USAGE } from './args.mts';
+import { type Args, parseArgs, USAGE } from './args.mts';
 import { writeDefaultConfig } from './config.mts';
 import { ensureIgnored, repoRoot, WORKTREE_DIR } from './git.mts';
 import { listenForInterrupts } from './interrupt.mts';
@@ -35,6 +35,10 @@ async function main(): Promise<number> {
   if (args.command === 'logs') {
     return logs(root, args.json);
   }
+  return run(root, args);
+}
+
+function run(root: string, args: Args): Promise<number> {
   const interrupts = listenForInterrupts((text) => void write(process.stderr, `${text}\n`));
   return runRepo(root, args, {
     interrupts,
