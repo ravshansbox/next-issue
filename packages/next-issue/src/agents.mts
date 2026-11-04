@@ -7,6 +7,7 @@ import {
 } from '@earendil-works/pi-coding-agent';
 import { openSession } from './agent-session.mts';
 import { onStop } from './children.mts';
+import { deadline } from './durations.mts';
 import type { Fields, Recorder } from './observe.mts';
 import { emptyUsage, type Usage } from './usage.mts';
 
@@ -57,13 +58,13 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
   log.event('agent.start', { model: request.model, timeoutMs: request.timeoutMs }, 'normal');
   const session = await openSession(recorder, log, request, agentDir);
 
-  const deadline = abortAfter(session, request.timeoutMs);
+  const timer = deadline(request.timeoutMs, () => void session.abort());
   const unsubscribe = session.subscribe((event) => observe(log, event));
   const release = onStop(() => void session.abort());
   try {
     await session.bindExtensions({});
     await session.prompt(request.prompt, { expandPromptTemplates: false });
-    if (deadline.timedOut()) {
+    if (timer.timedOut()) {
       throw new Error(`The ${request.name} agent did not finish in ${request.timeoutMs} ms.`);
     }
     const failure = lastFailure(session);
@@ -72,26 +73,11 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     }
     return sessionResult(recorder, request, session, started);
   } finally {
-    deadline.clear();
+    timer.clear();
     release();
     unsubscribe();
     session.dispose();
   }
-}
-
-function abortAfter(
-  session: AgentSession,
-  timeoutMs: number | undefined,
-): { timedOut: () => boolean; clear: () => void } {
-  let timedOut = false;
-  const timer =
-    timeoutMs === undefined
-      ? undefined
-      : setTimeout(() => {
-          timedOut = true;
-          void session.abort();
-        }, timeoutMs);
-  return { timedOut: () => timedOut, clear: () => clearTimeout(timer) };
 }
 
 function lastFailure(session: AgentSession): string | undefined {

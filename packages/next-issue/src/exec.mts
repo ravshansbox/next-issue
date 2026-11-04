@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { type ChildProcess, spawn } from 'node:child_process';
 import { killTree, unwatch, watch } from './children.mts';
-import { minutesToMs } from './durations.mts';
+import { deadline, minutesToMs } from './durations.mts';
 
 export type RunResult = {
   code: number;
@@ -115,14 +115,10 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
     const pid = child.pid;
     watch(pid);
     const output = collect(child, options);
-    let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      killTree(child);
-    }, limit);
+    const timer = deadline(limit, () => killTree(child));
     let done = false;
     const release = (): void => {
-      clearTimeout(timer);
+      timer.clear();
       unwatch(pid);
     };
     const settle = (code: number | null): void => {
@@ -131,7 +127,7 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
         return;
       }
       done = true;
-      const result = { code: code ?? 1, ...output, timedOut };
+      const result = { code: code ?? 1, ...output, timedOut: timer.timedOut() };
       notify(command, args, options, started, result);
       resolve(result);
     };
@@ -141,7 +137,7 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
       reject(error);
     });
     child.on('exit', (code) => {
-      if (!timedOut) {
+      if (!timer.timedOut()) {
         return;
       }
       child.stdout?.destroy();
