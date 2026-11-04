@@ -15,6 +15,7 @@ import {
   threadComments,
   viewIssue,
 } from '../src/github.mts';
+import { setLabel } from '../src/labels.mts';
 import {
   createPr,
   findPr,
@@ -25,7 +26,6 @@ import {
   prMerged,
   prNumber,
 } from '../src/pull-requests.mts';
-import { setLabel } from '../src/labels.mts';
 import { installGh } from './fake-gh.mts';
 import { tempDir } from './temp-dir.mts';
 

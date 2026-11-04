@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Issue } from '../src/github.mts';
-import { exitCode, type Loop, runIssues } from '../src/loop.mts';
 import type { Outcome } from '../src/job.mts';
+import { exitCode, type Loop, runIssues } from '../src/loop.mts';
 import { ARGS, issue, report } from './loop-harness.mts';
 
 type Fake = Loop & { processed: number[] };

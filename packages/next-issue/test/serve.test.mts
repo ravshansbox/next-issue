@@ -5,8 +5,8 @@ import { Server } from 'node:net';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { startWorker } from '../src/serve.mts';
-import { connect, fakeRuns, noQuestions, runsOf, worker } from './worker-harness.mts';
 import { tempDir } from './temp-dir.mts';
+import { connect, fakeRuns, noQuestions, runsOf, worker } from './worker-harness.mts';
 
 test('a client that connects gets the worker version and the runs', async (t) => {
   const fake = fakeRuns();

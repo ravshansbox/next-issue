@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { commitAll } from '../src/git-commit.mts';
 import {
   discardChanges,
   disputeBranches,
@@ -14,7 +15,6 @@ import {
   revision,
   setAside,
 } from '../src/git.mts';
-import { commitAll } from '../src/git-commit.mts';
 import { addWorktree } from '../src/worktree.mts';
 import { clones, commit, git } from './clones.mts';
 

@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { recordCommands } from '../src/command-records.mts';
 import { run } from '../src/exec.mts';
 import { type Fields, Recorder } from '../src/observe.mts';
-import { recordCommands } from '../src/command-records.mts';
 import { tempDir } from './temp-dir.mts';
 
 const NODE = process.execPath;

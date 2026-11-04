@@ -3,9 +3,9 @@ import { join } from 'node:path';
 import type { TestContext } from 'node:test';
 import { WebSocket } from 'ws';
 import type { Args } from '../src/args.mts';
-import type { RunControls } from '../src/run.mts';
 import type { ClientMessage, WorkerMessage } from '../src/protocol.mts';
 import type { ListQuestions } from '../src/questions.mts';
+import type { RunControls } from '../src/run.mts';
 import { type RunRepo, startWorker } from '../src/serve.mts';
 import { tempDir } from './temp-dir.mts';
 

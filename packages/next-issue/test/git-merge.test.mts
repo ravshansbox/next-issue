@@ -3,8 +3,8 @@ import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { HookError } from '../src/git-commit.mts';
-import { isDirty, revision } from '../src/git.mts';
 import { abortMerge, commitMerge, startMerge } from '../src/git-merge.mts';
+import { isDirty, revision } from '../src/git.mts';
 import { addWorktree } from '../src/worktree.mts';
 import { clones, commit, git } from './clones.mts';
 

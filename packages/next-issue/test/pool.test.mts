@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { type Loop, runIssues } from '../src/loop.mts';
 import type { IssueReport, Outcome } from '../src/job.mts';
+import { type Loop, runIssues } from '../src/loop.mts';
 import { ARGS, issue, report } from './loop-harness.mts';
 
 type Pool = Loop & {
