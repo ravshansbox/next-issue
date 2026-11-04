@@ -4,29 +4,18 @@ import { createServer, type Server } from 'node:http';
 import { dirname, join } from 'node:path';
 import { type WebSocket, WebSocketServer } from 'ws';
 import { type Args, parseArgs } from './args.mts';
-import { loadConfig } from './config.mts';
 import { stopChildren } from './exec.mts';
-import { detectRepo } from './git.mts';
-import { waitingQuestions } from './handover.mts';
 import type { Interrupts } from './interrupt.mts';
 import { lock } from './lock.mts';
 import { type Fields, message } from './observe.mts';
 import { applyEvent, startProgress } from './progress.mts';
-import { PORTS } from './ports.mts';
-import {
-  type ClientMessage,
-  isNewer,
-  type Progress,
-  type Question,
-  type WorkerMessage,
-} from './protocol.mts';
+import { type ClientMessage, isNewer, type Progress, type WorkerMessage } from './protocol.mts';
+import { type ListQuestions, listQuestions, questionSender, send } from './questions.mts';
 import { runRepo, type RunControls } from './run.mts';
 import { stateDir } from './state.mts';
 import { packageVersion } from './version.mts';
 
 export type RunRepo = (root: string, args: Args, controls: RunControls) => Promise<number>;
-
-export type ListQuestions = (root: string) => Promise<Question[]>;
 
 export type WorkerOptions = {
   root: string;
@@ -46,10 +35,6 @@ export type Worker = {
   closed: Promise<void>;
   close: () => Promise<void>;
 };
-
-type Questions = Extract<WorkerMessage, { type: 'questions' | 'questions-error' }>;
-
-type Delivery = { read: number; value: Questions };
 
 type Run = {
   progress: Progress;
@@ -162,62 +147,6 @@ function parseMessage(text: string): ClientMessage | undefined {
   } catch {
     return undefined;
   }
-}
-
-async function listQuestions(root: string): Promise<Question[]> {
-  const config = await loadConfig(root);
-  return waitingQuestions(await detectRepo(root, config.remote), config, PORTS);
-}
-
-async function readQuestions(list: ListQuestions, root: string): Promise<Questions> {
-  try {
-    return { type: 'questions', root, questions: await list(root) };
-  } catch (error) {
-    return { type: 'questions-error', root, message: message(error) };
-  }
-}
-
-function questionsReply(
-  delivered: WeakMap<WebSocket, Map<string, Delivery>>,
-  socket: WebSocket,
-  root: string,
-  delivery: Delivery,
-  id?: string,
-): Questions | undefined {
-  const seen = delivered.get(socket) ?? new Map<string, Delivery>();
-  const last = seen.get(root);
-  if (last === undefined || last.read < delivery.read) {
-    seen.set(root, delivery);
-    delivered.set(socket, seen);
-    return id === undefined ? delivery.value : { ...delivery.value, id };
-  }
-  return id === undefined ? undefined : { ...last.value, id };
-}
-
-type SendQuestions = (
-  root: string,
-  targets: () => Iterable<WebSocket>,
-  id?: string,
-) => Promise<void>;
-
-function questionSender(list: ListQuestions): SendQuestions {
-  const reads = new Map<string, number>();
-  const delivered = new WeakMap<WebSocket, Map<string, Delivery>>();
-  return async (root, targets, id) => {
-    const read = (reads.get(root) ?? 0) + 1;
-    reads.set(root, read);
-    const value = await readQuestions(list, root);
-    for (const socket of targets()) {
-      const reply = questionsReply(delivered, socket, root, { read, value }, id);
-      if (reply !== undefined) {
-        send(socket, reply);
-      }
-    }
-  };
-}
-
-function send(socket: WebSocket, value: WorkerMessage): void {
-  socket.send(JSON.stringify(value));
 }
 
 function broadcast(sockets: WebSocketServer, runs: Map<string, Run>): void {

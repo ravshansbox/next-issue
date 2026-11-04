@@ -10,7 +10,8 @@ import { WebSocket } from 'ws';
 import type { Args } from '../src/args.mts';
 import type { RunControls } from '../src/run.mts';
 import type { ClientMessage, Question, WorkerMessage } from '../src/protocol.mts';
-import { checkSocketPath, type ListQuestions, type RunRepo, startWorker } from '../src/serve.mts';
+import type { ListQuestions } from '../src/questions.mts';
+import { checkSocketPath, type RunRepo, startWorker } from '../src/serve.mts';
 
 type Client = {
   send: (value: ClientMessage) => void;
