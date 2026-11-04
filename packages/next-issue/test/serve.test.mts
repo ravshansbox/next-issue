@@ -1,106 +1,13 @@
 import assert from 'node:assert/strict';
 import { statSync } from 'node:fs';
-import { readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { Server } from 'node:net';
-import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { test, type TestContext } from 'node:test';
-import { WebSocket } from 'ws';
-import type { Args } from '../src/args.mts';
-import type { RunControls } from '../src/run.mts';
-import type { ClientMessage, Question, WorkerMessage } from '../src/protocol.mts';
-import type { ListQuestions } from '../src/questions.mts';
-import { checkSocketPath, type RunRepo, startWorker } from '../src/serve.mts';
-
-type Client = {
-  send: (value: ClientMessage) => void;
-  next: (match: (value: WorkerMessage) => boolean) => Promise<WorkerMessage>;
-  closed: Promise<void>;
-  close: () => Promise<void>;
-};
-
-async function connect(t: TestContext, socketPath: string): Promise<Client> {
-  const socket = new WebSocket(`ws+unix://${socketPath}:/`);
-  const seen: WorkerMessage[] = [];
-  const waiters: (() => void)[] = [];
-  socket.on('message', (data) => {
-    seen.push(JSON.parse(String(data)) as WorkerMessage);
-    for (const waiter of waiters.splice(0)) {
-      waiter();
-    }
-  });
-  const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()));
-  await new Promise<void>((resolve, reject) => {
-    socket.once('open', () => resolve());
-    socket.once('error', reject);
-  });
-  t.after(() => socket.terminate());
-  return {
-    send: (value) => socket.send(JSON.stringify(value)),
-    next: async (match) => {
-      for (;;) {
-        const index = seen.findIndex(match);
-        if (index >= 0) {
-          return seen.splice(0, index + 1).at(-1)!;
-        }
-        await new Promise<void>((resolve) => waiters.push(resolve));
-      }
-    },
-    closed,
-    close: () => {
-      socket.close();
-      return closed;
-    },
-  };
-}
-
-type Fake = {
-  runRepo: RunRepo;
-  calls: { root: string; args: Args }[];
-  controls: () => RunControls;
-  finish: () => void;
-};
-
-function fakeRuns(): Fake {
-  const calls: { root: string; args: Args }[] = [];
-  let controls: RunControls | undefined;
-  let finish: () => void = () => undefined;
-  return {
-    calls,
-    controls: () => controls!,
-    finish: () => finish(),
-    runRepo: (root, args, given) => {
-      calls.push({ root, args });
-      controls = given;
-      return new Promise((resolve) => {
-        finish = () => resolve(0);
-      });
-    },
-  };
-}
-
-const noQuestions: ListQuestions = async () => [];
-
-async function worker(
-  t: TestContext,
-  fake: Fake,
-  version = '2.0.0',
-  questions: ListQuestions = noQuestions,
-) {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
-  const paths = {
-    root: '/repo',
-    socketPath: join(dir, 'w.sock'),
-    lockPath: join(dir, 'w.lock'),
-  };
-  const started = await startWorker({ ...paths, version, runRepo: fake.runRepo, questions });
-  assert.ok(started);
-  t.after(() => started.close());
-  return { ...paths, dir, worker: started };
-}
-
-const runsOf = (value: WorkerMessage) => value.type === 'runs';
+import { test } from 'node:test';
+import type { Question, WorkerMessage } from '../src/protocol.mts';
+import { checkSocketPath, startWorker } from '../src/serve.mts';
+import { type Client, connect, fakeRuns, noQuestions, runsOf, worker } from './worker-harness.mts';
 
 test('a client that connects gets the worker version and the runs', async (t) => {
   const fake = fakeRuns();
