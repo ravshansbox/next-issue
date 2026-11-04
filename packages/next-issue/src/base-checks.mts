@@ -1,6 +1,7 @@
-import { type CheckState, pollChecks, type PollOptions, runLogs } from './checks.mts';
+import { type CheckState, pollChecks, type PollOptions } from './checks.mts';
 import { ghJson } from './gh.mts';
 import type { Repo } from './git.mts';
+import { runLogs } from './run-logs.mts';
 
 type BaseRun = { databaseId: number; name: string; status: string; conclusion: string };
 
