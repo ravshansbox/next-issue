@@ -68,7 +68,7 @@ export async function reviewRound(job: Run): Promise<Round> {
   if (open.length === 0) {
     const gate = await checkGate(job);
     if (gate.done) {
-      return { done: true, report: gate.report };
+      return gate;
     }
     if (gate.fixed) {
       return { done: false };
@@ -79,7 +79,7 @@ export async function reviewRound(job: Run): Promise<Round> {
     if (context.merge) {
       if (await conflicts(job)) {
         const resolved = await resolveConflict(job);
-        return resolved.done ? { done: true, report: resolved.report } : { done: false };
+        return resolved.done ? resolved : { done: false };
       }
       if (!(await ports.mergePr(repo, pr))) {
         return escalateAndFinish(job, 'The merge of the pull request failed.', 'merge failed');

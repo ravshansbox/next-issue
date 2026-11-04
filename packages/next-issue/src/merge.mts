@@ -7,7 +7,7 @@ import { writeState } from './state.mts';
 export async function afterMerge(job: Run): Promise<Round> {
   const watched = await watchBase(job);
   if (watched.done) {
-    return { done: true, report: watched.report };
+    return watched;
   }
   if (watched.fixed) {
     return { done: false };
