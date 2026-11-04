@@ -34,6 +34,15 @@ function completeLines(text: string, tail?: number): { shown: string[]; rest: st
   return { shown: tail === undefined ? filled : filled.slice(-tail), rest };
 }
 
+function stdoutOpen(): boolean {
+  try {
+    writeSync(process.stdout.fd, '');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function followLog(
   file: string,
   options: { json: boolean; tail?: number },
@@ -70,9 +79,7 @@ export async function followLog(
       if (shown.length > 0) {
         await print(shown.map((line) => show(line, options.json)).join(''));
       }
-      try {
-        writeSync(process.stdout.fd, '');
-      } catch {
+      if (!stdoutOpen()) {
         stop();
       }
       if (stopped) {
