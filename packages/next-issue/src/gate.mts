@@ -1,8 +1,7 @@
 import { conflicts, resolveConflict } from './conflict.mts';
-import { secondsToMs } from './durations.mts';
 import { fixRound } from './fix.mts';
 import { escalateAndFinish, escalateCheckFix, spendCiFix } from './handover.mts';
-import { checkPolling, type Gate, GATE_FIXED, GATE_PASSED, history, type Run } from './job.mts';
+import { checkWaiting, type Gate, GATE_FIXED, GATE_PASSED, history, type Run } from './job.mts';
 
 export async function checkGate(job: Run): Promise<Gate> {
   const { context, log, state, worktree } = job;
@@ -11,8 +10,7 @@ export async function checkGate(job: Run): Promise<Gate> {
   const checks = await log.step('checks', { pr: state.pr, head }, () =>
     ports.waitForChecks(repo, state.pr!, {
       head,
-      ...checkPolling(config),
-      graceMs: job.noChecks ? 0 : secondsToMs(config.checkGraceSeconds),
+      ...checkWaiting(config, !job.noChecks),
       show: log.level === 'verbose',
     }),
   );

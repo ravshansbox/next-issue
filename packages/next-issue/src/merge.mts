@@ -1,8 +1,8 @@
-import { secondsToMs } from './durations.mts';
 import { fixRound } from './fix.mts';
 import { escalateAndFinish, escalateCheckFix, finishDone } from './handover.mts';
 import {
   checkPolling,
+  checkWaiting,
   type Gate,
   GATE_FIXED,
   GATE_PASSED,
@@ -24,8 +24,7 @@ export async function afterMerge(job: Run): Promise<Round> {
 async function watchBase(job: Run): Promise<Gate> {
   const { context, log, state } = job;
   const { repo, config, ports } = context;
-  const polling = checkPolling(config);
-  const sha = await ports.mergeCommit(repo, state.pr!, polling);
+  const sha = await ports.mergeCommit(repo, state.pr!, checkPolling(config));
   if (sha === undefined) {
     return escalateAndFinish(
       job,
@@ -34,10 +33,7 @@ async function watchBase(job: Run): Promise<Gate> {
     );
   }
   const checks = await log.step('main-checks', { pr: state.pr, sha }, () =>
-    ports.waitForBaseChecks(repo, sha, {
-      ...polling,
-      graceMs: secondsToMs(config.checkGraceSeconds),
-    }),
+    ports.waitForBaseChecks(repo, sha, checkWaiting(config, true)),
   );
   log.event('main-checks.state', { state: checks });
   if (checks === 'pass' || checks === 'none') {

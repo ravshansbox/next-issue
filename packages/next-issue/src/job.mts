@@ -1,6 +1,7 @@
 import type { AgentResult, Profile } from './agents.mts';
+import type { PollOptions } from './check-poll.mts';
 import { type Config, managedLabels } from './config.mts';
-import { minutesToMs } from './durations.mts';
+import { minutesToMs, secondsToMs } from './durations.mts';
 import type { Repo } from './git.mts';
 import type { Issue } from './github.mts';
 import type { Recorder } from './observe.mts';
@@ -86,6 +87,13 @@ export function checkPolling(config: Config): Polling {
   return {
     intervalSeconds: config.checkIntervalSeconds,
     timeoutMs: minutesToMs(config.checkTimeoutMinutes),
+  };
+}
+
+export function checkWaiting(config: Config, grace: boolean): PollOptions {
+  return {
+    ...checkPolling(config),
+    graceMs: grace ? secondsToMs(config.checkGraceSeconds) : 0,
   };
 }
 
