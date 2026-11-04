@@ -1,5 +1,6 @@
 import { join } from 'node:path';
-import { lines, run } from './exec.mts';
+import { run } from './exec.mts';
+import { lines } from './text.mts';
 import { readTextOrEmpty } from './files.mts';
 import { commitEverything } from './git-commit.mts';
 import { fetchBase, git, resetHard, succeeds } from './git.mts';

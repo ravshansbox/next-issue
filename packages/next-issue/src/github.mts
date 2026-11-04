@@ -1,5 +1,5 @@
 import { errorMatches } from './errors.mts';
-import { lines } from './exec.mts';
+import { lines } from './text.mts';
 import {
   gh,
   ghApi,

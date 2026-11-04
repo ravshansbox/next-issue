@@ -164,7 +164,3 @@ export async function must(
   }
   return result.stdout.trim();
 }
-
-export function lines(output: string): string[] {
-  return output.split('\n').filter((line) => line.length > 0);
-}

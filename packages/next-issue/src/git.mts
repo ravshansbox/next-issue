@@ -1,4 +1,5 @@
-import { lines, must, run } from './exec.mts';
+import { must, run } from './exec.mts';
+import { lines } from './text.mts';
 
 export type Repo = {
   owner: string;
