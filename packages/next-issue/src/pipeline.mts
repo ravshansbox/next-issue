@@ -1,10 +1,10 @@
+import { enterReview } from './enter-review.mts';
 import { checkGate } from './gate.mts';
 import { branchName } from './git.mts';
 import type { Issue } from './github.mts';
-import { cleanUp, finishDone, handOver, stop } from './handover.mts';
+import { cleanUp, handOver, stop } from './handover.mts';
 import { implement } from './implement.mts';
-import { type Context, type IssueReport, openPr, type Round, type Run } from './job.mts';
-import { afterMerge, fixBase } from './merge.mts';
+import { type Context, type IssueReport, type Run } from './job.mts';
 import { message } from './errors.mts';
 import { type Recorder } from './observe.mts';
 import { openJob } from './open-job.mts';
@@ -89,34 +89,6 @@ async function claimedError(
     reviewRounds: state.reviewRounds,
     ms: Date.now() - started,
   };
-}
-
-async function enterReview(job: Run): Promise<Round> {
-  const { context, log, state, branch, worktree } = job;
-  const { repo, config, ports } = context;
-  if (state.baseFix !== undefined) {
-    job.mainBroken = true;
-    return fixBase(job);
-  }
-  if (
-    state.phase === 'review' &&
-    state.pr !== undefined &&
-    (await ports.prMerged(repo, state.pr))
-  ) {
-    return alreadyMerged(job, state.pr);
-  }
-  await log.step('push', { branch }, () => ports.push(worktree, config.remote, branch));
-  state.phase = 'review';
-  await openPr(job);
-  return { done: false };
-}
-
-async function alreadyMerged(job: Run, pr: number): Promise<Round> {
-  job.log.event('pull-request.merged', { pr }, 'quiet');
-  if (!job.context.merge) {
-    return { done: true, report: await finishDone(job) };
-  }
-  return afterMerge(job);
 }
 
 async function work(
