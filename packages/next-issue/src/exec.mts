@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { type ChildProcess, spawn } from 'node:child_process';
 import { killTree, unwatch, watch } from './children.mts';
+import { minutesToMs } from './durations.mts';
 
 export type RunResult = {
   code: number;
@@ -30,7 +31,7 @@ export type CommandRecord = {
 
 let observer: ((record: CommandRecord) => void) | undefined;
 
-const DEFAULT_TIMEOUT_MS = 10 * 60_000;
+const DEFAULT_TIMEOUT_MS = minutesToMs(10);
 
 const defaultTimeout = new AsyncLocalStorage<number>();
 

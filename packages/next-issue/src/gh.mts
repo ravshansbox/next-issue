@@ -1,4 +1,5 @@
 import { setTimeout as delay } from 'node:timers/promises';
+import { secondsToMs } from './durations.mts';
 import { must, run, type RunOptions, type RunResult } from './exec.mts';
 import type { Repo } from './git.mts';
 
@@ -18,7 +19,7 @@ export async function repeatable(repo: Repo, args: string[]): Promise<string> {
       if (attempt >= NETWORK_TRIES || !networkFault(error)) {
         throw error;
       }
-      await delay(attempt * 1000);
+      await delay(secondsToMs(attempt));
     }
   }
 }

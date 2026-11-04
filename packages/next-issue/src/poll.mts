@@ -1,4 +1,5 @@
 import { setTimeout as delay } from 'node:timers/promises';
+import { secondsToMs } from './durations.mts';
 
 export type Clock = {
   now: () => number;
@@ -16,7 +17,7 @@ export const REAL_CLOCK: Clock = {
 };
 
 export function pause(clock: Clock, options: Polling, rest: number): Promise<void> {
-  return clock.sleep(Math.min(options.intervalSeconds * 1000, rest));
+  return clock.sleep(Math.min(secondsToMs(options.intervalSeconds), rest));
 }
 
 export async function pollUntil<T>(
