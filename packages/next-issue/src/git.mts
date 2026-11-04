@@ -33,6 +33,10 @@ export async function detectRepo(cwd: string, remote: string): Promise<Repo> {
   return { owner, name, root };
 }
 
+export function remoteRef(remote: string, branch: string): string {
+  return `${remote}/${branch}`;
+}
+
 export function branchName(issue: number): string {
   return String(issue);
 }
@@ -43,7 +47,7 @@ export async function isDirty(cwd: string): Promise<boolean> {
 }
 
 export async function diff(cwd: string, base: string, remote: string): Promise<string> {
-  return git(cwd, ['diff', `${remote}/${base}...HEAD`]);
+  return git(cwd, ['diff', `${remoteRef(remote, base)}...HEAD`]);
 }
 
 export async function discardChanges(cwd: string, target: string): Promise<boolean> {
@@ -88,7 +92,7 @@ export async function push(
 
 export async function fetchBase(cwd: string, base: string, remote: string): Promise<string> {
   await git(cwd, ['fetch', remote, base]);
-  return `${remote}/${base}`;
+  return remoteRef(remote, base);
 }
 
 export async function resetToBase(cwd: string, base: string, remote: string): Promise<void> {
@@ -101,7 +105,7 @@ export async function latestSubject(
   base: string,
   remote: string,
 ): Promise<string | undefined> {
-  const subject = await git(cwd, ['log', '-1', '--format=%s', `${remote}/${base}..HEAD`]);
+  const subject = await git(cwd, ['log', '-1', '--format=%s', `${remoteRef(remote, base)}..HEAD`]);
   return subject === '' ? undefined : subject;
 }
 

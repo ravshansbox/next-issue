@@ -1,5 +1,13 @@
 import { join } from 'node:path';
-import { currentBranch, discardChanges, git, isAncestor, type Repo, succeeds } from './git.mts';
+import {
+  currentBranch,
+  discardChanges,
+  git,
+  isAncestor,
+  remoteRef,
+  type Repo,
+  succeeds,
+} from './git.mts';
 
 type Worktree = {
   path: string;
@@ -20,17 +28,18 @@ export async function addWorktree(
   remote: string,
   start: boolean,
 ): Promise<Worktree> {
-  const upstream = `${remote}/${branch}`;
+  const upstream = remoteRef(remote, branch);
+  const remoteBase = remoteRef(remote, base);
   await git(repo.root, ['fetch', remote]);
   const baseUpdated = await updateBase(repo, base, remote);
   await git(repo.root, ['worktree', 'prune']);
   const pushed = await hasBranch(repo, upstream, '--remotes');
   const existing = await findWorktree(repo, branch);
   const path = existing ?? worktreePath(repo, issue);
-  const target = pushed ? upstream : `${remote}/${base}`;
+  const target = pushed ? upstream : remoteBase;
   if (existing === undefined) {
     const args =
-      !start && (await hasWork(repo, branch, pushed, `${remote}/${base}`))
+      !start && (await hasWork(repo, branch, pushed, remoteBase))
         ? ['worktree', 'add', path, branch]
         : ['worktree', 'add', '-B', branch, path, target];
     await git(repo.root, args);
@@ -61,10 +70,11 @@ async function hasBranch(repo: Repo, name: string, ...flags: string[]): Promise<
 }
 
 async function updateBase(repo: Repo, base: string, remote: string): Promise<boolean> {
+  const remoteBase = remoteRef(remote, base);
   const args =
     (await currentBranch(repo.root)) === base
-      ? ['merge', '--ff-only', `${remote}/${base}`]
-      : ['fetch', '.', `${remote}/${base}:${base}`];
+      ? ['merge', '--ff-only', remoteBase]
+      : ['fetch', '.', `${remoteBase}:${base}`];
   return succeeds(repo.root, args);
 }
 
