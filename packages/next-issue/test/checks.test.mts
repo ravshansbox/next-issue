@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { type CheckState, type ChecksProbe, type Clock, pollChecks } from '../src/github.mts';
+import { type CheckState, type ChecksProbe, pollChecks } from '../src/github.mts';
+import type { Clock } from '../src/poll.mts';
 
 const OPTIONS = { intervalSeconds: 10, graceMs: 60_000, timeoutMs: 300_000 };
 

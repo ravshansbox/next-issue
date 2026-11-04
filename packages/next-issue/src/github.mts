@@ -1,6 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { lines, must, run, type RunOptions, type RunResult } from './exec.mts';
 import { isAncestor, type Repo } from './git.mts';
+import { type Clock, type Polling, pause, pollUntil, REAL_CLOCK } from './poll.mts';
 
 export type Issue = {
   number: number;
@@ -392,48 +393,12 @@ export type ChecksProbe = {
   watch: (timeoutMs: number) => Promise<CheckState>;
 };
 
-export type Clock = {
-  now: () => number;
-  sleep: (ms: number) => Promise<void>;
-};
-
-export type Polling = {
-  intervalSeconds: number;
-  timeoutMs: number;
-};
-
 export type PollOptions = Polling & {
   graceMs: number;
   head?: string;
 };
 
 export type WaitOptions = PollOptions & { show: boolean };
-
-const REAL_CLOCK: Clock = {
-  now: () => Date.now(),
-  sleep: (ms) => delay(ms),
-};
-
-function pause(clock: Clock, options: Polling, rest: number): Promise<void> {
-  return clock.sleep(Math.min(options.intervalSeconds * 1000, rest));
-}
-
-async function pollUntil<T>(
-  options: Polling,
-  clock: Clock,
-  probe: () => Promise<T>,
-  settled: (value: T) => boolean,
-): Promise<T> {
-  const deadline = clock.now() + options.timeoutMs;
-  for (;;) {
-    const value = await probe();
-    const rest = deadline - clock.now();
-    if (settled(value) || rest <= 0) {
-      return value;
-    }
-    await pause(clock, options, rest);
-  }
-}
 
 export async function pollChecks(
   probe: ChecksProbe,
