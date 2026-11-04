@@ -157,6 +157,10 @@ export class WorkerClient {
     } catch {
       this.options.spawnWorker(this.options.version);
     }
+    await this.waitForStart();
+  }
+
+  private async waitForStart(): Promise<void> {
     const deadline = Date.now() + this.startTimeoutMs;
     for (;;) {
       await delay(POLL_MS);
