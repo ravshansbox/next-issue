@@ -331,8 +331,12 @@ async function work(
     return reviewing.report;
   }
 
+  return reviewLoop(job);
+}
+
+async function reviewLoop(job: Run): Promise<IssueReport> {
   for (;;) {
-    if (context.stopAfterRound()) {
+    if (job.context.stopAfterRound()) {
       return stop(job);
     }
     const gate = await checkGate(job);
@@ -342,7 +346,7 @@ async function work(
     if (gate.fixed) {
       continue;
     }
-    if (context.stopAfterRound()) {
+    if (job.context.stopAfterRound()) {
       return stop(job);
     }
     const round = await reviewRound(job);
