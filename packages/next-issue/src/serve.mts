@@ -226,6 +226,13 @@ function send(socket: WebSocket, value: WorkerMessage): void {
   socket.send(JSON.stringify(value));
 }
 
+function broadcast(sockets: WebSocketServer, runs: Map<string, Run>): void {
+  const value = runsMessage(runs);
+  for (const socket of sockets.clients) {
+    send(socket, value);
+  }
+}
+
 function runsMessage(runs: Map<string, Run>): WorkerMessage {
   return {
     type: 'runs',
@@ -265,12 +272,6 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
 
   const server = createServer();
   const sockets = new WebSocketServer({ server });
-  const broadcast = (): void => {
-    const value = runsMessage(runs);
-    for (const socket of sockets.clients) {
-      send(socket, value);
-    }
-  };
   const sendQuestions = async (
     root: string,
     targets: () => Iterable<WebSocket>,
@@ -314,9 +315,9 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     runs.set(root, run);
     const update = (next: Progress): void => {
       run.progress = next;
-      broadcast();
+      broadcast(sockets, runs);
     };
-    broadcast();
+    broadcast(sockets, runs);
     options
       .runRepo(
         root,
@@ -344,7 +345,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       return;
     }
     requestStop(run);
-    broadcast();
+    broadcast(sockets, runs);
   };
 
   sockets.on('connection', (socket) => {
