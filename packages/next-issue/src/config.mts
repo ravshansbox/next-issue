@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { CONFIG_FILE, flag, record, rejectUnknown, text, whole } from './config-fields.mts';
 import { hasCode, message } from './errors.mts';
+import { prettyJson } from './files.mts';
 
 export type Config = {
   remote: string;
@@ -99,7 +100,7 @@ const FILE_DEFAULTS = {
 export async function writeDefaultConfig(root: string, force: boolean): Promise<string> {
   const path = join(root, CONFIG_FILE);
   try {
-    await writeFile(path, `${JSON.stringify(FILE_DEFAULTS, null, 2)}\n`, {
+    await writeFile(path, prettyJson(FILE_DEFAULTS), {
       flag: force ? 'w' : 'wx',
     });
   } catch (error) {

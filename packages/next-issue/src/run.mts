@@ -6,6 +6,7 @@ import { type Config, loadConfig } from './config.mts';
 import { minutesToMs } from './durations.mts';
 import { message } from './errors.mts';
 import { withDefaultTimeout } from './exec.mts';
+import { prettyJson } from './files.mts';
 import { detectRepo, type Repo } from './git.mts';
 import { defaultBranch } from './github.mts';
 import type { Interrupts } from './interrupt.mts';
@@ -154,6 +155,6 @@ async function endRun(repo: Repo, recorder: Recorder, reports: IssueReport[]): P
   );
   const summary: RunSummary = { ...recorder.summary(), issues: reports };
   const summaryFile = join(runsDir(repo.root), `${recorder.runId}.summary.json`);
-  await writeFile(summaryFile, `${JSON.stringify(summary, null, 2)}\n`);
+  await writeFile(summaryFile, prettyJson(summary));
   return summary;
 }

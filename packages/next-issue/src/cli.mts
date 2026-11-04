@@ -2,6 +2,7 @@
 import { type Args, parseArgs, USAGE } from './args.mts';
 import { writeDefaultConfig } from './config.mts';
 import { message } from './errors.mts';
+import { prettyJson } from './files.mts';
 import { repoRoot } from './git.mts';
 import { ensureIgnored } from './gitignore.mts';
 import { listenForInterrupts } from './interrupt.mts';
@@ -47,10 +48,7 @@ function run(root: string, args: Args): Promise<number> {
   return runRepo(root, args, {
     interrupts,
     print: (summary) =>
-      write(
-        process.stdout,
-        args.json ? `${JSON.stringify(summary, null, 2)}\n` : formatSummary(summary),
-      ),
+      write(process.stdout, args.json ? prettyJson(summary) : formatSummary(summary)),
   });
 }
 
