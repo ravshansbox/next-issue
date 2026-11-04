@@ -1,4 +1,4 @@
-import { paragraphs } from './prompts.mts';
+import { paragraphs } from './text.mts';
 
 type Severity = 'blocking' | 'minor';
 

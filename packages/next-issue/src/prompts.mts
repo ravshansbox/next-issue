@@ -1,13 +1,10 @@
 import type { Issue } from './github.mts';
+import { paragraphs } from './text.mts';
 
 const COMMIT_RULES = [
   'Do not run git, gh or any push command. The harness commits for you.',
   'End your final message with one line in the form `commit: <conventional commit subject>`.',
 ].join('\n');
-
-export function paragraphs(parts: string[]): string {
-  return parts.filter((part) => part.length > 0).join('\n\n');
-}
 
 function issueBlock(issue: Issue, comments: string[]): string {
   return paragraphs([

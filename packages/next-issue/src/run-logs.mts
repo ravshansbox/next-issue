@@ -1,5 +1,6 @@
 import { ghRun } from './gh.mts';
 import type { Repo } from './git.mts';
+import { joinFilled } from './text.mts';
 
 export async function runLogs(
   repo: Repo,
@@ -28,8 +29,4 @@ async function runLog(repo: Repo, runId: string, share: number): Promise<string>
     ' ',
   );
   return joinFilled([logs.stdout.trim(), reason], '\n');
-}
-
-function joinFilled(parts: string[], separator: string): string {
-  return parts.filter((part) => part !== '').join(separator);
 }
