@@ -27,14 +27,7 @@ async function main(): Promise<number> {
     return serve(root);
   }
   if (args.command === 'stop') {
-    const pid = await stopWorker(workerPaths(root).lockPath);
-    await write(
-      process.stdout,
-      pid === undefined
-        ? 'next-issue: no worker is running\n'
-        : `next-issue: stopped the worker with process id ${pid}\n`,
-    );
-    return 0;
+    return stop(root);
   }
   if (args.command === 'init') {
     return init(root, args.force);
@@ -51,6 +44,17 @@ async function main(): Promise<number> {
         args.json ? `${JSON.stringify(summary, null, 2)}\n` : formatSummary(summary),
       ),
   });
+}
+
+async function stop(root: string): Promise<number> {
+  const pid = await stopWorker(workerPaths(root).lockPath);
+  await write(
+    process.stdout,
+    pid === undefined
+      ? 'next-issue: no worker is running\n'
+      : `next-issue: stopped the worker with process id ${pid}\n`,
+  );
+  return 0;
 }
 
 async function logs(root: string, json: boolean): Promise<number> {
