@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { type ChildProcess, spawn } from 'node:child_process';
+import { killTree, unwatch, watch } from './children.mts';
 
 export type RunResult = {
   code: number;
@@ -34,64 +35,6 @@ const DEFAULT_TIMEOUT_MS = 10 * 60_000;
 const defaultTimeout = new AsyncLocalStorage<number>();
 
 const STDERR_TAIL = 200_000;
-
-const groups = new Set<number>();
-
-const stoppers = new Set<() => void>();
-
-export function onStop(stopper: () => void): () => void {
-  stoppers.add(stopper);
-  return () => stoppers.delete(stopper);
-}
-
-export function stopChildren(signal: NodeJS.Signals): void {
-  for (const stopper of stoppers) {
-    stopper();
-  }
-  stoppers.clear();
-  for (const pid of groups) {
-    try {
-      process.kill(-pid, signal);
-    } catch {}
-  }
-  groups.clear();
-  process.off('SIGTERM', onTerminate);
-  process.kill(process.pid, signal);
-}
-
-const onTerminate = (): void => stopChildren('SIGTERM');
-
-function watch(pid: number | undefined): void {
-  if (pid === undefined) {
-    return;
-  }
-  if (groups.size === 0) {
-    process.on('SIGTERM', onTerminate);
-  }
-  groups.add(pid);
-}
-
-function unwatch(pid: number | undefined): void {
-  if (pid === undefined) {
-    return;
-  }
-  groups.delete(pid);
-  if (groups.size === 0) {
-    process.off('SIGTERM', onTerminate);
-  }
-}
-
-function killTree(child: ChildProcess): void {
-  if (child.pid === undefined) {
-    child.kill('SIGKILL');
-    return;
-  }
-  try {
-    process.kill(-child.pid, 'SIGKILL');
-  } catch {
-    child.kill('SIGKILL');
-  }
-}
 
 function keepTail(text: string, limit: number | undefined): string {
   return limit !== undefined && text.length > limit ? text.slice(-limit) : text;

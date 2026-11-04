@@ -1,4 +1,4 @@
-import { stopChildren } from './exec.mts';
+import { stopChildren } from './children.mts';
 
 export type Interrupts = {
   afterIssue: () => boolean;

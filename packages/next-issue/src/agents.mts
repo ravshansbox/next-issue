@@ -9,7 +9,7 @@ import {
   SessionManager,
   type SettingsManager,
 } from '@earendil-works/pi-coding-agent';
-import { onStop } from './exec.mts';
+import { onStop } from './children.mts';
 import type { Fields, Recorder } from './observe.mts';
 import { emptyUsage, type Usage } from './usage.mts';
 

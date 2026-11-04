@@ -119,10 +119,12 @@ async function interrupted(t: TestContext): Promise<{
   const file = join(dir, 'pid');
   const agentFile = join(dir, 'agent');
   const exec = new URL('../src/exec.mts', import.meta.url).href;
+  const children = new URL('../src/children.mts', import.meta.url).href;
   const interrupt = new URL('../src/interrupt.mts', import.meta.url).href;
   const inner = [
     `import { writeFileSync } from "node:fs";`,
-    `import { onStop, run } from ${JSON.stringify(exec)};`,
+    `import { run } from ${JSON.stringify(exec)};`,
+    `import { onStop } from ${JSON.stringify(children)};`,
     `onStop(() => writeFileSync(${JSON.stringify(agentFile)}, "stopped"));`,
     `import { listenForInterrupts } from ${JSON.stringify(interrupt)};`,
     'const interrupts = listenForInterrupts((text) => process.stdout.write(`${text} ${interrupts.afterIssue()} ${interrupts.afterRound()}\\n`));',

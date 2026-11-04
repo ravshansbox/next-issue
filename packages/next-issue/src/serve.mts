@@ -4,7 +4,7 @@ import { createServer, type Server } from 'node:http';
 import { dirname } from 'node:path';
 import { type WebSocket, WebSocketServer } from 'ws';
 import { type Args, parseArgs } from './args.mts';
-import { stopChildren } from './exec.mts';
+import { stopChildren } from './children.mts';
 import { lock } from './lock.mts';
 import { message } from './errors.mts';
 import { startProgress } from './progress.mts';
