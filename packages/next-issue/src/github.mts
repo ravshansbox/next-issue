@@ -1,6 +1,17 @@
 import { errorMatches } from './errors.mts';
 import { lines } from './exec.mts';
-import { gh, ghApi, ghJson, ghOnce, type Named, names, repeatable, slug } from './gh.mts';
+import {
+  gh,
+  ghApi,
+  ghJson,
+  ghOnce,
+  type Kind,
+  type Named,
+  names,
+  repeatable,
+  slug,
+  viewJson,
+} from './gh.mts';
 import type { Repo } from './git.mts';
 
 export type Issue = {
@@ -10,8 +21,6 @@ export type Issue = {
   createdAt: string;
   labels: string[];
 };
-
-export type Kind = 'issue' | 'pr';
 
 export async function defaultBranch(repo: Repo): Promise<string> {
   const raw = await repeatable(repo, ['repo', 'view', slug(repo), '--json', 'defaultBranchRef']);
@@ -59,22 +68,21 @@ export async function openIssues(repo: Repo, limit: number, labels: string[]): P
 }
 
 export async function viewIssue(repo: Repo, issue: number): Promise<Issue & { open: boolean }> {
-  const parsed = await ghJson<RawIssue & { state: string }>(repo, [
+  const parsed = await viewJson<RawIssue & { state: string }>(
+    repo,
     'issue',
-    'view',
-    String(issue),
-    '--json',
+    issue,
     `${ISSUE_FIELDS},state`,
-  ]);
+  );
   return { ...toIssue(parsed), open: parsed.state === 'OPEN' };
 }
 
 export type Comment = { author: string; body: string; url?: string };
 
 export async function issueComments(repo: Repo, issue: number): Promise<Comment[]> {
-  const parsed = await ghJson<{
+  const parsed = await viewJson<{
     comments: Array<{ author: { login: string }; body: string }>;
-  }>(repo, ['issue', 'view', String(issue), '--json', 'comments']);
+  }>(repo, 'issue', issue, 'comments');
   return parsed.comments.map((comment) => ({ author: comment.author.login, body: comment.body }));
 }
 

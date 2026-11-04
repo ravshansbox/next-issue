@@ -1,4 +1,4 @@
-import { gh, ghJson, ghOnce, ghSucceeds } from './gh.mts';
+import { gh, ghJson, ghOnce, ghSucceeds, viewJson } from './gh.mts';
 import type { Repo } from './git.mts';
 import { type Clock, type Polling, pollUntil, REAL_CLOCK } from './poll.mts';
 
@@ -90,13 +90,12 @@ export async function mergeCommit(
     options,
     clock,
     () =>
-      ghJson<{ state: string; mergeCommit: { oid: string } | null }>(repo, [
+      viewJson<{ state: string; mergeCommit: { oid: string } | null }>(
+        repo,
         'pr',
-        'view',
-        String(pr),
-        '--json',
+        pr,
         'state,mergeCommit',
-      ]),
+      ),
     (value) => (value.state === 'MERGED' && !!value.mergeCommit?.oid) || value.state === 'CLOSED',
   );
   return (view.state === 'MERGED' && view.mergeCommit?.oid) || undefined;
