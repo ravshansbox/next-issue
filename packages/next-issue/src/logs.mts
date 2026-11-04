@@ -27,6 +27,13 @@ function show(line: string, json: boolean): string {
   }
 }
 
+function completeLines(text: string, tail?: number): { shown: string[]; rest: string } {
+  const lines = text.split('\n');
+  const rest = lines.pop()!;
+  const filled = lines.filter((line) => line.trim().length > 0);
+  return { shown: tail === undefined ? filled : filled.slice(-tail), rest };
+}
+
 export async function followLog(
   file: string,
   options: { json: boolean; tail?: number },
@@ -56,11 +63,10 @@ export async function followLog(
           continue;
         }
       }
-      const lines = rest.split('\n');
-      rest = lines.pop()!;
-      const filled = lines.filter((line) => line.trim().length > 0);
-      const shown = first && options.tail !== undefined ? filled.slice(-options.tail) : filled;
+      const complete = completeLines(rest, first ? options.tail : undefined);
+      rest = complete.rest;
       first = false;
+      const { shown } = complete;
       if (shown.length > 0) {
         await print(shown.map((line) => show(line, options.json)).join(''));
       }
