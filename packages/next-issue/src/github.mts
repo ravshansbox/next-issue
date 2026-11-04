@@ -396,6 +396,23 @@ function pause(clock: Clock, options: Polling, rest: number): Promise<void> {
   return clock.sleep(Math.min(options.intervalSeconds * 1000, rest));
 }
 
+async function pollUntil<T>(
+  options: Polling,
+  clock: Clock,
+  probe: () => Promise<T>,
+  settled: (value: T) => boolean,
+): Promise<T> {
+  const deadline = clock.now() + options.timeoutMs;
+  for (;;) {
+    const value = await probe();
+    const rest = deadline - clock.now();
+    if (settled(value) || rest <= 0) {
+      return value;
+    }
+    await pause(clock, options, rest);
+  }
+}
+
 export async function pollChecks(
   probe: ChecksProbe,
   options: PollOptions,
@@ -576,15 +593,13 @@ export async function prConflicts(
   options: Polling,
   clock: Clock = REAL_CLOCK,
 ): Promise<boolean> {
-  const deadline = clock.now() + options.timeoutMs;
-  for (;;) {
-    const mergeable = await prField(repo, pr, 'mergeable');
-    const rest = deadline - clock.now();
-    if (mergeable !== 'UNKNOWN' || rest <= 0) {
-      return mergeable === 'CONFLICTING';
-    }
-    await pause(clock, options, rest);
-  }
+  const mergeable = await pollUntil(
+    options,
+    clock,
+    () => prField(repo, pr, 'mergeable'),
+    (value) => value !== 'UNKNOWN',
+  );
+  return mergeable === 'CONFLICTING';
 }
 
 export async function prMerged(repo: Repo, pr: number): Promise<boolean> {
@@ -597,24 +612,20 @@ export async function mergeCommit(
   options: Polling,
   clock: Clock = REAL_CLOCK,
 ): Promise<string | undefined> {
-  const deadline = clock.now() + options.timeoutMs;
-  for (;;) {
-    const view = await ghJson<{ state: string; mergeCommit: { oid: string } | null }>(repo, [
-      'pr',
-      'view',
-      String(pr),
-      '--json',
-      'state,mergeCommit',
-    ]);
-    if (view.state === 'MERGED' && view.mergeCommit?.oid) {
-      return view.mergeCommit.oid;
-    }
-    const rest = deadline - clock.now();
-    if (view.state === 'CLOSED' || rest <= 0) {
-      return undefined;
-    }
-    await pause(clock, options, rest);
-  }
+  const view = await pollUntil(
+    options,
+    clock,
+    () =>
+      ghJson<{ state: string; mergeCommit: { oid: string } | null }>(repo, [
+        'pr',
+        'view',
+        String(pr),
+        '--json',
+        'state,mergeCommit',
+      ]),
+    (value) => (value.state === 'MERGED' && !!value.mergeCommit?.oid) || value.state === 'CLOSED',
+  );
+  return (view.state === 'MERGED' && view.mergeCommit?.oid) || undefined;
 }
 
 export async function reopenIssue(repo: Repo, issue: number): Promise<void> {
