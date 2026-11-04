@@ -200,6 +200,22 @@ async function reply(
   }
 }
 
+async function statusOf(client: WorkerClient, root: string) {
+  await client.attach();
+  if (!client.connected) {
+    return report('no worker is running', root);
+  }
+  const progress = client.runs[root];
+  if (progress === undefined) {
+    return report(`no run of ${root}`, root);
+  }
+  const lines = [
+    formatStatus(progress, Date.now()),
+    ...progress.handled.map((item) => `#${item.issue} ${OUTCOME_NOTES[item.outcome]}`),
+  ];
+  return report(lines.join('\n'), root);
+}
+
 const fromMachine: Options = {
   client: (root) =>
     new WorkerClient({
@@ -420,20 +436,7 @@ export function createExtension(options: Options) {
       parameters: Type.Object({}),
       async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
         const root = await options.root(ctx.cwd);
-        const client = shared(options.client, root);
-        await client.attach();
-        if (!client.connected) {
-          return report('no worker is running', root);
-        }
-        const progress = client.runs[root];
-        if (progress === undefined) {
-          return report(`no run of ${root}`, root);
-        }
-        const lines = [
-          formatStatus(progress, Date.now()),
-          ...progress.handled.map((item) => `#${item.issue} ${OUTCOME_NOTES[item.outcome]}`),
-        ];
-        return report(lines.join('\n'), root);
+        return statusOf(shared(options.client, root), root);
       },
     });
 
