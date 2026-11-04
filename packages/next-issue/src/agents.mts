@@ -7,7 +7,7 @@ import {
 } from '@earendil-works/pi-coding-agent';
 import { openSession } from './agent-session.mts';
 import { onStop } from './children.mts';
-import { deadline } from './durations.mts';
+import { deadline, elapsedMs } from './durations.mts';
 import type { Fields, Recorder } from './observe.mts';
 import { emptyUsage, type Usage } from './usage.mts';
 
@@ -98,7 +98,7 @@ function sessionResult(
   const usage: Usage = { ...emptyUsage(), ...stats.tokens };
   const name =
     session.model === undefined ? undefined : `${session.model.provider}/${session.model.id}`;
-  const ms = Date.now() - started;
+  const ms = elapsedMs(started);
   recorder.usage(request.name, usage, ms, {
     turns: stats.assistantMessages,
     toolCalls: stats.toolCalls,

@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { type ChildProcess, spawn } from 'node:child_process';
 import { killTree, unwatch, watch } from './children.mts';
-import { deadline, minutesToMs } from './durations.mts';
+import { deadline, elapsedMs, minutesToMs } from './durations.mts';
 
 export type RunResult = {
   code: number;
@@ -101,7 +101,7 @@ function notify(
     args,
     cwd: options.cwd,
     code: result.code,
-    ms: Date.now() - started,
+    ms: elapsedMs(started),
     stderr: result.code === 0 ? '' : result.stderr.trim(),
     timedOut: result.timedOut,
   });

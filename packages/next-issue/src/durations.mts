@@ -26,3 +26,7 @@ export function deadline(ms: number | undefined, onExpire: () => void): Deadline
         }, ms);
   return { timedOut: () => timedOut, clear: () => clearTimeout(timer) };
 }
+
+export function elapsedMs(started: number): number {
+  return Date.now() - started;
+}

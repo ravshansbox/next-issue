@@ -1,4 +1,5 @@
 import { enterReview } from './enter-review.mts';
+import { elapsedMs } from './durations.mts';
 import { message } from './errors.mts';
 import { checkGate } from './gate.mts';
 import { branchName } from './git.mts';
@@ -74,7 +75,7 @@ async function claimedError(
   started: number,
 ): Promise<IssueReport> {
   const reason = message(error);
-  log.event('issue.error', { error: reason, ms: Date.now() - started }, 'quiet');
+  log.event('issue.error', { error: reason, ms: elapsedMs(started) }, 'quiet');
   try {
     await handOver(context, log, issue.number, state, `The run failed: ${reason}`);
   } catch (failure) {

@@ -1,3 +1,4 @@
+import { elapsedMs } from './durations.mts';
 import { message } from './errors.mts';
 import type { Issue } from './github.mts';
 import { HAND_OVER } from './hand-over-comments.mts';
@@ -75,7 +76,7 @@ export function progress(
     pr: state.pr,
     ciFixes: state.ciFixes,
     reviewRounds: state.reviewRounds,
-    ms: Date.now() - started,
+    ms: elapsedMs(started),
   };
 }
 

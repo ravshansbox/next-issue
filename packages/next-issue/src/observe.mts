@@ -1,6 +1,7 @@
 import { createWriteStream, type WriteStream } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { elapsedMs } from './durations.mts';
 import { message } from './errors.mts';
 import { render } from './render.mts';
 import { runsDir } from './state.mts';
@@ -127,12 +128,12 @@ export class Recorder {
     this.event(`${kind}.start`, fields, 'verbose');
     try {
       const result = await run();
-      this.event(`${kind}.end`, { ...fields, ms: Date.now() - started });
+      this.event(`${kind}.end`, { ...fields, ms: elapsedMs(started) });
       return result;
     } catch (error) {
       this.event(
         `${kind}.error`,
-        { ...fields, ms: Date.now() - started, error: message(error) },
+        { ...fields, ms: elapsedMs(started), error: message(error) },
         'quiet',
       );
       throw error;

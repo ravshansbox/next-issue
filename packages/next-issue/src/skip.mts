@@ -1,4 +1,5 @@
 import type { Config } from './config.mts';
+import { elapsedMs } from './durations.mts';
 import { message } from './errors.mts';
 import type { Issue } from './github.mts';
 import { skipped } from './handover.mts';
@@ -61,7 +62,7 @@ export function unclaimedError(
   started: number,
 ): IssueReport {
   const reason = message(error);
-  const ms = Date.now() - started;
+  const ms = elapsedMs(started);
   log.event('issue.error', { error: reason, ms }, 'quiet');
   return { ...skipped(issue), outcome: 'error', reason, ms };
 }
