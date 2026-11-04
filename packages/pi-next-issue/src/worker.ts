@@ -253,20 +253,10 @@ export class WorkerClient {
         } catch {
           return;
         }
-        if (message.type === 'hello') {
-          this.workerVersion = message.version;
-        } else if (message.type === 'runs') {
-          this.runs = message.runs;
-          this.emit({ type: 'runs', runs: message.runs });
-          if (!hello) {
-            hello = true;
-            resolve();
-          }
-        } else if (message.type === 'questions') {
-          this.questions[message.root] = message.questions;
-          this.emit(message);
-        } else if (message.type === 'error' || message.type === 'questions-error') {
-          this.emit(message);
+        this.receive(message);
+        if (message.type === 'runs' && !hello) {
+          hello = true;
+          resolve();
         }
       });
       socket.once('open', () => {
@@ -284,6 +274,20 @@ export class WorkerClient {
         }
       });
     });
+  }
+
+  private receive(message: WorkerMessage): void {
+    if (message.type === 'hello') {
+      this.workerVersion = message.version;
+    } else if (message.type === 'runs') {
+      this.runs = message.runs;
+      this.emit({ type: 'runs', runs: message.runs });
+    } else if (message.type === 'questions') {
+      this.questions[message.root] = message.questions;
+      this.emit(message);
+    } else if (message.type === 'error' || message.type === 'questions-error') {
+      this.emit(message);
+    }
   }
 
   private waitForClose(): Promise<void> {
