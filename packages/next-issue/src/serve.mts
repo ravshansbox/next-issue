@@ -356,6 +356,21 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       .finally(closeWhenIdle);
   };
 
+  const receive = (socket: WebSocket, value: ClientMessage): void => {
+    if (value.type === 'hello') {
+      if (isNewer(value.version, options.version)) {
+        restart = true;
+        closeWhenIdle();
+      }
+    } else if (value.type === 'start') {
+      start(socket, value.root, value.merge === true);
+    } else if (value.type === 'stop') {
+      stopRun(sockets, runs, value.root);
+    } else if (value.type === 'questions') {
+      void sendQuestions(value.root, () => [socket], value.id);
+    }
+  };
+
   sockets.on('connection', (socket) => {
     send(socket, { type: 'hello', version: options.version });
     send(socket, runsMessage(runs));
@@ -363,20 +378,8 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     socket.on('close', closeWhenIdle);
     socket.on('message', (data) => {
       const value = parseMessage(String(data));
-      if (value === undefined) {
-        return;
-      }
-      if (value.type === 'hello') {
-        if (isNewer(value.version, options.version)) {
-          restart = true;
-          closeWhenIdle();
-        }
-      } else if (value.type === 'start') {
-        start(socket, value.root, value.merge === true);
-      } else if (value.type === 'stop') {
-        stopRun(sockets, runs, value.root);
-      } else if (value.type === 'questions') {
-        void sendQuestions(value.root, () => [socket], value.id);
+      if (value !== undefined) {
+        receive(socket, value);
       }
     });
   });
