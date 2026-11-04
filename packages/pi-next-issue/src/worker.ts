@@ -146,6 +146,14 @@ export function spawnWorker(root: string, version: string): void {
   }
 }
 
+function parseMessage(text: string): WorkerMessage | undefined {
+  try {
+    return JSON.parse(text) as WorkerMessage;
+  } catch {
+    return undefined;
+  }
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms).unref?.());
 }
@@ -256,10 +264,8 @@ export class WorkerClient {
         }
       });
       socket.on('message', (data) => {
-        let message: WorkerMessage;
-        try {
-          message = JSON.parse(String(data)) as WorkerMessage;
-        } catch {
+        const message = parseMessage(String(data));
+        if (message === undefined) {
           return;
         }
         this.receive(message);
