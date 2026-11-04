@@ -35,6 +35,10 @@ export function listen(server: Server, path: string): Promise<void> {
   });
 }
 
+function whenClosed(close: (done: () => void) => void): Promise<void> {
+  return new Promise((resolve) => close(() => resolve()));
+}
+
 export async function shutdown(
   server: Server,
   sockets: WebSocketServer,
@@ -43,8 +47,8 @@ export async function shutdown(
   for (const socket of sockets.clients) {
     socket.terminate();
   }
-  await new Promise<void>((resolve) => sockets.close(() => resolve()));
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await whenClosed((done) => sockets.close(done));
+  await whenClosed((done) => server.close(done));
   await rm(paths.socketPath, { force: true });
   await rm(paths.lockPath, { force: true });
 }
