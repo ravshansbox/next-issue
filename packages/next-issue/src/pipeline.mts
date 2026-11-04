@@ -1,8 +1,8 @@
-import { type Config, minutesToMs } from './config.mts';
+import type { Config } from './config.mts';
 import { checkGate } from './gate.mts';
 import { branchName } from './git.mts';
 import type { Issue } from './github.mts';
-import { cleanUp, escalateAndFinish, finishDone, handOver, skipped, stop } from './handover.mts';
+import { cleanUp, finishDone, handOver, skipped, stop } from './handover.mts';
 import { implement } from './implement.mts';
 import { type Context, type IssueReport, openPr, type Round, type Run } from './job.mts';
 import { afterMerge, fixBase } from './merge.mts';
@@ -10,6 +10,7 @@ import { message, type Recorder } from './observe.mts';
 import { openJob } from './open-job.mts';
 import { reviewRound } from './review.mts';
 import { type IssueState, readState, resetState } from './state.mts';
+import { setUp } from './worktree-setup.mts';
 
 export type Skip = 'stop-label' | 'not-ready' | 'in-flight';
 
@@ -145,43 +146,6 @@ function unclaimedError(log: Recorder, issue: Issue, error: unknown, started: nu
     reason: message(error),
     ms: Date.now() - started,
   };
-}
-
-async function setUp(job: Run): Promise<Round> {
-  const { context, log, worktree } = job;
-  const { config, ports } = context;
-  const setupCommand = config.setupCommand ?? (await ports.detectSetupCommand(worktree));
-  if (setupCommand === undefined) {
-    return { done: false };
-  }
-  const setup = await log.step(
-    'setup',
-    { cmd: setupCommand, found: config.setupCommand === undefined },
-    () => ports.runSetup(setupCommand, worktree, minutesToMs(config.setupTimeoutMinutes)),
-  );
-  if (setup.code === 0) {
-    return { done: false };
-  }
-  return setupFailed(job, setup);
-}
-
-async function setupFailed(
-  job: Run,
-  setup: { code: number; stderr: string; timedOut?: boolean },
-): Promise<Round> {
-  const late = setup.timedOut === true;
-  job.log.event(
-    'setup.fail',
-    { code: setup.code, timedOut: late, stderr: setup.stderr.trim().slice(-2000) },
-    'quiet',
-  );
-  return escalateAndFinish(
-    job,
-    late
-      ? `The setup command did not finish in ${job.context.config.setupTimeoutMinutes} minutes.`
-      : 'The setup command failed in the worktree.',
-    late ? 'setup timeout' : 'setup failed',
-  );
 }
 
 async function enterReview(job: Run): Promise<Round> {
