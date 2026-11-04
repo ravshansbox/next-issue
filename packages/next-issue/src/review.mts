@@ -9,14 +9,16 @@ import { capDiff, reviewPrompt } from './prompts.mts';
 import { writeState } from './state.mts';
 import {
   blockingFindings,
+  type Finding,
   formatFindings,
   formatVerdict,
   openFindings,
   parseVerdict,
+  type Verdict,
 } from './verdict.mts';
 
 export async function reviewRound(job: Run): Promise<Round> {
-  const { context, issue, log, state } = job;
+  const { context, issue, state } = job;
   const { repo, config, ports } = context;
   const pr = state.pr!;
   if (state.reviewRounds >= config.maxReviewRounds) {
@@ -35,19 +37,8 @@ export async function reviewRound(job: Run): Promise<Round> {
   if (verdict === undefined) {
     return escalateAndFinish(job, 'The reviewer gave no verdict.', 'no verdict');
   }
-  const blocking = blockingFindings(verdict);
   const open = openFindings(verdict, state.reviewRounds >= config.maxReviewRounds);
-  log.event(
-    'verdict',
-    {
-      round: state.reviewRounds,
-      blocking: blocking.length,
-      minor: verdict.findings.length - blocking.length,
-      open: open.length,
-      summary: verdict.summary,
-    },
-    'quiet',
-  );
+  recordVerdict(job, verdict, open);
   await ports.commentOnPr(repo, pr, formatVerdict(verdict, open));
 
   if (open.length === 0) {
@@ -63,6 +54,21 @@ export async function reviewRound(job: Run): Promise<Round> {
     return unfixedRound(job, fix);
   }
   return { done: false };
+}
+
+function recordVerdict(job: Run, verdict: Verdict, open: Finding[]): void {
+  const blocking = blockingFindings(verdict);
+  job.log.event(
+    'verdict',
+    {
+      round: job.state.reviewRounds,
+      blocking: blocking.length,
+      minor: verdict.findings.length - blocking.length,
+      open: open.length,
+      summary: verdict.summary,
+    },
+    'quiet',
+  );
 }
 
 async function runReviewer(job: Run, earlier: string[]): Promise<string> {
