@@ -2,30 +2,14 @@ import { type Config, minutesToMs } from './config.mts';
 import { checkGate } from './gate.mts';
 import { branchName } from './git.mts';
 import type { Issue } from './github.mts';
-import {
-  cleanUp,
-  escalateAndFinish,
-  finishDone,
-  handOver,
-  handOverReply,
-  skipped,
-  stop,
-  writerComments,
-} from './handover.mts';
+import { cleanUp, escalateAndFinish, finishDone, handOver, skipped, stop } from './handover.mts';
 import { implement } from './implement.mts';
-import {
-  type Context,
-  type IssueReport,
-  oneAtATime,
-  openPr,
-  type Round,
-  type Run,
-  setStatus,
-} from './job.mts';
+import { type Context, type IssueReport, openPr, type Round, type Run } from './job.mts';
 import { afterMerge, fixBase } from './merge.mts';
 import { message, type Recorder } from './observe.mts';
+import { openJob } from './open-job.mts';
 import { reviewRound } from './review.mts';
-import { type IssueState, readState, resetState, writeState } from './state.mts';
+import { type IssueState, readState, resetState } from './state.mts';
 
 export type Skip = 'stop-label' | 'not-ready' | 'in-flight';
 
@@ -226,62 +210,6 @@ async function alreadyMerged(job: Run, pr: number): Promise<Round> {
     return { done: true, report: await finishDone(job) };
   }
   return afterMerge(job);
-}
-
-async function openJob(
-  context: Context,
-  issue: Issue,
-  log: Recorder,
-  state: IssueState,
-  start: boolean,
-  handedOver: boolean,
-): Promise<Run> {
-  const started = Date.now();
-  const { repo, config } = context;
-  const branch = state.branch;
-
-  await log.step('claim', { label: config.labels.inProgress }, async () => {
-    await setStatus(context, issue.number, state.pr, config.labels.inProgress);
-    await writeState(repo, state);
-  });
-
-  const comments = await log.step('comments', {}, () => writerComments(context, log, issue.number));
-  const reply = handedOver
-    ? await log.step('reply', {}, () => handOverReply(context, issue.number, state.pr))
-    : [];
-  const worktree = await openWorktree(context, issue, log, branch, start);
-  return {
-    context,
-    issue,
-    log,
-    state,
-    branch,
-    worktree,
-    comments,
-    reply,
-    started,
-    noChecks: false,
-    mainBroken: false,
-  };
-}
-
-async function openWorktree(
-  context: Context,
-  issue: Issue,
-  log: Recorder,
-  branch: string,
-  start: boolean,
-): Promise<string> {
-  const { repo, config, ports } = context;
-  const added = await log.step('worktree', { branch }, () =>
-    oneAtATime(repo.root, () =>
-      ports.addWorktree(repo, issue.number, branch, context.base, config.remote, start),
-    ),
-  );
-  if (!added.baseUpdated) {
-    log.event('base.behind', { base: context.base }, 'quiet');
-  }
-  return added.path;
 }
 
 async function work(
