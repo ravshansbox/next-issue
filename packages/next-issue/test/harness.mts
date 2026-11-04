@@ -25,6 +25,16 @@ export const ISSUE: Issue = {
 
 export const APPROVE: Verdict = { summary: 'Good.', findings: [] };
 
+export const SAVED: IssueState = {
+  issue: 7,
+  phase: 'review',
+  branch: 'issue-7',
+  pr: 101,
+  ciFixes: 2,
+  reviewRounds: 1,
+  reviewLog: [{ round: 1, findings: '- old' }],
+};
+
 export function changes(...details: string[]): Verdict {
   return {
     summary: 'Please fix.',
