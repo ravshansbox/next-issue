@@ -148,12 +148,12 @@ export async function commitAll(cwd: string, message: string): Promise<boolean> 
   if (!(await isDirty(cwd))) {
     return false;
   }
-  await git(cwd, ['add', '-A']);
-  await commitStaged(cwd, message);
+  await commitEverything(cwd, message);
   return true;
 }
 
-async function commitStaged(cwd: string, message: string): Promise<void> {
+async function commitEverything(cwd: string, message: string): Promise<void> {
+  await git(cwd, ['add', '-A']);
   const folder = await mkdtemp(join(tmpdir(), 'next-issue-message-'));
   const file = join(folder, 'COMMIT_EDITMSG');
   try {
@@ -255,8 +255,7 @@ export async function commitMerge(cwd: string, files: string[], message: string)
       return false;
     }
   }
-  await git(cwd, ['add', '-A']);
-  await commitStaged(cwd, message);
+  await commitEverything(cwd, message);
   return true;
 }
 
