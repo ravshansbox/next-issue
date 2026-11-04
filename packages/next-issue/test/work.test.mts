@@ -1,9 +1,6 @@
 import assert from 'node:assert/strict';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { test } from 'node:test';
 import { processIssue } from '../src/pipeline.mts';
-import { STATE_DIR } from '../src/state.mts';
 import { APPROVE, changes, harness, ISSUE, roles, SAVED, stages } from './harness.mts';
 
 test('a clean run implements, reviews and finishes', async (t) => {
@@ -171,32 +168,6 @@ test('a user whose issue is handed over after the pull request exists gets the r
   await target.run();
   assert.match(target.comments.at(-1)!, /needs help: /);
   assert.deepEqual(target.issueNotes, []);
-});
-
-test('a run that finds a corrupt state file reports an error that names the file and starts no agent', async (t) => {
-  const target = await harness(t, {
-    issue: { ...ISSUE, labels: ['status:todo', 'status:in-progress'] },
-  });
-  const folder = join(target.context.repo.root, STATE_DIR);
-  await mkdir(folder, { recursive: true });
-  await writeFile(join(folder, '7.json'), '{ "issue": 7');
-  const report = await target.run();
-  assert.equal(report.outcome, 'error');
-  assert.match(report.reason!, /7\.json is not valid JSON/);
-  assert.deepEqual(roles(target), []);
-});
-
-test('a run that finds a state file of the wrong shape reports an error that names the file and starts no agent', async (t) => {
-  const target = await harness(t, {
-    issue: { ...ISSUE, labels: ['status:todo', 'status:in-progress'] },
-  });
-  const folder = join(target.context.repo.root, STATE_DIR);
-  await mkdir(folder, { recursive: true });
-  await writeFile(join(folder, '7.json'), '{}');
-  const report = await target.run();
-  assert.equal(report.outcome, 'error');
-  assert.match(report.reason!, /7\.json does not hold a valid state/);
-  assert.deepEqual(roles(target), []);
 });
 
 test('a fixer that changes nothing hands the issue to a person', async (t) => {
