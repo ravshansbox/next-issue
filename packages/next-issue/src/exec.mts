@@ -121,9 +121,12 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
       killTree(child);
     }, limit);
     let done = false;
-    const settle = (code: number | null): void => {
+    const release = (): void => {
       clearTimeout(timer);
       unwatch(pid);
+    };
+    const settle = (code: number | null): void => {
+      release();
       if (done) {
         return;
       }
@@ -133,8 +136,7 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
       resolve(result);
     };
     child.on('error', (error) => {
-      clearTimeout(timer);
-      unwatch(pid);
+      release();
       done = true;
       reject(error);
     });
