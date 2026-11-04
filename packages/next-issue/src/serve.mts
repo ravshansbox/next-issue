@@ -238,6 +238,28 @@ function questionsReply(
   return id === undefined ? undefined : { ...last.value, id };
 }
 
+type SendQuestions = (
+  root: string,
+  targets: () => Iterable<WebSocket>,
+  id?: string,
+) => Promise<void>;
+
+function questionSender(list: ListQuestions): SendQuestions {
+  const reads = new Map<string, number>();
+  const delivered = new WeakMap<WebSocket, Map<string, Delivery>>();
+  return async (root, targets, id) => {
+    const read = (reads.get(root) ?? 0) + 1;
+    reads.set(root, read);
+    const value = await readQuestions(list, root);
+    for (const socket of targets()) {
+      const reply = questionsReply(delivered, socket, root, { read, value }, id);
+      if (reply !== undefined) {
+        send(socket, reply);
+      }
+    }
+  };
+}
+
 function send(socket: WebSocket, value: WorkerMessage): void {
   socket.send(JSON.stringify(value));
 }
@@ -287,8 +309,6 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   }
   await rm(options.socketPath, { force: true });
   const runs = new Map<string, Run>();
-  const reads = new Map<string, number>();
-  const delivered = new WeakMap<WebSocket, Map<string, Delivery>>();
   let restart = false;
   let finish: () => void = () => undefined;
   const closed = new Promise<void>((resolve) => {
@@ -297,21 +317,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
 
   const server = createServer();
   const sockets = new WebSocketServer({ server });
-  const sendQuestions = async (
-    root: string,
-    targets: () => Iterable<WebSocket>,
-    id?: string,
-  ): Promise<void> => {
-    const read = (reads.get(root) ?? 0) + 1;
-    reads.set(root, read);
-    const value = await readQuestions(options.questions, root);
-    for (const socket of targets()) {
-      const reply = questionsReply(delivered, socket, root, { read, value }, id);
-      if (reply !== undefined) {
-        send(socket, reply);
-      }
-    }
-  };
+  const sendQuestions = questionSender(options.questions);
   const busy = (): boolean => [...runs.values()].some(active);
 
   let closing: Promise<void> | undefined;
