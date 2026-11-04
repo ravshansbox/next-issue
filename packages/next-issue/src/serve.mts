@@ -48,6 +48,10 @@ export type Worker = {
   close: () => Promise<void>;
 };
 
+type Questions = Extract<WorkerMessage, { type: 'questions' | 'questions-error' }>;
+
+type Delivery = { read: number; value: Questions };
+
 type Run = {
   progress: Progress;
   stop: boolean;
@@ -173,6 +177,23 @@ async function listQuestions(root: string): Promise<Question[]> {
   return waitingQuestions(await detectRepo(root, config.remote), config, PORTS);
 }
 
+function questionsReply(
+  delivered: WeakMap<WebSocket, Map<string, Delivery>>,
+  socket: WebSocket,
+  root: string,
+  delivery: Delivery,
+  id?: string,
+): Questions | undefined {
+  const seen = delivered.get(socket) ?? new Map<string, Delivery>();
+  const last = seen.get(root);
+  if (last === undefined || last.read < delivery.read) {
+    seen.set(root, delivery);
+    delivered.set(socket, seen);
+    return id === undefined ? delivery.value : { ...delivery.value, id };
+  }
+  return id === undefined ? undefined : { ...last.value, id };
+}
+
 export async function startWorker(options: WorkerOptions): Promise<Worker | undefined> {
   checkSocketPath(options.socketPath);
   await mkdir(dirname(options.lockPath), { recursive: true });
@@ -182,8 +203,6 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   await rm(options.socketPath, { force: true });
   const runs = new Map<string, Run>();
   const reads = new Map<string, number>();
-  type Questions = Extract<WorkerMessage, { type: 'questions' | 'questions-error' }>;
-  type Delivery = { read: number; value: Questions };
   const delivered = new WeakMap<WebSocket, Map<string, Delivery>>();
   let restart = false;
   let finish: () => void = () => undefined;
@@ -220,14 +239,9 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       value = { type: 'questions-error', root, message: message(error) };
     }
     for (const socket of targets()) {
-      const seen = delivered.get(socket) ?? new Map<string, Delivery>();
-      const last = seen.get(root);
-      if (last === undefined || last.read < read) {
-        seen.set(root, { read, value });
-        delivered.set(socket, seen);
-        send(socket, id === undefined ? value : { ...value, id });
-      } else if (id !== undefined) {
-        send(socket, { ...last.value, id });
+      const reply = questionsReply(delivered, socket, root, { read, value }, id);
+      if (reply !== undefined) {
+        send(socket, reply);
       }
     }
   };
