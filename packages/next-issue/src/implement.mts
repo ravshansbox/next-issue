@@ -1,8 +1,9 @@
+import { parseCommitSubject } from './agent-reply.mts';
 import { CODING } from './agents.mts';
 import { commitWork } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
 import { fallbackTitle, type Round, type Run, runRole } from './job.mts';
-import { implementPrompt, parseCommitSubject } from './prompts.mts';
+import { implementPrompt } from './prompts.mts';
 import { writeState } from './state.mts';
 
 export async function implement(job: Run): Promise<Round> {

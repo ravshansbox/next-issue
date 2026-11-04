@@ -1,8 +1,9 @@
+import { parseCommitSubject } from './agent-reply.mts';
 import { CODING } from './agents.mts';
 import { commitWork } from './fix.mts';
 import { escalateAndFinish, spendCiFix } from './handover.mts';
 import { checkPolling, type Gate, type Run, runRole } from './job.mts';
-import { fixPrompt, parseCommitSubject } from './prompts.mts';
+import { fixPrompt } from './prompts.mts';
 
 export async function conflicts(job: Run): Promise<boolean> {
   const { repo, config, ports } = job.context;
