@@ -67,10 +67,7 @@ export function parseArgs(argv: string[]): Args {
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]!;
     if (index === 0 && !arg.startsWith('-')) {
-      if (arg !== 'init' && arg !== 'serve' && arg !== 'stop' && arg !== 'logs') {
-        throw new Error(`Unknown command: ${arg}`);
-      }
-      args.command = arg;
+      args.command = command(arg);
     } else if (SWITCHES.has(arg)) {
       args[SWITCHES.get(arg)!] = true;
     } else if (LEVELS.has(arg)) {
@@ -82,6 +79,13 @@ export function parseArgs(argv: string[]): Args {
     }
   }
   return args;
+}
+
+function command(arg: string): Command {
+  if (arg !== 'init' && arg !== 'serve' && arg !== 'stop' && arg !== 'logs') {
+    throw new Error(`Unknown command: ${arg}`);
+  }
+  return arg;
 }
 
 function whole(value: string | undefined, option: string): number {
