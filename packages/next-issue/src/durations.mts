@@ -2,6 +2,10 @@ export function minutesToMs(minutes: number): number {
   return minutes * 60_000;
 }
 
+export function daysToMs(days: number): number {
+  return minutesToMs(days * 24 * 60);
+}
+
 export function secondsToMs(seconds: number): number {
   return seconds * 1000;
 }
