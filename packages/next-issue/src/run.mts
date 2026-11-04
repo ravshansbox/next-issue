@@ -9,7 +9,7 @@ import { defaultBranch } from './github.mts';
 import type { Interrupts } from './interrupt.mts';
 import { exitCode, type Loop, runIssues, watchIssues } from './loop.mts';
 import { type Fields, message, pruneRuns, Recorder, runsDir } from './observe.mts';
-import type { Context } from './job.mts';
+import type { Context, IssueReport } from './job.mts';
 import { pendingIssues, processIssue } from './pipeline.mts';
 import { PORTS } from './ports.mts';
 import { count, type RunSummary } from './summary.mts';
@@ -123,6 +123,14 @@ async function handle(
     recorder.event('issues.fail', { error: message(error) }, 'quiet');
   }
 
+  const summary = await endRun(repo, recorder, reports);
+  if (!args.watch) {
+    await print(summary);
+  }
+  return error === undefined ? exitCode(reports) : 1;
+}
+
+async function endRun(repo: Repo, recorder: Recorder, reports: IssueReport[]): Promise<RunSummary> {
   recorder.event(
     'run.end',
     {
@@ -137,8 +145,5 @@ async function handle(
   const summary: RunSummary = { ...recorder.summary(), issues: reports };
   const summaryFile = join(runsDir(repo.root), `${recorder.runId}.summary.json`);
   await writeFile(summaryFile, `${JSON.stringify(summary, null, 2)}\n`);
-  if (!args.watch) {
-    await print(summary);
-  }
-  return error === undefined ? exitCode(reports) : 1;
+  return summary;
 }
