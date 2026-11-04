@@ -239,21 +239,27 @@ export async function setLabel(
   }
 }
 
-async function createUnknownLabel(repo: Repo, label: string): Promise<'known' | 'created' | Error> {
+async function knownLabels(repo: Repo): Promise<Set<string>> {
   const repoSlug = slug(repo);
-  let known = KNOWN_LABELS.get(repoSlug);
-  if (known === undefined) {
-    const listed = await ghJson<Array<{ name: string }>>(repo, [
-      'label',
-      'list',
-      '--limit',
-      '1000',
-      '--json',
-      'name',
-    ]);
-    known = new Set(names(listed));
-    KNOWN_LABELS.set(repoSlug, known);
+  const cached = KNOWN_LABELS.get(repoSlug);
+  if (cached !== undefined) {
+    return cached;
   }
+  const listed = await ghJson<Array<{ name: string }>>(repo, [
+    'label',
+    'list',
+    '--limit',
+    '1000',
+    '--json',
+    'name',
+  ]);
+  const known = new Set(names(listed));
+  KNOWN_LABELS.set(repoSlug, known);
+  return known;
+}
+
+async function createUnknownLabel(repo: Repo, label: string): Promise<'known' | 'created' | Error> {
+  const known = await knownLabels(repo);
   if (known.has(label)) {
     return 'known';
   }
