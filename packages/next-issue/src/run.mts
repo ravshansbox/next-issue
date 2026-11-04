@@ -1,5 +1,4 @@
 import { writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import type { Args } from './args.mts';
 import { recordCommands } from './command-records.mts';
 import { type Config, loadConfig } from './config.mts';
@@ -17,7 +16,6 @@ import { pendingIssues } from './pending.mts';
 import { processIssue } from './pipeline.mts';
 import { PORTS } from './ports.mts';
 import { pruneRuns } from './prune-runs.mts';
-import { runsDir } from './state.mts';
 import { count, type RunSummary } from './summary.mts';
 import { packageVersion } from './version.mts';
 import { watchIssues } from './watch.mts';
@@ -76,7 +74,7 @@ async function handle(
     : await runIssues(args, loop);
   recordLoopEnd(recorder, stoppedAt, error);
 
-  const summary = await endRun(repo, recorder, reports);
+  const summary = await endRun(recorder, reports);
   if (!args.watch) {
     await print(summary);
   }
@@ -141,7 +139,7 @@ async function startRun(
   };
 }
 
-async function endRun(repo: Repo, recorder: Recorder, reports: IssueReport[]): Promise<RunSummary> {
+async function endRun(recorder: Recorder, reports: IssueReport[]): Promise<RunSummary> {
   recorder.event(
     'run.end',
     {
@@ -154,7 +152,6 @@ async function endRun(repo: Repo, recorder: Recorder, reports: IssueReport[]): P
     'quiet',
   );
   const summary: RunSummary = { ...recorder.summary(), issues: reports };
-  const summaryFile = join(runsDir(repo.root), `${recorder.runId}.summary.json`);
-  await writeFile(summaryFile, prettyJson(summary));
+  await writeFile(recorder.summaryFile, prettyJson(summary));
   return summary;
 }

@@ -95,6 +95,10 @@ export class Recorder {
     return join(this.sink.file.replace(/\.jsonl$/, ''), 'sessions');
   }
 
+  get summaryFile(): string {
+    return this.sink.file.replace(/\.jsonl$/, '.summary.json');
+  }
+
   get level(): Level {
     return this.sink.level;
   }
