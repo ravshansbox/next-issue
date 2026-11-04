@@ -36,12 +36,12 @@ import {
   prConflicts,
   prMerged,
   reopenIssue,
-  setLabel,
   threadComments,
   viewIssue,
   waitForBaseChecks,
   waitForChecks,
 } from './github.mts';
+import { setLabel } from './labels.mts';
 import { detectSetupCommand } from './setup.mts';
 
 async function runSetup(

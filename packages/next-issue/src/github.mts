@@ -1,5 +1,16 @@
 import { lines } from './exec.mts';
-import { gh, ghApi, ghJson, ghOnce, ghRun, ghSucceeds, repeatable, slug } from './gh.mts';
+import {
+  asError,
+  gh,
+  ghApi,
+  ghJson,
+  ghOnce,
+  ghRun,
+  ghSucceeds,
+  names,
+  repeatable,
+  slug,
+} from './gh.mts';
 import { isAncestor, type Repo } from './git.mts';
 import { type Clock, type Polling, pause, pollUntil, REAL_CLOCK } from './poll.mts';
 
@@ -17,7 +28,6 @@ export type CheckState = 'pass' | 'fail' | 'pending' | 'none' | 'timeout' | 'mov
 
 const CHECK_PENDING_CODE = 8;
 const READ_TRIES = 3;
-const KNOWN_LABELS = new Map<string, Set<string>>();
 const NO_CHECKS = /no checks reported/i;
 
 type CheckSummary = { name: string; bucket: string; link: string; description: string };
@@ -40,10 +50,6 @@ type RawIssue = {
 };
 
 const ISSUE_FIELDS = 'number,title,body,createdAt,labels';
-
-function names(items: Array<{ name: string }>): string[] {
-  return items.map((item) => item.name);
-}
 
 function toIssue(item: RawIssue): Issue {
   return {
@@ -139,92 +145,6 @@ export async function openBlockers(repo: Repo, issue: number): Promise<string[]>
   return lines(raw).map((ref) =>
     ref.startsWith(`${repoSlug}#`) ? ref.slice(repoSlug.length) : ref,
   );
-}
-
-async function labelsOf(repo: Repo, kind: Kind, number: number): Promise<string[]> {
-  const parsed = await ghJson<{ labels: Array<{ name: string }> }>(repo, [
-    kind,
-    'view',
-    String(number),
-    '--json',
-    'labels',
-  ]);
-  return names(parsed.labels);
-}
-
-export function labelArgs(add: string, remove: string[], current: string[]): string[] {
-  const args = ['--add-label', add];
-  for (const name of remove.filter((item) => item !== add && current.includes(item))) {
-    args.push('--remove-label', name);
-  }
-  return args;
-}
-
-export async function setLabel(
-  repo: Repo,
-  kind: Kind,
-  number: number,
-  add: string,
-  remove: string[],
-): Promise<void> {
-  await createUnknownLabel(repo, add);
-  const current = await labelsOf(repo, kind, number);
-  const args = [kind, 'edit', String(number), ...labelArgs(add, remove, current)];
-  try {
-    await gh(repo, args);
-  } catch (error) {
-    await retryWithLabel(repo, args, add, error);
-  }
-}
-
-async function retryWithLabel(
-  repo: Repo,
-  args: string[],
-  label: string,
-  error: unknown,
-): Promise<void> {
-  KNOWN_LABELS.delete(slug(repo));
-  const created = await createUnknownLabel(repo, label);
-  if (created === 'known') {
-    throw error;
-  }
-  if (created instanceof Error) {
-    throw created;
-  }
-  await gh(repo, args);
-}
-
-async function knownLabels(repo: Repo): Promise<Set<string>> {
-  const repoSlug = slug(repo);
-  const cached = KNOWN_LABELS.get(repoSlug);
-  if (cached !== undefined) {
-    return cached;
-  }
-  const listed = await ghJson<Array<{ name: string }>>(repo, [
-    'label',
-    'list',
-    '--limit',
-    '1000',
-    '--json',
-    'name',
-  ]);
-  const known = new Set(names(listed));
-  KNOWN_LABELS.set(repoSlug, known);
-  return known;
-}
-
-async function createUnknownLabel(repo: Repo, label: string): Promise<'known' | 'created' | Error> {
-  const known = await knownLabels(repo);
-  if (known.has(label)) {
-    return 'known';
-  }
-  try {
-    await ghOnce(repo, ['label', 'create', label]);
-  } catch (error) {
-    return asError(error);
-  }
-  known.add(label);
-  return 'created';
 }
 
 export async function findPr(repo: Repo, branch: string): Promise<number | undefined> {
@@ -582,8 +502,4 @@ export async function commentOnIssue(repo: Repo, issue: number, body: string): P
 
 export async function commentOnPr(repo: Repo, pr: number, body: string): Promise<void> {
   await comment(repo, 'pr', pr, body);
-}
-
-function asError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error));
 }

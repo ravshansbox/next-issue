@@ -65,3 +65,11 @@ export async function ghSucceeds(repo: Repo, args: string[]): Promise<boolean> {
   const result = await ghRun(repo, args);
   return result.code === 0;
 }
+
+export function names(items: Array<{ name: string }>): string[] {
+  return items.map((item) => item.name);
+}
+
+export function asError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}

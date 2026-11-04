@@ -14,7 +14,6 @@ import {
   canWrite,
   findPr,
   issueComments,
-  labelArgs,
   markPrReady,
   mergeCommit,
   mergePr,
@@ -24,12 +23,12 @@ import {
   prMerged,
   prNumber,
   reopenIssue,
-  setLabel,
   threadComments,
   viewIssue,
   waitForBaseChecks,
   waitForChecks,
 } from '../src/github.mts';
+import { labelArgs, setLabel } from '../src/labels.mts';
 
 const MANAGED = ['status:todo', 'status:in-progress', 'status:in-review', 'status:done'];
 
