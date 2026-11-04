@@ -243,6 +243,30 @@ async function implement(job: Run): Promise<Round> {
   return { done: false };
 }
 
+async function enterReview(job: Run): Promise<Round> {
+  const { context, log, state, branch, worktree } = job;
+  const { repo, config, ports } = context;
+  if (state.baseFix !== undefined) {
+    job.mainBroken = true;
+    return fixBase(job);
+  }
+  if (
+    state.phase === 'review' &&
+    state.pr !== undefined &&
+    (await ports.prMerged(repo, state.pr))
+  ) {
+    log.event('pull-request.merged', { pr: state.pr }, 'quiet');
+    if (!context.merge) {
+      return { done: true, report: await finishDone(job) };
+    }
+    return afterMerge(job);
+  }
+  await log.step('push', { branch }, () => ports.push(worktree, config.remote, branch));
+  state.phase = 'review';
+  await openPr(job);
+  return { done: false };
+}
+
 async function work(
   context: Context,
   issue: Issue,
@@ -302,29 +326,9 @@ async function work(
     return stop(job);
   }
 
-  if (state.baseFix !== undefined) {
-    job.mainBroken = true;
-    const fixed = await fixBase(job);
-    if (fixed.done) {
-      return fixed.report;
-    }
-  } else if (
-    state.phase === 'review' &&
-    state.pr !== undefined &&
-    (await ports.prMerged(repo, state.pr))
-  ) {
-    log.event('pull-request.merged', { pr: state.pr }, 'quiet');
-    if (!context.merge) {
-      return finishDone(job);
-    }
-    const landed = await afterMerge(job);
-    if (landed.done) {
-      return landed.report;
-    }
-  } else {
-    await log.step('push', { branch }, () => ports.push(worktree, config.remote, branch));
-    state.phase = 'review';
-    await openPr(job);
+  const reviewing = await enterReview(job);
+  if (reviewing.done) {
+    return reviewing.report;
   }
 
   for (;;) {
