@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { loadConfig } from '../src/config.mts';
 import type { Issue } from '../src/github.mts';
-import { skipReason } from '../src/pipeline.mts';
+import { skipReason } from '../src/skip.mts';
 
 const config = await loadConfig('/does-not-exist');
 

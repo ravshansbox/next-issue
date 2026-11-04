@@ -1,8 +1,7 @@
-import type { Config } from './config.mts';
 import { checkGate } from './gate.mts';
 import { branchName } from './git.mts';
 import type { Issue } from './github.mts';
-import { cleanUp, finishDone, handOver, skipped, stop } from './handover.mts';
+import { cleanUp, finishDone, handOver, stop } from './handover.mts';
 import { implement } from './implement.mts';
 import { type Context, type IssueReport, openPr, type Round, type Run } from './job.mts';
 import { afterMerge, fixBase } from './merge.mts';
@@ -10,27 +9,8 @@ import { message, type Recorder } from './observe.mts';
 import { openJob } from './open-job.mts';
 import { reviewRound } from './review.mts';
 import { type IssueState, readState, resetState } from './state.mts';
+import { skipReport, unclaimedError } from './skip.mts';
 import { setUp } from './worktree-setup.mts';
-
-export type Skip = 'stop-label' | 'not-ready' | 'in-flight';
-
-export function skipReason(issue: Issue, config: Config, resuming: boolean): Skip | undefined {
-  const labels = new Set(issue.labels);
-  const names = config.labels;
-  if (labels.has(names.done) || labels.has(names.needsHuman) || labels.has(names.skip)) {
-    return 'stop-label';
-  }
-  if (resuming) {
-    return undefined;
-  }
-  if (names.ready.length > 0 && !labels.has(names.ready)) {
-    return 'not-ready';
-  }
-  if (labels.has(names.inProgress) || labels.has(names.inReview)) {
-    return 'in-flight';
-  }
-  return undefined;
-}
 
 export async function processIssue(context: Context, issue: Issue): Promise<IssueReport> {
   const { repo } = context;
@@ -70,34 +50,6 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
   }
 }
 
-async function skipReport(
-  context: Context,
-  log: Recorder,
-  issue: Issue,
-  saved: IssueState | undefined,
-  started: number,
-): Promise<IssueReport | undefined> {
-  const skip = skipReason(issue, context.config, saved !== undefined);
-  if (skip !== undefined) {
-    log.event('issue.skip', { title: issue.title, reason: skip });
-    return skipped(issue);
-  }
-  if (saved !== undefined) {
-    return undefined;
-  }
-  let blockers: string[];
-  try {
-    blockers = await context.ports.openBlockers(context.repo, issue.number);
-  } catch (error) {
-    return unclaimedError(log, issue, error, started);
-  }
-  if (blockers.length > 0) {
-    log.event('issue.skip', { title: issue.title, reason: 'blocked', blockers });
-    return skipped(issue);
-  }
-  return undefined;
-}
-
 function startState(context: Context, issue: Issue, saved: IssueState | undefined): IssueState {
   if (saved === undefined) {
     return {
@@ -134,16 +86,6 @@ async function claimedError(
     pr: state.pr,
     ciFixes: state.ciFixes,
     reviewRounds: state.reviewRounds,
-    ms: Date.now() - started,
-  };
-}
-
-function unclaimedError(log: Recorder, issue: Issue, error: unknown, started: number): IssueReport {
-  log.event('issue.error', { error: message(error), ms: Date.now() - started }, 'quiet');
-  return {
-    ...skipped(issue),
-    outcome: 'error',
-    reason: message(error),
     ms: Date.now() - started,
   };
 }
