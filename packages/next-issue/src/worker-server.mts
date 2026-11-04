@@ -1,6 +1,24 @@
 import { rm } from 'node:fs/promises';
 import type { Server } from 'node:http';
 import type { WebSocketServer } from 'ws';
+import type { ClientMessage } from './protocol.mts';
+import { send } from './questions.mts';
+import { type Run, runsMessage } from './worker-run.mts';
+
+export function parseMessage(text: string): ClientMessage | undefined {
+  try {
+    return JSON.parse(text) as ClientMessage;
+  } catch {
+    return undefined;
+  }
+}
+
+export function broadcast(sockets: WebSocketServer, runs: Map<string, Run>): void {
+  const value = runsMessage(runs);
+  for (const socket of sockets.clients) {
+    send(socket, value);
+  }
+}
 
 export function listen(server: Server, path: string): Promise<void> {
   return new Promise<void>((resolve, reject) => {

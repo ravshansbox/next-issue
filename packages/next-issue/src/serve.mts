@@ -13,7 +13,7 @@ import { type ListQuestions, listQuestions, questionSender, send } from './quest
 import { runRepo, type RunControls } from './run.mts';
 import { packageVersion } from './version.mts';
 import { checkSocketPath, workerPaths } from './worker-paths.mts';
-import { listen, shutdown } from './worker-server.mts';
+import { broadcast, listen, parseMessage, shutdown } from './worker-server.mts';
 import {
   active,
   endStatus,
@@ -44,21 +44,6 @@ export type Worker = {
   closed: Promise<void>;
   close: () => Promise<void>;
 };
-
-function parseMessage(text: string): ClientMessage | undefined {
-  try {
-    return JSON.parse(text) as ClientMessage;
-  } catch {
-    return undefined;
-  }
-}
-
-function broadcast(sockets: WebSocketServer, runs: Map<string, Run>): void {
-  const value = runsMessage(runs);
-  for (const socket of sockets.clients) {
-    send(socket, value);
-  }
-}
 
 function stopRun(sockets: WebSocketServer, runs: Map<string, Run>, root: string): void {
   const run = runs.get(root);
