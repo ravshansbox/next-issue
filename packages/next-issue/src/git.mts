@@ -1,4 +1,4 @@
-import { appendFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { lines, must, run } from './exec.mts';
@@ -35,17 +35,6 @@ export async function detectRepo(cwd: string, remote: string): Promise<Repo> {
   const url = await git(cwd, ['remote', 'get-url', remote]);
   const { owner, name } = parseRemote(url);
   return { owner, name, root };
-}
-
-export async function ensureIgnored(root: string, entry: string): Promise<boolean> {
-  const path = join(root, '.gitignore');
-  const current = await readFile(path, 'utf8').catch(() => '');
-  if (current.split('\n').some((line) => line.trim() === entry)) {
-    return false;
-  }
-  const gap = current.length === 0 || current.endsWith('\n') ? '' : '\n';
-  await appendFile(path, `${gap}${entry}\n`);
-  return true;
 }
 
 export function branchName(issue: number): string {

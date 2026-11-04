@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { type Args, parseArgs, USAGE } from './args.mts';
 import { writeDefaultConfig } from './config.mts';
-import { ensureIgnored, repoRoot } from './git.mts';
+import { repoRoot } from './git.mts';
+import { ensureIgnored } from './gitignore.mts';
 import { listenForInterrupts } from './interrupt.mts';
 import { stopWorker } from './lock.mts';
 import { followLog, newestRunLog } from './logs.mts';
