@@ -148,23 +148,34 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
     );
     return report;
   } catch (error) {
-    log.event('issue.error', { error: message(error), ms: Date.now() - started }, 'quiet');
-    try {
-      await handOver(context, log, issue.number, state, `The run failed: ${message(error)}`);
-    } catch (failure) {
-      log.event('hand-over.error', { error: message(failure) }, 'quiet');
-    }
-    await cleanUp(context, log, state.branch);
-    return {
-      issue: issue.number,
-      outcome: 'error',
-      reason: message(error),
-      pr: state.pr,
-      ciFixes: state.ciFixes,
-      reviewRounds: state.reviewRounds,
-      ms: Date.now() - started,
-    };
+    return claimedError(context, log, issue, state, error, started);
   }
+}
+
+async function claimedError(
+  context: Context,
+  log: Recorder,
+  issue: Issue,
+  state: IssueState,
+  error: unknown,
+  started: number,
+): Promise<IssueReport> {
+  log.event('issue.error', { error: message(error), ms: Date.now() - started }, 'quiet');
+  try {
+    await handOver(context, log, issue.number, state, `The run failed: ${message(error)}`);
+  } catch (failure) {
+    log.event('hand-over.error', { error: message(failure) }, 'quiet');
+  }
+  await cleanUp(context, log, state.branch);
+  return {
+    issue: issue.number,
+    outcome: 'error',
+    reason: message(error),
+    pr: state.pr,
+    ciFixes: state.ciFixes,
+    reviewRounds: state.reviewRounds,
+    ms: Date.now() - started,
+  };
 }
 
 function unclaimedError(log: Recorder, issue: Issue, error: unknown, started: number): IssueReport {
