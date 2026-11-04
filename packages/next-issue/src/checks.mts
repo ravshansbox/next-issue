@@ -1,4 +1,5 @@
 import { type CheckState, pollChecks, type PollOptions } from './check-poll.mts';
+import { failedWith } from './exec.mts';
 import { ghRun } from './gh.mts';
 import { isAncestor, type Repo } from './git.mts';
 import { prField } from './pull-requests.mts';
@@ -26,7 +27,7 @@ async function readChecks(repo: Repo, pr: number): Promise<CheckSummary[] | 'non
     if (NO_CHECKS.test(result.stderr)) {
       return 'none';
     }
-    throw new Error(`gh pr checks ${pr} failed with code ${result.code}: ${result.stderr.trim()}`);
+    throw new Error(failedWith(`gh pr checks ${pr}`, result));
   }
   const checks = JSON.parse(output) as CheckSummary[];
   return checks.length === 0 ? 'none' : checks;

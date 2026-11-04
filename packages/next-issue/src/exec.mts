@@ -146,6 +146,10 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
   });
 }
 
+export function failedWith(commandLine: string, result: RunResult): string {
+  return `${commandLine} failed with code ${result.code}: ${result.stderr.trim()}`;
+}
+
 export async function must(
   command: string,
   args: string[],
@@ -157,7 +161,7 @@ export async function must(
     throw new Error(`${commandLine} did not finish in time.`);
   }
   if (result.code !== 0) {
-    throw new Error(`${commandLine} failed with code ${result.code}: ${result.stderr.trim()}`);
+    throw new Error(failedWith(commandLine, result));
   }
   return result.stdout.trim();
 }
