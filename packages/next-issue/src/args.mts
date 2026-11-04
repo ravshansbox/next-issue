@@ -1,4 +1,4 @@
-import { CONFIG_FILE } from './config.mts';
+import { CONFIG_FILE } from './config-fields.mts';
 import type { Level } from './observe.mts';
 
 export type Command = 'run' | 'init' | 'serve' | 'stop' | 'logs';

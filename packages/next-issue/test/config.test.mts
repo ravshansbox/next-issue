@@ -2,13 +2,8 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import {
-  type Config,
-  CONFIG_FILE,
-  loadConfig,
-  managedLabels,
-  writeDefaultConfig,
-} from '../src/config.mts';
+import { CONFIG_FILE } from '../src/config-fields.mts';
+import { type Config, loadConfig, managedLabels, writeDefaultConfig } from '../src/config.mts';
 import { tempDir } from './temp-dir.mts';
 
 async function parse(value: unknown): Promise<Config> {
