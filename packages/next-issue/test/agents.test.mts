@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
-import { access, mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { access, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import {
@@ -12,9 +11,10 @@ import {
 import { ModelRuntime, SettingsManager } from '@earendil-works/pi-coding-agent';
 import { CODING, isOwnResource, REVIEWING, runAgent, toolFields } from '../src/agents.mts';
 import { Recorder } from '../src/observe.mts';
+import { tempDir } from './temp-dir.mts';
 
 async function fakePi(responses: FauxResponseStep[], tokensPerSecond?: number) {
-  const root = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const root = await tempDir();
   const faux = fauxProvider(tokensPerSecond === undefined ? {} : { tokensPerSecond });
   const modelRuntime = await ModelRuntime.create({
     authPath: join(root, 'auth.json'),

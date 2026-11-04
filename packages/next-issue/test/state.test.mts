@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { Repo } from '../src/git.mts';
@@ -12,9 +11,10 @@ import {
   STATE_DIR,
   writeState,
 } from '../src/state.mts';
+import { tempDir } from './temp-dir.mts';
 
 async function repo(): Promise<Repo> {
-  return { owner: 'acme', name: 'tool', root: await mkdtemp(join(tmpdir(), 'next-issue-')) };
+  return { owner: 'acme', name: 'tool', root: await tempDir() };
 }
 
 const STATE: IssueState = {

@@ -1,8 +1,8 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { must } from '../src/exec.mts';
 import type { Repo } from '../src/git.mts';
+import { tempDir } from './temp-dir.mts';
 
 export function git(cwd: string, ...args: string[]): Promise<string> {
   return must('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd });
@@ -16,7 +16,7 @@ export async function commit(cwd: string, name: string): Promise<string> {
 }
 
 export async function clones(): Promise<{ repo: Repo; other: string }> {
-  const base = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const base = await tempDir();
   const remote = join(base, 'remote.git');
   await git(base, 'init', '-q', '--bare', '-b', 'main', remote);
   const other = join(base, 'other');

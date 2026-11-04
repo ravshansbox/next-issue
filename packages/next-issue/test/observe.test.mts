@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { addUsage, emptyUsage, type Fields, message, Recorder } from '../src/observe.mts';
+import { tempDir } from './temp-dir.mts';
 
 async function recorder(): Promise<Recorder> {
-  return Recorder.create(await mkdtemp(join(tmpdir(), 'next-issue-')), 'quiet');
+  return Recorder.create(await tempDir(), 'quiet');
 }
 
 async function lines(target: Recorder): Promise<Fields[]> {

@@ -1,13 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdtemp } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { failedBaseLogs, waitForBaseChecks } from '../src/base-checks.mts';
 import { installGh } from './fake-gh.mts';
+import { tempDir } from './temp-dir.mts';
 
 async function fakeRunsGh(t: TestContext, runs: unknown[]): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   const script = `#!/bin/sh
 case "$1 $2" in
   "run list") [ "$3 $4" = "--commit abc" ] || { echo "unexpected: $*" >&2; exit 1; }; echo '${JSON.stringify(runs)}' ;;

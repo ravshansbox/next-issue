@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readdir, utimes, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, readdir, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pruneRuns } from '../src/prune-runs.mts';
 import { STATE_DIR } from '../src/state.mts';
+import { tempDir } from './temp-dir.mts';
 
 const DAY = 24 * 60 * 60_000;
 
 async function runsDir(ages: Record<string, number>): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const root = await tempDir();
   const dir = join(root, STATE_DIR, 'runs');
   await mkdir(dir, { recursive: true });
   for (const [name, days] of Object.entries(ages)) {
@@ -45,5 +45,5 @@ test('pruneRuns with a limit of zero keeps every run', async () => {
 });
 
 test('pruneRuns says nothing about a run directory that is not there', async () => {
-  assert.equal(await pruneRuns(await mkdtemp(join(tmpdir(), 'next-issue-')), 7), 0);
+  assert.equal(await pruneRuns(await tempDir(), 7), 0);
 });

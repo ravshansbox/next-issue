@@ -1,5 +1,3 @@
-import { mkdtemp } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { TestContext } from 'node:test';
 import type { AgentRequest, AgentResult } from '../src/agents.mts';
@@ -15,6 +13,7 @@ import { processIssue } from '../src/pipeline.mts';
 import type { Ports } from '../src/ports.mts';
 import { type IssueState, readState, writeState } from '../src/state.mts';
 import type { Verdict } from '../src/verdict.mts';
+import { tempDir } from './temp-dir.mts';
 export const ISSUE: Issue = {
   number: 7,
   title: 'Add a flag',
@@ -140,7 +139,7 @@ export type Harness = {
 
 export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
   t.mock.method(process.stderr, 'write', () => true);
-  const root = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const root = await tempDir();
   const repo = { owner: 'acme', name: 'tool', root };
   const config = { ...(await loadConfig(root)), ...plan.config };
   const issue = plan.issue ?? ISSUE;

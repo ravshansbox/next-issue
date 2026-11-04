@@ -1,19 +1,19 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { loadConfig } from '../src/config.mts';
 import type { Comment, Issue } from '../src/github.mts';
 import { waitingQuestions } from '../src/handover.mts';
 import { STATE_DIR } from '../src/state.mts';
+import { tempDir } from './temp-dir.mts';
 
 function issue(number: number, title: string): Issue {
   return { number, title, body: '', createdAt: '2026-11-01T00:00:00Z', labels: [] };
 }
 
 test('the worker lists each open issue that waits for a person with the reason and the url of its hand-over', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const root = await tempDir();
   await mkdir(join(root, STATE_DIR));
   await writeFile(
     join(root, STATE_DIR, '8.json'),

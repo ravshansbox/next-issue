@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { setCommandObserver } from '../src/exec.mts';
@@ -26,9 +25,10 @@ import {
 } from '../src/github.mts';
 import { setLabel } from '../src/labels.mts';
 import { installGh } from './fake-gh.mts';
+import { tempDir } from './temp-dir.mts';
 
 async function flakyGh(t: TestContext, failures: number, error: string): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   const calls = join(dir, 'calls');
   await writeFile(calls, '');
   const script = `#!/bin/sh
@@ -120,7 +120,7 @@ test('prNumber reads the number from the pull request URL', () => {
 });
 
 test('openBlockers lists the open blockers and names those of another repository', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   const response = JSON.stringify([
     { number: 3, state: 'open', repository_url: 'https://api.github.com/repos/acme/tool' },
     { number: 4, state: 'closed', repository_url: 'https://api.github.com/repos/acme/tool' },
@@ -139,7 +139,7 @@ jq -r "$5" "${join(dir, 'response.json')}"
 });
 
 async function fakeMergeGh(t: TestContext, views: string[]): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   const calls = join(dir, 'calls');
   await writeFile(calls, '');
   const cases = views.map((view, index) => `  ${index + 1}) echo '${view}' ;;`).join('\n');
@@ -205,7 +205,7 @@ test('prConflicts reports no conflict when mergeability stays unknown past the t
 });
 
 test('a user with a ready issue newer than the issue limit gets it listed', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   const script = `#!/bin/sh
 case "$*" in
   *'label:"status:todo","status:in-progress"'*)
@@ -223,7 +223,7 @@ esac
 });
 
 async function fakeAnyGh(t: TestContext): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   const script = `#!/bin/sh
 case "$1 $2" in
   "repo view") echo '{"defaultBranchRef":{"name":"main"}}' ;;
@@ -292,7 +292,7 @@ test('the worker passes gh the repository and the issue or pull request number i
 });
 
 async function fakeApiGh(t: TestContext, script: string): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   await installGh(t, dir, `#!/bin/sh\n${script}\n`);
   return dir;
 }

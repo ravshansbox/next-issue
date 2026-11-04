@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { type CommandRecord, setCommandObserver } from '../src/exec.mts';
 import { labelArgs, setLabel } from '../src/labels.mts';
 import { installGh } from './fake-gh.mts';
+import { tempDir } from './temp-dir.mts';
 
 const MANAGED = ['status:todo', 'status:in-progress', 'status:in-review', 'status:done'];
 
@@ -32,7 +32,7 @@ test('labelArgs never removes the label it adds', () => {
 });
 
 async function fakeGh(t: TestContext, listed = '[{"name":"status:todo"}]'): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   const labels = join(dir, 'labels');
   await writeFile(labels, 'status:todo\n');
   const script = `#!/bin/sh
@@ -81,7 +81,7 @@ test('setLabel tries the create again when it failed', async (t) => {
 });
 
 test('setLabel creates a label again when a person deleted it after the worker read the labels', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   const labels = join(dir, 'labels');
   await writeFile(labels, 'status:todo\n');
   const script = `#!/bin/sh
@@ -102,7 +102,7 @@ esac
 });
 
 test('setLabel shows the create error when the label create fails twice', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   const script = `#!/bin/sh
 case "$1 $2" in
   "label list") echo '[]' ;;

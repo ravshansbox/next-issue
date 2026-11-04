@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { chmod, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import {
@@ -23,6 +22,7 @@ import {
 } from '../src/git.mts';
 import { addWorktree } from '../src/worktree.mts';
 import { clones, commit, git } from './clones.mts';
+import { tempDir } from './temp-dir.mts';
 
 test('parseRemote reads every remote form', () => {
   const expected = { owner: 'acme', name: 'tool' };
@@ -38,7 +38,7 @@ test('parseRemote refuses an unknown form', () => {
 });
 
 async function dir(gitignore?: string): Promise<string> {
-  const path = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const path = await tempDir();
   if (gitignore !== undefined) {
     await writeFile(join(path, '.gitignore'), gitignore);
   }

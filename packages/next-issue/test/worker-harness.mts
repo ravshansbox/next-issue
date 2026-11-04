@@ -1,6 +1,4 @@
 import assert from 'node:assert/strict';
-import { mkdtemp } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { TestContext } from 'node:test';
 import { WebSocket } from 'ws';
@@ -9,6 +7,7 @@ import type { RunControls } from '../src/run.mts';
 import type { ClientMessage, WorkerMessage } from '../src/protocol.mts';
 import type { ListQuestions } from '../src/questions.mts';
 import { type RunRepo, startWorker } from '../src/serve.mts';
+import { tempDir } from './temp-dir.mts';
 
 export type Client = {
   send: (value: ClientMessage) => void;
@@ -85,7 +84,7 @@ export async function worker(
   version = '2.0.0',
   questions: ListQuestions = noQuestions,
 ) {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   const paths = {
     root: '/repo',
     socketPath: join(dir, 'w.sock'),

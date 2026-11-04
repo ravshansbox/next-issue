@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { detectSetupCommand } from '../src/setup.mts';
+import { tempDir } from './temp-dir.mts';
 
 async function project(...files: string[]): Promise<string> {
-  const path = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const path = await tempDir();
   for (const name of files) {
     await writeFile(join(path, name), '');
   }

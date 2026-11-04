@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { statSync } from 'node:fs';
-import { mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { Server } from 'node:net';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { checkSocketPath, startWorker } from '../src/serve.mts';
 import { connect, fakeRuns, noQuestions, runsOf, worker } from './worker-harness.mts';
+import { tempDir } from './temp-dir.mts';
 
 test('a client that connects gets the worker version and the runs', async (t) => {
   const fake = fakeRuns();
@@ -116,7 +116,7 @@ test('a second worker does not start while the first one holds the lock', async 
 });
 
 test('a worker started while the last one closes takes the lock once it is released', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   const socketPath = join(dir, 'w.sock');
   const lockPath = join(dir, 'w.lock');
   await writeFile(lockPath, `${process.pid}\n`);
@@ -135,7 +135,7 @@ test('a worker started while the last one closes takes the lock once it is relea
 });
 
 test('a worker that no client connects to closes and removes its socket and lock', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   const started = await startWorker({
     root: '/repo',
     socketPath: join(dir, 'w.sock'),
@@ -151,7 +151,7 @@ test('a worker that no client connects to closes and removes its socket and lock
 });
 
 test('a worker takes over the lock and the socket file that a dead worker left', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   const socketPath = join(dir, 'w.sock');
   const lockPath = join(dir, 'w.lock');
   await writeFile(lockPath, '999999999\n');

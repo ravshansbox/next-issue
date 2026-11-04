@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { run } from '../src/exec.mts';
 import { type Fields, Recorder } from '../src/observe.mts';
 import { recordCommands } from '../src/run.mts';
+import { tempDir } from './temp-dir.mts';
 
 const NODE = process.execPath;
 
@@ -21,7 +21,7 @@ async function commands(target: Recorder): Promise<string[]> {
 }
 
 test('two runs of nested repositories each log only the commands they ran', async () => {
-  const outer = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const outer = await tempDir();
   const inner = join(outer, 'inner');
   await mkdir(inner);
   const outerRecorder = await Recorder.create(outer, 'quiet');

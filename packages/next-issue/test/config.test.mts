@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import {
@@ -10,13 +9,14 @@ import {
   managedLabels,
   writeDefaultConfig,
 } from '../src/config.mts';
+import { tempDir } from './temp-dir.mts';
 
 async function parse(value: unknown): Promise<Config> {
   return loadConfig(await root(JSON.stringify(value)));
 }
 
 async function root(content?: string): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   if (content !== undefined) {
     await writeFile(join(dir, CONFIG_FILE), content);
   }

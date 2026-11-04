@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
-import { appendFile, mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { appendFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { must } from '../src/exec.mts';
+import { tempDir } from './temp-dir.mts';
 
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
 
@@ -16,7 +16,7 @@ async function stopCommand(root: string): Promise<string> {
 }
 
 async function repository(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const root = await tempDir();
   await must('git', ['init', '-q'], { cwd: root });
   return root;
 }
@@ -35,19 +35,19 @@ async function serveWorker(root: string) {
 }
 
 test('a user who runs init gets .next-issue/ and .worktrees/ in .gitignore', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const root = await tempDir();
   await must('git', ['init', '-q'], { cwd: root });
   await must(process.execPath, [CLI, 'init'], { cwd: root });
   assert.equal(await readFile(join(root, '.gitignore'), 'utf8'), '.next-issue/\n.worktrees/\n');
 });
 
 test('a user who runs --watch with no open issue sees one wait of 1 minute and no summary after Ctrl-C', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const root = await tempDir();
   await must('git', ['init', '-q'], { cwd: root });
   await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/watch.git'], {
     cwd: root,
   });
-  const bin = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const bin = await tempDir();
   const script = `#!/bin/sh
 case "$1 $2" in
   "repo view") echo '{"defaultBranchRef":{"name":"main"}}' ;;
@@ -131,7 +131,7 @@ test('a user who runs stop with no worker alive sees that none is running', asyn
 });
 
 test('a user who serves a repository whose socket path is too long sees an error that says so', async () => {
-  const root = join(await mkdtemp(join(tmpdir(), 'next-issue-')), 'a'.repeat(120));
+  const root = join(await tempDir(), 'a'.repeat(120));
   await mkdir(root);
   await must('git', ['init', '-q'], { cwd: root });
   const error = await promisify(execFile)(process.execPath, [CLI, 'serve'], { cwd: root }).then(
@@ -153,7 +153,7 @@ function event(index: number): string {
 }
 
 async function runLog(lines: string[]): Promise<{ root: string; file: string }> {
-  const root = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const root = await tempDir();
   await must('git', ['init', '-q'], { cwd: root });
   const dir = join(root, '.next-issue', 'runs');
   await mkdir(join(dir, '2026-01-02T03-04-05-000Z', 'sessions'), { recursive: true });
@@ -272,7 +272,7 @@ test(
 );
 
 test('a user who runs logs in a repository with no run log sees an error and exit code 1', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const root = await tempDir();
   await must('git', ['init', '-q'], { cwd: root });
   const error = await promisify(execFile)(process.execPath, [CLI, 'logs'], { cwd: root }).then(
     () => undefined,
@@ -283,7 +283,7 @@ test('a user who runs logs in a repository with no run log sees an error and exi
 });
 
 async function inTerminal(command: string): Promise<string[]> {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   const script = join(dir, 'run.sh');
   await writeFile(script, command);
   return [

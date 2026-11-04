@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import { type ChildProcess, spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -13,6 +12,7 @@ import {
   setCommandObserver,
   withDefaultTimeout,
 } from '../src/exec.mts';
+import { tempDir } from './temp-dir.mts';
 
 const NODE = process.execPath;
 
@@ -94,7 +94,7 @@ test('run stops on the time limit even when a grandchild holds the output open',
 });
 
 test('run kills a grandchild that outlives its parent on the time limit', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   const file = join(dir, 'pid');
   try {
     const result = await run('bash', ['-c', `sleep 30 & echo $! > ${file}; sleep 30`], {
@@ -115,7 +115,7 @@ async function interrupted(t: TestContext): Promise<{
   line: (count: number) => Promise<string>;
   stopped: () => Promise<boolean>;
 }> {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   const file = join(dir, 'pid');
   const agentFile = join(dir, 'agent');
   const exec = new URL('../src/exec.mts', import.meta.url).href;

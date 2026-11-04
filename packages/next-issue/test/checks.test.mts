@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import {
@@ -12,6 +11,7 @@ import {
 } from '../src/checks.mts';
 import type { Clock } from '../src/poll.mts';
 import { installGh } from './fake-gh.mts';
+import { tempDir } from './temp-dir.mts';
 
 const OPTIONS = { intervalSeconds: 10, graceMs: 60_000, timeoutMs: 300_000 };
 
@@ -247,7 +247,7 @@ test('a check read that keeps failing passes the error on', async () => {
 });
 
 async function fakeChecksGh(t: TestContext, runView: string): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   const checks =
     '[{"name":"build","bucket":"fail","link":"https://github.com/acme/tool/actions/runs/7","description":"the job failed"}]';
   const script = `#!/bin/sh
@@ -282,7 +282,7 @@ test('failedCheckLogs keeps the partial logs when the read fails', async (t) => 
 });
 
 async function fakeWatchGh(t: TestContext, bucket: string, watches: number[]): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   const checks = `[{"name":"build","bucket":"${bucket}","link":"","description":""}]`;
   await writeFile(join(dir, 'watches'), watches.join('\n') + '\n');
   const script = `#!/bin/sh
@@ -321,7 +321,7 @@ test('waitForChecks throws the gh error when the watch keeps failing and no chec
 });
 
 async function fakePrGh(t: TestContext, pr: number): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const dir = await tempDir();
   const checks =
     '[{"name":"build","bucket":"fail","link":"https://github.com/acme/tool/actions/runs/7","description":""}]';
   const script = `#!/bin/sh
