@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 import { type WebSocket, WebSocketServer } from 'ws';
 import { type Args, parseArgs } from './args.mts';
 import { stopChildren } from './exec.mts';
@@ -11,8 +11,8 @@ import { startProgress } from './progress.mts';
 import { type ClientMessage, isNewer, type Progress, type WorkerMessage } from './protocol.mts';
 import { type ListQuestions, listQuestions, questionSender, send } from './questions.mts';
 import { runRepo, type RunControls } from './run.mts';
-import { stateDir } from './state.mts';
 import { packageVersion } from './version.mts';
+import { checkSocketPath, workerPaths } from './worker-paths.mts';
 import {
   active,
   endStatus,
@@ -42,24 +42,6 @@ export type Worker = {
   closed: Promise<void>;
   close: () => Promise<void>;
 };
-
-export function workerPaths(root: string): { socketPath: string; lockPath: string } {
-  const dir = stateDir(root);
-  return {
-    socketPath: join(dir, 'worker.sock'),
-    lockPath: join(dir, 'worker.lock'),
-  };
-}
-
-export function checkSocketPath(path: string, platform = process.platform): void {
-  const size = platform === 'linux' ? 108 : 104;
-  const length = Buffer.byteLength(path);
-  if (length >= size) {
-    throw new Error(
-      `the socket path ${path} is too long for this system: ${length} bytes, at most ${size - 1}`,
-    );
-  }
-}
 
 function listen(server: Server, path: string): Promise<void> {
   return new Promise<void>((resolve, reject) => {

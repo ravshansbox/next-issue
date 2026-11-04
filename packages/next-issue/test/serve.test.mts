@@ -4,7 +4,7 @@ import { readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { Server } from 'node:net';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { checkSocketPath, startWorker } from '../src/serve.mts';
+import { startWorker } from '../src/serve.mts';
 import { connect, fakeRuns, noQuestions, runsOf, worker } from './worker-harness.mts';
 import { tempDir } from './temp-dir.mts';
 
@@ -242,13 +242,4 @@ test('a client starts a run in one repository while the worker of another reposi
   assert.equal(other.calls.length, 1);
   busy.finish();
   other.finish();
-});
-
-test('a worker whose socket path is too long for the system says so', () => {
-  assert.throws(
-    () => checkSocketPath(`/${'a'.repeat(103)}`, 'darwin'),
-    /the socket path \/a+ is too long for this system: 104 bytes, at most 103/,
-  );
-  assert.doesNotThrow(() => checkSocketPath(`/${'a'.repeat(102)}`, 'darwin'));
-  assert.doesNotThrow(() => checkSocketPath(`/${'a'.repeat(106)}`, 'linux'));
 });
