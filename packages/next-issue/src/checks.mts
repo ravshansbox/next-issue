@@ -1,6 +1,6 @@
 import { asError, ghRun } from './gh.mts';
 import { isAncestor, type Repo } from './git.mts';
-import { prField } from './github.mts';
+import { prField } from './pull-requests.mts';
 import { type Clock, type Polling, pause, REAL_CLOCK } from './poll.mts';
 
 export type CheckState = 'pass' | 'fail' | 'pending' | 'none' | 'timeout' | 'moved';

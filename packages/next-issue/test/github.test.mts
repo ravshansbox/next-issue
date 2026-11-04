@@ -6,23 +6,25 @@ import { setCommandObserver } from '../src/exec.mts';
 import {
   commentOnIssue,
   commentOnPr,
-  createPr,
   defaultBranch,
   canWrite,
-  findPr,
   issueComments,
-  markPrReady,
-  mergeCommit,
-  mergePr,
   openBlockers,
   openIssues,
-  prConflicts,
-  prMerged,
-  prNumber,
   reopenIssue,
   threadComments,
   viewIssue,
 } from '../src/github.mts';
+import {
+  createPr,
+  findPr,
+  markPrReady,
+  mergeCommit,
+  mergePr,
+  prConflicts,
+  prMerged,
+  prNumber,
+} from '../src/pull-requests.mts';
 import { setLabel } from '../src/labels.mts';
 import { installGh } from './fake-gh.mts';
 import { tempDir } from './temp-dir.mts';

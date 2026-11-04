@@ -20,20 +20,22 @@ import {
   canWrite,
   commentOnIssue,
   commentOnPr,
-  createPr,
-  findPr,
   issueComments,
-  markPrReady,
-  mergeCommit,
-  mergePr,
   openBlockers,
   openIssues,
-  prConflicts,
-  prMerged,
   reopenIssue,
   threadComments,
   viewIssue,
 } from './github.mts';
+import {
+  createPr,
+  findPr,
+  markPrReady,
+  mergeCommit,
+  mergePr,
+  prConflicts,
+  prMerged,
+} from './pull-requests.mts';
 import { failedBaseLogs, waitForBaseChecks } from './base-checks.mts';
 import { failedCheckLogs, waitForChecks } from './checks.mts';
 import { setLabel } from './labels.mts';
