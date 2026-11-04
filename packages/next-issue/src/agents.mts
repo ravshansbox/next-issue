@@ -1,5 +1,6 @@
 import { join, sep } from 'node:path';
 import {
+  type AgentSession,
   type AgentSessionEvent,
   createAgentSession,
   DefaultResourceLoader,
@@ -84,34 +85,43 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
         `The ${request.name} agent failed: ${last.errorMessage ?? 'no reason given'}`,
       );
     }
-    const stats = session.getSessionStats();
-    const usage: Usage = { ...emptyUsage(), ...stats.tokens };
-    const name =
-      session.model === undefined ? undefined : `${session.model.provider}/${session.model.id}`;
-    const ms = Date.now() - started;
-    recorder.usage(request.name, usage, ms, {
-      turns: stats.assistantMessages,
-      toolCalls: stats.toolCalls,
-      model: name,
-      session: stats.sessionId,
-      costUsd: stats.cost,
-    });
-    return {
-      text: (session.getLastAssistantText() ?? '').trim(),
-      usage,
-      turns: stats.assistantMessages,
-      toolCalls: stats.toolCalls,
-      ms,
-      costUsd: stats.cost,
-      model: name,
-      sessionId: stats.sessionId,
-    };
+    return sessionResult(recorder, request, session, started);
   } finally {
     clearTimeout(timer);
     release();
     unsubscribe();
     session.dispose();
   }
+}
+
+function sessionResult(
+  recorder: Recorder,
+  request: AgentRequest,
+  session: AgentSession,
+  started: number,
+): AgentResult {
+  const stats = session.getSessionStats();
+  const usage: Usage = { ...emptyUsage(), ...stats.tokens };
+  const name =
+    session.model === undefined ? undefined : `${session.model.provider}/${session.model.id}`;
+  const ms = Date.now() - started;
+  recorder.usage(request.name, usage, ms, {
+    turns: stats.assistantMessages,
+    toolCalls: stats.toolCalls,
+    model: name,
+    session: stats.sessionId,
+    costUsd: stats.cost,
+  });
+  return {
+    text: (session.getLastAssistantText() ?? '').trim(),
+    usage,
+    turns: stats.assistantMessages,
+    toolCalls: stats.toolCalls,
+    ms,
+    costUsd: stats.cost,
+    model: name,
+    sessionId: stats.sessionId,
+  };
 }
 
 async function openSession(
