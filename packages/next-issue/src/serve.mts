@@ -83,6 +83,12 @@ function endsIssue(record: Fields): boolean {
   return record['kind'] === 'issue.end' || record['kind'] === 'issue.error';
 }
 
+function requestStop(run: Run): void {
+  run.stop = true;
+  run.wake?.();
+  run.progress = { ...run.progress, status: 'stopping' };
+}
+
 function runInterrupts(run: Run): Interrupts {
   return {
     afterIssue: () => run.stop,
@@ -325,9 +331,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     if (run === undefined || run.progress.status !== 'running') {
       return;
     }
-    run.stop = true;
-    run.wake?.();
-    run.progress = { ...run.progress, status: 'stopping' };
+    requestStop(run);
     broadcast();
   };
 
