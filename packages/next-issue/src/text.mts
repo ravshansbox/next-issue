@@ -9,3 +9,7 @@ export function paragraphs(parts: string[]): string {
 export function lines(output: string): string[] {
   return output.split('\n').filter((line) => line.length > 0);
 }
+
+export function truncate(text: string, max: number, ellipsis: string): string {
+  return text.length > max ? `${text.slice(0, max - ellipsis.length)}${ellipsis}` : text;
+}

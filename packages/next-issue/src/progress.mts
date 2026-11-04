@@ -1,5 +1,6 @@
 import type { Fields } from './observe.mts';
 import type { Handled, IssueProgress, Progress } from './protocol.mts';
+import { truncate } from './text.mts';
 
 const TOOL_LINE_MAX = 80;
 
@@ -13,7 +14,7 @@ function toolLine(record: Fields): string {
   const tool = String(record['tool']);
   const command = record['command'];
   const line = typeof command === 'string' ? `${tool} ${command.split('\n')[0]}` : tool;
-  return line.length > TOOL_LINE_MAX ? `${line.slice(0, TOOL_LINE_MAX - 1)}…` : line;
+  return truncate(line, TOOL_LINE_MAX, '…');
 }
 
 function stageName(step: string, record: Fields): string {

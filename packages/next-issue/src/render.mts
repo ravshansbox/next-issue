@@ -1,4 +1,5 @@
 import type { Fields } from './observe.mts';
+import { truncate } from './text.mts';
 
 export function render(record: Fields): string {
   const time = new Date(String(record.ts)).toTimeString().slice(0, 8);
@@ -17,6 +18,5 @@ function short(value: unknown): string {
   if (typeof value === 'number') {
     return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(6)));
   }
-  const text = String(value).replace(/\s+/g, ' ');
-  return text.length > 120 ? `${text.slice(0, 117)}...` : text;
+  return truncate(String(value).replace(/\s+/g, ' '), 120, '...');
 }
