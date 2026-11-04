@@ -42,6 +42,11 @@ function threadsOf(question: Question): Array<[string, number]> {
       ];
 }
 
+function labelsOf(question: Question, choice: string): string[] {
+  const remove = ['--remove-label', question.labels.needsHuman];
+  return choice === GIVE_UP ? [...remove, '--add-label', question.labels.skip] : remove;
+}
+
 function shared(create: (root: string) => WorkerClient, root: string): WorkerClient {
   const store = globalThis as Record<symbol, Map<string, WorkerClient> | undefined>;
   const clients = (store[KEY] ??= new Map());
@@ -412,10 +417,7 @@ export function createExtension(options: Options) {
           input: guidance,
         });
       }
-      const labels = ['--remove-label', question.labels.needsHuman];
-      if (choice === GIVE_UP) {
-        labels.push('--add-label', question.labels.skip);
-      }
+      const labels = labelsOf(question, choice);
       for (const [kind, number] of threads) {
         await options.gh([kind, 'edit', String(number), ...repo, ...labels], { cwd: root });
       }
