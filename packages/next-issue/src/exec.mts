@@ -117,6 +117,24 @@ function spawnChild(command: string, args: string[], options: RunOptions): Child
   });
 }
 
+function notify(
+  command: string,
+  args: string[],
+  options: RunOptions,
+  started: number,
+  result: RunResult,
+): void {
+  observer?.({
+    command,
+    args,
+    cwd: options.cwd,
+    code: result.code,
+    ms: Date.now() - started,
+    stderr: result.code === 0 ? '' : result.stderr.trim(),
+    timedOut: result.timedOut,
+  });
+}
+
 export function run(command: string, args: string[], options: RunOptions = {}): Promise<RunResult> {
   const started = Date.now();
   const limit = options.timeoutMs ?? defaultTimeout.getStore() ?? DEFAULT_TIMEOUT_MS;
@@ -150,15 +168,7 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
       }
       done = true;
       const result = { code: code ?? 1, stdout, stderr, timedOut };
-      observer?.({
-        command,
-        args,
-        cwd: options.cwd,
-        code: result.code,
-        ms: Date.now() - started,
-        stderr: result.code === 0 ? '' : stderr.trim(),
-        timedOut,
-      });
+      notify(command, args, options, started, result);
       resolve(result);
     };
     child.on('error', (error) => {
