@@ -2,7 +2,6 @@ import type { Config } from './config.mts';
 import { elapsedMs } from './durations.mts';
 import { message } from './errors.mts';
 import type { Issue } from './github.mts';
-import { skipped } from './handover.mts';
 import type { Context, IssueReport } from './job.mts';
 import type { Recorder } from './observe.mts';
 import type { IssueState } from './state.mts';
@@ -74,4 +73,8 @@ export function logIssueError(
   const ms = elapsedMs(started);
   log.event('issue.error', { error: reason, ms }, 'quiet');
   return { reason, ms };
+}
+
+function skipped(issue: Issue): IssueReport {
+  return { issue: issue.number, outcome: 'skipped', ciFixes: 0, reviewRounds: 0, ms: 0 };
 }

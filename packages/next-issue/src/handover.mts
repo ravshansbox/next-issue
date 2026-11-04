@@ -1,6 +1,5 @@
 import { elapsedMs } from './durations.mts';
 import { message } from './errors.mts';
-import type { Issue } from './github.mts';
 import { HAND_OVER } from './hand-over-comments.mts';
 import {
   type Context,
@@ -140,8 +139,4 @@ export async function handOver(
   } else {
     await ports.commentOnPr(repo, state.pr, body);
   }
-}
-
-export function skipped(issue: Issue): IssueReport {
-  return { issue: issue.number, outcome: 'skipped', ciFixes: 0, reviewRounds: 0, ms: 0 };
 }
