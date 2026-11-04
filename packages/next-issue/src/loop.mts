@@ -122,7 +122,7 @@ export async function watchIssues(
     if ((limit !== undefined && handled(reports) >= limit) || watch.stop()) {
       return { reports };
     }
-    const minutes = BACK_OFF_MINUTES[Math.min(step, BACK_OFF_MINUTES.length - 1)]!;
+    const minutes = backOffMinutes(step);
     step += 1;
     if (!(await watch.wait(minutes))) {
       return { reports };
@@ -134,6 +134,10 @@ export function exitCode(reports: IssueReport[]): number {
   return reports.some((report) => report.outcome === 'needs-human' || report.outcome === 'error')
     ? 1
     : 0;
+}
+
+function backOffMinutes(step: number): number {
+  return BACK_OFF_MINUTES[Math.min(step, BACK_OFF_MINUTES.length - 1)]!;
 }
 
 function handled(reports: IssueReport[]): number {
