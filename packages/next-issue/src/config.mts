@@ -1,8 +1,8 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { CONFIG_FILE, flag, record, rejectUnknown, text, whole } from './config-fields.mts';
 import { hasCode, message } from './errors.mts';
-import { prettyJson, unlessMissing } from './files.mts';
+import { prettyJson, readTextIfPresent } from './files.mts';
 
 export type Config = {
   remote: string;
@@ -119,7 +119,7 @@ export async function writeDefaultConfig(root: string, force: boolean): Promise<
 export async function loadConfig(root: string): Promise<Config> {
   let raw: string | undefined;
   try {
-    raw = await unlessMissing(() => readFile(configFile(root), 'utf8'));
+    raw = await readTextIfPresent(configFile(root));
   } catch (error) {
     throw new Error(`${CONFIG_FILE} cannot be read: ${message(error)}`);
   }

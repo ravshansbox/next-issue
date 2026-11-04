@@ -1,6 +1,6 @@
-import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { prettyJson, unlessMissing } from './files.mts';
+import { prettyJson, readTextIfPresent, unlessMissing } from './files.mts';
 import type { Repo } from './git.mts';
 
 export const STATE_DIR = '.next-issue';
@@ -46,7 +46,7 @@ function file(repo: Repo, issue: number): string {
 
 export async function readState(repo: Repo, issue: number): Promise<IssueState | undefined> {
   const path = file(repo, issue);
-  const text = await unlessMissing(() => readFile(path, 'utf8'));
+  const text = await readTextIfPresent(path);
   if (text === undefined) {
     return undefined;
   }

@@ -23,3 +23,7 @@ export async function unlessMissing<T>(read: () => Promise<T>): Promise<T | unde
     throw error;
   }
 }
+
+export function readTextIfPresent(path: string): Promise<string | undefined> {
+  return unlessMissing(() => readFile(path, 'utf8'));
+}
