@@ -97,17 +97,6 @@ export function checkWaiting(config: Config, grace: boolean): PollOptions {
   };
 }
 
-const worktreeQueues = new Map<string, Promise<unknown>>();
-
-export function oneAtATime<T>(root: string, work: () => Promise<T>): Promise<T> {
-  const result = (worktreeQueues.get(root) ?? Promise.resolve()).then(work);
-  worktreeQueues.set(
-    root,
-    result.catch(() => undefined),
-  );
-  return result;
-}
-
 export function fallbackTitle(issue: Issue): string {
   return `fix: resolve issue #${issue.number}`;
 }

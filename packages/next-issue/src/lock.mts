@@ -5,6 +5,17 @@ import { readTextOrEmpty } from './files.mts';
 
 const LOCK_POLL_MS = 100;
 
+const worktreeQueues = new Map<string, Promise<unknown>>();
+
+export function oneAtATime<T>(root: string, work: () => Promise<T>): Promise<T> {
+  const result = (worktreeQueues.get(root) ?? Promise.resolve()).then(work);
+  worktreeQueues.set(
+    root,
+    result.catch(() => undefined),
+  );
+  return result;
+}
+
 function alive(pid: number): boolean {
   try {
     process.kill(pid, 0);
