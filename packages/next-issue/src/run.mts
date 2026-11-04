@@ -96,18 +96,22 @@ async function handle(
         passEnd: (issues) => print({ ...recorder.summary(passStart), issues }),
       })
     : await runIssues(args, loop);
-  if (stoppedAt !== undefined) {
-    recorder.event('run.stop', { issue: stoppedAt }, 'quiet');
-  }
-  if (error !== undefined) {
-    recorder.event('issues.fail', { error: message(error) }, 'quiet');
-  }
+  recordLoopEnd(recorder, stoppedAt, error);
 
   const summary = await endRun(repo, recorder, reports);
   if (!args.watch) {
     await print(summary);
   }
   return error === undefined ? exitCode(reports) : 1;
+}
+
+function recordLoopEnd(recorder: Recorder, stoppedAt: number | undefined, error: unknown): void {
+  if (stoppedAt !== undefined) {
+    recorder.event('run.stop', { issue: stoppedAt }, 'quiet');
+  }
+  if (error !== undefined) {
+    recorder.event('issues.fail', { error: message(error) }, 'quiet');
+  }
 }
 
 async function startRun(
