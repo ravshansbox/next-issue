@@ -56,34 +56,11 @@ export function isOwnResource(path: string): boolean {
 
 export async function runAgent(recorder: Recorder, request: AgentRequest): Promise<AgentResult> {
   const log = recorder.scope({ role: request.name });
-  const runtime = request.runtime ?? {};
-  const agentDir = runtime.agentDir ?? getAgentDir();
+  const agentDir = request.runtime?.agentDir ?? getAgentDir();
   const started = Date.now();
   process.env.GIT_OPTIONAL_LOCKS = '0';
   log.event('agent.start', { model: request.model, timeoutMs: request.timeoutMs }, 'normal');
-
-  const resourceLoader = await loadResources(request.cwd, agentDir);
-  const modelRuntime =
-    runtime.modelRuntime ??
-    (await ModelRuntime.create({
-      authPath: join(agentDir, 'auth.json'),
-      modelsPath: join(agentDir, 'models.json'),
-    }));
-  const model =
-    request.model === undefined ? undefined : await findModel(modelRuntime, request.model);
-  const { session, modelFallbackMessage } = await createAgentSession({
-    cwd: request.cwd,
-    agentDir,
-    resourceLoader,
-    sessionManager: SessionManager.create(request.cwd, recorder.sessionDir),
-    tools: request.profile.tools,
-    modelRuntime,
-    ...(runtime.settingsManager === undefined ? {} : { settingsManager: runtime.settingsManager }),
-    ...(model === undefined ? {} : { model }),
-  });
-  if (modelFallbackMessage !== undefined) {
-    log.event('agent.model', { note: modelFallbackMessage }, 'quiet');
-  }
+  const session = await openSession(recorder, log, request, agentDir);
 
   let timedOut = false;
   const timer =
@@ -135,6 +112,38 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     unsubscribe();
     session.dispose();
   }
+}
+
+async function openSession(
+  recorder: Recorder,
+  log: Recorder,
+  request: AgentRequest,
+  agentDir: string,
+) {
+  const runtime = request.runtime ?? {};
+  const resourceLoader = await loadResources(request.cwd, agentDir);
+  const modelRuntime =
+    runtime.modelRuntime ??
+    (await ModelRuntime.create({
+      authPath: join(agentDir, 'auth.json'),
+      modelsPath: join(agentDir, 'models.json'),
+    }));
+  const model =
+    request.model === undefined ? undefined : await findModel(modelRuntime, request.model);
+  const { session, modelFallbackMessage } = await createAgentSession({
+    cwd: request.cwd,
+    agentDir,
+    resourceLoader,
+    sessionManager: SessionManager.create(request.cwd, recorder.sessionDir),
+    tools: request.profile.tools,
+    modelRuntime,
+    ...(runtime.settingsManager === undefined ? {} : { settingsManager: runtime.settingsManager }),
+    ...(model === undefined ? {} : { model }),
+  });
+  if (modelFallbackMessage !== undefined) {
+    log.event('agent.model', { note: modelFallbackMessage }, 'quiet');
+  }
+  return session;
 }
 
 async function loadResources(cwd: string, agentDir: string): Promise<DefaultResourceLoader> {
