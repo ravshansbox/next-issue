@@ -291,16 +291,20 @@ async function enterReview(job: Run): Promise<Round> {
     state.pr !== undefined &&
     (await ports.prMerged(repo, state.pr))
   ) {
-    log.event('pull-request.merged', { pr: state.pr }, 'quiet');
-    if (!context.merge) {
-      return { done: true, report: await finishDone(job) };
-    }
-    return afterMerge(job);
+    return alreadyMerged(job, state.pr);
   }
   await log.step('push', { branch }, () => ports.push(worktree, config.remote, branch));
   state.phase = 'review';
   await openPr(job);
   return { done: false };
+}
+
+async function alreadyMerged(job: Run, pr: number): Promise<Round> {
+  job.log.event('pull-request.merged', { pr }, 'quiet');
+  if (!job.context.merge) {
+    return { done: true, report: await finishDone(job) };
+  }
+  return afterMerge(job);
 }
 
 async function openJob(
