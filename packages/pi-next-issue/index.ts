@@ -79,6 +79,10 @@ function outcomes(progress: Progress): string {
     .join(', ');
 }
 
+function failedNote(progress: Progress): string {
+  return `failed: ${progress.error ?? 'unknown error'}`;
+}
+
 function handledNote(item: Handled): string {
   return `#${item.issue} ${OUTCOME_NOTES[item.outcome]}`;
 }
@@ -108,7 +112,7 @@ export function formatStatus(progress: Progress, now: number): string {
     case 'finished':
       return `${progress.status}: ${outcomes(progress)}`;
     case 'failed':
-      return `failed: ${progress.error ?? 'unknown error'}`;
+      return failedNote(progress);
   }
 }
 
@@ -340,7 +344,7 @@ export function createExtension(options: Options) {
       if (status === 'finished' || status === 'stopped') {
         ui?.notify(`next-issue ${status}`, 'info');
       } else if (status === 'failed') {
-        ui?.notify(`next-issue failed: ${progress.error ?? 'unknown error'}`, 'error');
+        ui?.notify(`next-issue ${failedNote(progress)}`, 'error');
       }
     };
 
