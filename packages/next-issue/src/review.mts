@@ -3,17 +3,9 @@ import { conflicts, resolveConflict } from './conflict.mts';
 import { fixRound, type Unfixed } from './fix.mts';
 import { checkGate } from './gate.mts';
 import { escalateAndFinish, finishDone } from './handover.mts';
-import {
-  gateRound,
-  history,
-  ROUND_CONTINUE,
-  type Round,
-  type Run,
-  runRole,
-  setStatus,
-} from './job.mts';
+import { gateRound, ROUND_CONTINUE, type Round, type Run, runRole, setStatus } from './job.mts';
 import { afterMerge } from './merge.mts';
-import { capDiff, reviewPrompt } from './prompts.mts';
+import { capDiff, history, reviewPrompt } from './prompts.mts';
 import { writeState } from './state.mts';
 import {
   blockingFindings,

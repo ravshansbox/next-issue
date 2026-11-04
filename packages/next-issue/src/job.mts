@@ -7,7 +7,7 @@ import type { Issue } from './github.mts';
 import type { Recorder } from './observe.mts';
 import type { Polling } from './poll.mts';
 import type { Ports } from './ports.mts';
-import { type IssueState, type ReviewRound, writeState } from './state.mts';
+import { type IssueState, writeState } from './state.mts';
 
 export type Context = {
   repo: Repo;
@@ -146,13 +146,4 @@ export async function setStatus(
   if (pr !== undefined) {
     await ports.setLabel(repo, 'pr', pr, label, managed);
   }
-}
-
-export function history(rounds: ReviewRound[]): string[] {
-  return rounds.map((round) => {
-    const head = `Round ${round.round}:\n${round.findings}`;
-    return round.dispute === undefined
-      ? head
-      : `${head}\nThe fixer disputed every finding of this round: ${round.dispute}`;
-  });
 }
