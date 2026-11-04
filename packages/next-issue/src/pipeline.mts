@@ -102,7 +102,7 @@ async function savedIssue(
 }
 
 export async function processIssue(context: Context, issue: Issue): Promise<IssueReport> {
-  const { repo, config, ports } = context;
+  const { repo } = context;
   const started = Date.now();
   const log = context.recorder.scope({ issue: issue.number });
   let saved: IssueState | undefined;
@@ -111,22 +111,9 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
   } catch (error) {
     return unclaimedError(log, issue, error, started);
   }
-  const skip = skipReason(issue, config, saved !== undefined);
+  const skip = await skipReport(context, log, issue, saved, started);
   if (skip !== undefined) {
-    log.event('issue.skip', { title: issue.title, reason: skip });
-    return skipped(issue);
-  }
-  if (saved === undefined) {
-    let blockers: string[];
-    try {
-      blockers = await ports.openBlockers(repo, issue.number);
-    } catch (error) {
-      return unclaimedError(log, issue, error, started);
-    }
-    if (blockers.length > 0) {
-      log.event('issue.skip', { title: issue.title, reason: 'blocked', blockers });
-      return skipped(issue);
-    }
+    return skip;
   }
   log.event('issue.start', { title: issue.title, createdAt: issue.createdAt }, 'quiet');
 
@@ -150,6 +137,34 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
   } catch (error) {
     return claimedError(context, log, issue, state, error, started);
   }
+}
+
+async function skipReport(
+  context: Context,
+  log: Recorder,
+  issue: Issue,
+  saved: IssueState | undefined,
+  started: number,
+): Promise<IssueReport | undefined> {
+  const skip = skipReason(issue, context.config, saved !== undefined);
+  if (skip !== undefined) {
+    log.event('issue.skip', { title: issue.title, reason: skip });
+    return skipped(issue);
+  }
+  if (saved !== undefined) {
+    return undefined;
+  }
+  let blockers: string[];
+  try {
+    blockers = await context.ports.openBlockers(context.repo, issue.number);
+  } catch (error) {
+    return unclaimedError(log, issue, error, started);
+  }
+  if (blockers.length > 0) {
+    log.event('issue.skip', { title: issue.title, reason: 'blocked', blockers });
+    return skipped(issue);
+  }
+  return undefined;
 }
 
 function startState(context: Context, issue: Issue, saved: IssueState | undefined): IssueState {
