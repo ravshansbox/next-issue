@@ -1,4 +1,4 @@
-import type { Interrupts } from './interrupt.mts';
+import { type Interrupts, wakeableSleep } from './interrupt.mts';
 import type { Fields } from './observe.mts';
 import { applyEvent } from './progress.mts';
 import type { Progress, WorkerMessage } from './protocol.mts';
@@ -52,18 +52,7 @@ function runInterrupts(run: Run): Interrupts {
   return {
     afterIssue: () => run.stop,
     afterRound: () => run.stop,
-    sleep: (ms) =>
-      new Promise((resolve) => {
-        if (run.stop) {
-          resolve(false);
-          return;
-        }
-        const timer = setTimeout(() => resolve(true), ms);
-        run.wake = () => {
-          clearTimeout(timer);
-          resolve(false);
-        };
-      }),
+    sleep: (ms) => wakeableSleep(run, ms, run.stop),
   };
 }
 
