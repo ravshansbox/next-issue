@@ -2,7 +2,7 @@ import { conflicts, resolveConflict } from './conflict.mts';
 import { secondsToMs } from './durations.mts';
 import { fixRound } from './fix.mts';
 import { escalateAndFinish, escalateCheckFix, spendCiFix } from './handover.mts';
-import { checkPolling, type Gate, history, type Run } from './job.mts';
+import { checkPolling, type Gate, GATE_FIXED, GATE_PASSED, history, type Run } from './job.mts';
 
 export async function checkGate(job: Run): Promise<Gate> {
   const { context, log, state, worktree } = job;
@@ -32,7 +32,7 @@ export async function checkGate(job: Run): Promise<Gate> {
     );
   }
   if (checks !== 'fail') {
-    return { done: false, fixed: false };
+    return GATE_PASSED;
   }
   return failedChecksFix(job);
 }
@@ -60,5 +60,5 @@ async function failedChecksFix(job: Run): Promise<Gate> {
   if (!fix.committed) {
     return escalateCheckFix(job, fix.unrelated, 'checks');
   }
-  return { done: false, fixed: true };
+  return GATE_FIXED;
 }

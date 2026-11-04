@@ -1,7 +1,16 @@
 import { secondsToMs } from './durations.mts';
 import { fixRound } from './fix.mts';
 import { escalateAndFinish, escalateCheckFix, finishDone } from './handover.mts';
-import { checkPolling, type Gate, gateRound, openPr, type Round, type Run } from './job.mts';
+import {
+  checkPolling,
+  type Gate,
+  GATE_FIXED,
+  GATE_PASSED,
+  gateRound,
+  openPr,
+  type Round,
+  type Run,
+} from './job.mts';
 import { writeState } from './state.mts';
 
 export async function afterMerge(job: Run): Promise<Round> {
@@ -32,7 +41,7 @@ async function watchBase(job: Run): Promise<Gate> {
   );
   log.event('main-checks.state', { state: checks });
   if (checks === 'pass' || checks === 'none') {
-    return { done: false, fixed: false };
+    return GATE_PASSED;
   }
   job.mainBroken = true;
   if (checks !== 'fail') {
@@ -85,5 +94,5 @@ export async function fixBase(job: Run): Promise<Gate> {
   state.reviewLog = [];
   state.baseFix = undefined;
   await openPr(job);
-  return { done: false, fixed: true };
+  return GATE_FIXED;
 }

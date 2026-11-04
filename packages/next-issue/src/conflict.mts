@@ -2,7 +2,7 @@ import { parseCommitSubject } from './agent-reply.mts';
 import { CODING } from './agents.mts';
 import { commitWork } from './fix.mts';
 import { escalateAndFinish, spendCiFix } from './handover.mts';
-import { checkPolling, type Gate, type Run, runRole } from './job.mts';
+import { checkPolling, type Gate, GATE_FIXED, type Run, runRole } from './job.mts';
 import { fixPrompt } from './prompts.mts';
 
 export async function conflicts(job: Run): Promise<boolean> {
@@ -35,7 +35,7 @@ export async function resolveConflict(job: Run): Promise<Gate> {
     );
   }
   await ports.push(worktree, config.remote, branch);
-  return { done: false, fixed: true };
+  return GATE_FIXED;
 }
 
 async function fixConflict(job: Run, files: string[]): Promise<string> {
