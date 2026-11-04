@@ -9,6 +9,10 @@ const NO_CHECKS = /no checks reported/i;
 
 type CheckSummary = { name: string; bucket: string; link: string; description: string };
 
+function failedCheck(check: CheckSummary): boolean {
+  return check.bucket === 'fail';
+}
+
 async function readChecks(repo: Repo, pr: number): Promise<CheckSummary[] | 'none'> {
   const result = await ghRun(repo, [
     'pr',
@@ -50,7 +54,7 @@ async function watchOnce(
     return 'pending';
   }
   const checks = await readChecks(repo, pr);
-  if (checks !== 'none' && checks.some((check) => check.bucket === 'fail')) {
+  if (checks !== 'none' && checks.some(failedCheck)) {
     return 'fail';
   }
   throw new Error(
@@ -80,11 +84,9 @@ export async function failedCheckLogs(repo: Repo, pr: number, maxChars: number):
   if (checks === 'none') {
     return 'The checks failed, but gh reports no check for the pull request.';
   }
-  const failed = checks
-    .filter((check) => check.bucket === 'fail')
-    .map((check) => ({
-      heading: `## ${check.name}\n${check.description}`,
-      runId: /\/actions\/runs\/(\d+)/.exec(check.link)?.[1],
-    }));
+  const failed = checks.filter(failedCheck).map((check) => ({
+    heading: `## ${check.name}\n${check.description}`,
+    runId: /\/actions\/runs\/(\d+)/.exec(check.link)?.[1],
+  }));
   return runLogs(repo, failed, maxChars);
 }
