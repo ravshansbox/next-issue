@@ -221,7 +221,7 @@ export class WorkerClient {
       this.workerVersion = message.version;
     } else if (message.type === 'runs') {
       this.runs = message.runs;
-      this.emit({ type: 'runs', runs: message.runs });
+      this.emit(message);
     } else if (message.type === 'questions') {
       this.questions[message.root] = message.questions;
       this.emit(message);
