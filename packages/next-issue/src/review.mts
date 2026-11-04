@@ -44,10 +44,14 @@ export async function reviewRound(job: Run): Promise<Round> {
   if (open.length === 0) {
     return approvedRound(job);
   }
+  return changesRequestedRound(job, open, earlier);
+}
 
+async function changesRequestedRound(job: Run, open: Finding[], earlier: string[]): Promise<Round> {
+  const { state } = job;
   const findings = formatFindings(open);
   state.reviewLog.push({ round: state.reviewRounds, findings });
-  await writeState(repo, state);
+  await writeState(job.context.repo, state);
 
   const fix = await fixRound(job, 'The reviewer requested changes.', findings, earlier, 'review');
   if (!fix.committed) {
