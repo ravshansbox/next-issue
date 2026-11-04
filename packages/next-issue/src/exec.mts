@@ -117,6 +117,26 @@ function spawnChild(command: string, args: string[], options: RunOptions): Child
   });
 }
 
+type Output = {
+  stdout: string;
+  stderr: string;
+};
+
+function collect(child: ChildProcess, options: RunOptions): Output {
+  const output = { stdout: '', stderr: '' };
+  child.stdout?.setEncoding('utf8');
+  child.stderr?.setEncoding('utf8');
+  child.stdout?.on('data', (chunk: string) => {
+    options.onStdout?.(chunk);
+    output.stdout = keepTail(output.stdout + chunk, options.tailChars);
+  });
+  const stderrLimit = options.tailChars ?? STDERR_TAIL;
+  child.stderr?.on('data', (chunk: string) => {
+    output.stderr = keepTail(output.stderr + chunk, stderrLimit);
+  });
+  return output;
+}
+
 function notify(
   command: string,
   args: string[],
@@ -142,19 +162,8 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
     const child = spawnChild(command, args, options);
     const pid = child.pid;
     watch(pid);
-    let stdout = '';
-    let stderr = '';
+    const output = collect(child, options);
     let timedOut = false;
-    child.stdout?.setEncoding('utf8');
-    child.stderr?.setEncoding('utf8');
-    child.stdout?.on('data', (chunk: string) => {
-      options.onStdout?.(chunk);
-      stdout = keepTail(stdout + chunk, options.tailChars);
-    });
-    const stderrLimit = options.tailChars ?? STDERR_TAIL;
-    child.stderr?.on('data', (chunk: string) => {
-      stderr = keepTail(stderr + chunk, stderrLimit);
-    });
     const timer = setTimeout(() => {
       timedOut = true;
       killTree(child);
@@ -167,7 +176,7 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
         return;
       }
       done = true;
-      const result = { code: code ?? 1, stdout, stderr, timedOut };
+      const result = { code: code ?? 1, ...output, timedOut };
       notify(command, args, options, started, result);
       resolve(result);
     };
