@@ -1,4 +1,4 @@
-import { secondsToMs } from './config.mts';
+import { secondsToMs } from './durations.mts';
 import { fixRound } from './fix.mts';
 import { escalateAndFinish, escalateCheckFix, finishDone } from './handover.mts';
 import { checkPolling, type Gate, openPr, type Round, type Run } from './job.mts';

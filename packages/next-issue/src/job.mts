@@ -1,5 +1,6 @@
 import type { AgentResult, Profile } from './agents.mts';
-import { type Config, managedLabels, minutesToMs } from './config.mts';
+import { type Config, managedLabels } from './config.mts';
+import { minutesToMs } from './durations.mts';
 import type { Repo } from './git.mts';
 import type { Issue } from './github.mts';
 import type { Polling } from './poll.mts';

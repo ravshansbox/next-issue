@@ -1,5 +1,5 @@
-import { secondsToMs } from './config.mts';
 import { conflicts, resolveConflict } from './conflict.mts';
+import { secondsToMs } from './durations.mts';
 import { fixRound } from './fix.mts';
 import { escalateAndFinish, escalateCheckFix, spendCiFix } from './handover.mts';
 import { checkPolling, type Gate, history, type Run } from './job.mts';

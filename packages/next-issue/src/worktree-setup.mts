@@ -1,4 +1,4 @@
-import { minutesToMs } from './config.mts';
+import { minutesToMs } from './durations.mts';
 import { escalateAndFinish } from './handover.mts';
 import type { Round, Run } from './job.mts';
 
