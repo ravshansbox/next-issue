@@ -1,15 +1,14 @@
 import { enterReview } from './enter-review.mts';
-import { message } from './errors.mts';
 import { checkGate } from './gate.mts';
 import { branchName } from './git.mts';
 import type { Issue } from './github.mts';
-import { cleanUp, handOver, issueReport, stop } from './handover.mts';
+import { claimedError, stop } from './handover.mts';
 import { implement } from './implement.mts';
 import type { Context, IssueReport, Run } from './job.mts';
 import type { Recorder } from './observe.mts';
 import { openJob } from './open-job.mts';
 import { reviewRound } from './review.mts';
-import { logIssueError, skipReport, unclaimedError } from './skip.mts';
+import { skipReport, unclaimedError } from './skip.mts';
 import { type IssueState, newState, readState, resetState } from './state.mts';
 import { setUp } from './worktree-setup.mts';
 
@@ -56,24 +55,6 @@ function startState(context: Context, issue: Issue, saved: IssueState | undefine
     return newState(issue.number, branchName(issue.number));
   }
   return context.reset || saved.handedOver === true ? resetState(saved) : saved;
-}
-
-async function claimedError(
-  context: Context,
-  log: Recorder,
-  issue: Issue,
-  state: IssueState,
-  error: unknown,
-  started: number,
-): Promise<IssueReport> {
-  const { reason } = logIssueError(log, error, started);
-  try {
-    await handOver(context, log, issue.number, state, `The run failed: ${reason}`);
-  } catch (failure) {
-    log.event('hand-over.error', { error: message(failure) }, 'quiet');
-  }
-  await cleanUp(context, log, state.branch);
-  return issueReport(issue.number, 'error', state, started, reason);
 }
 
 async function work(

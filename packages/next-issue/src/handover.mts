@@ -1,5 +1,6 @@
 import { elapsedMs } from './durations.mts';
 import { message } from './errors.mts';
+import type { Issue } from './github.mts';
 import { HAND_OVER } from './hand-over-comments.mts';
 import {
   type Context,
@@ -11,6 +12,7 @@ import {
 } from './job.mts';
 import { oneAtATime } from './lock.mts';
 import type { Recorder } from './observe.mts';
+import { logIssueError } from './skip.mts';
 import { dropState, type IssueState, writeState } from './state.mts';
 
 export async function escalateAndFinish(job: Run, note: string, reason: string): Promise<Finished> {
@@ -66,7 +68,7 @@ function jobReport(job: Run, outcome: Outcome, reason?: string): IssueReport {
   return issueReport(job.issue.number, outcome, job.state, job.started, reason);
 }
 
-export function issueReport(
+function issueReport(
   issue: number,
   outcome: Outcome,
   state: IssueState,
@@ -107,7 +109,7 @@ async function deleteBranches(context: Context, log: Recorder, branch: string): 
   }
 }
 
-export async function cleanUp(context: Context, log: Recorder, branch: string): Promise<void> {
+async function cleanUp(context: Context, log: Recorder, branch: string): Promise<void> {
   const { repo, ports } = context;
   try {
     const path = await ports.findWorktree(repo, branch);
@@ -122,7 +124,7 @@ export async function cleanUp(context: Context, log: Recorder, branch: string): 
   }
 }
 
-export async function handOver(
+async function handOver(
   context: Context,
   log: Recorder,
   issue: number,
@@ -139,4 +141,22 @@ export async function handOver(
   } else {
     await ports.commentOnPr(repo, state.pr, body);
   }
+}
+
+export async function claimedError(
+  context: Context,
+  log: Recorder,
+  issue: Issue,
+  state: IssueState,
+  error: unknown,
+  started: number,
+): Promise<IssueReport> {
+  const { reason } = logIssueError(log, error, started);
+  try {
+    await handOver(context, log, issue.number, state, `The run failed: ${reason}`);
+  } catch (failure) {
+    log.event('hand-over.error', { error: message(failure) }, 'quiet');
+  }
+  await cleanUp(context, log, state.branch);
+  return issueReport(issue.number, 'error', state, started, reason);
 }
