@@ -9,3 +9,7 @@ export function asError(error: unknown): Error {
 export function hasCode(error: unknown, code: string): boolean {
   return (error as NodeJS.ErrnoException).code === code;
 }
+
+export function errorMatches(error: unknown, pattern: RegExp): boolean {
+  return error instanceof Error && pattern.test(error.message);
+}

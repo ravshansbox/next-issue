@@ -1,3 +1,4 @@
+import { errorMatches } from './errors.mts';
 import { lines } from './exec.mts';
 import { gh, ghApi, ghJson, ghOnce, type Named, names, repeatable, slug } from './gh.mts';
 import type { Repo } from './git.mts';
@@ -103,7 +104,7 @@ export async function canWrite(repo: Repo, login: string): Promise<boolean> {
     const permission = await ghApi(repo, `collaborators/${login}/permission`, '.permission');
     return ['admin', 'write'].includes(permission);
   } catch (error) {
-    if (error instanceof Error && /HTTP 404/.test(error.message)) {
+    if (errorMatches(error, /HTTP 404/)) {
       return false;
     }
     throw error;

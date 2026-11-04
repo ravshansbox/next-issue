@@ -1,5 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { secondsToMs } from './durations.mts';
+import { errorMatches } from './errors.mts';
 import { must, run, type RunOptions, type RunResult } from './exec.mts';
 import type { Repo } from './git.mts';
 
@@ -16,16 +17,12 @@ export async function repeatable(repo: Repo, args: string[]): Promise<string> {
     try {
       return await must('gh', args, { cwd: repo.root });
     } catch (error) {
-      if (attempt >= NETWORK_TRIES || !networkFault(error)) {
+      if (attempt >= NETWORK_TRIES || !errorMatches(error, NETWORK_FAULT)) {
         throw error;
       }
       await delay(secondsToMs(attempt));
     }
   }
-}
-
-function networkFault(error: unknown): boolean {
-  return error instanceof Error && NETWORK_FAULT.test(error.message);
 }
 
 function withRepo(repo: Repo, args: string[]): string[] {
