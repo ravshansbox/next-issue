@@ -61,18 +61,20 @@ export async function finishDone(job: Run): Promise<IssueReport> {
 export function stop(job: Run): IssueReport {
   const { issue, log, state } = job;
   log.event('issue.stop', { phase: state.phase }, 'quiet');
-  return {
-    issue: issue.number,
-    outcome: 'stopped',
-    ...progress(job.state, job.started),
-  };
+  return issueReport(issue.number, 'stopped', job.state, job.started);
 }
 
-export function progress(
+export function issueReport(
+  issue: number,
+  outcome: Outcome,
   state: IssueState,
   started: number,
-): Pick<IssueReport, 'pr' | 'ciFixes' | 'reviewRounds' | 'ms'> {
+  reason?: string,
+): IssueReport {
   return {
+    issue,
+    outcome,
+    reason,
     pr: state.pr,
     ciFixes: state.ciFixes,
     reviewRounds: state.reviewRounds,
@@ -89,10 +91,7 @@ export async function finish(job: Run, outcome: Outcome, reason?: string): Promi
     await dropState(repo, issue.number);
   }
   return {
-    issue: issue.number,
-    outcome,
-    reason,
-    ...progress(job.state, job.started),
+    ...issueReport(issue.number, outcome, job.state, job.started, reason),
     ...(job.mainBroken && outcome !== 'done' ? { halt: true } : {}),
   };
 }

@@ -4,7 +4,7 @@ import { message } from './errors.mts';
 import { checkGate } from './gate.mts';
 import { branchName } from './git.mts';
 import type { Issue } from './github.mts';
-import { cleanUp, handOver, progress, stop } from './handover.mts';
+import { cleanUp, handOver, issueReport, stop } from './handover.mts';
 import { implement } from './implement.mts';
 import type { Context, IssueReport, Run } from './job.mts';
 import type { Recorder } from './observe.mts';
@@ -82,12 +82,7 @@ async function claimedError(
     log.event('hand-over.error', { error: message(failure) }, 'quiet');
   }
   await cleanUp(context, log, state.branch);
-  return {
-    issue: issue.number,
-    outcome: 'error',
-    reason,
-    ...progress(state, started),
-  };
+  return issueReport(issue.number, 'error', state, started, reason);
 }
 
 async function work(
