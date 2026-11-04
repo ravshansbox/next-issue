@@ -1,5 +1,5 @@
 import type { Issue } from './github.mts';
-import { handOverReply, writerComments } from './handover.mts';
+import { handOverReply, writerComments } from './hand-over-comments.mts';
 import { type Context, oneAtATime, type Run, setStatus } from './job.mts';
 import type { Recorder } from './observe.mts';
 import { type IssueState, writeState } from './state.mts';

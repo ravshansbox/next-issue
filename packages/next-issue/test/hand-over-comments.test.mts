@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { loadConfig } from '../src/config.mts';
 import type { Comment, Issue } from '../src/github.mts';
-import { waitingQuestions } from '../src/handover.mts';
+import { waitingQuestions } from '../src/hand-over-comments.mts';
 import { STATE_DIR } from '../src/state.mts';
 import { tempDir } from './temp-dir.mts';
 
