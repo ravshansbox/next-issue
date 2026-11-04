@@ -43,6 +43,16 @@ function stdoutOpen(): boolean {
   }
 }
 
+async function printLines(
+  lines: string[],
+  json: boolean,
+  print: (text: string) => Promise<void>,
+): Promise<void> {
+  if (lines.length > 0) {
+    await print(lines.map((line) => show(line, json)).join(''));
+  }
+}
+
 const CHUNK_BYTES = 64 * 1024;
 
 async function readChunk(
@@ -107,10 +117,7 @@ export async function followLog(
       const complete = completeLines(rest, first ? options.tail : undefined);
       rest = complete.rest;
       first = false;
-      const { shown } = complete;
-      if (shown.length > 0) {
-        await print(shown.map((line) => show(line, options.json)).join(''));
-      }
+      await printLines(complete.shown, options.json, print);
       if (!stdoutOpen()) {
         stop();
       }
