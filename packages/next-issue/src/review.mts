@@ -131,14 +131,19 @@ async function approvedRound(job: Run): Promise<Round> {
     log.event('pull-request.undraft.fail', { pr }, 'quiet');
   }
   if (context.merge) {
-    if (await conflicts(job)) {
-      const resolved = await resolveConflict(job);
-      return resolved.done ? resolved : { done: false };
-    }
-    if (!(await ports.mergePr(repo, pr))) {
-      return escalateAndFinish(job, 'The merge of the pull request failed.', 'merge failed');
-    }
-    return afterMerge(job);
+    return mergeApproved(job);
   }
   return { done: true, report: await finishDone(job) };
+}
+
+async function mergeApproved(job: Run): Promise<Round> {
+  const { context, state } = job;
+  if (await conflicts(job)) {
+    const resolved = await resolveConflict(job);
+    return resolved.done ? resolved : { done: false };
+  }
+  if (!(await context.ports.mergePr(context.repo, state.pr!))) {
+    return escalateAndFinish(job, 'The merge of the pull request failed.', 'merge failed');
+  }
+  return afterMerge(job);
 }
