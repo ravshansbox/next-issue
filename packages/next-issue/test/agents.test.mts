@@ -9,7 +9,8 @@ import {
   type FauxResponseStep,
 } from '@earendil-works/pi-ai';
 import { ModelRuntime, SettingsManager } from '@earendil-works/pi-coding-agent';
-import { CODING, isOwnResource, REVIEWING, runAgent, toolFields } from '../src/agents.mts';
+import { isOwnResource } from '../src/agent-session.mts';
+import { CODING, REVIEWING, runAgent, toolFields } from '../src/agents.mts';
 import { Recorder } from '../src/observe.mts';
 import { tempDir } from './temp-dir.mts';
 
