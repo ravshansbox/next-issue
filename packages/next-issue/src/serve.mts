@@ -233,6 +233,15 @@ function broadcast(sockets: WebSocketServer, runs: Map<string, Run>): void {
   }
 }
 
+function stopRun(sockets: WebSocketServer, runs: Map<string, Run>, root: string): void {
+  const run = runs.get(root);
+  if (run === undefined || run.progress.status !== 'running') {
+    return;
+  }
+  requestStop(run);
+  broadcast(sockets, runs);
+}
+
 function runsMessage(runs: Map<string, Run>): WorkerMessage {
   return {
     type: 'runs',
@@ -339,15 +348,6 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       .finally(closeWhenIdle);
   };
 
-  const stop = (root: string): void => {
-    const run = runs.get(root);
-    if (run === undefined || run.progress.status !== 'running') {
-      return;
-    }
-    requestStop(run);
-    broadcast(sockets, runs);
-  };
-
   sockets.on('connection', (socket) => {
     send(socket, { type: 'hello', version: options.version });
     send(socket, runsMessage(runs));
@@ -366,7 +366,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       } else if (value.type === 'start') {
         start(socket, value.root, value.merge === true);
       } else if (value.type === 'stop') {
-        stop(value.root);
+        stopRun(sockets, runs, value.root);
       } else if (value.type === 'questions') {
         void sendQuestions(value.root, () => [socket], value.id);
       }
