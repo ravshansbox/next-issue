@@ -8,6 +8,8 @@ import { writeState } from './state.mts';
 
 export type Fix = { committed: true } | { committed: false; unrelated?: string; stray?: boolean };
 
+type CommitRole = 'implementer' | 'fixer';
+
 export async function fixRound(
   job: Run,
   reason: string,
@@ -70,7 +72,7 @@ export async function commitWork(
   job: Run,
   before: string,
   subject: string,
-  role: 'implementer' | 'fixer',
+  role: CommitRole,
   commit?: (worktree: string, message: string) => Promise<boolean>,
 ): Promise<boolean> {
   const { context, issue, log, state, worktree } = job;
@@ -96,7 +98,7 @@ async function hookFix(
   job: Run,
   error: unknown,
   subject: string,
-  role: 'implementer' | 'fixer',
+  role: CommitRole,
 ): Promise<string> {
   const { context, issue, log, state, comments } = job;
   const { repo, config } = context;
