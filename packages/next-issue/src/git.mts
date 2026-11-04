@@ -109,6 +109,11 @@ export async function revision(cwd: string): Promise<string> {
   return git(cwd, ['rev-parse', 'HEAD']);
 }
 
+export async function currentBranch(cwd: string): Promise<string | undefined> {
+  const result = await run('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], { cwd });
+  return result.code === 0 ? result.stdout.trim() : undefined;
+}
+
 export async function isAncestor(
   cwd: string,
   ancestor: string,

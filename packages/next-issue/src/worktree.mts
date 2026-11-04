@@ -1,6 +1,5 @@
 import { join } from 'node:path';
-import { run } from './exec.mts';
-import { discardChanges, git, isAncestor, type Repo, succeeds } from './git.mts';
+import { currentBranch, discardChanges, git, isAncestor, type Repo, succeeds } from './git.mts';
 
 type Worktree = {
   path: string;
@@ -39,7 +38,7 @@ export async function addWorktree(
     await discardChanges(path, target);
   }
   if (pushed) {
-    await run('git', ['merge', '--ff-only', upstream], { cwd: path });
+    await succeeds(path, ['merge', '--ff-only', upstream]);
   }
   return { path, baseUpdated };
 }
@@ -62,9 +61,8 @@ async function hasBranch(repo: Repo, name: string, ...flags: string[]): Promise<
 }
 
 async function updateBase(repo: Repo, base: string, remote: string): Promise<boolean> {
-  const head = await run('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], { cwd: repo.root });
   const args =
-    head.code === 0 && head.stdout.trim() === base
+    (await currentBranch(repo.root)) === base
       ? ['merge', '--ff-only', `${remote}/${base}`]
       : ['fetch', '.', `${remote}/${base}:${base}`];
   return succeeds(repo.root, args);
