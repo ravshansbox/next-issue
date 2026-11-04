@@ -1,15 +1,14 @@
 import { spawn } from 'node:child_process';
 
-export type Result = { code: number; stdout: string; stderr: string };
+type Result = { code: number; stdout: string; stderr: string };
 
-export type RunOptions = { cwd: string; input?: string; signal?: AbortSignal };
+export type RunOptions = { cwd: string; input?: string };
 
 export function run(command: string, args: string[], options: RunOptions): Promise<Result> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
       stdio: [options.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
-      ...(options.signal === undefined ? {} : { signal: options.signal }),
     });
     let stdout = '';
     let stderr = '';
