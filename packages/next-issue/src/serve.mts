@@ -1,6 +1,6 @@
 import { rmSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { createServer } from 'node:http';
+import { createServer, type Server } from 'node:http';
 import { dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { type WebSocket, WebSocketServer } from 'ws';
@@ -143,6 +143,21 @@ async function lock(path: string, waitMs: number): Promise<boolean> {
       await delay(LOCK_POLL_MS);
     }
   }
+}
+
+function listen(server: Server, path: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    const umask = process.umask(0o177);
+    try {
+      server.listen(path, () => {
+        server.off('error', reject);
+        resolve();
+      });
+    } finally {
+      process.umask(umask);
+    }
+  });
 }
 
 async function listQuestions(root: string): Promise<Question[]> {
@@ -307,18 +322,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     });
   });
 
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    const umask = process.umask(0o177);
-    try {
-      server.listen(options.socketPath, () => {
-        server.off('error', reject);
-        resolve();
-      });
-    } finally {
-      process.umask(umask);
-    }
-  });
+  await listen(server, options.socketPath);
   idleTimer = setTimeout(closeWhenIdle, options.idleMs ?? IDLE_MS);
   return { closed, close };
 }
