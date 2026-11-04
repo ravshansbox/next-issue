@@ -117,6 +117,14 @@ function spawnChild(command: string, args: string[], options: RunOptions): Child
   });
 }
 
+function sendInput(child: ChildProcess, input: string | undefined): void {
+  if (input === undefined) {
+    return;
+  }
+  child.stdin?.on('error', () => undefined);
+  child.stdin?.end(input);
+}
+
 type Output = {
   stdout: string;
   stderr: string;
@@ -195,10 +203,7 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
       settle(code);
     });
     child.on('close', settle);
-    if (options.input !== undefined) {
-      child.stdin?.on('error', () => undefined);
-      child.stdin?.end(options.input);
-    }
+    sendInput(child, options.input);
   });
 }
 
