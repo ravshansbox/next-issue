@@ -79,11 +79,9 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     if (timedOut) {
       throw new Error(`The ${request.name} agent did not finish in ${request.timeoutMs} ms.`);
     }
-    const last = session.messages.findLast((message) => message.role === 'assistant');
-    if (last !== undefined && 'stopReason' in last && last.stopReason === 'error') {
-      throw new Error(
-        `The ${request.name} agent failed: ${last.errorMessage ?? 'no reason given'}`,
-      );
+    const failure = lastFailure(session);
+    if (failure !== undefined) {
+      throw new Error(`The ${request.name} agent failed: ${failure}`);
     }
     return sessionResult(recorder, request, session, started);
   } finally {
@@ -92,6 +90,14 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     unsubscribe();
     session.dispose();
   }
+}
+
+function lastFailure(session: AgentSession): string | undefined {
+  const last = session.messages.findLast((message) => message.role === 'assistant');
+  if (last === undefined || !('stopReason' in last) || last.stopReason !== 'error') {
+    return undefined;
+  }
+  return last.errorMessage ?? 'no reason given';
 }
 
 function sessionResult(
