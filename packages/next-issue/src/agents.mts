@@ -10,7 +10,8 @@ import {
   type SettingsManager,
 } from '@earendil-works/pi-coding-agent';
 import { onStop } from './exec.mts';
-import { emptyUsage, type Fields, type Recorder, type Usage } from './observe.mts';
+import type { Fields, Recorder } from './observe.mts';
+import { emptyUsage, type Usage } from './usage.mts';
 
 export type Profile = {
   tools: string[];

@@ -1,4 +1,4 @@
-import type { RoleTotals, Usage } from './observe.mts';
+import type { RoleTotals, Usage } from './usage.mts';
 import type { IssueReport, Outcome } from './job.mts';
 
 export type RunSummary = {

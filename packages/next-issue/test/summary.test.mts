@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { emptyUsage, type RoleTotals } from '../src/observe.mts';
+import { emptyUsage, type RoleTotals } from '../src/usage.mts';
 import { formatSummary, type RunSummary } from '../src/summary.mts';
 
 function role(total: number, calls: number): RoleTotals {
