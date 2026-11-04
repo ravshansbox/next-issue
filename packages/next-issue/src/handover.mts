@@ -1,3 +1,4 @@
+import { message } from './errors.mts';
 import type { Issue } from './github.mts';
 import { HAND_OVER } from './hand-over-comments.mts';
 import {
@@ -9,7 +10,6 @@ import {
   type Run,
   setStatus,
 } from './job.mts';
-import { message } from './errors.mts';
 import { type Recorder } from './observe.mts';
 import { dropState, type IssueState, writeState } from './state.mts';
 

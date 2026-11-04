@@ -1,7 +1,7 @@
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { Repo } from './git.mts';
 import { hasCode } from './errors.mts';
+import type { Repo } from './git.mts';
 
 export const STATE_DIR = '.next-issue';
 

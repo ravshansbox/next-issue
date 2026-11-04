@@ -5,15 +5,14 @@ import { dirname } from 'node:path';
 import { type WebSocket, WebSocketServer } from 'ws';
 import { type Args, parseArgs } from './args.mts';
 import { stopChildren } from './children.mts';
-import { lock } from './lock.mts';
 import { message } from './errors.mts';
+import { lock } from './lock.mts';
 import { startProgress } from './progress.mts';
 import { type ClientMessage, isNewer, type Progress } from './protocol.mts';
 import { type ListQuestions, listQuestions, questionSender, send } from './questions.mts';
 import { runRepo, type RunControls } from './run.mts';
 import { packageVersion } from './version.mts';
 import { checkSocketPath, workerPaths } from './worker-paths.mts';
-import { broadcast, listen, parseMessage, shutdown } from './worker-server.mts';
 import {
   active,
   endStatus,
@@ -23,6 +22,7 @@ import {
   runsMessage,
   startRefusal,
 } from './worker-run.mts';
+import { broadcast, listen, parseMessage, shutdown } from './worker-server.mts';
 
 export type RunRepo = (root: string, args: Args, controls: RunControls) => Promise<number>;
 

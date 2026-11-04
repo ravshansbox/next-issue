@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 import { type Args, parseArgs, USAGE } from './args.mts';
 import { writeDefaultConfig } from './config.mts';
+import { message } from './errors.mts';
 import { repoRoot } from './git.mts';
 import { ensureIgnored } from './gitignore.mts';
 import { listenForInterrupts } from './interrupt.mts';
 import { stopWorker } from './lock.mts';
 import { followLog, newestRunLog } from './logs.mts';
-import { message } from './errors.mts';
 import { runRepo } from './run.mts';
 import { serve } from './serve.mts';
-import { workerPaths } from './worker-paths.mts';
 import { STATE_DIR } from './state.mts';
 import { formatSummary } from './summary.mts';
+import { workerPaths } from './worker-paths.mts';
 import { WORKTREE_DIR } from './worktree.mts';
 
 function write(stream: NodeJS.WriteStream, text: string): Promise<void> {

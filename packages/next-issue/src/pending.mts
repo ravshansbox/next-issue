@@ -1,6 +1,6 @@
+import { message } from './errors.mts';
 import type { Issue } from './github.mts';
 import type { Context } from './job.mts';
-import { message } from './errors.mts';
 import { readState, savedIssues } from './state.mts';
 
 export async function pendingIssues(context: Context): Promise<Issue[]> {

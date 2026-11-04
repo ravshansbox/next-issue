@@ -3,11 +3,10 @@ import { type Config, managedLabels } from './config.mts';
 import { minutesToMs } from './durations.mts';
 import type { Repo } from './git.mts';
 import type { Issue } from './github.mts';
-import type { Polling } from './poll.mts';
 import type { Recorder } from './observe.mts';
+import type { Polling } from './poll.mts';
 import type { Ports } from './ports.mts';
-import type { IssueState, ReviewRound } from './state.mts';
-import { writeState } from './state.mts';
+import { type IssueState, type ReviewRound, writeState } from './state.mts';
 
 export type Context = {
   repo: Repo;

@@ -1,5 +1,9 @@
 import { runAgent } from './agents.mts';
+import { failedBaseLogs, waitForBaseChecks } from './base-checks.mts';
+import { failedCheckLogs, waitForChecks } from './checks.mts';
 import { run } from './exec.mts';
+import { commitAll } from './git-commit.mts';
+import { abortMerge, commitMerge, startMerge } from './git-merge.mts';
 import {
   deleteBranch,
   diff,
@@ -12,7 +16,6 @@ import {
   revision,
   setAside,
 } from './git.mts';
-import { commitAll } from './git-commit.mts';
 import {
   canWrite,
   commentOnIssue,
@@ -24,6 +27,7 @@ import {
   threadComments,
   viewIssue,
 } from './github.mts';
+import { setLabel } from './labels.mts';
 import {
   createPr,
   findPr,
@@ -33,10 +37,6 @@ import {
   prConflicts,
   prMerged,
 } from './pull-requests.mts';
-import { abortMerge, commitMerge, startMerge } from './git-merge.mts';
-import { failedBaseLogs, waitForBaseChecks } from './base-checks.mts';
-import { failedCheckLogs, waitForChecks } from './checks.mts';
-import { setLabel } from './labels.mts';
 import { detectSetupCommand } from './setup.mts';
 import { addWorktree, findWorktree, removeWorktree } from './worktree.mts';
 

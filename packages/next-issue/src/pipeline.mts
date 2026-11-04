@@ -1,16 +1,16 @@
 import { enterReview } from './enter-review.mts';
+import { message } from './errors.mts';
 import { checkGate } from './gate.mts';
 import { branchName } from './git.mts';
 import type { Issue } from './github.mts';
 import { cleanUp, handOver, stop } from './handover.mts';
 import { implement } from './implement.mts';
 import { type Context, type IssueReport, type Run } from './job.mts';
-import { message } from './errors.mts';
 import { type Recorder } from './observe.mts';
 import { openJob } from './open-job.mts';
 import { reviewRound } from './review.mts';
-import { type IssueState, readState, resetState } from './state.mts';
 import { skipReport, unclaimedError } from './skip.mts';
+import { type IssueState, readState, resetState } from './state.mts';
 import { setUp } from './worktree-setup.mts';
 
 export async function processIssue(context: Context, issue: Issue): Promise<IssueReport> {
