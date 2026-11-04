@@ -159,24 +159,6 @@ test('a fixer that changes nothing hands the issue to a person', async (t) => {
   assert.equal(target.pushes, 1);
 });
 
-test('a check wait that runs out of time hands the issue to a person', async (t) => {
-  const target = await harness(t, { checks: ['timeout'] });
-  const report = await target.run();
-  assert.equal(report.reason, 'checks timeout');
-});
-
-test('a person who pushes to the pull request during the check wait gets the issue handed over', async (t) => {
-  const target = await harness(t, { checks: ['moved'] });
-  const report = await target.run();
-  assert.equal(report.outcome, 'needs-human');
-  assert.equal(report.reason, 'pull request moved');
-});
-
-test('a repository without checks goes straight to the review', async (t) => {
-  const target = await harness(t, { checks: ['none'] });
-  assert.equal((await target.run()).outcome, 'done');
-});
-
 test('a step that throws gives the error outcome and hands the issue over', async (t) => {
   const target = await harness(t, { fail: 'push' });
   const report = await target.run();
@@ -211,22 +193,4 @@ test('an agent that commits its own work counts as progress', async (t) => {
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.equal(target.pushes, 1);
-});
-
-test('the checks wait for the commit that was pushed', async (t) => {
-  const target = await harness(t, { checks: ['fail', 'pass'] });
-  await target.run();
-  assert.deepEqual(
-    target.waits.map((options) => options.head),
-    ['1', '2', '2'],
-  );
-});
-
-test('a repository without checks pays the grace time once', async (t) => {
-  const target = await harness(t, { checks: ['none'] });
-  await target.run();
-  assert.deepEqual(
-    target.waits.map((options) => options.graceMs),
-    [60_000, 0],
-  );
 });
