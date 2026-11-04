@@ -1,4 +1,4 @@
-import { type CheckState, pollChecks, type PollOptions } from './checks.mts';
+import { type CheckState, pollChecks, type PollOptions } from './check-poll.mts';
 import { ghJson } from './gh.mts';
 import type { Repo } from './git.mts';
 import { runLogs } from './run-logs.mts';
