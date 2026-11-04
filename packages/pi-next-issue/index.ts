@@ -112,6 +112,10 @@ function report(text: string, root: string) {
   return { content: [{ type: 'text' as const, text }], details: { root } };
 }
 
+function startReport(text: string, root: string, started: boolean) {
+  return { ...report(text, root), details: { started, root } };
+}
+
 function packageVersion(): string {
   const raw = readFileSync(join(import.meta.dirname, 'package.json'), 'utf8');
   return (JSON.parse(raw) as { version: string }).version;
@@ -238,23 +242,16 @@ async function startRun(
   signal: AbortSignal | undefined,
 ) {
   if (going(progress)) {
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: `A run of ${root} is going already, so nothing started: ${formatStatus(progress, Date.now())}. It picks up new issues by itself.`,
-        },
-      ],
-      details: { started: false, root },
-    };
+    return startReport(
+      `A run of ${root} is going already, so nothing started: ${formatStatus(progress, Date.now())}. It picks up new issues by itself.`,
+      root,
+      false,
+    );
   }
   const accepting = accepted(client, root, signal);
   sendStart(client, root);
   await accepting;
-  return {
-    content: [{ type: 'text' as const, text: `Started a next-issue run of ${root}.` }],
-    details: { started: true, root },
-  };
+  return startReport(`Started a next-issue run of ${root}.`, root, true);
 }
 
 function toggle(client: WorkerClient, root: string, progress: Progress | undefined): void {
