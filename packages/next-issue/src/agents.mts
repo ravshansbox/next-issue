@@ -9,6 +9,7 @@ import { openSession } from './agent-session.mts';
 import { onStop } from './children.mts';
 import { deadline, elapsedMs } from './durations.mts';
 import type { Fields, Recorder } from './observe.mts';
+import { isRecord } from './records.mts';
 import { emptyUsage, type Usage } from './usage.mts';
 
 export type Profile = {
@@ -133,9 +134,9 @@ function observe(log: Recorder, event: AgentSessionEvent): void {
 }
 
 export function toolFields(name: string, input: unknown): Fields {
-  if (name !== 'bash' || typeof input !== 'object' || input === null) {
+  if (name !== 'bash' || !isRecord(input)) {
     return { tool: name };
   }
-  const { command } = input as { command?: unknown };
+  const { command } = input;
   return typeof command === 'string' ? { tool: name, command } : { tool: name };
 }
