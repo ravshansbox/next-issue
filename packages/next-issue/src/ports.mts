@@ -34,7 +34,8 @@ import {
   threadComments,
   viewIssue,
 } from './github.mts';
-import { failedBaseLogs, failedCheckLogs, waitForBaseChecks, waitForChecks } from './checks.mts';
+import { failedBaseLogs, waitForBaseChecks } from './base-checks.mts';
+import { failedCheckLogs, waitForChecks } from './checks.mts';
 import { setLabel } from './labels.mts';
 import { detectSetupCommand } from './setup.mts';
 import { addWorktree, findWorktree, removeWorktree } from './worktree.mts';

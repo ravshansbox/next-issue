@@ -24,12 +24,8 @@ import {
   threadComments,
   viewIssue,
 } from '../src/github.mts';
-import {
-  failedBaseLogs,
-  failedCheckLogs,
-  waitForBaseChecks,
-  waitForChecks,
-} from '../src/checks.mts';
+import { failedBaseLogs, waitForBaseChecks } from '../src/base-checks.mts';
+import { failedCheckLogs, waitForChecks } from '../src/checks.mts';
 import { labelArgs, setLabel } from '../src/labels.mts';
 
 const MANAGED = ['status:todo', 'status:in-progress', 'status:in-review', 'status:done'];

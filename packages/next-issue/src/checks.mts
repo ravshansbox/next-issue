@@ -1,4 +1,4 @@
-import { asError, ghJson, ghRun } from './gh.mts';
+import { asError, ghRun } from './gh.mts';
 import { isAncestor, type Repo } from './git.mts';
 import { prField } from './github.mts';
 import { type Clock, type Polling, pause, REAL_CLOCK } from './poll.mts';
@@ -10,10 +10,6 @@ const READ_TRIES = 3;
 const NO_CHECKS = /no checks reported/i;
 
 type CheckSummary = { name: string; bucket: string; link: string; description: string };
-
-type BaseRun = { databaseId: number; name: string; status: string; conclusion: string };
-
-const FAILED_CONCLUSIONS = new Set(['failure', 'timed_out', 'startup_failure']);
 
 async function readChecks(repo: Repo, pr: number): Promise<CheckSummary[] | 'none'> {
   const result = await ghRun(repo, [
@@ -178,52 +174,7 @@ export async function failedCheckLogs(repo: Repo, pr: number, maxChars: number):
   return runLogs(repo, failed, maxChars);
 }
 
-async function baseRuns(repo: Repo, sha: string): Promise<BaseRun[]> {
-  return ghJson<BaseRun[]>(repo, [
-    'run',
-    'list',
-    '--commit',
-    sha,
-    '--json',
-    'databaseId,name,status,conclusion',
-  ]);
-}
-
-function failedRun(entry: BaseRun): boolean {
-  return entry.status === 'completed' && FAILED_CONCLUSIONS.has(entry.conclusion);
-}
-
-function baseState(runs: BaseRun[]): CheckState {
-  if (runs.some(failedRun)) {
-    return 'fail';
-  }
-  return runs.every((entry) => entry.status === 'completed') ? 'pass' : 'pending';
-}
-
-export function waitForBaseChecks(
-  repo: Repo,
-  sha: string,
-  options: PollOptions,
-): Promise<CheckState> {
-  return pollChecks(
-    {
-      head: async () => sha,
-      lags: async () => true,
-      list: async () => ((await baseRuns(repo, sha)).length === 0 ? 'none' : 'some'),
-      watch: async () => baseState(await baseRuns(repo, sha)),
-    },
-    options,
-  );
-}
-
-export async function failedBaseLogs(repo: Repo, sha: string, maxChars: number): Promise<string> {
-  const failed = (await baseRuns(repo, sha))
-    .filter(failedRun)
-    .map((entry) => ({ heading: `## ${entry.name}`, runId: String(entry.databaseId) }));
-  return runLogs(repo, failed, maxChars);
-}
-
-async function runLogs(
+export async function runLogs(
   repo: Repo,
   failed: Array<{ heading: string; runId: string | undefined }>,
   maxChars: number,
