@@ -1,4 +1,5 @@
 import { minutesToMs } from './durations.mts';
+import { succeeded } from './exec.mts';
 import { escalateAndFinish } from './handover.mts';
 import type { Round, Run } from './job.mts';
 import type { SetupResult } from './ports.mts';
@@ -16,7 +17,7 @@ export async function setUp(job: Run): Promise<Round> {
     { cmd: setupCommand, found: config.setupCommand === undefined },
     () => ports.runSetup(setupCommand, worktree, minutesToMs(config.setupTimeoutMinutes)),
   );
-  if (setup.code === 0) {
+  if (succeeded(setup)) {
     return { done: false };
   }
   return setupFailed(job, setup);
