@@ -69,6 +69,16 @@ function endStatus(run: Run): Progress['status'] {
   return run.progress.error === undefined ? 'finished' : 'failed';
 }
 
+function startRefusal(run: Run | undefined, restart: boolean): string | undefined {
+  if (active(run)) {
+    return 'a run is going in this repository already';
+  }
+  if (restart) {
+    return 'the worker is restarting, try again soon';
+  }
+  return undefined;
+}
+
 function endsIssue(record: Fields): boolean {
   return record['kind'] === 'issue.end' || record['kind'] === 'issue.error';
 }
@@ -277,12 +287,9 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   };
 
   const start = (socket: WebSocket, root: string, merge: boolean): void => {
-    if (active(runs.get(root))) {
-      send(socket, { type: 'error', root, message: 'a run is going in this repository already' });
-      return;
-    }
-    if (restart) {
-      send(socket, { type: 'error', root, message: 'the worker is restarting, try again soon' });
+    const refusal = startRefusal(runs.get(root), restart);
+    if (refusal !== undefined) {
+      send(socket, { type: 'error', root, message: refusal });
       return;
     }
     const run: Run = { progress: startProgress(), stop: false };
