@@ -9,7 +9,8 @@ import {
   type Run,
   setStatus,
 } from './job.mts';
-import { message, type Recorder } from './observe.mts';
+import { message } from './errors.mts';
+import { type Recorder } from './observe.mts';
 import { dropState, type IssueState, writeState } from './state.mts';
 
 export async function escalateAndFinish(job: Run, note: string, reason: string): Promise<Finished> {

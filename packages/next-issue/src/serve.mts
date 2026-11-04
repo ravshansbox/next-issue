@@ -6,7 +6,7 @@ import { type WebSocket, WebSocketServer } from 'ws';
 import { type Args, parseArgs } from './args.mts';
 import { stopChildren } from './exec.mts';
 import { lock } from './lock.mts';
-import { message } from './observe.mts';
+import { message } from './errors.mts';
 import { startProgress } from './progress.mts';
 import { type ClientMessage, isNewer, type Progress, type WorkerMessage } from './protocol.mts';
 import { type ListQuestions, listQuestions, questionSender, send } from './questions.mts';

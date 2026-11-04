@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-import { addUsage, emptyUsage, type Fields, message, Recorder } from '../src/observe.mts';
+import { addUsage, emptyUsage, type Fields, Recorder } from '../src/observe.mts';
 import { tempDir } from './temp-dir.mts';
 
 async function recorder(): Promise<Recorder> {
@@ -108,10 +108,4 @@ test('addUsage adds every field', () => {
   addUsage(target, { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, total: 10 });
   addUsage(target, { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, total: 10 });
   assert.deepEqual(target, { input: 2, output: 4, cacheRead: 6, cacheWrite: 8, total: 20 });
-});
-
-test('message reads an error and anything else', () => {
-  assert.equal(message(new Error('bad')), 'bad');
-  assert.equal(message('plain'), 'plain');
-  assert.equal(message(undefined), 'undefined');
 });

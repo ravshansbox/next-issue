@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { hasCode, message } from './observe.mts';
+import { hasCode, message } from './errors.mts';
 
 export type Config = {
   remote: string;

@@ -5,7 +5,7 @@ import { ensureIgnored, repoRoot } from './git.mts';
 import { listenForInterrupts } from './interrupt.mts';
 import { stopWorker } from './lock.mts';
 import { followLog, newestRunLog } from './logs.mts';
-import { message } from './observe.mts';
+import { message } from './errors.mts';
 import { runRepo } from './run.mts';
 import { serve, workerPaths } from './serve.mts';
 import { STATE_DIR } from './state.mts';

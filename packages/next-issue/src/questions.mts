@@ -2,7 +2,7 @@ import type { WebSocket } from 'ws';
 import { loadConfig } from './config.mts';
 import { detectRepo } from './git.mts';
 import { waitingQuestions } from './hand-over-comments.mts';
-import { message } from './observe.mts';
+import { message } from './errors.mts';
 import { PORTS } from './ports.mts';
 import type { Question, WorkerMessage } from './protocol.mts';
 

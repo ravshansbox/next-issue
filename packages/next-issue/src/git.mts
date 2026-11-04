@@ -2,7 +2,7 @@ import { appendFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { lines, must, run } from './exec.mts';
-import { message } from './observe.mts';
+import { message } from './errors.mts';
 
 export type Repo = {
   owner: string;

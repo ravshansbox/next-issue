@@ -2,7 +2,8 @@ import type { Config } from './config.mts';
 import type { Issue } from './github.mts';
 import { skipped } from './handover.mts';
 import type { Context, IssueReport } from './job.mts';
-import { message, type Recorder } from './observe.mts';
+import { message } from './errors.mts';
+import { type Recorder } from './observe.mts';
 import type { IssueState } from './state.mts';
 
 export type Skip = 'stop-label' | 'not-ready' | 'in-flight';

@@ -1,6 +1,7 @@
 import { createWriteStream, type WriteStream } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { message } from './errors.mts';
 import { stateDir } from './state.mts';
 
 export type Level = 'quiet' | 'normal' | 'verbose';
@@ -219,14 +220,6 @@ function countsSince(counts: Map<string, number>, since?: Totals): Record<string
     }
   }
   return result;
-}
-
-export function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-export function hasCode(error: unknown, code: string): boolean {
-  return (error as NodeJS.ErrnoException).code === code;
 }
 
 export function render(record: Fields): string {

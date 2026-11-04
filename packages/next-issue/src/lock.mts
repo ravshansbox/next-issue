@@ -1,6 +1,6 @@
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
-import { hasCode } from './observe.mts';
+import { hasCode } from './errors.mts';
 
 const LOCK_POLL_MS = 100;
 
