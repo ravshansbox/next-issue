@@ -1,6 +1,7 @@
-import { readdir, rm, stat } from 'node:fs/promises';
+import { rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { minutesToMs } from './durations.mts';
+import { listOrEmpty } from './files.mts';
 import { runsDir } from './state.mts';
 
 export async function pruneRuns(root: string, keepDays: number): Promise<number> {
@@ -8,7 +9,7 @@ export async function pruneRuns(root: string, keepDays: number): Promise<number>
     return 0;
   }
   const dir = runsDir(root);
-  const names = await readdir(dir).catch(() => []);
+  const names = await listOrEmpty(dir);
   const cutoff = Date.now() - minutesToMs(keepDays * 24 * 60);
   let dropped = 0;
   for (const name of names) {
