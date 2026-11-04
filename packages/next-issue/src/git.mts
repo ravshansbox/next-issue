@@ -1,4 +1,4 @@
-import { must, run } from './exec.mts';
+import { must, optionalFlag, run } from './exec.mts';
 import { lines } from './text.mts';
 
 export type Repo = {
@@ -88,7 +88,7 @@ export async function push(
   branch: string,
   force = false,
 ): Promise<void> {
-  await git(cwd, ['push', '-u', ...(force ? ['--force'] : []), remote, branch]);
+  await git(cwd, ['push', '-u', ...optionalFlag(force, '--force'), remote, branch]);
 }
 
 export async function fetchBase(cwd: string, base: string, remote: string): Promise<string> {

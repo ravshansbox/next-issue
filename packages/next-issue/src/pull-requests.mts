@@ -1,3 +1,4 @@
+import { optionalFlag } from './exec.mts';
 import { gh, ghJson, ghOnce, ghSucceeds, viewJson } from './gh.mts';
 import type { Repo } from './git.mts';
 import { type Clock, type Polling, pollUntil, REAL_CLOCK } from './poll.mts';
@@ -35,7 +36,7 @@ export async function createPr(
     title,
     '--body',
     body,
-    ...(draft ? ['--draft'] : []),
+    ...optionalFlag(draft, '--draft'),
   ]);
   const number = prNumber(created) ?? (await findPr(repo, branch));
   if (number === undefined) {

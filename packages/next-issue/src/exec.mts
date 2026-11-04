@@ -146,6 +146,10 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
   });
 }
 
+export function optionalFlag(enabled: boolean, flag: string): string[] {
+  return enabled ? [flag] : [];
+}
+
 export function failedWith(commandLine: string, result: RunResult): string {
   return `${commandLine} failed with code ${result.code}: ${result.stderr.trim()}`;
 }

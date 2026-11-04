@@ -1,7 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { secondsToMs } from './durations.mts';
 import { errorMatches } from './errors.mts';
-import { must, run, type RunOptions, type RunResult } from './exec.mts';
+import { must, optionalFlag, run, type RunOptions, type RunResult } from './exec.mts';
 import type { Repo } from './git.mts';
 
 const NETWORK_TRIES = 3;
@@ -66,8 +66,13 @@ export async function ghApi(
   jq: string,
   { paginate = false }: { paginate?: boolean } = {},
 ): Promise<string> {
-  const pages = paginate ? ['--paginate'] : [];
-  return repeatable(repo, ['api', ...pages, `repos/${slug(repo)}/${path}`, '--jq', jq]);
+  return repeatable(repo, [
+    'api',
+    ...optionalFlag(paginate, '--paginate'),
+    `repos/${slug(repo)}/${path}`,
+    '--jq',
+    jq,
+  ]);
 }
 
 export async function ghSucceeds(repo: Repo, args: string[]): Promise<boolean> {
