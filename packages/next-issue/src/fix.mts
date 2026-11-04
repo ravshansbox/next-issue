@@ -34,16 +34,7 @@ export async function fixRound(
   );
   const unrelated = parseUnrelated(result.text);
   if (unrelated !== undefined) {
-    const disputed = await ports.revision(worktree);
-    const moved = disputed !== before;
-    if (moved) {
-      const aside = `${branch}-dispute-${disputed.slice(0, 7)}`;
-      await ports.setAside(worktree, before, aside);
-      log.event('fix.aside', { branch: aside }, 'quiet');
-    }
-    const stray = moved || (await ports.isDirty(worktree));
-    log.event('fix.unrelated', { reason, note: unrelated, stray }, 'quiet');
-    return { committed: false, unrelated, stray };
+    return disputedFix(job, before, reason, unrelated);
   }
   const subject = parseCommitSubject(
     result.text,
@@ -55,6 +46,26 @@ export async function fixRound(
   }
   await ports.push(worktree, config.remote, branch, force);
   return { committed: true };
+}
+
+async function disputedFix(
+  job: Run,
+  before: string,
+  reason: string,
+  unrelated: string,
+): Promise<Fix> {
+  const { context, log, worktree, branch } = job;
+  const { ports } = context;
+  const disputed = await ports.revision(worktree);
+  const moved = disputed !== before;
+  if (moved) {
+    const aside = `${branch}-dispute-${disputed.slice(0, 7)}`;
+    await ports.setAside(worktree, before, aside);
+    log.event('fix.aside', { branch: aside }, 'quiet');
+  }
+  const stray = moved || (await ports.isDirty(worktree));
+  log.event('fix.unrelated', { reason, note: unrelated, stray }, 'quiet');
+  return { committed: false, unrelated, stray };
 }
 
 export async function commitWork(
