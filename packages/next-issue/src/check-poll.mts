@@ -1,3 +1,5 @@
+import type { Config } from './config.mts';
+import { minutesToMs, secondsToMs } from './durations.mts';
 import { asError } from './errors.mts';
 import { type Clock, type Polling, pause, REAL_CLOCK } from './poll.mts';
 
@@ -16,6 +18,20 @@ export type PollOptions = Polling & {
   graceMs: number;
   head?: string;
 };
+
+export function checkPolling(config: Config): Polling {
+  return {
+    intervalSeconds: config.checkIntervalSeconds,
+    timeoutMs: minutesToMs(config.checkTimeoutMinutes),
+  };
+}
+
+export function checkWaiting(config: Config, grace: boolean): PollOptions {
+  return {
+    ...checkPolling(config),
+    graceMs: grace ? secondsToMs(config.checkGraceSeconds) : 0,
+  };
+}
 
 export async function pollChecks(
   probe: ChecksProbe,

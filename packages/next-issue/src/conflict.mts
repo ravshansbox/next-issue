@@ -1,5 +1,5 @@
 import { parseCommitSubject } from './agent-reply.mts';
-import { checkPolling } from './config.mts';
+import { checkPolling } from './check-poll.mts';
 import { commitWork, runFixer } from './fix.mts';
 import { spendBudget } from './budget.mts';
 import { escalateAndFinish } from './handover.mts';

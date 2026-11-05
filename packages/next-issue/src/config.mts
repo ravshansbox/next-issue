@@ -1,10 +1,7 @@
 import { join } from 'node:path';
-import type { PollOptions } from './check-poll.mts';
 import { CONFIG_FILE, flag, record, rejectUnknown, text, whole } from './config-fields.mts';
-import { minutesToMs, secondsToMs } from './durations.mts';
 import { hasCode, message, parseJson } from './errors.mts';
 import { readTextIfPresent, writeJson } from './files.mts';
-import type { Polling } from './poll.mts';
 
 export type Config = {
   remote: string;
@@ -190,18 +187,4 @@ export function managedLabels(config: Config): string[] {
     config.labels.done,
     config.labels.needsHuman,
   ];
-}
-
-export function checkPolling(config: Config): Polling {
-  return {
-    intervalSeconds: config.checkIntervalSeconds,
-    timeoutMs: minutesToMs(config.checkTimeoutMinutes),
-  };
-}
-
-export function checkWaiting(config: Config, grace: boolean): PollOptions {
-  return {
-    ...checkPolling(config),
-    graceMs: grace ? secondsToMs(config.checkGraceSeconds) : 0,
-  };
 }

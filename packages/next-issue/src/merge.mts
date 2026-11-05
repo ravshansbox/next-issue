@@ -1,4 +1,4 @@
-import { checkPolling, checkWaiting } from './config.mts';
+import { checkPolling, checkWaiting } from './check-poll.mts';
 import { conflicts, resolveConflict } from './conflict.mts';
 import { fixRound } from './fix.mts';
 import { budgetUse } from './budget.mts';
