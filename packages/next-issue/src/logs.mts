@@ -105,8 +105,7 @@ export async function followLog(
 ): Promise<number> {
   const handle = await open(file, 'r');
   const control = stopper();
-  const { stop } = control;
-  const unlisten = listenForStop(stop);
+  const unlisten = listenForStop(control.stop);
   const decoder = new StringDecoder('utf8');
   let position = 0;
   let rest = '';
@@ -124,7 +123,7 @@ export async function followLog(
       first = false;
       await printLines(complete.shown, options.json, print);
       if (!stdoutOpen()) {
-        stop();
+        control.stop();
       }
       if (control.stopped) {
         break;
