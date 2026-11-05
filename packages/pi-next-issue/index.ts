@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
-import { answerAll } from './src/answer.ts';
+import { answerAll, type Gh } from './src/answer.ts';
 import { shared } from './src/clients.ts';
-import { errorText, must, type RunOptions } from './src/exec.ts';
+import { errorText, must } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
 import type { Progress, Question } from './src/protocol.ts';
 import { startRun, statusOf, toggle } from './src/run.ts';
@@ -14,7 +14,7 @@ import { spawnWorker, WorkerClient, type WorkerEvent, workerPaths } from './src/
 export type Options = {
   client: (root: string) => WorkerClient;
   root: (cwd: string) => Promise<string>;
-  gh: (args: string[], options: RunOptions) => Promise<string>;
+  gh: Gh;
 };
 
 const STATUS_KEY = 'next-issue';

@@ -4,7 +4,7 @@ import type { Question } from './protocol.ts';
 import { fresh } from './requests.ts';
 import type { WorkerClient } from './worker.ts';
 
-type Gh = (args: string[], options: RunOptions) => Promise<string>;
+export type Gh = (args: string[], options: RunOptions) => Promise<string>;
 
 const RETRY = 'Retry';
 const GUIDE = 'Retry with guidance';
