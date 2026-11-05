@@ -7,6 +7,7 @@ import { changes, harness, ISSUE, roles, SAVED, stages } from './harness.mts';
 
 const IN_PROGRESS = { ...ISSUE, labels: ['status:in-progress'] };
 const IN_REVIEW = { ...ISSUE, labels: ['status:in-review'] };
+const HANDED_OVER = { ...SAVED, handedOver: true };
 
 test('a user who resumes a run that died after the merge gets the merge carried on without a second pull request', async (t) => {
   const target = await harness(t, {
@@ -100,7 +101,7 @@ test('--reset puts the budgets back and keeps the resume point', async (t) => {
 test('a user who takes the needs-human label off a handed-over issue gets the budgets put back without --reset', async (t) => {
   const target = await harness(t, {
     issue: { ...ISSUE, labels: [] },
-    saved: { ...SAVED, handedOver: true },
+    saved: HANDED_OVER,
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
@@ -112,7 +113,7 @@ test('a user who takes the needs-human label off a handed-over issue gets the bu
 test('a user who resumes a handed-over issue and stops the run gets the state saved without the mark', async (t) => {
   const target = await harness(t, {
     issue: { ...ISSUE, labels: [] },
-    saved: { ...SAVED, handedOver: true },
+    saved: HANDED_OVER,
     pressDuring: 'reviewer',
     verdicts: [changes('Rename it.')],
   });
@@ -126,7 +127,7 @@ test('a user who resumes a handed-over issue and stops the run gets the state sa
 test('a user who resumes a handed-over issue that is handed over again gets the mark back', async (t) => {
   const target = await harness(t, {
     issue: IN_REVIEW,
-    saved: { ...SAVED, handedOver: true },
+    saved: HANDED_OVER,
     merge: true,
     mergeFails: true,
   });
@@ -138,15 +139,14 @@ test('a user who resumes a handed-over issue that is handed over again gets the 
 });
 
 test('a handed-over issue that still has the needs-human label is not claimed', async (t) => {
-  const saved = { ...SAVED, handedOver: true };
   const target = await harness(t, {
     issue: { ...ISSUE, labels: ['status:needs-human'] },
-    saved,
+    saved: HANDED_OVER,
   });
   const report = await target.run();
   assert.equal(report.outcome, 'skipped');
   assert.deepEqual(target.labels, []);
-  assert.deepEqual(await target.state(), saved);
+  assert.deepEqual(await target.state(), HANDED_OVER);
 });
 
 test('--reset leaves the state of a skipped issue alone', async (t) => {
