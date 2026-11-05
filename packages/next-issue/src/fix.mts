@@ -2,6 +2,7 @@ import { parseCommitSubject, parseUnrelated } from './agent-reply.mts';
 import { CODING } from './agents.mts';
 import { message } from './errors.mts';
 import { HookError } from './git-commit.mts';
+import { budgetUse } from './handover.mts';
 import { type Run, runRole } from './job.mts';
 import { type FixKind, fixPrompt, hookPrompt } from './prompts.mts';
 import { writeState } from './state.mts';
@@ -54,10 +55,7 @@ export async function runFixer(
 }
 
 function fixBudget(job: Run, kind: FixKind): { round: number; limit: number } {
-  const { state, context } = job;
-  return kind === 'review'
-    ? { round: state.reviewRounds, limit: context.config.maxReviewRounds }
-    : { round: state.ciFixes, limit: context.config.maxCiFixes };
+  return budgetUse(job, kind === 'review' ? 'reviewRounds' : 'ciFixes');
 }
 
 async function disputedFix(

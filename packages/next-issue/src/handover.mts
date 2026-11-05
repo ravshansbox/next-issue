@@ -22,14 +22,21 @@ export async function escalateAndFinish(job: Run, note: string, reason: string):
 
 const LIMITS = { ciFixes: 'maxCiFixes', reviewRounds: 'maxReviewRounds' } as const;
 
+type Budget = keyof typeof LIMITS;
+
+export function budgetUse(job: Run, budget: Budget): { round: number; limit: number } {
+  return { round: job.state[budget], limit: job.context.config[LIMITS[budget]] };
+}
+
 export async function spendBudget(
   job: Run,
-  budget: keyof typeof LIMITS,
+  budget: Budget,
   note: string,
   reason: string,
 ): Promise<Finished | undefined> {
   const { context, state } = job;
-  if (state[budget] >= context.config[LIMITS[budget]]) {
+  const { round, limit } = budgetUse(job, budget);
+  if (round >= limit) {
     return escalateAndFinish(job, note, reason);
   }
   state[budget] += 1;
