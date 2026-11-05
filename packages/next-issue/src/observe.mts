@@ -128,7 +128,7 @@ export class Recorder {
 
   usage(role: string, usage: Usage, ms: number, fields: Fields = {}): void {
     this.sink.add(role, usage, ms);
-    this.event('usage', { role, ms, ...usage, ...fields }, 'normal');
+    this.event('usage', { role, ms, ...usage, ...fields });
   }
 
   async step<T>(kind: string, fields: Fields, run: () => Promise<T>): Promise<T> {

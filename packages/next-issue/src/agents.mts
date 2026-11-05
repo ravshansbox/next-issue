@@ -56,7 +56,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
   const agentDir = request.runtime?.agentDir ?? getAgentDir();
   const started = Date.now();
   process.env.GIT_OPTIONAL_LOCKS = '0';
-  log.event('agent.start', { model: request.model, timeoutMs: request.timeoutMs }, 'normal');
+  log.event('agent.start', { model: request.model, timeoutMs: request.timeoutMs });
   const session = await openSession(recorder, log, request, agentDir);
 
   const timer = deadline(request.timeoutMs, () => void session.abort());
