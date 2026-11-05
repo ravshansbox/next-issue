@@ -4,7 +4,7 @@ type Result = { code: number; stdout: string; stderr: string };
 
 export type RunOptions = { cwd: string; input?: string };
 
-export function run(command: string, args: string[], options: RunOptions): Promise<Result> {
+function run(command: string, args: string[], options: RunOptions): Promise<Result> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
