@@ -20,16 +20,19 @@ export async function escalateAndFinish(job: Run, note: string, reason: string):
   return { done: true, report: await finish(job, 'needs-human', reason) };
 }
 
-export async function spendCiFix(
+const LIMITS = { ciFixes: 'maxCiFixes', reviewRounds: 'maxReviewRounds' } as const;
+
+export async function spendBudget(
   job: Run,
+  budget: keyof typeof LIMITS,
   note: string,
   reason: string,
 ): Promise<Finished | undefined> {
   const { context, state } = job;
-  if (state.ciFixes >= context.config.maxCiFixes) {
+  if (state[budget] >= context.config[LIMITS[budget]]) {
     return escalateAndFinish(job, note, reason);
   }
-  state.ciFixes += 1;
+  state[budget] += 1;
   await writeState(context.repo, state);
   return undefined;
 }

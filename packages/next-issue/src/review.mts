@@ -2,7 +2,7 @@ import { REVIEWING } from './agents.mts';
 import { conflicts, resolveConflict } from './conflict.mts';
 import { fixRound, type Unfixed } from './fix.mts';
 import { checkGate } from './gate.mts';
-import { escalateAndFinish, finishDone } from './handover.mts';
+import { escalateAndFinish, finishDone, spendBudget } from './handover.mts';
 import { gateRound, ROUND_CONTINUE, type Round, type Run, runRole, setStatus } from './job.mts';
 import { afterMerge } from './merge.mts';
 import { capDiff, history, reviewPrompt } from './prompts.mts';
@@ -21,15 +21,15 @@ export async function reviewRound(job: Run): Promise<Round> {
   const { context, issue, state } = job;
   const { repo, config, ports } = context;
   const pr = state.pr!;
-  if (state.reviewRounds >= config.maxReviewRounds) {
-    return escalateAndFinish(
-      job,
-      `The limit of ${config.maxReviewRounds} review rounds was reached.`,
-      'review budget',
-    );
+  const exhausted = await spendBudget(
+    job,
+    'reviewRounds',
+    `The limit of ${config.maxReviewRounds} review rounds was reached.`,
+    'review budget',
+  );
+  if (exhausted) {
+    return exhausted;
   }
-  state.reviewRounds += 1;
-  await writeState(repo, state);
 
   await setStatus(context, issue.number, pr, config.labels.inReview);
   const earlier = history(state.reviewLog);

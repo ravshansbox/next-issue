@@ -1,7 +1,7 @@
 import { checkWaiting } from './config.mts';
 import { conflicts, resolveConflict } from './conflict.mts';
 import { fixRound } from './fix.mts';
-import { escalateAndFinish, escalateCheckFix, spendCiFix } from './handover.mts';
+import { escalateAndFinish, escalateCheckFix, spendBudget } from './handover.mts';
 import { type Gate, GATE_FIXED, GATE_PASSED, type Run } from './job.mts';
 import { history } from './prompts.mts';
 
@@ -40,8 +40,9 @@ export async function checkGate(job: Run): Promise<Gate> {
 async function failedChecksFix(job: Run): Promise<Gate> {
   const { context, log, state } = job;
   const { repo, config, ports } = context;
-  const exhausted = await spendCiFix(
+  const exhausted = await spendBudget(
     job,
+    'ciFixes',
     `The limit of ${config.maxCiFixes} check fixes was reached.`,
     'check budget',
   );

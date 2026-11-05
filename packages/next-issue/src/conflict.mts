@@ -1,7 +1,7 @@
 import { parseCommitSubject } from './agent-reply.mts';
 import { checkPolling } from './config.mts';
 import { commitWork, runFixer } from './fix.mts';
-import { escalateAndFinish, spendCiFix } from './handover.mts';
+import { escalateAndFinish, spendBudget } from './handover.mts';
 import { type Gate, GATE_FIXED, type Run } from './job.mts';
 
 export async function conflicts(job: Run): Promise<boolean> {
@@ -12,8 +12,9 @@ export async function conflicts(job: Run): Promise<boolean> {
 export async function resolveConflict(job: Run): Promise<Gate> {
   const { context, log, worktree, branch } = job;
   const { config, ports } = context;
-  const exhausted = await spendCiFix(
+  const exhausted = await spendBudget(
     job,
+    'ciFixes',
     `The pull request conflicts with its base, and the limit of ${config.maxCiFixes} check fixes was reached.`,
     'merge conflict',
   );
