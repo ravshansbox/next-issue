@@ -32,10 +32,7 @@ export async function checkGate(job: Run): Promise<Gate> {
       'pull request moved',
     );
   }
-  if (checks !== 'fail') {
-    return GATE_PASSED;
-  }
-  return failedChecksFix(job);
+  return checks === 'fail' ? failedChecksFix(job) : GATE_PASSED;
 }
 
 async function failedChecksFix(job: Run): Promise<Gate> {
