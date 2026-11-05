@@ -2,12 +2,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
-import { answeredOf, ask, reply } from './src/answer.ts';
+import { answerAll } from './src/answer.ts';
 import { shared } from './src/clients.ts';
 import { errorText, must, type RunOptions } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
 import type { Progress, Question } from './src/protocol.ts';
-import { fresh } from './src/requests.ts';
 import { startRun, statusOf, toggle } from './src/run.ts';
 import { failedNote, formatQuestions, formatStatus, handledNote } from './src/status.ts';
 import { spawnWorker, WorkerClient, type WorkerEvent, workerPaths } from './src/worker.ts';
@@ -236,24 +235,7 @@ export function createExtension(options: Options) {
 
     const answer = async (ctx: ExtensionContext) => {
       const { client, root } = await connect(ctx);
-      const passed = new Set<number>();
-      for (;;) {
-        const question = (await fresh(client, root)).find((item) => !passed.has(item.issue));
-        if (question === undefined) {
-          if (passed.size === 0) {
-            ctx.ui.notify('next-issue: no questions waiting', 'info');
-          }
-          return;
-        }
-        passed.add(question.issue);
-        const picked = await ask(ctx.ui, question);
-        if (picked === undefined) {
-          return;
-        }
-        const { choice, guidance } = picked;
-        await reply(options.gh, root, question, choice, guidance);
-        ctx.ui.notify(answeredOf(question, choice), 'info');
-      }
+      await answerAll(ctx.ui, options.gh, client, root);
     };
 
     pi.registerCommand('next-issue', {

@@ -1,6 +1,8 @@
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
 import type { RunOptions } from './exec.ts';
 import type { Question } from './protocol.ts';
+import { fresh } from './requests.ts';
+import type { WorkerClient } from './worker.ts';
 
 type Gh = (args: string[], options: RunOptions) => Promise<string>;
 
@@ -21,7 +23,7 @@ function promptOf(question: Question): string {
   return `#${question.issue} ${question.title}\n\n${question.reason || 'No reason given.'}`;
 }
 
-export function answeredOf(question: Question, choice: string): string {
+function answeredOf(question: Question, choice: string): string {
   return `next-issue: #${question.issue} ${choice === GIVE_UP ? 'given up' : 'will be retried'}`;
 }
 
@@ -30,7 +32,7 @@ function labelsOf(question: Question, choice: string): string[] {
   return choice === GIVE_UP ? [...remove, '--add-label', question.labels.skip] : remove;
 }
 
-export async function reply(
+async function reply(
   gh: Gh,
   root: string,
   question: Question,
@@ -52,7 +54,7 @@ export async function reply(
   }
 }
 
-export async function ask(
+async function ask(
   ui: ExtensionContext['ui'],
   question: Question,
 ): Promise<{ choice: string; guidance: string } | undefined> {
@@ -65,4 +67,30 @@ export async function ask(
   }
   const guidance = (await ui.editor(`Guidance for #${question.issue}`))?.trim() ?? '';
   return guidance === '' ? undefined : { choice, guidance };
+}
+
+export async function answerAll(
+  ui: ExtensionContext['ui'],
+  gh: Gh,
+  client: WorkerClient,
+  root: string,
+): Promise<void> {
+  const passed = new Set<number>();
+  for (;;) {
+    const question = (await fresh(client, root)).find((item) => !passed.has(item.issue));
+    if (question === undefined) {
+      if (passed.size === 0) {
+        ui.notify('next-issue: no questions waiting', 'info');
+      }
+      return;
+    }
+    passed.add(question.issue);
+    const picked = await ask(ui, question);
+    if (picked === undefined) {
+      return;
+    }
+    const { choice, guidance } = picked;
+    await reply(gh, root, question, choice, guidance);
+    ui.notify(answeredOf(question, choice), 'info');
+  }
 }
