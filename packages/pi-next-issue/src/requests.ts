@@ -38,21 +38,17 @@ export function accepted(
 export function fresh(client: WorkerClient, root: string): Promise<Question[]> {
   return new Promise<Question[]>((resolve, reject) => {
     const id = randomUUID();
+    const ours = (event: { root: string; id?: string }) => event.root === root && event.id === id;
     const stop = client.subscribe((event) => {
       if (event.type === 'closed') {
         stop();
         reject(new Error(CLOSED));
-      } else if (
-        (event.type === 'questions' || event.type === 'questions-error') &&
-        event.root === root &&
-        event.id === id
-      ) {
+      } else if (event.type === 'questions' && ours(event)) {
         stop();
-        if (event.type === 'questions') {
-          resolve(event.questions);
-        } else {
-          reject(new Error(event.message));
-        }
+        resolve(event.questions);
+      } else if (event.type === 'questions-error' && ours(event)) {
+        stop();
+        reject(new Error(event.message));
       }
     });
     client.send({ type: 'questions', root, id });
