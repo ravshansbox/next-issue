@@ -1,10 +1,9 @@
 import { REVIEWING } from './agents.mts';
-import { conflicts, resolveConflict } from './conflict.mts';
 import { fixRound, type Unfixed } from './fix.mts';
 import { checkGate } from './gate.mts';
 import { budgetUse, escalateAndFinish, finishDone, spendBudget } from './handover.mts';
 import { gateRound, ROUND_CONTINUE, type Round, type Run, runRole, setStatus } from './job.mts';
-import { afterMerge } from './merge.mts';
+import { mergeApproved } from './merge.mts';
 import { capDiff, history, reviewPrompt } from './prompts.mts';
 import { writeState } from './state.mts';
 import {
@@ -135,16 +134,4 @@ async function approvedRound(job: Run): Promise<Round> {
     return mergeApproved(job);
   }
   return finishDone(job);
-}
-
-async function mergeApproved(job: Run): Promise<Round> {
-  const { context, state } = job;
-  if (await conflicts(job)) {
-    const resolved = await resolveConflict(job);
-    return resolved.done ? resolved : ROUND_CONTINUE;
-  }
-  if (!(await context.ports.mergePr(context.repo, state.pr!))) {
-    return escalateAndFinish(job, 'The merge of the pull request failed.', 'merge failed');
-  }
-  return afterMerge(job);
 }

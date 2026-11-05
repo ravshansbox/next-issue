@@ -1,4 +1,5 @@
 import { checkPolling, checkWaiting } from './config.mts';
+import { conflicts, resolveConflict } from './conflict.mts';
 import { fixRound } from './fix.mts';
 import { budgetUse, escalateAndFinish, escalateCheckFix, finishDone } from './handover.mts';
 import {
@@ -7,10 +8,23 @@ import {
   GATE_PASSED,
   gateRound,
   openPr,
+  ROUND_CONTINUE,
   type Round,
   type Run,
 } from './job.mts';
 import { writeState } from './state.mts';
+
+export async function mergeApproved(job: Run): Promise<Round> {
+  const { context, state } = job;
+  if (await conflicts(job)) {
+    const resolved = await resolveConflict(job);
+    return resolved.done ? resolved : ROUND_CONTINUE;
+  }
+  if (!(await context.ports.mergePr(context.repo, state.pr!))) {
+    return escalateAndFinish(job, 'The merge of the pull request failed.', 'merge failed');
+  }
+  return afterMerge(job);
+}
 
 export async function afterMerge(job: Run): Promise<Round> {
   const round = gateRound(await watchBase(job));
