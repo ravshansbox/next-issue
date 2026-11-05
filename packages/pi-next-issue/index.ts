@@ -28,7 +28,14 @@ export type Options = {
 
 const STATUS_KEY = 'next-issue';
 const QUESTIONS_KEY = 'next-issue-questions';
+const RENDER_MS = 1000;
 const QUESTIONS_MS = 60_000;
+
+function background(callback: () => void, ms: number): ReturnType<typeof setInterval> {
+  const timer = setInterval(callback, ms);
+  timer.unref?.();
+  return timer;
+}
 
 function packageVersion(): string {
   const raw = readFileSync(join(import.meta.dirname, 'package.json'), 'utf8');
@@ -171,10 +178,8 @@ export function createExtension(options: Options) {
     const show = (ctx: ExtensionContext) => {
       ui = ctx.ui;
       coloured = ctx.mode === 'tui';
-      timer ??= setInterval(render, 1000);
-      timer.unref?.();
-      poll ??= setInterval(askQuestions, QUESTIONS_MS);
-      poll.unref?.();
+      timer ??= background(render, RENDER_MS);
+      poll ??= background(askQuestions, QUESTIONS_MS);
     };
 
     pi.on('session_start', async (_event, ctx) => {
