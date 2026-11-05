@@ -7,9 +7,10 @@ export function workerArgs(version: string): string[] {
 }
 
 export function workerPaths(root: string): { socketPath: string; logPath: string } {
+  const stateDir = join(root, '.next-issue');
   return {
-    socketPath: join(root, '.next-issue', 'worker.sock'),
-    logPath: join(root, '.next-issue', 'worker.log'),
+    socketPath: join(stateDir, 'worker.sock'),
+    logPath: join(stateDir, 'worker.log'),
   };
 }
 
