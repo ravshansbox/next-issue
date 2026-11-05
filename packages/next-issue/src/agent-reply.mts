@@ -11,5 +11,5 @@ export function parseCommitSubject(text: string, fallback: string): string {
   const subject = lastMatch(text, /^commit:\s*(.+)$/gim)
     ?.replace(/^`+|`+$/g, '')
     .trim();
-  return subject && subject.length > 0 ? subject : fallback;
+  return subject || fallback;
 }
