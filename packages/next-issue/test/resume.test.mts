@@ -5,9 +5,12 @@ import { test } from 'node:test';
 import { STATE_DIR } from '../src/state.mts';
 import { changes, harness, ISSUE, roles, SAVED, stages } from './harness.mts';
 
+const IN_PROGRESS = { ...ISSUE, labels: ['status:in-progress'] };
+const IN_REVIEW = { ...ISSUE, labels: ['status:in-review'] };
+
 test('a user who resumes a run that died after the merge gets the merge carried on without a second pull request', async (t) => {
   const target = await harness(t, {
-    issue: { ...ISSUE, labels: ['status:in-review'] },
+    issue: IN_REVIEW,
     saved: SAVED,
     merge: true,
     alreadyMerged: true,
@@ -26,7 +29,7 @@ test('a user who resumes a run that died after the merge gets the merge carried 
 
 test('a user who resumes a merged run whose checks on main fail gets the fix through a new pull request', async (t) => {
   const target = await harness(t, {
-    issue: { ...ISSUE, labels: ['status:in-review'] },
+    issue: IN_REVIEW,
     saved: SAVED,
     merge: true,
     alreadyMerged: true,
@@ -43,7 +46,7 @@ test('a user who resumes a merged run whose checks on main fail gets the fix thr
 
 test('a user who resumes without --merge a pull request that a person merged gets the issue done without a wait on main', async (t) => {
   const target = await harness(t, {
-    issue: { ...ISSUE, labels: ['status:in-review'] },
+    issue: IN_REVIEW,
     saved: SAVED,
     alreadyMerged: true,
     baseChecks: ['fail'],
@@ -61,7 +64,7 @@ test('a user who resumes without --merge a pull request that a person merged get
 
 test('a user who resumes a run that died in the fix of main gets the fix carried on without another check fix', async (t) => {
   const target = await harness(t, {
-    issue: { ...ISSUE, labels: ['status:in-review'] },
+    issue: IN_REVIEW,
     saved: { ...SAVED, ciFixes: 1, baseFix: { sha: 'merge-of-101', head: '-1' } },
     merge: true,
     alreadyMerged: true,
@@ -83,7 +86,7 @@ test('a user who resumes a run that died in the fix of main gets the fix carried
 
 test('--reset puts the budgets back and keeps the resume point', async (t) => {
   const target = await harness(t, {
-    issue: { ...ISSUE, labels: ['status:in-progress'] },
+    issue: IN_PROGRESS,
     saved: SAVED,
     reset: true,
   });
@@ -122,7 +125,7 @@ test('a user who resumes a handed-over issue and stops the run gets the state sa
 
 test('a user who resumes a handed-over issue that is handed over again gets the mark back', async (t) => {
   const target = await harness(t, {
-    issue: { ...ISSUE, labels: ['status:in-review'] },
+    issue: IN_REVIEW,
     saved: { ...SAVED, handedOver: true },
     merge: true,
     mergeFails: true,
@@ -185,7 +188,7 @@ test('a run that finds a state file of the wrong shape reports an error that nam
 
 test('a user who resumes an implemented issue gets the pull request titled with the saved subject', async (t) => {
   const target = await harness(t, {
-    issue: { ...ISSUE, labels: ['status:in-progress'] },
+    issue: IN_PROGRESS,
     saved: { ...SAVED, phase: 'implemented', pr: undefined, title: 'feat: add the saved flag' },
   });
   await target.run();
@@ -194,7 +197,7 @@ test('a user who resumes an implemented issue gets the pull request titled with 
 
 test('a user who resumes from a state file without a title gets a conventional pull request title', async (t) => {
   const target = await harness(t, {
-    issue: { ...ISSUE, labels: ['status:in-progress'] },
+    issue: IN_PROGRESS,
     saved: { ...SAVED, phase: 'implemented', pr: undefined },
   });
   await target.run();
@@ -203,7 +206,7 @@ test('a user who resumes from a state file without a title gets a conventional p
 
 test('a saved state carries on and does not implement again', async (t) => {
   const target = await harness(t, {
-    issue: { ...ISSUE, labels: ['status:in-progress'] },
+    issue: IN_PROGRESS,
     saved: {
       issue: 7,
       phase: 'review',
