@@ -31,7 +31,3 @@ export async function must(command: string, args: string[], options: RunOptions)
   }
   return result.stdout.trim();
 }
-
-export function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}

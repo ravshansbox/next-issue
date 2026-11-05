@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { closeSync, mkdirSync, openSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import WebSocket from 'ws';
-import { errorText } from './exec.ts';
+import { errorText } from './errors.ts';
 import {
   type ClientMessage,
   going,

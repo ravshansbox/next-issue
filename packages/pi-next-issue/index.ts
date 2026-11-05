@@ -4,7 +4,8 @@ import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-a
 import { Type } from 'typebox';
 import { answerAll, type Gh } from './src/answer.ts';
 import { shared } from './src/clients.ts';
-import { errorText, must } from './src/exec.ts';
+import { errorText } from './src/errors.ts';
+import { must } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
 import type { Progress, Question } from './src/protocol.ts';
 import { startRun, statusOf, toggle } from './src/run.ts';
