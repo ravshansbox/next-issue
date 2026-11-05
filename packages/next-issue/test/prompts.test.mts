@@ -1,15 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { Issue } from '../src/github.mts';
 import { capDiff, fixPrompt, implementPrompt, reviewPrompt } from '../src/prompts.mts';
-
-const ISSUE: Issue = {
-  number: 7,
-  title: 'Add a flag',
-  body: 'Please add it.',
-  createdAt: '2026-01-01T00:00:00Z',
-  labels: [],
-};
+import { ISSUE } from './harness.mts';
 
 test('capDiff keeps a diff that fits', () => {
   assert.equal(capDiff('abc', 3), 'abc');
