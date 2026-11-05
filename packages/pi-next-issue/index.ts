@@ -233,30 +233,25 @@ export function createExtension(options: Options) {
       },
     });
 
-    const answer = async (ctx: ExtensionContext) => {
-      const { client, root } = await connect(ctx);
-      await answerAll(ctx.ui, options.gh, client, root);
-    };
-
     pi.registerCommand('next-issue', {
       description:
         'Start or stop working through the GitHub issues of this repository, or answer the waiting questions with "answer"',
       getArgumentCompletions: (prefix) =>
         'answer'.startsWith(prefix) ? [{ value: 'answer', label: 'answer' }] : null,
       handler: async (args, ctx) => {
-        if (args.trim() === 'answer') {
-          try {
-            await answer(ctx);
-          } catch (error) {
-            ctx.ui.notify(`next-issue cannot answer: ${errorText(error)}`, 'error');
-          }
-          return;
-        }
+        const answering = args.trim() === 'answer';
         try {
           const { client, root, progress } = await connect(ctx);
-          toggle(client, root, progress);
+          if (answering) {
+            await answerAll(ctx.ui, options.gh, client, root);
+          } else {
+            toggle(client, root, progress);
+          }
         } catch (error) {
-          ctx.ui.notify(`next-issue cannot start: ${errorText(error)}`, 'error');
+          ctx.ui.notify(
+            `next-issue cannot ${answering ? 'answer' : 'start'}: ${errorText(error)}`,
+            'error',
+          );
         }
       },
     });
