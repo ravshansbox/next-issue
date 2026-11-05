@@ -50,8 +50,10 @@ export function createExtension(options: Options) {
     let status: Progress['status'] | undefined;
     let baseline = false;
 
+    const clientOf = (root: string) => shared(options.client, root);
+
     const current = (): Progress | undefined =>
-      root === undefined ? undefined : shared(options.client, root).runs[root];
+      root === undefined ? undefined : clientOf(root).runs[root];
 
     const remember = (progress: Progress | undefined) => {
       handled = progress?.handled.length ?? 0;
@@ -91,7 +93,7 @@ export function createExtension(options: Options) {
 
     const askQuestions = () => {
       if (root !== undefined) {
-        shared(options.client, root).send({ type: 'questions', root });
+        clientOf(root).send({ type: 'questions', root });
       }
     };
 
@@ -152,7 +154,7 @@ export function createExtension(options: Options) {
       if (root === undefined) {
         return;
       }
-      const client = shared(options.client, root);
+      const client = clientOf(root);
       remember(current());
       waiting = client.questions[root]?.map((question) => question.issue);
       baseline = !client.connected;
@@ -183,7 +185,7 @@ export function createExtension(options: Options) {
         return;
       }
       follow();
-      await shared(options.client, root).attach();
+      await clientOf(root).attach();
     });
 
     pi.on('session_shutdown', async () => {
@@ -202,7 +204,7 @@ export function createExtension(options: Options) {
         show(ctx);
         follow();
       }
-      const client = shared(options.client, root);
+      const client = clientOf(root);
       await client.ensure();
       return { client, root, progress: client.runs[root] };
     };
@@ -229,7 +231,7 @@ export function createExtension(options: Options) {
       parameters: Type.Object({}),
       async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
         const root = await options.root(ctx.cwd);
-        return statusOf(shared(options.client, root), root);
+        return statusOf(clientOf(root), root);
       },
     });
 
