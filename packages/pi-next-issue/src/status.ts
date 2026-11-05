@@ -1,4 +1,4 @@
-import type { Handled, Progress, Question } from './protocol.ts';
+import type { Handled, IssueProgress, Progress, Question } from './protocol.ts';
 
 function duration(ms: number): string {
   const seconds = Math.max(0, Math.floor(ms / 1000));
@@ -66,6 +66,14 @@ export function formatQuestions(count: number): string {
   return `${count} ${count === 1 ? 'question' : 'questions'} waiting`;
 }
 
+function issueLine(item: IssueProgress, count: string, now: number): string {
+  const parts = [`#${item.issue}${count}`, item.stage ?? 'prepare', `${item.tools} tools`];
+  if (item.startedAt !== undefined) {
+    parts.push(duration(now - item.startedAt));
+  }
+  return parts.join(' · ');
+}
+
 export function formatStatus(progress: Progress, now: number): string {
   const running = progress.issues ?? [];
   switch (progress.status) {
@@ -74,14 +82,7 @@ export function formatStatus(progress: Progress, now: number): string {
         return 'looking for issues';
       }
       const count = progress.open === undefined ? '' : `/${progress.open}`;
-      const lines = running.map((item) => {
-        const parts = [`#${item.issue}${count}`, item.stage ?? 'prepare', `${item.tools} tools`];
-        if (item.startedAt !== undefined) {
-          parts.push(duration(now - item.startedAt));
-        }
-        return parts.join(' · ');
-      });
-      return lines.join(' | ');
+      return running.map((item) => issueLine(item, count, now)).join(' | ');
     }
     case 'stopping': {
       const issues = running.map((item) => `#${item.issue}`);
