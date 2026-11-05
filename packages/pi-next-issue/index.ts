@@ -18,7 +18,8 @@ import {
   questionNotes,
   statusNote,
 } from './src/status.ts';
-import { spawnWorker, WorkerClient, type WorkerEvent, workerPaths } from './src/worker.ts';
+import { spawnWorker, workerPaths } from './src/spawn-worker.ts';
+import { WorkerClient, type WorkerEvent } from './src/worker.ts';
 
 export type Options = {
   client: (root: string) => WorkerClient;

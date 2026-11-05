@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { workerArgs, workerPaths } from '../src/worker.ts';
+import { workerArgs, workerPaths } from '../src/spawn-worker.ts';
 
 test('the extension starts the worker release that matches its own version', () => {
   assert.deepEqual(workerArgs('1.2.3'), ['-y', 'next-issue@1.2.3', 'serve']);
