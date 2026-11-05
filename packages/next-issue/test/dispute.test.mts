@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { APPROVE, changes, harness, roles } from './harness.mts';
 
+const DISPUTE = 'unrelated: the count follows the convention in CONTRIBUTING.md';
+const DISPUTED = { verdicts: [changes('The count is wrong.'), APPROVE], fixerText: [DISPUTE] };
+
 test('a fixer that reports an unrelated failure hands over without a commit', async (t) => {
   const target = await harness(t, {
     checks: ['fail'],
@@ -20,8 +23,7 @@ test('a fixer that reports an unrelated failure hands over without a commit', as
 
 test('a fixer that disputes a finding keeps the round going', async (t) => {
   const target = await harness(t, {
-    verdicts: [changes('The count is wrong.'), APPROVE],
-    fixerText: ['unrelated: the count follows the convention in CONTRIBUTING.md'],
+    ...DISPUTED,
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
@@ -32,8 +34,7 @@ test('a fixer that disputes a finding keeps the round going', async (t) => {
 test('a fixer that disputes and leaves a change hands the issue to a person', async (t) => {
   const target = await harness(t, {
     fixerWrites: true,
-    verdicts: [changes('The count is wrong.'), APPROVE],
-    fixerText: ['unrelated: the count follows the convention in CONTRIBUTING.md'],
+    ...DISPUTED,
   });
   const report = await target.run();
   assert.equal(report.outcome, 'needs-human');
@@ -45,8 +46,7 @@ test('a fixer that disputes and leaves a change hands the issue to a person', as
 test('a fixer that disputes after its own commit hands the issue to a person', async (t) => {
   const target = await harness(t, {
     selfCommit: true,
-    verdicts: [changes('The count is wrong.'), APPROVE],
-    fixerText: ['unrelated: the count follows the convention in CONTRIBUTING.md'],
+    ...DISPUTED,
   });
   const report = await target.run();
   assert.equal(report.outcome, 'needs-human');
@@ -57,8 +57,7 @@ test('a fixer that disputes after its own commit hands the issue to a person', a
 test('a fixer that disputes after its own commit gets the commit moved off the branch of the pull request', async (t) => {
   const target = await harness(t, {
     selfCommit: true,
-    verdicts: [changes('The count is wrong.'), APPROVE],
-    fixerText: ['unrelated: the count follows the convention in CONTRIBUTING.md'],
+    ...DISPUTED,
   });
   await target.run();
   assert.deepEqual(target.asides, [{ target: '2', branch: '7-dispute-3' }]);
@@ -87,8 +86,7 @@ test('a finished issue gets the dispute branches of an earlier run deleted', asy
 test('a fixer that disputes and leaves only an unclean worktree keeps the branch as it is', async (t) => {
   const target = await harness(t, {
     fixerWrites: true,
-    verdicts: [changes('The count is wrong.'), APPROVE],
-    fixerText: ['unrelated: the count follows the convention in CONTRIBUTING.md'],
+    ...DISPUTED,
   });
   await target.run();
   assert.deepEqual(target.asides, []);
@@ -96,8 +94,7 @@ test('a fixer that disputes and leaves only an unclean worktree keeps the branch
 
 test('the next reviewer reads the dispute of the fixer', async (t) => {
   const target = await harness(t, {
-    verdicts: [changes('The count is wrong.'), APPROVE],
-    fixerText: ['unrelated: the count follows the convention in CONTRIBUTING.md'],
+    ...DISPUTED,
   });
   await target.run();
   const second = target.prompts.filter((entry) => entry.role === 'reviewer')[1]!.prompt;
@@ -111,10 +108,7 @@ test('a reviewer that holds to a disputed finding sends it back to the fixer unt
   const target = await harness(t, {
     config: { maxReviewRounds: 2 },
     verdicts: [changes('The count is wrong.'), changes('The count is wrong.')],
-    fixerText: [
-      'unrelated: the count follows the convention in CONTRIBUTING.md',
-      'unrelated: the count follows the convention in CONTRIBUTING.md',
-    ],
+    fixerText: [DISPUTE, DISPUTE],
   });
   const report = await target.run();
   assert.equal(report.outcome, 'needs-human');
