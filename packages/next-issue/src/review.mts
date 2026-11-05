@@ -2,7 +2,7 @@ import { REVIEWING } from './agents.mts';
 import { conflicts, resolveConflict } from './conflict.mts';
 import { fixRound, type Unfixed } from './fix.mts';
 import { checkGate } from './gate.mts';
-import { escalateAndFinish, finishDone, spendBudget } from './handover.mts';
+import { budgetUse, escalateAndFinish, finishDone, spendBudget } from './handover.mts';
 import { gateRound, ROUND_CONTINUE, type Round, type Run, runRole, setStatus } from './job.mts';
 import { afterMerge } from './merge.mts';
 import { capDiff, history, reviewPrompt } from './prompts.mts';
@@ -81,8 +81,7 @@ async function runReviewer(job: Run, earlier: string[]): Promise<string> {
   const full = await ports.diff(worktree, context.base, config.remote);
   const patch = capDiff(full, config.diffMaxChars);
   const fields = {
-    round: state.reviewRounds,
-    limit: config.maxReviewRounds,
+    ...budgetUse(job, 'reviewRounds'),
     diffChars: full.length,
     cut: full.length > config.diffMaxChars,
   };
