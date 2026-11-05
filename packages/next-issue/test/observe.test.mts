@@ -1,27 +1,18 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-import { type Fields, Recorder } from '../src/observe.mts';
+import { Recorder } from '../src/observe.mts';
+import { logRecords } from './log-records.mts';
 import { tempDir } from './temp-dir.mts';
 
 async function recorder(): Promise<Recorder> {
   return Recorder.create(await tempDir(), 'quiet');
 }
 
-async function lines(target: Recorder): Promise<Fields[]> {
-  await target.close();
-  const raw = await readFile(target.logFile, 'utf8');
-  return raw
-    .split('\n')
-    .filter((line) => line.length > 0)
-    .map((line) => JSON.parse(line) as Fields);
-}
-
 test('every event goes to the log file with the run id', async () => {
   const target = await recorder();
   target.event('run.start', { repo: 'acme/tool' }, 'verbose');
   target.event('issues', { open: 2 }, 'verbose');
-  const records = await lines(target);
+  const records = await logRecords(target);
   assert.equal(records.length, 2);
   assert.equal(records[0]!.kind, 'run.start');
   assert.equal(records[0]!.repo, 'acme/tool');
@@ -35,7 +26,7 @@ test('a scope adds its fields to every event under it', async () => {
   const role = issue.scope({ role: 'fixer' });
   role.event('agent.start', {}, 'verbose');
   target.event('run.end', {}, 'verbose');
-  const records = await lines(target);
+  const records = await logRecords(target);
   assert.equal(records[0]!.issue, 7);
   assert.equal(records[0]!.role, 'fixer');
   assert.equal(records[1]!.issue, undefined);
@@ -45,7 +36,7 @@ test('a step writes a start and an end with the time', async () => {
   const target = await recorder();
   const result = await target.step('checks', { pr: 3 }, async () => 'pass');
   assert.equal(result, 'pass');
-  const records = await lines(target);
+  const records = await logRecords(target);
   assert.deepEqual(
     records.map((record) => record.kind),
     ['checks.start', 'checks.end'],
@@ -62,7 +53,7 @@ test('a step that throws writes an error event and passes the throw on', async (
     }),
     /no remote/,
   );
-  const records = await lines(target);
+  const records = await logRecords(target);
   assert.equal(records[1]!.kind, 'push.error');
   assert.equal(records[1]!.error, 'no remote');
 });

@@ -1,21 +1,17 @@
 import assert from 'node:assert/strict';
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { recordCommands } from '../src/command-records.mts';
 import { run } from '../src/exec.mts';
-import { type Fields, Recorder } from '../src/observe.mts';
+import { Recorder } from '../src/observe.mts';
+import { logRecords } from './log-records.mts';
 import { tempDir } from './temp-dir.mts';
 
 const NODE = process.execPath;
 
 async function commands(target: Recorder): Promise<string[]> {
-  await target.close();
-  const raw = await readFile(target.logFile, 'utf8');
-  return raw
-    .split('\n')
-    .filter((line) => line.length > 0)
-    .map((line) => JSON.parse(line) as Fields)
+  return (await logRecords(target))
     .filter((record) => record.kind === 'command')
     .map((record) => String(record.cmd));
 }
