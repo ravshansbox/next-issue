@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as extension from '../src/protocol.ts';
 import * as protocol from '../../next-issue/src/protocol.mts';
+import * as extension from '../src/protocol.ts';
 
 type Same<Left, Right> = [Left] extends [Right] ? ([Right] extends [Left] ? true : false) : false;
 
