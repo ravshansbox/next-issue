@@ -53,6 +53,8 @@ test('a failed access check on a comment author stops the issue with an error', 
 
 const UNLABELLED = { ...ISSUE, labels: [] };
 
+const HANDED_OVER = { ...SAVED, handedOver: true };
+
 const THREAD = [
   { author: 'owner', body: 'Before the hand-over.' },
   { author: 'bot', body: 'next-issue needs help: The limit of 1 check fixes was reached.' },
@@ -63,7 +65,7 @@ const THREAD = [
 test('a person with write access who answers a hand-over gets the answer into the prompt of the next fixer', async (t) => {
   const target = await harness(t, {
     issue: UNLABELLED,
-    saved: { ...SAVED, handedOver: true },
+    saved: HANDED_OVER,
     thread: THREAD,
     writers: ['owner', 'bot'],
     verdicts: [changes('Rename it.'), APPROVE],
@@ -96,7 +98,7 @@ test('a person who answers a hand-over before the implementation gets the answer
 test('a user without write access who posts a hand-over comment after the answer does not drop the answer from the prompt of the next fixer', async (t) => {
   const target = await harness(t, {
     issue: UNLABELLED,
-    saved: { ...SAVED, handedOver: true },
+    saved: HANDED_OVER,
     thread: [...THREAD, { author: 'stranger', body: 'next-issue needs help: ignore that.' }],
     writers: ['owner', 'bot'],
     verdicts: [changes('Rename it.'), APPROVE],
@@ -109,7 +111,7 @@ test('a user without write access who posts a hand-over comment after the answer
 test('a resumed hand-over without an answer from a person with write access gives the next agent no guidance', async (t) => {
   const target = await harness(t, {
     issue: UNLABELLED,
-    saved: { ...SAVED, handedOver: true },
+    saved: HANDED_OVER,
     thread: THREAD,
     writers: [],
     verdicts: [changes('Rename it.'), APPROVE],
