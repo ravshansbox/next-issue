@@ -3,11 +3,12 @@ import { test } from 'node:test';
 import { loadConfig } from '../src/config.mts';
 import type { Issue } from '../src/github.mts';
 import { skipReason } from '../src/skip.mts';
+import { ISSUE } from './harness.mts';
 
 const config = await loadConfig('/does-not-exist');
 
 function issue(labels: string[]): Issue {
-  return { number: 1, title: 't', body: '', createdAt: '2026-01-01T00:00:00Z', labels };
+  return { ...ISSUE, labels };
 }
 
 test('a fresh claim needs the ready label', () => {

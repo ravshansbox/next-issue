@@ -6,10 +6,11 @@ import { loadConfig } from '../src/config.mts';
 import type { Comment, Issue } from '../src/github.mts';
 import { waitingQuestions } from '../src/hand-over-comments.mts';
 import { STATE_DIR } from '../src/state.mts';
+import { ISSUE } from './harness.mts';
 import { tempDir } from './temp-dir.mts';
 
 function issue(number: number, title: string): Issue {
-  return { number, title, body: '', createdAt: '2026-11-01T00:00:00Z', labels: [] };
+  return { ...ISSUE, number, title };
 }
 
 test('the worker lists each open issue that waits for a person with the reason and the url of its hand-over', async () => {
