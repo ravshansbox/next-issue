@@ -39,6 +39,10 @@ export function statusNote(progress: Progress): Note | undefined {
   return undefined;
 }
 
+export function cannotNote(action: 'start' | 'answer', message: string): Note {
+  return { text: `next-issue cannot ${action}: ${message}`, level: 'error' };
+}
+
 export function handledNotes(progress: Progress, from: number): Note[] {
   return progress.handled.slice(from).map((item) => ({
     text: `next-issue: ${handledNote(item)}`,

@@ -9,6 +9,7 @@ import { repoRoot } from './src/git.ts';
 import type { Progress, Question } from './src/protocol.ts';
 import { startRun, statusOf, toggle } from './src/run.ts';
 import {
+  cannotNote,
   formatQuestions,
   formatStatus,
   handledNotes,
@@ -145,7 +146,7 @@ export function createExtension(options: Options) {
       } else if (event.type === 'questions' && event.root === root) {
         onQuestions(event.questions);
       } else if (event.type === 'error' && event.root === root) {
-        ui?.notify(`next-issue cannot start: ${event.message}`, 'error');
+        tell(cannotNote('start', event.message));
       }
     };
 
@@ -250,10 +251,8 @@ export function createExtension(options: Options) {
             toggle(client, root, progress);
           }
         } catch (error) {
-          ctx.ui.notify(
-            `next-issue cannot ${answering ? 'answer' : 'start'}: ${errorText(error)}`,
-            'error',
-          );
+          const note = cannotNote(answering ? 'answer' : 'start', errorText(error));
+          ctx.ui.notify(note.text, note.level);
         }
       },
     });
