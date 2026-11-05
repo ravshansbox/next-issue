@@ -13,12 +13,8 @@ const GIVE_UP = 'Give up';
 type Answer = { choice: string; guidance: string };
 
 function threadsOf(question: Question): Array<[string, number]> {
-  return question.pr === undefined
-    ? [['issue', question.issue]]
-    : [
-        ['issue', question.issue],
-        ['pr', question.pr],
-      ];
+  const issue: [string, number] = ['issue', question.issue];
+  return question.pr === undefined ? [issue] : [issue, ['pr', question.pr]];
 }
 
 function promptOf(question: Question): string {
