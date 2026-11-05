@@ -76,8 +76,7 @@ export async function ghApi(
 }
 
 export async function ghSucceeds(repo: Repo, args: string[]): Promise<boolean> {
-  const result = await ghRun(repo, args);
-  return succeeded(result);
+  return succeeded(await ghRun(repo, args));
 }
 
 export type Named = { name: string };

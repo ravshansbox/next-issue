@@ -132,8 +132,7 @@ export async function deleteBranch(repo: Repo, branch: string): Promise<boolean>
 }
 
 export async function succeeds(cwd: string, args: string[]): Promise<boolean> {
-  const result = await run('git', args, { cwd });
-  return succeeded(result);
+  return succeeded(await run('git', args, { cwd }));
 }
 
 export async function git(cwd: string, args: string[]): Promise<string> {
