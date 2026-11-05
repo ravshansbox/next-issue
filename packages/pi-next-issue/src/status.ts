@@ -19,12 +19,31 @@ function outcomes(progress: Progress): string {
     .join(', ');
 }
 
-export function failedNote(progress: Progress): string {
+function failedNote(progress: Progress): string {
   return `failed: ${progress.error ?? 'unknown error'}`;
 }
 
 export function handledNote(item: Handled): string {
   return `#${item.issue} ${OUTCOME_NOTES[item.outcome]}`;
+}
+
+export type Note = { text: string; level: 'info' | 'warning' | 'error' };
+
+export function statusNote(progress: Progress): Note | undefined {
+  if (progress.status === 'finished' || progress.status === 'stopped') {
+    return { text: `next-issue ${progress.status}`, level: 'info' };
+  }
+  if (progress.status === 'failed') {
+    return { text: `next-issue ${failedNote(progress)}`, level: 'error' };
+  }
+  return undefined;
+}
+
+export function handledNotes(progress: Progress, from: number): Note[] {
+  return progress.handled.slice(from).map((item) => ({
+    text: `next-issue: ${handledNote(item)}`,
+    level: item.outcome === 'done' ? 'info' : 'warning',
+  }));
 }
 
 export function formatQuestions(count: number): string {

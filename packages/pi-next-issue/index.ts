@@ -8,7 +8,13 @@ import { errorText, must } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
 import type { Progress, Question } from './src/protocol.ts';
 import { startRun, statusOf, toggle } from './src/run.ts';
-import { failedNote, formatQuestions, formatStatus, handledNote } from './src/status.ts';
+import {
+  formatQuestions,
+  formatStatus,
+  handledNotes,
+  type Note,
+  statusNote,
+} from './src/status.ts';
 import { spawnWorker, WorkerClient, type WorkerEvent, workerPaths } from './src/worker.ts';
 
 export type Options = {
@@ -97,28 +103,25 @@ export function createExtension(options: Options) {
       }
     };
 
+    const tell = (note: Note | undefined) => {
+      if (note !== undefined) {
+        ui?.notify(note.text, note.level);
+      }
+    };
+
     const announce = (progress: Progress) => {
       if (progress.status === status) {
         return;
       }
       status = progress.status;
-      if (status === 'finished' || status === 'stopped') {
-        ui?.notify(`next-issue ${status}`, 'info');
-      } else if (status === 'failed') {
-        ui?.notify(`next-issue ${failedNote(progress)}`, 'error');
-      }
+      tell(statusNote(progress));
     };
 
     const notifyHandled = (progress: Progress) => {
       if (progress.handled.length < handled) {
         handled = 0;
       }
-      for (const item of progress.handled.slice(handled)) {
-        ui?.notify(
-          `next-issue: ${handledNote(item)}`,
-          item.outcome === 'done' ? 'info' : 'warning',
-        );
-      }
+      handledNotes(progress, handled).forEach(tell);
       handled = progress.handled.length;
     };
 
