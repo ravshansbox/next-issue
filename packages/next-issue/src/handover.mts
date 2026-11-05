@@ -11,7 +11,7 @@ import {
   setStatus,
 } from './job.mts';
 import { oneAtATime } from './lock.mts';
-import type { Recorder } from './observe.mts';
+import type { Fields, Recorder } from './observe.mts';
 import { logIssueError } from './skip.mts';
 import { dropState, type IssueState, writeState } from './state.mts';
 
@@ -103,9 +103,21 @@ export async function finish(job: Run, outcome: Outcome, reason?: string): Promi
 async function deleteBranches(context: Context, log: Recorder, branch: string): Promise<void> {
   const { repo, ports } = context;
   for (const name of [branch, ...(await ports.disputeBranches(repo, branch))]) {
-    if (!(await oneAtATime(repo.root, () => ports.deleteBranch(repo, name)))) {
-      log.event('branch.kept', { branch: name }, 'quiet');
-    }
+    await removeOrKeep(context, log, 'branch.kept', { branch: name }, () =>
+      ports.deleteBranch(repo, name),
+    );
+  }
+}
+
+async function removeOrKeep(
+  context: Context,
+  log: Recorder,
+  kind: string,
+  fields: Fields,
+  remove: () => Promise<boolean>,
+): Promise<void> {
+  if (!(await oneAtATime(context.repo.root, remove))) {
+    log.event(kind, fields, 'quiet');
   }
 }
 
@@ -116,9 +128,9 @@ async function cleanUp(context: Context, log: Recorder, branch: string): Promise
     if (path === undefined) {
       return;
     }
-    if (!(await oneAtATime(repo.root, () => ports.removeWorktree(repo, path)))) {
-      log.event('worktree.kept', { path }, 'quiet');
-    }
+    await removeOrKeep(context, log, 'worktree.kept', { path }, () =>
+      ports.removeWorktree(repo, path),
+    );
   } catch (error) {
     log.event('worktree.error', { error: message(error) }, 'quiet');
   }
