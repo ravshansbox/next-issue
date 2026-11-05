@@ -1,4 +1,4 @@
-import type { Handled, Progress } from './protocol.ts';
+import type { Handled, Progress, Question } from './protocol.ts';
 
 function duration(ms: number): string {
   const seconds = Math.max(0, Math.floor(ms / 1000));
@@ -44,6 +44,18 @@ export function handledNotes(progress: Progress, from: number): Note[] {
     text: `next-issue: ${handledNote(item)}`,
     level: item.outcome === 'done' ? 'info' : 'warning',
   }));
+}
+
+export function questionNotes(questions: Question[], known: number[] | undefined): Note[] {
+  if (known === undefined) {
+    return [];
+  }
+  return questions
+    .filter((question) => !known.includes(question.issue))
+    .map((question) => ({
+      text: `next-issue: #${question.issue} has a question: ${question.title}`,
+      level: 'warning',
+    }));
 }
 
 export function formatQuestions(count: number): string {

@@ -13,6 +13,7 @@ import {
   formatStatus,
   handledNotes,
   type Note,
+  questionNotes,
   statusNote,
 } from './src/status.ts';
 import { spawnWorker, WorkerClient, type WorkerEvent, workerPaths } from './src/worker.ts';
@@ -86,26 +87,22 @@ export function createExtension(options: Options) {
       );
     };
 
+    const tell = (note: Note | undefined) => {
+      if (note !== undefined) {
+        ui?.notify(note.text, note.level);
+      }
+    };
+
     const onQuestions = (questions: Question[]) => {
       const known = waiting;
       waiting = questions.map((question) => question.issue);
-      for (const question of questions) {
-        if (known !== undefined && !known.includes(question.issue)) {
-          ui?.notify(`next-issue: #${question.issue} has a question: ${question.title}`, 'warning');
-        }
-      }
+      questionNotes(questions, known).forEach(tell);
       paintQuestions();
     };
 
     const askQuestions = () => {
       if (root !== undefined) {
         clientOf(root).send({ type: 'questions', root });
-      }
-    };
-
-    const tell = (note: Note | undefined) => {
-      if (note !== undefined) {
-        ui?.notify(note.text, note.level);
       }
     };
 
