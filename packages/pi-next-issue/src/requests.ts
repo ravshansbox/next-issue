@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { going, type Question } from './protocol.ts';
-import type { WorkerClient } from './worker.ts';
-
-const CLOSED = 'the worker closed the connection';
+import { CLOSED, type WorkerClient } from './worker.ts';
 
 export function accepted(
   client: WorkerClient,

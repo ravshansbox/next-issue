@@ -26,6 +26,8 @@ const START_TIMEOUT_MS = 120_000;
 const RECONNECT_MS = 5_000;
 const POLL_MS = 200;
 
+export const CLOSED = 'the worker closed the connection';
+
 export function workerArgs(version: string): string[] {
   return ['-y', `next-issue@${version === '0.0.0' ? 'latest' : version}`, 'serve'];
 }
@@ -201,7 +203,7 @@ export class WorkerClient {
       socket.once('close', () => {
         this.release(socket);
         if (!hello) {
-          reject(new Error('the worker closed the connection'));
+          reject(new Error(CLOSED));
         }
       });
     });
