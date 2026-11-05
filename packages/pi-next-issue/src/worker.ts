@@ -65,6 +65,10 @@ export class WorkerClient {
     return this.options.startTimeoutMs ?? START_TIMEOUT_MS;
   }
 
+  private get reconnectMs(): number {
+    return this.options.reconnectMs ?? RECONNECT_MS;
+  }
+
   private get busy(): boolean {
     return Object.values(this.runs).some(going);
   }
@@ -224,7 +228,7 @@ export class WorkerClient {
       if (!this.connected && this.connecting === undefined) {
         void this.attach();
       }
-    }, this.options.reconnectMs ?? RECONNECT_MS);
+    }, this.reconnectMs);
     this.reconnectTimer.unref?.();
   }
 
