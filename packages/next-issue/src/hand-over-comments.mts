@@ -52,7 +52,19 @@ async function lastHandOver(comments: Comment[], writer: Writer): Promise<number
   return -1;
 }
 
-type QuestionPorts = Pick<Ports, 'canWrite' | 'openIssues' | 'threadComments'>;
+type ThreadPorts = Pick<Ports, 'canWrite' | 'threadComments'>;
+
+async function handOverThread(
+  repo: Repo,
+  ports: ThreadPorts,
+  writer: Writer,
+  thread: number,
+): Promise<{ comments: Comment[]; last: number }> {
+  const comments = await ports.threadComments(repo, thread);
+  return { comments, last: await lastHandOver(comments, writer) };
+}
+
+type QuestionPorts = ThreadPorts & Pick<Ports, 'openIssues'>;
 
 export async function waitingQuestions(
   repo: Repo,
@@ -76,8 +88,8 @@ async function waitingQuestion(
   issue: Issue,
 ): Promise<Question> {
   const pr = (await readState(repo, issue.number))?.pr;
-  const comments = await ports.threadComments(repo, pr ?? issue.number);
-  const comment = comments[await lastHandOver(comments, writer)];
+  const { comments, last } = await handOverThread(repo, ports, writer, pr ?? issue.number);
+  const comment = comments[last];
   return {
     issue: issue.number,
     title: issue.title,
@@ -106,9 +118,8 @@ export async function handOverReply(
   pr: number | undefined,
 ): Promise<string[]> {
   const { repo, ports } = context;
-  const comments = await ports.threadComments(repo, pr ?? issue);
   const writer = writers(repo, ports);
-  const last = await lastHandOver(comments, writer);
+  const { comments, last } = await handOverThread(repo, ports, writer, pr ?? issue);
   if (last === -1) {
     return [];
   }
