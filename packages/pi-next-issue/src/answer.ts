@@ -10,6 +10,8 @@ const RETRY = 'Retry';
 const GUIDE = 'Retry with guidance';
 const GIVE_UP = 'Give up';
 
+type Answer = { choice: string; guidance: string };
+
 function threadsOf(question: Question): Array<[string, number]> {
   return question.pr === undefined
     ? [['issue', question.issue]]
@@ -36,8 +38,7 @@ async function reply(
   gh: Gh,
   root: string,
   question: Question,
-  choice: string,
-  guidance: string,
+  { choice, guidance }: Answer,
 ): Promise<void> {
   const threads = threadsOf(question);
   const repo = ['--repo', question.repo];
@@ -54,10 +55,7 @@ async function reply(
   }
 }
 
-async function ask(
-  ui: ExtensionContext['ui'],
-  question: Question,
-): Promise<{ choice: string; guidance: string } | undefined> {
+async function ask(ui: ExtensionContext['ui'], question: Question): Promise<Answer | undefined> {
   const choice = await ui.select(promptOf(question), [RETRY, GUIDE, GIVE_UP]);
   if (choice === undefined) {
     return undefined;
@@ -85,12 +83,11 @@ export async function answerAll(
       return;
     }
     passed.add(question.issue);
-    const picked = await ask(ui, question);
-    if (picked === undefined) {
+    const answer = await ask(ui, question);
+    if (answer === undefined) {
       return;
     }
-    const { choice, guidance } = picked;
-    await reply(gh, root, question, choice, guidance);
-    ui.notify(answeredOf(question, choice), 'info');
+    await reply(gh, root, question, answer);
+    ui.notify(answeredOf(question, answer.choice), 'info');
   }
 }
