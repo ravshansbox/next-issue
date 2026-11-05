@@ -1,7 +1,8 @@
 import { parseCommitSubject } from './agent-reply.mts';
 import { checkPolling } from './config.mts';
 import { commitWork, runFixer } from './fix.mts';
-import { escalateAndFinish, spendBudget } from './handover.mts';
+import { spendBudget } from './budget.mts';
+import { escalateAndFinish } from './handover.mts';
 import { type Gate, GATE_FIXED, type Run } from './job.mts';
 
 export async function conflicts(job: Run): Promise<boolean> {

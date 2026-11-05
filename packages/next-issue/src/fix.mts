@@ -2,7 +2,7 @@ import { parseCommitSubject, parseUnrelated } from './agent-reply.mts';
 import { CODING } from './agents.mts';
 import { message } from './errors.mts';
 import { HookError } from './git-commit.mts';
-import { type BudgetUse, budgetUse } from './handover.mts';
+import { type BudgetUse, budgetUse } from './budget.mts';
 import { type Run, runRole } from './job.mts';
 import { type FixKind, fixPrompt, hookPrompt } from './prompts.mts';
 import { writeState } from './state.mts';

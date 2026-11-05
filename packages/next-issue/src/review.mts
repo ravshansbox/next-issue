@@ -1,7 +1,8 @@
 import { REVIEWING } from './agents.mts';
 import { fixRound, type Unfixed } from './fix.mts';
 import { checkGate } from './gate.mts';
-import { budgetUse, escalateAndFinish, finishDone, spendBudget } from './handover.mts';
+import { budgetUse, spendBudget } from './budget.mts';
+import { escalateAndFinish, finishDone } from './handover.mts';
 import { gateRound, ROUND_CONTINUE, type Round, type Run, runRole, setStatus } from './job.mts';
 import { mergeApproved } from './merge.mts';
 import { capDiff, history, reviewPrompt } from './prompts.mts';
