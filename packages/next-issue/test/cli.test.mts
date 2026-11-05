@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { must } from '../src/exec.mts';
+import { runsDir, stateDir } from '../src/state.mts';
 import { tempDir } from './temp-dir.mts';
 
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
@@ -88,7 +89,7 @@ test('a user who stops the worker with SIGTERM sees it exit and remove its socke
   assert.match(stderr(), /worker listening on .*\.next-issue\/worker\.sock/);
   child.kill('SIGTERM');
   assert.equal(await exited, 'SIGTERM');
-  assert.deepEqual(await readdir(join(root, '.next-issue')), []);
+  assert.deepEqual(await readdir(stateDir(root)), []);
 });
 
 test('a user who runs stop sees the worker of this repository exit and remove its socket and lock files', async (t) => {
@@ -100,7 +101,7 @@ test('a user who runs stop sees the worker of this repository exit and remove it
     `next-issue: stopped the worker with process id ${child.pid}\n`,
   );
   assert.equal(await exited, 'SIGTERM');
-  assert.deepEqual(await readdir(join(root, '.next-issue')), []);
+  assert.deepEqual(await readdir(stateDir(root)), []);
 });
 
 test('a user who runs stop in one repository leaves the worker of another repository going', async (t) => {
@@ -114,10 +115,7 @@ test('a user who runs stop in one repository leaves the worker of another reposi
   assert.equal(await one.exited, 'SIGTERM');
   assert.equal(two.child.exitCode, null);
   assert.equal(two.child.signalCode, null);
-  assert.deepEqual((await readdir(join(second, '.next-issue'))).sort(), [
-    'worker.lock',
-    'worker.sock',
-  ]);
+  assert.deepEqual((await readdir(stateDir(second))).sort(), ['worker.lock', 'worker.sock']);
 });
 
 test('a user who runs stop with no worker alive sees that none is running', async () => {
@@ -125,8 +123,8 @@ test('a user who runs stop with no worker alive sees that none is running', asyn
   assert.equal(await stopCommand(root), 'next-issue: no worker is running\n');
   const dead = spawn(process.execPath, ['-e', '']);
   await new Promise((resolve) => dead.on('exit', resolve));
-  await mkdir(join(root, '.next-issue'));
-  await writeFile(join(root, '.next-issue', 'worker.lock'), `${dead.pid}\n`);
+  await mkdir(stateDir(root));
+  await writeFile(join(stateDir(root), 'worker.lock'), `${dead.pid}\n`);
   assert.equal(await stopCommand(root), 'next-issue: no worker is running\n');
 });
 
@@ -155,7 +153,7 @@ function event(index: number): string {
 async function runLog(lines: string[]): Promise<{ root: string; file: string }> {
   const root = await tempDir();
   await must('git', ['init', '-q'], { cwd: root });
-  const dir = join(root, '.next-issue', 'runs');
+  const dir = runsDir(root);
   await mkdir(join(dir, '2026-01-02T03-04-05-000Z', 'sessions'), { recursive: true });
   await writeFile(join(dir, '2026-01-01T00-00-00-000Z.jsonl'), `${event(99)}\n`);
   const file = join(dir, '2026-01-02T03-04-05-000Z.jsonl');
