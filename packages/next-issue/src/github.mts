@@ -1,4 +1,4 @@
-import { errorMatches } from './errors.mts';
+import { errorMatches, parseJson } from './errors.mts';
 import { lines } from './text.mts';
 import {
   gh,
@@ -97,13 +97,10 @@ export async function threadComments(repo: Repo, number: number): Promise<Commen
 }
 
 function parseComment(line: string, number: number): Comment {
-  let parsed: [string, string | null, string?];
-  try {
-    parsed = JSON.parse(line);
-  } catch {
-    throw new Error(`gh gave a comment of #${number} that is not valid JSON: ${line}`);
-  }
-  const [author, body, url] = parsed;
+  const [author, body, url] = parseJson(
+    line,
+    () => `gh gave a comment of #${number} that is not valid JSON: ${line}`,
+  ) as [string, string | null, string?];
   return url === undefined ? { author, body: body ?? '' } : { author, body: body ?? '', url };
 }
 

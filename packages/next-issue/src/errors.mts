@@ -13,3 +13,11 @@ export function hasCode(error: unknown, code: string): boolean {
 export function errorMatches(error: unknown, pattern: RegExp): boolean {
   return error instanceof Error && pattern.test(error.message);
 }
+
+export function parseJson(text: string, failure: (error: unknown) => string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new Error(failure(error));
+  }
+}

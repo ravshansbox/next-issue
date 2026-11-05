@@ -1,5 +1,6 @@
 import { mkdir, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { parseJson } from './errors.mts';
 import { readTextIfPresent, unlessMissing, writeJson } from './files.mts';
 import type { Repo } from './git.mts';
 import { isRecord } from './records.mts';
@@ -55,12 +56,7 @@ export async function readState(repo: Repo, issue: number): Promise<IssueState |
 }
 
 function parseState(path: string, text: string): IssueState {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    throw new Error(`the state file ${path} is not valid JSON`);
-  }
+  const parsed = parseJson(text, () => `the state file ${path} is not valid JSON`);
   if (!isState(parsed)) {
     throw new Error(`the state file ${path} does not hold a valid state`);
   }

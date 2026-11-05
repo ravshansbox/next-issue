@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import type { PollOptions } from './check-poll.mts';
 import { CONFIG_FILE, flag, record, rejectUnknown, text, whole } from './config-fields.mts';
 import { minutesToMs, secondsToMs } from './durations.mts';
-import { hasCode, message } from './errors.mts';
+import { hasCode, message, parseJson } from './errors.mts';
 import { readTextIfPresent, writeJson } from './files.mts';
 import type { Polling } from './poll.mts';
 
@@ -126,13 +126,9 @@ export async function loadConfig(root: string): Promise<Config> {
   if (raw === undefined) {
     return defaults();
   }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (error) {
-    throw new Error(`${CONFIG_FILE} is not valid JSON: ${message(error)}`);
-  }
-  return parseConfig(parsed);
+  return parseConfig(
+    parseJson(raw, (error) => `${CONFIG_FILE} is not valid JSON: ${message(error)}`),
+  );
 }
 
 function parseConfig(value: unknown): Config {
