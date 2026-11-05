@@ -1,14 +1,10 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'node:test';
 import { repoRoot } from '../src/git.ts';
-
-function tempFolder(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'pi-next-issue-'));
-}
+import { tempFolder } from './temp-folder.ts';
 
 test('a user in a subfolder of a repository gets the root of the repository', async () => {
   const root = fs.realpathSync(tempFolder());

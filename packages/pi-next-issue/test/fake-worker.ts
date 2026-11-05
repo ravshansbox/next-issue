@@ -1,9 +1,8 @@
-import { mkdtempSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WebSocketServer } from 'ws';
 import type { ClientMessage, IssueProgress, Progress, WorkerMessage } from '../src/protocol.ts';
+import { tempFolder } from './temp-folder.ts';
 
 export type FakeWorker = {
   received: ClientMessage[];
@@ -14,7 +13,7 @@ export type FakeWorker = {
 };
 
 export function socketPath(): string {
-  return join(mkdtempSync(join(tmpdir(), 'pi-next-issue-')), 'w.sock');
+  return join(tempFolder(), 'w.sock');
 }
 
 export async function startFakeWorker(
