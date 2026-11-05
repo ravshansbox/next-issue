@@ -24,7 +24,9 @@ const LIMITS = { ciFixes: 'maxCiFixes', reviewRounds: 'maxReviewRounds' } as con
 
 type Budget = keyof typeof LIMITS;
 
-export function budgetUse(job: Run, budget: Budget): { round: number; limit: number } {
+export type BudgetUse = { round: number; limit: number };
+
+export function budgetUse(job: Run, budget: Budget): BudgetUse {
   return { round: job.state[budget], limit: job.context.config[LIMITS[budget]] };
 }
 
