@@ -14,13 +14,20 @@ const QUESTION: Question = {
 
 const questionsOf = (value: WorkerMessage) => value.type === 'questions';
 
+async function waitForPending(
+  pending: ((questions: Question[]) => void)[],
+  count: number,
+): Promise<void> {
+  while (pending.length < count) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
 async function answerConnect(
   pending: ((questions: Question[]) => void)[],
   client: Client,
 ): Promise<void> {
-  while (pending.length < 1) {
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  }
+  await waitForPending(pending, 1);
   pending.shift()!([]);
   await client.next(questionsOf);
 }
@@ -109,9 +116,7 @@ test('a client that asks with an id gets the list read for that ask, tagged with
   await answerConnect(pending, client);
   client.send({ type: 'questions', root: '/repo' });
   client.send({ type: 'questions', root: '/repo', id: 'ask' });
-  while (pending.length < 2) {
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  }
+  await waitForPending(pending, 2);
   pending[0]!([QUESTION]);
   assert.deepEqual(await client.next(questionsOf), {
     type: 'questions',
@@ -139,9 +144,7 @@ test('a client whose ask with an id is overtaken by a newer list gets that newer
   await answerConnect(pending, client);
   client.send({ type: 'questions', root: '/repo', id: 'ask' });
   client.send({ type: 'questions', root: '/repo' });
-  while (pending.length < 2) {
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  }
+  await waitForPending(pending, 2);
   pending[1]!([]);
   assert.deepEqual(await client.next(questionsOf), {
     type: 'questions',
@@ -169,9 +172,7 @@ test('a client that asks twice gets no older list after a newer one', async (t) 
   await answerConnect(pending, client);
   client.send({ type: 'questions', root: '/repo' });
   client.send({ type: 'questions', root: '/repo' });
-  while (pending.length < 2) {
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  }
+  await waitForPending(pending, 2);
   pending[1]!([]);
   assert.deepEqual(await client.next(questionsOf), {
     type: 'questions',
@@ -180,9 +181,7 @@ test('a client that asks twice gets no older list after a newer one', async (t) 
   });
   pending[0]!([QUESTION]);
   client.send({ type: 'questions', root: '/repo' });
-  while (pending.length < 3) {
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  }
+  await waitForPending(pending, 3);
   pending[2]!([]);
   assert.deepEqual(await client.next(questionsOf), {
     type: 'questions',
