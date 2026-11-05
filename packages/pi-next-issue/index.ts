@@ -5,8 +5,9 @@ import { Type } from 'typebox';
 import { answeredOf, ask, reply } from './src/answer.ts';
 import { errorText, must, type RunOptions } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
-import { going, type Progress, type Question } from './src/protocol.ts';
-import { accepted, fresh } from './src/requests.ts';
+import type { Progress, Question } from './src/protocol.ts';
+import { fresh } from './src/requests.ts';
+import { startRun, statusOf, toggle } from './src/run.ts';
 import { failedNote, formatQuestions, formatStatus, handledNote } from './src/status.ts';
 import { spawnWorker, WorkerClient, type WorkerEvent, workerPaths } from './src/worker.ts';
 
@@ -32,61 +33,9 @@ function shared(create: (root: string) => WorkerClient, root: string): WorkerCli
   return client;
 }
 
-function report(text: string, root: string) {
-  return { content: [{ type: 'text' as const, text }], details: { root } };
-}
-
-function startReport(text: string, root: string, started: boolean) {
-  return { ...report(text, root), details: { started, root } };
-}
-
 function packageVersion(): string {
   const raw = readFileSync(join(import.meta.dirname, 'package.json'), 'utf8');
   return (JSON.parse(raw) as { version: string }).version;
-}
-
-async function statusOf(client: WorkerClient, root: string) {
-  await client.attach();
-  if (!client.connected) {
-    return report('no worker is running', root);
-  }
-  const progress = client.runs[root];
-  if (progress === undefined) {
-    return report(`no run of ${root}`, root);
-  }
-  const lines = [formatStatus(progress, Date.now()), ...progress.handled.map(handledNote)];
-  return report(lines.join('\n'), root);
-}
-
-function sendStart(client: WorkerClient, root: string): void {
-  client.send({ type: 'start', root, merge: true });
-}
-
-async function startRun(
-  client: WorkerClient,
-  root: string,
-  progress: Progress | undefined,
-  signal: AbortSignal | undefined,
-) {
-  if (going(progress)) {
-    return startReport(
-      `A run of ${root} is going already, so nothing started: ${formatStatus(progress, Date.now())}. It picks up new issues by itself.`,
-      root,
-      false,
-    );
-  }
-  const accepting = accepted(client, root, signal);
-  sendStart(client, root);
-  await accepting;
-  return startReport(`Started a next-issue run of ${root}.`, root, true);
-}
-
-function toggle(client: WorkerClient, root: string, progress: Progress | undefined): void {
-  if (going(progress)) {
-    client.send({ type: 'stop', root });
-  } else {
-    sendStart(client, root);
-  }
 }
 
 const fromMachine: Options = {
