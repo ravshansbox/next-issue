@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 import { answeredOf, ask, reply } from './src/answer.ts';
+import { shared } from './src/clients.ts';
 import { errorText, must, type RunOptions } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
 import type { Progress, Question } from './src/protocol.ts';
@@ -17,21 +18,9 @@ export type Options = {
   gh: (args: string[], options: RunOptions) => Promise<string>;
 };
 
-const KEY = Symbol.for('pi-next-issue');
 const STATUS_KEY = 'next-issue';
 const QUESTIONS_KEY = 'next-issue-questions';
 const QUESTIONS_MS = 60_000;
-
-function shared(create: (root: string) => WorkerClient, root: string): WorkerClient {
-  const store = globalThis as Record<symbol, Map<string, WorkerClient> | undefined>;
-  const clients = (store[KEY] ??= new Map());
-  let client = clients.get(root);
-  if (client === undefined) {
-    client = create(root);
-    clients.set(root, client);
-  }
-  return client;
-}
 
 function packageVersion(): string {
   const raw = readFileSync(join(import.meta.dirname, 'package.json'), 'utf8');
