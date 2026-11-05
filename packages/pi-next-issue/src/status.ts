@@ -27,6 +27,10 @@ export function handledNote(item: Handled): string {
   return `#${item.issue} ${OUTCOME_NOTES[item.outcome]}`;
 }
 
+export function formatQuestions(count: number): string {
+  return `${count} ${count === 1 ? 'question' : 'questions'} waiting`;
+}
+
 export function formatStatus(progress: Progress, now: number): string {
   const running = progress.issues ?? [];
   switch (progress.status) {

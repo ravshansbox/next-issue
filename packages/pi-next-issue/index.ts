@@ -7,7 +7,7 @@ import { answeredOf, ask, reply } from './src/answer.ts';
 import { errorText, must, type RunOptions } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
 import { going, type Progress, type Question } from './src/protocol.ts';
-import { failedNote, formatStatus, handledNote } from './src/status.ts';
+import { failedNote, formatQuestions, formatStatus, handledNote } from './src/status.ts';
 import { spawnWorker, WorkerClient, type WorkerEvent, workerPaths } from './src/worker.ts';
 
 export type Options = {
@@ -21,10 +21,6 @@ const STATUS_KEY = 'next-issue';
 const QUESTIONS_KEY = 'next-issue-questions';
 const QUESTIONS_MS = 60_000;
 const CLOSED = 'the worker closed the connection';
-
-function formatQuestions(count: number): string {
-  return `${count} ${count === 1 ? 'question' : 'questions'} waiting`;
-}
 
 function shared(create: (root: string) => WorkerClient, root: string): WorkerClient {
   const store = globalThis as Record<symbol, Map<string, WorkerClient> | undefined>;
