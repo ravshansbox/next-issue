@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { STATE_DIR } from '../src/state.mts';
+import { stateDir } from '../src/state.mts';
 import { changes, harness, ISSUE, roles, SAVED, stages } from './harness.mts';
 
 const IN_PROGRESS = { ...ISSUE, labels: ['status:in-progress'] };
@@ -164,7 +164,7 @@ test('a run that finds a corrupt state file reports an error that names the file
   const target = await harness(t, {
     issue: { ...ISSUE, labels: ['status:todo', 'status:in-progress'] },
   });
-  const folder = join(target.context.repo.root, STATE_DIR);
+  const folder = stateDir(target.context.repo.root);
   await mkdir(folder, { recursive: true });
   await writeFile(join(folder, '7.json'), '{ "issue": 7');
   const report = await target.run();
@@ -177,7 +177,7 @@ test('a run that finds a state file of the wrong shape reports an error that nam
   const target = await harness(t, {
     issue: { ...ISSUE, labels: ['status:todo', 'status:in-progress'] },
   });
-  const folder = join(target.context.repo.root, STATE_DIR);
+  const folder = stateDir(target.context.repo.root);
   await mkdir(folder, { recursive: true });
   await writeFile(join(folder, '7.json'), '{}');
   const report = await target.run();

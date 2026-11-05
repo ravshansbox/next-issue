@@ -8,7 +8,7 @@ import {
   type IssueState,
   readState,
   resetState,
-  STATE_DIR,
+  stateDir,
   writeState,
 } from '../src/state.mts';
 import { tempDir } from './temp-dir.mts';
@@ -36,7 +36,7 @@ test('the state survives the round trip', async () => {
 test('a caller that reads a state file of an earlier version with a fingerprint gets the state back', async () => {
   const target = await repo();
   await writeState(target, STATE);
-  const path = join(target.root, STATE_DIR, '7.json');
+  const path = join(stateDir(target.root), '7.json');
   await writeFile(
     path,
     `{ ${VALID}, "phase": "review", "reviewLog": [{ "round": 1, "fingerprint": "a b", "findings": "- a b" }] }`,
@@ -53,7 +53,7 @@ test('a missing state gives undefined', async () => {
 test('a caller that reads a broken state gets an error that names the file', async () => {
   const target = await repo();
   await writeState(target, STATE);
-  const path = join(target.root, STATE_DIR, '7.json');
+  const path = join(stateDir(target.root), '7.json');
   await writeFile(path, '{ "issue": 7');
   await assert.rejects(readState(target, 7), {
     message: `the state file ${path} is not valid JSON`,
@@ -77,7 +77,7 @@ for (const text of [
   test(`a caller that reads a state file holding ${text} gets an error that names the file`, async () => {
     const target = await repo();
     await writeState(target, STATE);
-    const path = join(target.root, STATE_DIR, '7.json');
+    const path = join(stateDir(target.root), '7.json');
     await writeFile(path, text);
     await assert.rejects(readState(target, 7), {
       message: `the state file ${path} does not hold a valid state`,

@@ -6,7 +6,7 @@ import type { Issue } from '../src/github.mts';
 import { pendingIssues } from '../src/pending.mts';
 import { processIssue } from '../src/pipeline.mts';
 import { applyEvent, startProgress } from '../src/progress.mts';
-import { STATE_DIR, writeState } from '../src/state.mts';
+import { stateDir, writeState } from '../src/state.mts';
 import { harness, ISSUE, roles, SAVED } from './harness.mts';
 
 const OLDER: Issue = { ...ISSUE, number: 3, createdAt: '2025-12-01T00:00:00Z' };
@@ -69,7 +69,7 @@ test('a user whose closed issue has a saved state but no merged pull request doe
 
 test('a user whose closed issue has a corrupt state file gets it back in the list with an error that names the file', async (t) => {
   const target = await harness(t, { open: [], closed: [ISSUE] });
-  const folder = join(target.context.repo.root, STATE_DIR);
+  const folder = stateDir(target.context.repo.root);
   await mkdir(folder, { recursive: true });
   await writeFile(join(folder, '7.json'), '{ "issue": 7');
   const issues = await pendingIssues(target.context);

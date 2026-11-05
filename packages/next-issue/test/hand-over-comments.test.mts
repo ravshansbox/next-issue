@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { loadConfig } from '../src/config.mts';
 import type { Comment, Issue } from '../src/github.mts';
 import { waitingQuestions } from '../src/hand-over-comments.mts';
-import { STATE_DIR } from '../src/state.mts';
+import { stateDir } from '../src/state.mts';
 import { ISSUE } from './harness.mts';
 import { tempDir } from './temp-dir.mts';
 
@@ -15,9 +15,9 @@ function issue(number: number, title: string): Issue {
 
 test('the worker lists each open issue that waits for a person with the reason and the url of its hand-over', async () => {
   const root = await tempDir();
-  await mkdir(join(root, STATE_DIR));
+  await mkdir(stateDir(root));
   await writeFile(
-    join(root, STATE_DIR, '8.json'),
+    join(stateDir(root), '8.json'),
     JSON.stringify({
       issue: 8,
       phase: 'review',
