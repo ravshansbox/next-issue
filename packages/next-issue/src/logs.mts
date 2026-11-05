@@ -2,9 +2,9 @@ import { writeSync } from 'node:fs';
 import { type FileHandle, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
+import { type Sleeper, wakeableSleep } from './durations.mts';
 import { hasCode } from './errors.mts';
 import { listOrEmpty } from './files.mts';
-import { type Sleeper, wakeableSleep } from './durations.mts';
 import { render } from './render.mts';
 import { runsDir } from './state.mts';
 

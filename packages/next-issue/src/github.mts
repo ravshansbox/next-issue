@@ -1,5 +1,4 @@
 import { errorMatches, parseJson } from './errors.mts';
-import { lines } from './text.mts';
 import {
   gh,
   ghApi,
@@ -13,6 +12,7 @@ import {
   viewJson,
 } from './gh.mts';
 import type { Repo } from './git.mts';
+import { lines } from './text.mts';
 
 export type Issue = {
   number: number;

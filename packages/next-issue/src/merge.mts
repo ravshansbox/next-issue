@@ -1,7 +1,7 @@
+import { budgetUse } from './budget.mts';
 import { checkPolling, checkWaiting } from './check-poll.mts';
 import { conflicts, resolveConflict } from './conflict.mts';
 import { escalateCheckFix, fixRound } from './fix.mts';
-import { budgetUse } from './budget.mts';
 import { escalateAndFinish, finishDone } from './handover.mts';
 import {
   type Gate,
