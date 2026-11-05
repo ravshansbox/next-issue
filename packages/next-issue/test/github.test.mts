@@ -26,6 +26,7 @@ import {
   prMerged,
   prNumber,
 } from '../src/pull-requests.mts';
+import { fakeClock } from './fake-clock.mts';
 import { installGh } from './fake-gh.mts';
 import { tempDir } from './temp-dir.mts';
 
@@ -154,16 +155,6 @@ esac
 `;
   await installGh(t, dir, script);
   return dir;
-}
-
-function fakeClock(): { now: () => number; sleep: (ms: number) => Promise<void> } {
-  let time = 0;
-  return {
-    now: () => time,
-    sleep: async (ms) => {
-      time += ms;
-    },
-  };
 }
 
 const MERGE_OPTIONS = { intervalSeconds: 10, timeoutMs: 60_000 };

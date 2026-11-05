@@ -1,20 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { type CheckState, type ChecksProbe, pollChecks } from '../src/check-poll.mts';
-import type { Clock } from '../src/poll.mts';
+import { fakeClock } from './fake-clock.mts';
 
 const OPTIONS = { intervalSeconds: 10, graceMs: 60_000, timeoutMs: 300_000 };
-
-function clock(): Clock & { time: number } {
-  const fake = {
-    time: 0,
-    now: () => fake.time,
-    sleep: async (ms: number) => {
-      fake.time += ms;
-    },
-  };
-  return fake;
-}
 
 function probe(list: Array<'none' | 'some'>, watch: CheckState[]): ChecksProbe & { polls: number } {
   const state = {
@@ -32,16 +21,16 @@ function probe(list: Array<'none' | 'some'>, watch: CheckState[]): ChecksProbe &
 }
 
 test('a build that passes gives pass', async () => {
-  assert.equal(await pollChecks(probe(['some'], ['pass']), OPTIONS, clock()), 'pass');
+  assert.equal(await pollChecks(probe(['some'], ['pass']), OPTIONS, fakeClock()), 'pass');
 });
 
 test('a build that fails gives fail', async () => {
-  assert.equal(await pollChecks(probe(['some'], ['fail']), OPTIONS, clock()), 'fail');
+  assert.equal(await pollChecks(probe(['some'], ['fail']), OPTIONS, fakeClock()), 'fail');
 });
 
 test('a pending build waits and asks again', async () => {
   const target = probe(['some'], ['pending', 'pending', 'pass']);
-  const time = clock();
+  const time = fakeClock();
   assert.equal(await pollChecks(target, OPTIONS, time), 'pass');
   assert.equal(target.polls, 3);
   assert.equal(time.time, 20_000);
@@ -49,7 +38,7 @@ test('a pending build waits and asks again', async () => {
 
 test('a check that starts late is not read as no check', async () => {
   const target = probe(['none', 'none', 'some'], ['pass']);
-  const time = clock();
+  const time = fakeClock();
   assert.equal(await pollChecks(target, OPTIONS, time), 'pass');
   assert.equal(target.polls, 3);
   assert.equal(time.time, 20_000);
@@ -57,7 +46,7 @@ test('a check that starts late is not read as no check', async () => {
 
 test('no check after the grace time gives none', async () => {
   const target = probe(['none'], []);
-  const time = clock();
+  const time = fakeClock();
   assert.equal(await pollChecks(target, OPTIONS, time), 'none');
   assert.equal(target.polls, 7);
   assert.equal(time.time, 60_000);
@@ -65,12 +54,12 @@ test('no check after the grace time gives none', async () => {
 
 test('a grace time of zero gives none at once', async () => {
   const target = probe(['none'], []);
-  assert.equal(await pollChecks(target, { ...OPTIONS, graceMs: 0 }, clock()), 'none');
+  assert.equal(await pollChecks(target, { ...OPTIONS, graceMs: 0 }, fakeClock()), 'none');
   assert.equal(target.polls, 1);
 });
 
 test('the deadline stops the wait', async () => {
-  const time = clock();
+  const time = fakeClock();
   const target: ChecksProbe = {
     lags: async () => true,
     list: async () => 'some',
@@ -92,12 +81,12 @@ test('the watch gets only the time that is left', async () => {
       return 'pending';
     },
   };
-  assert.equal(await pollChecks(target, { ...OPTIONS, timeoutMs: 25_000 }, clock()), 'timeout');
+  assert.equal(await pollChecks(target, { ...OPTIONS, timeoutMs: 25_000 }, fakeClock()), 'timeout');
   assert.deepEqual(seen, [25_000, 15_000, 5_000]);
 });
 
 test('a timeout from the watch is passed on', async () => {
-  assert.equal(await pollChecks(probe(['some'], ['timeout']), OPTIONS, clock()), 'timeout');
+  assert.equal(await pollChecks(probe(['some'], ['timeout']), OPTIONS, fakeClock()), 'timeout');
 });
 
 test('the checks are read only when the pull request shows the pushed commit', async () => {
@@ -109,7 +98,7 @@ test('the checks are read only when the pull request shows the pushed commit', a
     lags: async () => true,
     head: async () => heads.shift() ?? 'new',
   };
-  const time = clock();
+  const time = fakeClock();
   assert.equal(await pollChecks(target, { ...OPTIONS, head: 'new' }, time), 'pass');
   assert.equal(base.polls, 1);
   assert.equal(time.time, 20_000);
@@ -124,7 +113,7 @@ test('the grace time starts when the pull request shows the pushed commit', asyn
     lags: async () => true,
     head: async () => heads.shift() ?? 'new',
   };
-  const time = clock();
+  const time = fakeClock();
   assert.equal(await pollChecks(target, { ...OPTIONS, head: 'new' }, time), 'none');
   assert.equal(time.time, 90_000);
 });
@@ -137,7 +126,7 @@ test('a pull request that never shows the pushed commit gives timeout', async ()
     head: async () => 'old',
     lags: async () => true,
   };
-  const time = clock();
+  const time = fakeClock();
   assert.equal(await pollChecks(target, { ...OPTIONS, head: 'new' }, time), 'timeout');
   assert.equal(base.polls, 0);
   assert.equal(time.time, OPTIONS.timeoutMs);
@@ -152,7 +141,7 @@ test('a person who pushes to the pull request during the wait stops the wait wit
     lags: async () => true,
     head: async () => heads.shift() ?? 'other',
   };
-  const time = clock();
+  const time = fakeClock();
   assert.equal(await pollChecks(target, { ...OPTIONS, head: 'new' }, time), 'moved');
   assert.equal(base.polls, 1);
   assert.equal(time.time, 10_000);
@@ -167,7 +156,7 @@ test('a person who pushes to the pull request while the watch runs stops the wai
     lags: async () => true,
     head: async () => heads.shift() ?? 'other',
   };
-  assert.equal(await pollChecks(target, { ...OPTIONS, head: 'new' }, clock()), 'moved');
+  assert.equal(await pollChecks(target, { ...OPTIONS, head: 'new' }, fakeClock()), 'moved');
 });
 
 test('a person who pushes to the pull request before the wait starts stops the wait with moved', async () => {
@@ -178,7 +167,7 @@ test('a person who pushes to the pull request before the wait starts stops the w
     head: async () => 'other',
     lags: async () => false,
   };
-  const time = clock();
+  const time = fakeClock();
   assert.equal(await pollChecks(target, { ...OPTIONS, head: 'new' }, time), 'moved');
   assert.equal(base.polls, 0);
   assert.equal(time.time, 0);
@@ -198,7 +187,7 @@ test('a check read that fails once is tried again', async () => {
     },
     watch: async () => 'pass',
   };
-  const time = clock();
+  const time = fakeClock();
   assert.equal(await pollChecks(target, OPTIONS, time), 'pass');
   assert.equal(time.time, 10_000);
 });
@@ -217,7 +206,7 @@ test('a check watch that fails once is tried again', async () => {
       return 'pass';
     },
   };
-  const time = clock();
+  const time = fakeClock();
   assert.equal(await pollChecks(target, OPTIONS, time), 'pass');
   assert.equal(time.time, 10_000);
 });
@@ -231,7 +220,7 @@ test('a check read that keeps failing passes the error on', async () => {
     list: async () => 'some',
     watch: async () => 'pass',
   };
-  const time = clock();
+  const time = fakeClock();
   await assert.rejects(pollChecks(target, { ...OPTIONS, head: 'new' }, time), /network/);
   assert.equal(time.time, 20_000);
 });
