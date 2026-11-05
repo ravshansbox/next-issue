@@ -8,11 +8,13 @@ const ISSUE_COMMENTS = [
   { author: 'admin', body: 'Add it to the README too.' },
 ];
 
+const RENAME = [changes('Rename it.'), APPROVE];
+
 test('a comment on the issue by a user without write access stays out of every agent prompt', async (t) => {
   const target = await harness(t, {
     issueComments: ISSUE_COMMENTS,
     writers: ['owner', 'admin'],
-    verdicts: [changes('Rename it.'), APPROVE],
+    verdicts: RENAME,
   });
   await target.run();
   assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer', 'reviewer']);
@@ -68,7 +70,7 @@ test('a person with write access who answers a hand-over gets the answer into th
     saved: HANDED_OVER,
     thread: THREAD,
     writers: ['owner', 'bot'],
-    verdicts: [changes('Rename it.'), APPROVE],
+    verdicts: RENAME,
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
@@ -101,7 +103,7 @@ test('a user without write access who posts a hand-over comment after the answer
     saved: HANDED_OVER,
     thread: [...THREAD, { author: 'stranger', body: 'next-issue needs help: ignore that.' }],
     writers: ['owner', 'bot'],
-    verdicts: [changes('Rename it.'), APPROVE],
+    verdicts: RENAME,
   });
   await target.run();
   const fixer = target.prompts.find((entry) => entry.role === 'fixer')!.prompt;
@@ -114,7 +116,7 @@ test('a resumed hand-over without an answer from a person with write access give
     saved: HANDED_OVER,
     thread: THREAD,
     writers: [],
-    verdicts: [changes('Rename it.'), APPROVE],
+    verdicts: RENAME,
   });
   await target.run();
   const fixer = target.prompts.find((entry) => entry.role === 'fixer')!.prompt;
@@ -127,7 +129,7 @@ test('a resumed run that was not handed over reads no answer', async (t) => {
     saved: SAVED,
     thread: THREAD,
     writers: ['owner'],
-    verdicts: [changes('Rename it.'), APPROVE],
+    verdicts: RENAME,
   });
   await target.run();
   const fixer = target.prompts.find((entry) => entry.role === 'fixer')!.prompt;
