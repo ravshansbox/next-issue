@@ -33,14 +33,12 @@ export function emptyRoleTotals(): RoleTotals {
   return { ...emptyUsage(), calls: 0, ms: 0 };
 }
 
-function negate(usage: Usage): Usage {
-  return {
-    input: -usage.input,
-    output: -usage.output,
-    cacheRead: -usage.cacheRead,
-    cacheWrite: -usage.cacheWrite,
-    total: -usage.total,
-  };
+function subtractUsage(target: Usage, source: Usage): void {
+  target.input -= source.input;
+  target.output -= source.output;
+  target.cacheRead -= source.cacheRead;
+  target.cacheWrite -= source.cacheWrite;
+  target.total -= source.total;
 }
 
 export function rolesSince(
@@ -55,7 +53,7 @@ export function rolesSince(
       continue;
     }
     const usage = { ...value, calls: value.calls - earlier.calls, ms: value.ms - earlier.ms };
-    addUsage(usage, negate(earlier));
+    subtractUsage(usage, earlier);
     roles[role] = usage;
     addUsage(total, usage);
   }
