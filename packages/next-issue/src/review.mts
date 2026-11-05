@@ -37,7 +37,8 @@ export async function reviewRound(job: Run): Promise<Round> {
   if (verdict === undefined) {
     return escalateAndFinish(job, 'The reviewer gave no verdict.', 'no verdict');
   }
-  const open = openFindings(verdict, state.reviewRounds >= config.maxReviewRounds);
+  const { round, limit } = budgetUse(job, 'reviewRounds');
+  const open = openFindings(verdict, round >= limit);
   recordVerdict(job, verdict, open);
   await ports.commentOnPr(repo, pr, formatVerdict(verdict, open));
 
