@@ -10,11 +10,8 @@ async function labelsOf(repo: Repo, kind: Kind, number: number): Promise<string[
 }
 
 export function labelArgs(add: string, remove: string[], current: string[]): string[] {
-  const args = ['--add-label', add];
-  for (const name of remove.filter((item) => item !== add && current.includes(item))) {
-    args.push('--remove-label', name);
-  }
-  return args;
+  const stale = remove.filter((item) => item !== add && current.includes(item));
+  return ['--add-label', add, ...stale.flatMap((name) => ['--remove-label', name])];
 }
 
 export async function setLabel(
