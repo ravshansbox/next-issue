@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { must } from '../src/exec.mts';
 import { runsDir, stateDir } from '../src/state.mts';
+import { workerPaths } from '../src/worker-paths.mts';
 import { tempDir } from './temp-dir.mts';
 
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
@@ -124,7 +125,7 @@ test('a user who runs stop with no worker alive sees that none is running', asyn
   const dead = spawn(process.execPath, ['-e', '']);
   await new Promise((resolve) => dead.on('exit', resolve));
   await mkdir(stateDir(root));
-  await writeFile(join(stateDir(root), 'worker.lock'), `${dead.pid}\n`);
+  await writeFile(workerPaths(root).lockPath, `${dead.pid}\n`);
   assert.equal(await stopCommand(root), 'next-issue: no worker is running\n');
 });
 
