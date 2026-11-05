@@ -151,7 +151,7 @@ export class Recorder {
   summary(since?: Totals): Totals & { runId: string; logFile: string } {
     return {
       runId: this.runId,
-      logFile: this.sink.file,
+      logFile: this.logFile,
       ...rolesSince(this.sink.totals, since),
       counts: countsSince(this.sink.counts, since),
     };
