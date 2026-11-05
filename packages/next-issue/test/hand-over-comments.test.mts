@@ -30,6 +30,7 @@ test('the worker lists each open issue that waits for a person with the reason a
   );
   const repo = { owner: 'acme', name: 'tool', root };
   const config = await loadConfig(root);
+  const questionLabels = { needsHuman: config.labels.needsHuman, skip: config.labels.skip };
   const threads: Record<number, Comment[]> = {
     7: [
       { author: 'bot', body: 'next-issue needs help: old', url: 'u1' },
@@ -70,7 +71,7 @@ test('the worker lists each open issue that waits for a person with the reason a
       reason: 'The implementer produced no change.',
       url: 'u2',
       repo: 'acme/tool',
-      labels: { needsHuman: config.labels.needsHuman, skip: config.labels.skip },
+      labels: questionLabels,
     },
     {
       issue: 8,
@@ -79,7 +80,7 @@ test('the worker lists each open issue that waits for a person with the reason a
       url: 'u4',
       repo: 'acme/tool',
       pr: 80,
-      labels: { needsHuman: config.labels.needsHuman, skip: config.labels.skip },
+      labels: questionLabels,
     },
     {
       issue: 9,
@@ -87,7 +88,7 @@ test('the worker lists each open issue that waits for a person with the reason a
       reason: '',
       url: '',
       repo: 'acme/tool',
-      labels: { needsHuman: config.labels.needsHuman, skip: config.labels.skip },
+      labels: questionLabels,
     },
   ]);
   assert.equal(mostReading, 1);
