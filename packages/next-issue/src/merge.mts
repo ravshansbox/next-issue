@@ -1,6 +1,6 @@
 import { checkPolling, checkWaiting } from './config.mts';
 import { fixRound } from './fix.mts';
-import { escalateAndFinish, escalateCheckFix, finishDone } from './handover.mts';
+import { budgetUse, escalateAndFinish, escalateCheckFix, finishDone } from './handover.mts';
 import {
   type Gate,
   GATE_FIXED,
@@ -52,10 +52,11 @@ async function watchBase(job: Run): Promise<Gate> {
 async function failedBaseFix(job: Run, sha: string): Promise<Gate> {
   const { context, state, worktree } = job;
   const { repo, config, ports } = context;
-  if (state.ciFixes >= config.maxCiFixes) {
+  const { round, limit } = budgetUse(job, 'ciFixes');
+  if (round >= limit) {
     return escalateAndFinish(
       job,
-      `The checks on main failed and the limit of ${config.maxCiFixes} check fixes was reached.`,
+      `The checks on main failed and the limit of ${limit} check fixes was reached.`,
       'check budget',
     );
   }
