@@ -1,8 +1,8 @@
 import { checkWaiting } from './check-poll.mts';
 import { conflicts, resolveConflict } from './conflict.mts';
-import { fixRound } from './fix.mts';
+import { escalateCheckFix, fixRound } from './fix.mts';
 import { spendBudget } from './budget.mts';
-import { escalateAndFinish, escalateCheckFix } from './handover.mts';
+import { escalateAndFinish } from './handover.mts';
 import { type Gate, GATE_FIXED, GATE_PASSED, type Run } from './job.mts';
 import { history } from './prompts.mts';
 

@@ -2,8 +2,9 @@ import { parseCommitSubject, parseUnrelated } from './agent-reply.mts';
 import { CODING } from './agents.mts';
 import { message } from './errors.mts';
 import { HookError } from './git-commit.mts';
+import { escalateAndFinish } from './handover.mts';
 import { type BudgetUse, budgetUse } from './budget.mts';
-import { type Run, runRole } from './job.mts';
+import { type Finished, type Run, runRole } from './job.mts';
 import { type FixKind, fixPrompt, hookPrompt } from './prompts.mts';
 import { writeState } from './state.mts';
 import { keepTail } from './text.mts';
@@ -13,6 +14,25 @@ export type Unfixed = { committed: false; unrelated?: string; stray?: boolean };
 export type Fix = { committed: true } | Unfixed;
 
 type CommitRole = 'implementer' | 'fixer';
+
+export function escalateCheckFix(
+  job: Run,
+  unrelated: string | undefined,
+  checks: string,
+): Promise<Finished> {
+  if (unrelated === undefined) {
+    return escalateAndFinish(
+      job,
+      `The fixer added no commit for the failed ${checks}.`,
+      'no fix commit',
+    );
+  }
+  return escalateAndFinish(
+    job,
+    `The ${checks} fail for a reason this change did not cause: ${unrelated}`,
+    'unrelated failure',
+  );
+}
 
 export async function fixRound(
   job: Run,
