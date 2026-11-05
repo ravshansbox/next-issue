@@ -9,13 +9,14 @@ import { applyEvent, startProgress } from '../src/progress.mts';
 import { STATE_DIR, writeState } from '../src/state.mts';
 import { harness, ISSUE, roles, SAVED } from './harness.mts';
 
+const OLDER: Issue = { ...ISSUE, number: 3, createdAt: '2025-12-01T00:00:00Z' };
+const LATER: Issue = { ...ISSUE, number: 9, createdAt: '2026-02-01T00:00:00Z' };
+
 test('a user who resumes after a merge that closed the issue gets the closed issue back in the list', async (t) => {
-  const older: Issue = { ...ISSUE, number: 3, createdAt: '2025-12-01T00:00:00Z' };
-  const later: Issue = { ...ISSUE, number: 9, createdAt: '2026-02-01T00:00:00Z' };
   const target = await harness(t, {
     saved: SAVED,
     alreadyMerged: true,
-    open: [older, later],
+    open: [OLDER, LATER],
     closed: [ISSUE],
   });
   const issues = await pendingIssues(target.context);
@@ -26,12 +27,11 @@ test('a user who resumes after a merge that closed the issue gets the closed iss
 });
 
 test('a user with one open issue and two closed issues to resume sees an open count of one', async (t) => {
-  const older: Issue = { ...ISSUE, number: 3, createdAt: '2025-12-01T00:00:00Z' };
   const closed: Issue = { ...ISSUE, number: 8, createdAt: '2026-01-15T00:00:00Z' };
   const target = await harness(t, {
     saved: SAVED,
     alreadyMerged: true,
-    open: [older],
+    open: [OLDER],
     closed: [ISSUE, closed],
   });
   await writeState(target.context.repo, { ...SAVED, issue: 8 });
@@ -49,9 +49,7 @@ test('a user with one open issue and two closed issues to resume sees an open co
 });
 
 test('a user whose open issues arrive out of order gets them oldest first', async (t) => {
-  const older: Issue = { ...ISSUE, number: 3, createdAt: '2025-12-01T00:00:00Z' };
-  const later: Issue = { ...ISSUE, number: 9, createdAt: '2026-02-01T00:00:00Z' };
-  const target = await harness(t, { open: [later, older] });
+  const target = await harness(t, { open: [LATER, OLDER] });
   const issues = await pendingIssues(target.context);
   assert.deepEqual(
     issues.map((entry) => entry.number),
@@ -100,10 +98,9 @@ test('a user whose open issue has a saved state but lost its status label gets i
 });
 
 test('a user whose saved issue can no longer be read gets the other issues and an error for that issue', async (t) => {
-  const other: Issue = { ...ISSUE, number: 9, createdAt: '2026-02-01T00:00:00Z' };
   const target = await harness(t, {
     saved: SAVED,
-    open: [other],
+    open: [LATER],
     fail: 'viewIssue',
   });
   const issues = await pendingIssues(target.context);
