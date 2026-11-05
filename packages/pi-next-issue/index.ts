@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
+import { answeredOf, ask, reply } from './src/answer.ts';
 import { errorText, must, type RunOptions } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
 import { going, type Progress, type Question } from './src/protocol.ts';
@@ -19,35 +20,10 @@ const KEY = Symbol.for('pi-next-issue');
 const STATUS_KEY = 'next-issue';
 const QUESTIONS_KEY = 'next-issue-questions';
 const QUESTIONS_MS = 60_000;
-const RETRY = 'Retry';
-const GUIDE = 'Retry with guidance';
-const GIVE_UP = 'Give up';
 const CLOSED = 'the worker closed the connection';
 
 function formatQuestions(count: number): string {
   return `${count} ${count === 1 ? 'question' : 'questions'} waiting`;
-}
-
-function threadsOf(question: Question): Array<[string, number]> {
-  return question.pr === undefined
-    ? [['issue', question.issue]]
-    : [
-        ['issue', question.issue],
-        ['pr', question.pr],
-      ];
-}
-
-function promptOf(question: Question): string {
-  return `#${question.issue} ${question.title}\n\n${question.reason || 'No reason given.'}`;
-}
-
-function answeredOf(question: Question, choice: string): string {
-  return `next-issue: #${question.issue} ${choice === GIVE_UP ? 'given up' : 'will be retried'}`;
-}
-
-function labelsOf(question: Question, choice: string): string[] {
-  const remove = ['--remove-label', question.labels.needsHuman];
-  return choice === GIVE_UP ? [...remove, '--add-label', question.labels.skip] : remove;
 }
 
 function shared(create: (root: string) => WorkerClient, root: string): WorkerClient {
@@ -129,43 +105,6 @@ function fresh(client: WorkerClient, root: string): Promise<Question[]> {
     });
     client.send({ type: 'questions', root, id });
   });
-}
-
-async function reply(
-  gh: Options['gh'],
-  root: string,
-  question: Question,
-  choice: string,
-  guidance: string,
-): Promise<void> {
-  const threads = threadsOf(question);
-  const repo = ['--repo', question.repo];
-  if (choice === GUIDE) {
-    const [kind, number] = threads.at(-1)!;
-    await gh([kind, 'comment', String(number), ...repo, '--body-file', '-'], {
-      cwd: root,
-      input: guidance,
-    });
-  }
-  const labels = labelsOf(question, choice);
-  for (const [kind, number] of threads) {
-    await gh([kind, 'edit', String(number), ...repo, ...labels], { cwd: root });
-  }
-}
-
-async function ask(
-  ui: ExtensionContext['ui'],
-  question: Question,
-): Promise<{ choice: string; guidance: string } | undefined> {
-  const choice = await ui.select(promptOf(question), [RETRY, GUIDE, GIVE_UP]);
-  if (choice === undefined) {
-    return undefined;
-  }
-  if (choice !== GUIDE) {
-    return { choice, guidance: '' };
-  }
-  const guidance = (await ui.editor(`Guidance for #${question.issue}`))?.trim() ?? '';
-  return guidance === '' ? undefined : { choice, guidance };
 }
 
 async function statusOf(client: WorkerClient, root: string) {
