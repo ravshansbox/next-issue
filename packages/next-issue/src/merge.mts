@@ -28,11 +28,7 @@ export async function mergeApproved(job: Run): Promise<Round> {
 }
 
 export async function afterMerge(job: Run): Promise<Round> {
-  const round = gateRound(await watchBase(job));
-  if (round) {
-    return round;
-  }
-  return finishDone(job);
+  return gateRound(await watchBase(job)) ?? finishDone(job);
 }
 
 async function watchBase(job: Run): Promise<Gate> {
