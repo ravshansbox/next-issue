@@ -180,11 +180,5 @@ function parseLabels(value: unknown, defaultLabels: Config['labels']): Config['l
 }
 
 export function managedLabels(config: Config): string[] {
-  return [
-    config.labels.ready,
-    config.labels.inProgress,
-    config.labels.inReview,
-    config.labels.done,
-    config.labels.needsHuman,
-  ];
+  return LABEL_NAMES.filter((name) => name !== 'skip').map((name) => config.labels[name]);
 }
