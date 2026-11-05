@@ -3,14 +3,14 @@ import { mkdir, readdir, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pruneRuns } from '../src/prune-runs.mts';
-import { STATE_DIR } from '../src/state.mts';
+import { runsDir } from '../src/state.mts';
 import { tempDir } from './temp-dir.mts';
 
 const DAY = 24 * 60 * 60_000;
 
-async function runsDir(ages: Record<string, number>): Promise<string> {
+async function withRuns(ages: Record<string, number>): Promise<string> {
   const root = await tempDir();
-  const dir = join(root, STATE_DIR, 'runs');
+  const dir = runsDir(root);
   await mkdir(dir, { recursive: true });
   for (const [name, days] of Object.entries(ages)) {
     const path = join(dir, name);
@@ -22,14 +22,14 @@ async function runsDir(ages: Record<string, number>): Promise<string> {
 }
 
 test('pruneRuns drops a run that is older than the limit', async () => {
-  const root = await runsDir({ 'old.jsonl': 8, 'old.summary.json': 8, 'new.jsonl': 6 });
+  const root = await withRuns({ 'old.jsonl': 8, 'old.summary.json': 8, 'new.jsonl': 6 });
   assert.equal(await pruneRuns(root, 7), 2);
-  assert.deepEqual((await readdir(join(root, STATE_DIR, 'runs'))).sort(), ['new.jsonl']);
+  assert.deepEqual((await readdir(runsDir(root))).sort(), ['new.jsonl']);
 });
 
 test('pruneRuns drops the session folder of a run that is older than the limit', async () => {
-  const root = await runsDir({ 'new.jsonl': 6 });
-  const dir = join(root, STATE_DIR, 'runs');
+  const root = await withRuns({ 'new.jsonl': 6 });
+  const dir = runsDir(root);
   await mkdir(join(dir, 'old', 'sessions'), { recursive: true });
   await writeFile(join(dir, 'old', 'sessions', 'a.jsonl'), '{}\n');
   const when = new Date(Date.now() - 8 * DAY);
@@ -39,9 +39,9 @@ test('pruneRuns drops the session folder of a run that is older than the limit',
 });
 
 test('pruneRuns with a limit of zero keeps every run', async () => {
-  const root = await runsDir({ 'old.jsonl': 400 });
+  const root = await withRuns({ 'old.jsonl': 400 });
   assert.equal(await pruneRuns(root, 0), 0);
-  assert.deepEqual(await readdir(join(root, STATE_DIR, 'runs')), ['old.jsonl']);
+  assert.deepEqual(await readdir(runsDir(root)), ['old.jsonl']);
 });
 
 test('pruneRuns says nothing about a run directory that is not there', async () => {
