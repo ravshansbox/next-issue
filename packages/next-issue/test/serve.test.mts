@@ -80,6 +80,38 @@ test('a client that starts a second run in the same repository gets an error', a
   assert.equal(fake.calls.length, 1);
 });
 
+test('a client that starts a run with --hunt gets a run that hunts and watches', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo', args: ['--hunt', '--max', '3'] });
+  await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
+  assert.equal(fake.calls[0]!.args.hunt, true);
+  assert.equal(fake.calls[0]!.args.watch, true);
+  assert.equal(fake.calls[0]!.args.max, 3);
+});
+
+test('a client that starts a run with a command or a flag that start does not take gets an error and no run starts', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  for (const [args, message] of [
+    [['init'], 'start does not take init'],
+    [['--json'], 'start does not take --json'],
+    [['--force'], 'start does not take --force'],
+    [['--help'], 'start does not take --help'],
+    [['--merge'], 'Unknown argument: --merge'],
+  ] as const) {
+    client.send({ type: 'start', root: '/repo', args: [...args] });
+    assert.deepEqual(await client.next((value) => value.type === 'error'), {
+      type: 'error',
+      root: '/repo',
+      message,
+    });
+  }
+  assert.equal(fake.calls.length, 0);
+});
+
 test('a client that stops a run sees it stop after the round and end as stopped', async (t) => {
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);

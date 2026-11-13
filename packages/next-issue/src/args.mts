@@ -96,3 +96,17 @@ function whole(value: string | undefined, option: string): number {
   }
   return parsed;
 }
+
+const OUTPUT_ONLY: Switch[] = ['json', 'force', 'help'];
+
+export function parseStartArgs(argv: string[]): Args {
+  const args = parseArgs(argv);
+  if (args.command !== 'run') {
+    throw new Error(`start does not take ${args.command}`);
+  }
+  const refused = OUTPUT_ONLY.find((name) => args[name]);
+  if (refused !== undefined) {
+    throw new Error(`start does not take --${refused}`);
+  }
+  return args;
+}

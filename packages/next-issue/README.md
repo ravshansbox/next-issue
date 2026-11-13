@@ -529,8 +529,12 @@ of one repository never affect another. The worker:
 - holds `.next-issue/worker.lock` in the repository, with its process id, so
   only one worker runs per repository. A lock whose process is no longer alive
   is taken over;
-- runs at most one run at a time. Each run is like `next-issue` without
-  `--watch`;
+- runs at most one run at a time. A client starts it with
+  `{ "type": "start", "root": "<path>", "args": [...] }`. Each run is like
+  `next-issue` with those args, or with none when `args` is left out. It takes
+  `--once`, `--max <n>`, `--watch`, `--hunt`, `--reset`, `--verbose` and
+  `--quiet`, and refuses a command, `--json`, `--force`, `--help` or an
+  unknown argument with an `error` message;
 - sends every client the progress of every run when it connects and on every
   change: for each running issue the issue, the step, the tool count and the
   last tool, and the handled issues;

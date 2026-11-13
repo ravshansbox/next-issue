@@ -86,8 +86,8 @@ function host(mode = 'tui', cwd = '/repo', answers: Array<string | undefined> = 
   };
   const command = (args = '') => commands.get('next-issue')!(args, ctx);
   const complete = (prefix: string) => completions.get('next-issue')?.(prefix);
-  const start = (signal?: AbortSignal) =>
-    tools.get('next_issue_start')!('call', {}, signal, undefined, ctx);
+  const start = (signal?: AbortSignal, params: unknown = {}) =>
+    tools.get('next_issue_start')!('call', params, signal, undefined, ctx);
   const report = () => tools.get('next_issue_status')!('call', {}, undefined, undefined, ctx);
   return {
     pi,
@@ -169,7 +169,7 @@ async function worker(path: string, version = '1.0.0') {
   return started;
 }
 
-test('a user who runs /next-issue with no worker going starts one and asks it to run this repository', async () => {
+test('a user who runs /next-issue start with no worker going starts one and asks it to run this repository', async () => {
   let started: FakeWorker | undefined;
   const { spawns, extension } = setup({
     spawn: async (path) => {
@@ -179,7 +179,7 @@ test('a user who runs /next-issue with no worker going starts one and asks it to
   const { pi, emit, command } = host();
   extension(pi as never);
   await emit('session_start');
-  await command();
+  await command('start');
   assert.equal(spawns.length, 1);
   await until(() => started?.received.some((message) => message.type === 'start') === true);
   assert.deepEqual(
@@ -211,6 +211,25 @@ test('a model that calls next_issue_start with no worker going starts one, asks 
   assert.deepEqual(
     started!.received.find((message) => message.type === 'start'),
     { type: 'start', root: '/repo' },
+  );
+});
+
+test('a model that calls next_issue_start with args asks the worker for a run with those flags', async () => {
+  const { path, extension } = setup();
+  const fake = await startFakeWorker(path, '1.0.0', (self, message) => {
+    if (message.type === 'start') {
+      self.update(message.root, running());
+    }
+  });
+  workers.push(fake);
+  const { pi, emit, start } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const result = await start(undefined, { args: ['--hunt'] });
+  assert.deepEqual(result.details, { started: true, root: '/repo' });
+  assert.deepEqual(
+    fake.received.find((message) => message.type === 'start'),
+    { type: 'start', root: '/repo', args: ['--hunt'] },
   );
 });
 
@@ -328,12 +347,12 @@ test('a model that calls next_issue_status with no worker going is told so and n
   assert.equal(spawns.length, 0);
 });
 
-test('a user who runs /next-issue with no worker going starts the worker release that matches the extension version', async () => {
+test('a user who runs /next-issue start with no worker going starts the worker release that matches the extension version', async () => {
   const { spawns, extension } = setup({ version: '1.2.3' });
   const { pi, emit, command } = host();
   extension(pi as never);
   await emit('session_start');
-  await command().catch(() => {});
+  await command('start').catch(() => {});
   assert.deepEqual(spawns, ['1.2.3']);
 });
 
@@ -426,26 +445,96 @@ test('a user who opens pi after a run has finished sees its summary in the foote
   assert.deepEqual(notes, []);
 });
 
-test('a user who runs /next-issue while a run is going asks the worker to stop it', async () => {
+test('a user who runs /next-issue stop while a run is going asks the worker to stop it', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
   fake.runs['/repo'] = running({ issues: [working(7)] });
   const { pi, emit, command } = host();
   extension(pi as never);
   await emit('session_start');
-  await command();
+  await command('stop');
   await until(() => fake.received.some((message) => message.type === 'stop'));
   assert.deepEqual(fake.received.at(-1), { type: 'stop', root: '/repo' });
 });
 
-test('a user who runs /next-issue after a run has stopped starts a new run', async () => {
+test('a user who runs /next-issue stop with no run going is told so and nothing is sent', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  const { pi, emit, command, notes } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command('stop');
+  assert.deepEqual(notes, ['No run of /repo is going.']);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(
+    fake.received.some((message) => message.type === 'stop' || message.type === 'start'),
+    false,
+  );
+});
+
+test('a user who runs /next-issue start --hunt asks the worker for a run with those flags', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  const { pi, emit, command } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command('start  --hunt --max 3 ');
+  await until(() => fake.received.some((message) => message.type === 'start'));
+  assert.deepEqual(
+    fake.received.find((message) => message.type === 'start'),
+    { type: 'start', root: '/repo', args: ['--hunt', '--max', '3'] },
+  );
+});
+
+test('a user who runs /next-issue start while a run is going is told so and nothing starts or stops', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({ issues: [working(7, { stage: 'implement', tools: 3 })] });
+  const { pi, emit, command, notes } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command('start --hunt');
+  assert.deepEqual(notes, [
+    'A run of /repo is going already, so nothing started: #7 · implement · 3 tools. It picks up new issues by itself.',
+  ]);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(
+    fake.received.filter((message) => message.type === 'start' || message.type === 'stop'),
+    [],
+  );
+});
+
+test('a user who runs /next-issue with no argument or an unknown one sees the usage and nothing starts or stops', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running();
+  const { pi, emit, command, notes } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command();
+  await command('go');
+  assert.equal(notes.length, 2);
+  for (const note of notes) {
+    assert.match(note, /\/next-issue start \[flags\]/);
+    assert.match(note, /\/next-issue stop/);
+    assert.match(note, /\/next-issue answer/);
+    assert.match(note, /--hunt/);
+  }
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(
+    fake.received.filter((message) => message.type === 'start' || message.type === 'stop'),
+    [],
+  );
+});
+
+test('a user who runs /next-issue start after a run has stopped starts a new run', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
   fake.runs['/repo'] = { status: 'stopped', issues: [], handled: [] };
   const { pi, emit, command } = host();
   extension(pi as never);
   await emit('session_start');
-  await command();
+  await command('start');
   await until(() => fake.received.some((message) => message.type === 'start'));
 });
 
@@ -455,7 +544,7 @@ test('a user who quits pi leaves the run going', async () => {
   const { pi, emit, command } = host();
   extension(pi as never);
   await emit('session_start');
-  await command();
+  await command('start');
   await until(() => fake.received.some((message) => message.type === 'start'));
   await emit('session_shutdown', { reason: 'quit' });
   await new Promise((resolve) => setTimeout(resolve, 50));
@@ -481,7 +570,7 @@ test('a user sees why the worker could not start a run in this repository', asyn
   const { pi, emit, command, notes } = host();
   extension(pi as never);
   await emit('session_start');
-  await command();
+  await command('start');
   fake.reply({ type: 'error', root: '/other', message: 'not this one' });
   fake.reply({
     type: 'error',
@@ -496,15 +585,23 @@ test('a user outside a git repository sees why a run could not start', async () 
   const { extension } = setup();
   const { pi, command, notes } = host('tui', '/outside');
   extension(pi as never);
-  await command();
+  await command('start');
   assert.deepEqual(notes, ['next-issue cannot start: not a git repository']);
+});
+
+test('a user outside a git repository who runs /next-issue stop sees why the run could not stop', async () => {
+  const { extension } = setup();
+  const { pi, command, notes } = host('tui', '/outside');
+  extension(pi as never);
+  await command('stop');
+  assert.deepEqual(notes, ['next-issue cannot stop: not a git repository']);
 });
 
 test('a user sees why a run could not start when the worker does not come up', async () => {
   const { extension } = setup();
   const { pi, command, notes } = host();
   extension(pi as never);
-  await command();
+  await command('start');
   assert.match(notes[0] ?? '', /^next-issue cannot start: the next-issue worker did not start/);
 });
 
@@ -524,7 +621,7 @@ test('a user with a newer extension gets a new worker once the old idle worker c
   workers.push(old);
   const { pi, command } = host();
   extension(pi as never);
-  await command();
+  await command('start');
   assert.equal(spawns.length, 1);
   await until(() => fresh?.received.some((message) => message.type === 'start') === true);
   assert.equal(
@@ -545,7 +642,7 @@ test('a user starts a run in one repository while a run is going in another, eac
   extension(second.pi as never);
   await first.emit('session_start');
   await second.emit('session_start');
-  await second.command();
+  await second.command('start');
   await until(() => two.received.some((message) => message.type === 'start'));
   assert.deepEqual(
     two.received.find((message) => message.type === 'start'),
@@ -562,7 +659,7 @@ test('a user whose worker socket path is too long for the system sees an error t
   const { spawns, extension } = setup({ paths: { '/long': long } });
   const { pi, command, notes } = host('tui', '/long');
   extension(pi as never);
-  await command();
+  await command('start');
   assert.equal(spawns.length, 0);
   assert.match(
     notes[0] ?? '',
@@ -687,13 +784,14 @@ async function questionWorker(path: string, lists: Question[][], stale?: Questio
   return started;
 }
 
-test('a user who types /next-issue followed by nothing or a start of answer is offered answer', () => {
+test('a user who types /next-issue followed by nothing or a start of a subcommand is offered the matching subcommands', () => {
   const { extension } = setup();
   const { pi, complete } = host();
   extension(pi as never);
-  const offered = [{ value: 'answer', label: 'answer' }];
-  assert.deepEqual(complete(''), offered);
-  assert.deepEqual(complete('an'), offered);
+  const item = (value: string) => ({ value, label: value });
+  assert.deepEqual(complete(''), [item('start'), item('stop'), item('answer')]);
+  assert.deepEqual(complete('st'), [item('start'), item('stop')]);
+  assert.deepEqual(complete('an'), [item('answer')]);
   assert.equal(complete('x'), null);
 });
 

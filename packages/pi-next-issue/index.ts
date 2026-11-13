@@ -8,8 +8,9 @@ import { errorText } from './src/errors.ts';
 import { must } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
 import type { Progress, Question } from './src/protocol.ts';
-import { startRun, statusOf, toggle } from './src/run.ts';
+import { requestStart, requestStop, startRun, statusOf } from './src/run.ts';
 import {
+  type Action,
   cannotNote,
   formatQuestions,
   formatStatus,
@@ -31,6 +32,13 @@ const STATUS_KEY = 'next-issue';
 const QUESTIONS_KEY = 'next-issue-questions';
 const RENDER_MS = 1000;
 const QUESTIONS_MS = 60_000;
+const SUBCOMMANDS: Action[] = ['start', 'stop', 'answer'];
+const FLAGS = '--once, --max <n>, --watch, --hunt, --reset, --verbose, --quiet';
+const USAGE = [
+  '/next-issue start [flags]  start a run of this repository, with flags from: ' + FLAGS,
+  '/next-issue stop           stop the run of this repository after the current round',
+  '/next-issue answer         answer the waiting questions',
+].join('\n');
 
 function background(callback: () => void, ms: number): ReturnType<typeof setInterval> {
   const timer = setInterval(callback, ms);
@@ -220,13 +228,18 @@ export function createExtension(options: Options) {
     pi.registerTool({
       name: 'next_issue_start',
       label: 'Start next-issue',
-      description:
-        'Start a next-issue run of the GitHub issues of this repository when none is going. Starts the worker when needed. When a run is going, starts nothing and reports that run, which picks up new issues by itself.',
+      description: `Start a next-issue run of the GitHub issues of this repository when none is going. Starts the worker when needed. When a run is going, starts nothing and reports that run, which picks up new issues by itself. Optional args take the flags ${FLAGS}, for example ["--hunt"] to hunt for bugs and keep watching.`,
       promptSnippet: 'Start a next-issue run of this repository when none is going',
-      parameters: Type.Object({}),
-      async execute(_toolCallId, _params, signal, _onUpdate, ctx) {
+      parameters: Type.Object({
+        args: Type.Optional(
+          Type.Array(Type.String(), {
+            description: `Flags for the run, from: ${FLAGS}`,
+          }),
+        ),
+      }),
+      async execute(_toolCallId, params, signal, _onUpdate, ctx) {
         const { client, root, progress } = await connect(ctx);
-        return startRun(client, root, progress, signal);
+        return startRun(client, root, progress, params.args ?? [], signal);
       },
     });
 
@@ -244,22 +257,33 @@ export function createExtension(options: Options) {
     });
 
     pi.registerCommand('next-issue', {
-      description:
-        'Start or stop working through the GitHub issues of this repository, or answer the waiting questions with "answer"',
-      getArgumentCompletions: (prefix) =>
-        'answer'.startsWith(prefix) ? [{ value: 'answer', label: 'answer' }] : null,
+      description: `"start [flags]" starts working through the GitHub issues of this repository, with flags from ${FLAGS}. "stop" stops the run. "answer" answers the waiting questions`,
+      getArgumentCompletions: (prefix) => {
+        const matches = SUBCOMMANDS.filter((name) => name.startsWith(prefix));
+        return matches.length === 0 ? null : matches.map((name) => ({ value: name, label: name }));
+      },
       handler: async (args, ctx) => {
-        const answering = args.trim() === 'answer';
+        const [subcommand, ...flags] = args.trim().split(/\s+/).filter(Boolean);
+        if (subcommand === undefined || !SUBCOMMANDS.includes(subcommand as Action)) {
+          ctx.ui.notify(USAGE, 'info');
+          return;
+        }
+        const notify = (note: Note | undefined) => {
+          if (note !== undefined) {
+            ctx.ui.notify(note.text, note.level);
+          }
+        };
         try {
           const { client, root, progress } = await connect(ctx);
-          if (answering) {
+          if (subcommand === 'answer') {
             await answerAll(ctx.ui, options.gh, client, root);
+          } else if (subcommand === 'stop') {
+            notify(requestStop(client, root, progress));
           } else {
-            toggle(client, root, progress);
+            notify(requestStart(client, root, progress, flags));
           }
         } catch (error) {
-          const note = cannotNote(answering ? 'answer' : 'start', errorText(error));
-          ctx.ui.notify(note.text, note.level);
+          notify(cannotNote(subcommand as Action, errorText(error)));
         }
       },
     });

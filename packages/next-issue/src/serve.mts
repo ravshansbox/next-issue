@@ -3,7 +3,7 @@ import { mkdir, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { dirname } from 'node:path';
 import { type WebSocket, WebSocketServer } from 'ws';
-import { type Args, parseArgs } from './args.mts';
+import { type Args, parseStartArgs } from './args.mts';
 import { stopChildren } from './children.mts';
 import { message } from './errors.mts';
 import { lock } from './lock.mts';
@@ -73,10 +73,17 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     }
   };
 
-  const start = (socket: WebSocket, root: string): void => {
+  const start = (socket: WebSocket, root: string, argv: string[]): void => {
     const refusal = startRefusal(runs.get(root), restart);
     if (refusal !== undefined) {
       send(socket, { type: 'error', root, message: refusal });
+      return;
+    }
+    let args: Args;
+    try {
+      args = parseStartArgs(argv);
+    } catch (error) {
+      send(socket, { type: 'error', root, message: message(error) });
       return;
     }
     const run: Run = { progress: startProgress(), stop: false };
@@ -89,7 +96,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     options
       .runRepo(
         root,
-        parseArgs([]),
+        args,
         runControls(run, update, () => void sendQuestions(root, () => sockets.clients)),
       )
       .then(
@@ -106,7 +113,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
         closeWhenIdle();
       }
     } else if (value.type === 'start') {
-      start(socket, value.root);
+      start(socket, value.root, value.args ?? []);
     } else if (value.type === 'stop') {
       if (requestStop(runs.get(value.root))) {
         broadcast(sockets, runs);
