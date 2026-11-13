@@ -66,6 +66,8 @@ for (const text of [
   '{ "issue": 7, "phase": "review" }',
   `{ ${VALID}, "phase": "done", "reviewLog": [] }`,
   `{ ${VALID}, "phase": "review", "title": 1, "reviewLog": [] }`,
+  `{ ${VALID}, "phase": "review", "implementerReply": 1, "reviewLog": [] }`,
+  `{ ${VALID}, "phase": "review", "fixerReply": 1, "reviewLog": [] }`,
   `{ ${VALID}, "phase": "review", "commitFixes": "1", "reviewLog": [] }`,
   `{ ${VALID}, "phase": "review", "landed": [1], "reviewLog": [] }`,
   `{ ${VALID}, "phase": "review", "reviewLog": [null] }`,

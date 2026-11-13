@@ -84,3 +84,27 @@ test('a later reviewer is told that a dispute answers every finding of its round
   assert.match(prompt, /Withdraw every finding of that round if the dispute is correct\./);
   assert.doesNotMatch(reviewPrompt(ISSUE, [], 'diff', []), /Withdraw every finding/);
 });
+
+test('the implementer is told to write a failing test first and quote its output for a behaviour change', () => {
+  const prompt = implementPrompt(ISSUE, []);
+  assert.match(prompt, /For a behaviour change, write the test first/);
+  assert.match(prompt, /quote its failing output in your final message/);
+});
+
+test('reviewPrompt gives the reply of the implementer and asks for a finding when a behaviour change has no failing run', () => {
+  const prompt = reviewPrompt(ISSUE, [], 'diff', [], 'The test failed: expected 2, got 1.');
+  assert.match(prompt, /## Reply of the implementer\nThe test failed: expected 2, got 1\./);
+  assert.match(prompt, /Raise a finding when a behaviour change has no failing run/);
+  assert.match(reviewPrompt(ISSUE, [], 'diff', []), /## Reply of the implementer\n\(no reply\)/);
+});
+
+test('a later reviewer gets the reply of the fixer and no new demand for a failing run', () => {
+  const prompt = reviewPrompt(ISSUE, [], 'diff', ['Round 1:\n- x'], 'The test failed first.');
+  assert.match(prompt, /## Reply of the fixer\nThe test failed first\./);
+  assert.doesNotMatch(prompt, /Raise a finding when a behaviour change has no failing run/);
+});
+
+test('the review fixer is told to quote the failing output of a test for a behaviour change', () => {
+  const review = fixPrompt(ISSUE, 'The reviewer requested changes.', 'x', [], 'review');
+  assert.match(review, /quote its failing output in your final message/);
+});

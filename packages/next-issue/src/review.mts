@@ -86,7 +86,18 @@ async function runReviewer(job: Run, earlier: string[]): Promise<string> {
   };
   const before = await ports.revision(worktree);
   const review = await log.step('review', fields, () =>
-    runRole(job, 'reviewer', reviewPrompt(issue, comments, patch, earlier), REVIEWING),
+    runRole(
+      job,
+      'reviewer',
+      reviewPrompt(
+        issue,
+        comments,
+        patch,
+        earlier,
+        earlier.length === 0 ? state.implementerReply : state.fixerReply,
+      ),
+      REVIEWING,
+    ),
   );
   if (await ports.discardChanges(worktree, before)) {
     log.event('review.discard', { round: state.reviewRounds }, 'quiet');

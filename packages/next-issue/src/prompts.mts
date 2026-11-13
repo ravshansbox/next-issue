@@ -33,6 +33,7 @@ export function implementPrompt(issue: Issue, comments: string[], reply: string[
     '## Rules',
     'Read the repository conventions first. Keep the change minimal and focused on the issue.',
     'Add or update tests when the repository has a test suite.',
+    'For a behaviour change, write the test first and run it before the change. Then quote its failing output in your final message.',
     COMMIT_RULES,
   ]);
 }
@@ -56,7 +57,10 @@ export function capDiff(diff: string, maxChars: number): string {
 
 function reviewScope(earlier: string[]): string {
   return earlier.length === 0
-    ? 'Check correctness, scope, repository conventions and test cover.'
+    ? [
+        'Check correctness, scope, repository conventions and test cover.',
+        'Raise a finding when a behaviour change has no failing run of its test in the reply of the implementer.',
+      ].join('\n')
     : [
         'This is a later round. Judge two things only:',
         'whether the earlier findings below are now fixed, and whether the new commits broke something.',
@@ -72,7 +76,9 @@ export function reviewPrompt(
   comments: string[],
   diff: string,
   earlier: string[],
+  reply?: string,
 ): string {
+  const role = earlier.length === 0 ? 'implementer' : 'fixer';
   return [
     'You are the reviewer. Judge whether the diff solves the issue correctly.',
     issueBlock(issue, comments),
@@ -80,6 +86,7 @@ export function reviewPrompt(
     '```diff',
     diff,
     '```',
+    `## Reply of the ${role}\n${reply ?? '(no reply)'}`,
     '## Rules',
     'Read files and run commands to prove what you say: the tests, the type check or the linter.',
     'The worktree is ready to use. Do not change a file. Do not write with git or gh.',
@@ -114,7 +121,10 @@ const CONFLICT_RULE = [
 
 const KIND_RULES: Record<FixKind, string> = {
   checks: UNRELATED_RULE,
-  review: DISPUTE_RULE,
+  review: [
+    DISPUTE_RULE,
+    'For a behaviour change, run its test before the change and quote its failing output in your final message.',
+  ].join('\n'),
   conflict: CONFLICT_RULE,
 };
 

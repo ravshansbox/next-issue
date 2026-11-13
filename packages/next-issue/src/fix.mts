@@ -46,6 +46,9 @@ export async function fixRound(
   const { ports } = context;
   const before = await ports.revision(worktree);
   const text = await runFixer(job, reason, detail, earlier, kind);
+  if (kind === 'review') {
+    job.state.fixerReply = text;
+  }
   const unrelated = parseUnrelated(text);
   if (unrelated !== undefined) {
     return disputedFix(job, before, reason, unrelated);

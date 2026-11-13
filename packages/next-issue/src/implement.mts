@@ -12,6 +12,7 @@ export async function implement(job: Run): Promise<Round> {
   const result = await log.step('implement', {}, () =>
     runRole(job, 'implementer', implementPrompt(issue, comments, reply), CODING),
   );
+  state.implementerReply = result.text;
   const subject = parseCommitSubject(result.text, fallbackTitle(issue));
   if (!(await commitWork(job, before, subject, 'implementer'))) {
     const escalated = await useEarlierCommit(job);
