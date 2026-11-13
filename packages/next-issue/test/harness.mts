@@ -103,6 +103,7 @@ export type Harness = {
   context: Context;
   profiles: Array<{ role: string; tools: string[] }>;
   labels: Array<{ kind: string; number: number; label: string }>;
+  removable: string[][];
   prompts: Array<{ role: string; prompt: string }>;
   messages: string[];
   comments: string[];
@@ -156,6 +157,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     context: undefined as unknown as Context,
     profiles: [],
     labels: [],
+    removable: [],
     prompts: [],
     messages: [],
     comments: [],
@@ -337,8 +339,9 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       state.asides.push({ target, branch });
       head = Number(target);
     },
-    setLabel: async (_repo, kind, number, label) => {
+    setLabel: async (_repo, kind, number, label, remove) => {
       state.labels.push({ kind, number, label });
+      state.removable.push(remove);
     },
     threadComments: async (_repo, number) => {
       state.threads.push(number);
