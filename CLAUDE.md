@@ -5,5 +5,6 @@
 - Add the `status:todo` label when you create an issue.
 - Enter a git worktree before you make a change.
 - Name the worktree folder and branch name after the issue number.
-- A task is complete only when its pull request passes ci and its body links a github issue with `Closes #<issue>`.
+- Push commits straight to `main` with `closes #<issue>` in the commit message. Do not open pull requests.
+- A task is complete only when ci passes for its commit on `main`.
 - Each `test` description names the actor, the action and the observable outcome.
