@@ -314,3 +314,26 @@ test('a user with several issues gets the others implemented and reviewed while 
     ['done', 'done'],
   );
 });
+
+test('a user whose change lands gets the local base moved to the landed commit', async (t) => {
+  const target = await harness(t);
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.equal(target.localBase, target.landed.at(-1));
+});
+
+test('a user whose fetch fails after landing gets the issue done and a base.behind event', async (t) => {
+  const target = await harness(t, { landedFetchFails: true });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.equal(target.localBase, undefined);
+  assert.equal(target.context.recorder.summary().counts['base.behind'], 1);
+});
+
+test('a user whose local base cannot fast-forward after landing gets the issue done and a base.behind event', async (t) => {
+  const target = await harness(t, { landedBaseUpdated: false });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.equal(target.localBase, undefined);
+  assert.equal(target.context.recorder.summary().counts['base.behind'], 1);
+});

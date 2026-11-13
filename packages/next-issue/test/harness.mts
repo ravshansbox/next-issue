@@ -77,6 +77,8 @@ export type Plan = {
   detected?: string;
   issue?: Issue;
   baseUpdated?: boolean;
+  landedBaseUpdated?: boolean;
+  landedFetchFails?: boolean;
   blockers?: string[];
   merges?: Array<string[] | undefined>;
   mergeResolved?: boolean;
@@ -117,6 +119,7 @@ export type Harness = {
   mergeAborts: string[];
   deleted: string[];
   landed: string[];
+  localBase: string | undefined;
   reverts: Array<{ shas: string[]; message: string }>;
   closed: number[];
   baseWaits: string[];
@@ -172,6 +175,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     mergeAborts: [],
     deleted: [],
     landed: [],
+    localBase: undefined,
     reverts: [],
     closed: [],
     baseWaits: [],
@@ -200,6 +204,16 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       state.branches.push(branch);
       state.starts.push(start);
       return { path: join(root, 'worktree'), baseUpdated: plan.baseUpdated ?? true };
+    },
+    fastForwardBase: async () => {
+      if (plan.landedFetchFails === true) {
+        throw new Error('git fetch: could not resolve host');
+      }
+      if (plan.landedBaseUpdated === false) {
+        return false;
+      }
+      state.localBase = String(head);
+      return true;
     },
     closeIssue: async (_repo, number) => {
       state.closed.push(number);

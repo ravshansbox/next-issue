@@ -4,7 +4,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { branchName, isDirty, revision } from '../src/git.mts';
-import { addWorktree, findWorktree, removeWorktree } from '../src/worktree.mts';
+import { addWorktree, fastForwardBase, findWorktree, removeWorktree } from '../src/worktree.mts';
 import { clones, commit, git } from './clones.mts';
 
 test('addWorktree takes a branch that exists only on the remote', async () => {
@@ -129,4 +129,22 @@ test('addWorktree reports a base that it cannot fast-forward', async () => {
   const { path, baseUpdated } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   assert.equal(baseUpdated, false);
   assert.equal(await revision(path), await git(repo.root, 'rev-parse', 'origin/main'));
+});
+
+test('a user whose change landed from a worktree gets the local base moved to the remote base', async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  const landed = await commit(path, 'b.txt');
+  await git(path, 'push', '-q', 'origin', 'HEAD:refs/heads/main');
+  assert.equal(await fastForwardBase(repo, 'main', 'origin'), true);
+  assert.equal(await git(repo.root, 'rev-parse', 'main'), landed);
+});
+
+test('a user whose local base holds its own commit keeps it after a change lands', async () => {
+  const { repo, other } = await clones();
+  const local = await commit(repo.root, 'local.txt');
+  await commit(other, 'remote.txt');
+  await git(other, 'push', '-q', 'origin', 'main');
+  assert.equal(await fastForwardBase(repo, 'main', 'origin'), false);
+  assert.equal(await git(repo.root, 'rev-parse', 'main'), local);
 });

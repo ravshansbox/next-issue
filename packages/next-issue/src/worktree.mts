@@ -30,8 +30,7 @@ export async function addWorktree(
 ): Promise<Worktree> {
   const upstream = remoteRef(remote, branch);
   const remoteBase = remoteRef(remote, base);
-  await git(repo.root, ['fetch', remote]);
-  const baseUpdated = await updateBase(repo, base, remote);
+  const baseUpdated = await fastForwardBase(repo, base, remote);
   await git(repo.root, ['worktree', 'prune']);
   const pushed = await hasBranch(repo, upstream, '--remotes');
   const existing = await findWorktree(repo, branch);
@@ -67,6 +66,11 @@ async function hasWork(
 async function hasBranch(repo: Repo, name: string, ...flags: string[]): Promise<boolean> {
   const list = await git(repo.root, ['branch', '--list', ...flags, name]);
   return list.length > 0;
+}
+
+export async function fastForwardBase(repo: Repo, base: string, remote: string): Promise<boolean> {
+  await git(repo.root, ['fetch', remote]);
+  return updateBase(repo, base, remote);
 }
 
 async function updateBase(repo: Repo, base: string, remote: string): Promise<boolean> {

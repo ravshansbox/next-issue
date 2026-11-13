@@ -30,7 +30,7 @@ import {
 import { huntWorktree } from './hunt.mts';
 import { ensureLabel, setLabel } from './labels.mts';
 import { detectSetupCommand } from './setup.mts';
-import { addWorktree, findWorktree, removeWorktree } from './worktree.mts';
+import { addWorktree, fastForwardBase, findWorktree, removeWorktree } from './worktree.mts';
 
 export type SetupResult = { code: number; stderr: string; timedOut?: boolean };
 
@@ -53,6 +53,7 @@ export const PORTS = {
   disputeBranches,
   ensureLabel,
   failedBaseLogs,
+  fastForwardBase,
   findWorktree,
   huntWorktree,
   isDirty,
