@@ -654,14 +654,13 @@ test('a user sees the error of a failed run in the footer', () => {
   );
 });
 
-function question(issue: number, pr?: number): Question {
+function question(issue: number): Question {
   return {
     issue,
     title: `Title ${issue}`,
     reason: `Reason ${issue}`,
     url: '',
     repo: 'owner/name',
-    ...(pr === undefined ? {} : { pr }),
     labels: { needsHuman: 'status:needs-human', skip: 'status:blocked' },
   };
 }
@@ -769,9 +768,9 @@ test('a user who opens pi asks the worker for the waiting questions of this repo
   );
 });
 
-test('a user who answers retry takes the needs-human label off the issue and its pull request', async () => {
+test('a user who answers retry takes the needs-human label off the issue', async () => {
   const { path, calls, extension } = setup();
-  await questionWorker(path, [[question(4, 12)], []]);
+  await questionWorker(path, [[question(4)], []]);
   const { pi, emit, command, asked, notes } = host('tui', '/repo', ['Retry']);
   extension(pi as never);
   await emit('session_start');
@@ -782,24 +781,20 @@ test('a user who answers retry takes the needs-human label off the issue and its
       args: ['issue', 'edit', '4', '--repo', 'owner/name', '--remove-label', 'status:needs-human'],
       cwd: '/repo',
     },
-    {
-      args: ['pr', 'edit', '12', '--repo', 'owner/name', '--remove-label', 'status:needs-human'],
-      cwd: '/repo',
-    },
   ]);
   assert.ok(notes.includes('next-issue: #4 will be retried'));
 });
 
-test('a user who answers retry with guidance posts it on the pull request of the issue, then takes the label off', async () => {
+test('a user who answers retry with guidance posts it on the issue, then takes the label off', async () => {
   const { path, calls, extension } = setup();
-  await questionWorker(path, [[question(4, 12)], []]);
+  await questionWorker(path, [[question(4)], []]);
   const { pi, emit, command } = host('tui', '/repo', ['Retry with guidance', 'Use the cache']);
   extension(pi as never);
   await emit('session_start');
   await command('answer');
   assert.deepEqual(calls, [
     {
-      args: ['pr', 'comment', '12', '--repo', 'owner/name', '--body-file', '-'],
+      args: ['issue', 'comment', '4', '--repo', 'owner/name', '--body-file', '-'],
       cwd: '/repo',
       input: 'Use the cache',
     },
@@ -807,25 +802,7 @@ test('a user who answers retry with guidance posts it on the pull request of the
       args: ['issue', 'edit', '4', '--repo', 'owner/name', '--remove-label', 'status:needs-human'],
       cwd: '/repo',
     },
-    {
-      args: ['pr', 'edit', '12', '--repo', 'owner/name', '--remove-label', 'status:needs-human'],
-      cwd: '/repo',
-    },
   ]);
-});
-
-test('a user who answers retry with guidance on an issue with no pull request posts it on the issue', async () => {
-  const { path, calls, extension } = setup();
-  await questionWorker(path, [[question(4)], []]);
-  const { pi, emit, command } = host('tui', '/repo', ['Retry with guidance', 'Use the cache']);
-  extension(pi as never);
-  await emit('session_start');
-  await command('answer');
-  assert.deepEqual(calls[0], {
-    args: ['issue', 'comment', '4', '--repo', 'owner/name', '--body-file', '-'],
-    cwd: '/repo',
-    input: 'Use the cache',
-  });
 });
 
 test('a user who gives up takes the needs-human label off and adds the skip label, then sees the next question', async () => {
@@ -852,23 +829,6 @@ test('a user who gives up takes the needs-human label off and adds the skip labe
       cwd: '/repo',
     },
   ]);
-});
-
-test('a user who gives up on an issue with a pull request moves both to the skip label', async () => {
-  const { path, calls, extension } = setup();
-  await questionWorker(path, [[question(4, 12)], []]);
-  const { pi, emit, command } = host('tui', '/repo', ['Give up']);
-  extension(pi as never);
-  await emit('session_start');
-  await command('answer');
-  assert.deepEqual(
-    calls.map((call) => call.args.slice(0, 3)),
-    [
-      ['issue', 'edit', '4'],
-      ['pr', 'edit', '12'],
-    ],
-  );
-  assert.ok(calls.every((call) => call.args.at(-1) === 'status:blocked'));
 });
 
 test('a user who answers is not shown a question from an older list that arrives first', async () => {

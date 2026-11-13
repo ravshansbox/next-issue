@@ -25,7 +25,6 @@ export type Question = {
   reason: string;
   url: string;
   repo: string;
-  pr?: number;
   labels: { needsHuman: string; skip: string };
 };
 

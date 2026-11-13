@@ -497,7 +497,7 @@ of one repository never affect another. The worker:
 - sends every client a `questions` message for each repository: the open
   issues with the `needsHuman` label, each with its number, title, the reason
   of the hand-over, the url of the comment that holds it, the `owner/name`
-  repository, the pull request when there is one, and the `needsHuman` and
+  repository, and the `needsHuman` and
   `skip` labels. It reads them
   from GitHub, so the list is the same after a restart. It sends them when a
   client connects, for its repository, after each issue of a run

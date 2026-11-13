@@ -144,7 +144,3 @@ async function comment(repo: Repo, kind: Kind, number: number, body: string): Pr
 export async function commentOnIssue(repo: Repo, issue: number, body: string): Promise<void> {
   await comment(repo, 'issue', issue, body);
 }
-
-export async function commentOnPr(repo: Repo, pr: number, body: string): Promise<void> {
-  await comment(repo, 'pr', pr, body);
-}

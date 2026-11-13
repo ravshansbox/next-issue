@@ -6,7 +6,6 @@ import type { Context } from './job.mts';
 import type { Recorder } from './observe.mts';
 import type { Ports } from './ports.mts';
 import type { Question } from './protocol.mts';
-import { readState } from './state.mts';
 
 export const HAND_OVER = 'next-issue needs help:';
 
@@ -64,9 +63,9 @@ async function handOverThread(
   repo: Repo,
   ports: ThreadPorts,
   writer: Writer,
-  thread: number,
+  issue: number,
 ): Promise<{ comments: Comment[]; last: number }> {
-  const comments = await ports.threadComments(repo, thread);
+  const comments = await ports.threadComments(repo, issue);
   return { comments, last: await lastHandOver(comments, writer) };
 }
 
@@ -93,8 +92,7 @@ async function waitingQuestion(
   writer: Writer,
   issue: Issue,
 ): Promise<Question> {
-  const pr = (await readState(repo, issue.number))?.pr;
-  const { comments, last } = await handOverThread(repo, ports, writer, pr ?? issue.number);
+  const { comments, last } = await handOverThread(repo, ports, writer, issue.number);
   const comment = comments[last];
   return {
     issue: issue.number,
@@ -102,7 +100,6 @@ async function waitingQuestion(
     reason: comment?.body.slice(HAND_OVER.length).trim() ?? '',
     url: comment?.url ?? '',
     repo: slug(repo),
-    ...(pr === undefined ? {} : { pr }),
     labels: { needsHuman: config.labels.needsHuman, skip: config.labels.skip },
   };
 }
@@ -121,14 +118,10 @@ export async function writerComments(
   );
 }
 
-export async function handOverReply(
-  context: Context,
-  issue: number,
-  pr: number | undefined,
-): Promise<string[]> {
+export async function handOverReply(context: Context, issue: number): Promise<string[]> {
   const { repo, ports } = context;
   const writer = writers(repo, ports);
-  const { comments, last } = await handOverThread(repo, ports, writer, pr ?? issue);
+  const { comments, last } = await handOverThread(repo, ports, writer, issue);
   if (last === -1) {
     return [];
   }

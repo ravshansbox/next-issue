@@ -12,11 +12,6 @@ const GIVE_UP = 'Give up';
 
 type Answer = { choice: string; guidance: string };
 
-function threadsOf(question: Question): Array<[string, number]> {
-  const issue: [string, number] = ['issue', question.issue];
-  return question.pr === undefined ? [issue] : [issue, ['pr', question.pr]];
-}
-
 function promptOf(question: Question): string {
   return `#${question.issue} ${question.title}\n\n${question.reason || 'No reason given.'}`;
 }
@@ -36,19 +31,15 @@ async function reply(
   question: Question,
   { choice, guidance }: Answer,
 ): Promise<void> {
-  const threads = threadsOf(question);
+  const issue = String(question.issue);
   const repo = ['--repo', question.repo];
   if (choice === GUIDE) {
-    const [kind, number] = threads.at(-1)!;
-    await gh([kind, 'comment', String(number), ...repo, '--body-file', '-'], {
+    await gh(['issue', 'comment', issue, ...repo, '--body-file', '-'], {
       cwd: root,
       input: guidance,
     });
   }
-  const labels = labelsOf(question, choice);
-  for (const [kind, number] of threads) {
-    await gh([kind, 'edit', String(number), ...repo, ...labels], { cwd: root });
-  }
+  await gh(['issue', 'edit', issue, ...repo, ...labelsOf(question, choice)], { cwd: root });
 }
 
 async function ask(ui: ExtensionContext['ui'], question: Question): Promise<Answer | undefined> {

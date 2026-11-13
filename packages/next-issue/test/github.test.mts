@@ -5,7 +5,6 @@ import { test, type TestContext } from 'node:test';
 import { setCommandObserver } from '../src/exec.mts';
 import {
   commentOnIssue,
-  commentOnPr,
   defaultBranch,
   canWrite,
   issueComments,
@@ -81,15 +80,6 @@ test('setLabel fails at once when gh fails for a reason other than the network',
     /Not Found/,
   );
   assert.equal(await callsOf(dir, 'issue edit'), 1);
-});
-
-test('commentOnPr posts once and fails when the network fails, so no comment is doubled', async (t) => {
-  const dir = await flakyGh(t, 1, NETWORK_FAULT);
-  await assert.rejects(
-    commentOnPr({ owner: 'acme', name: 'comment', root: dir }, 2, 'hi'),
-    /unexpected EOF/,
-  );
-  assert.equal(await callsOf(dir, 'pr comment'), 1);
 });
 
 test('commentOnIssue posts once and fails when the network fails, so no comment is doubled', async (t) => {

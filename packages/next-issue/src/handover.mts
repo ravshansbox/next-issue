@@ -117,12 +117,7 @@ async function handOver(
   log.event('hand-over', { reason }, 'quiet');
   await writeState(repo, { ...state, handedOver: true });
   await setStatus(context, issue, state.pr, config.labels.needsHuman);
-  const body = `${HAND_OVER} ${reason}`;
-  if (state.pr === undefined) {
-    await ports.commentOnIssue(repo, issue, body);
-  } else {
-    await ports.commentOnPr(repo, state.pr, body);
-  }
+  await ports.commentOnIssue(repo, issue, `${HAND_OVER} ${reason}`);
 }
 
 export async function claimedError(

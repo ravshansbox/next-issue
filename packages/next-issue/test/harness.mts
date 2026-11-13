@@ -210,9 +210,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       state.issueNotes.push({ number, body });
       state.comments.push(body);
     },
-    commentOnPr: async (_repo, _pr, body) => {
-      state.comments.push(body);
-    },
     commitAll: async (_worktree, commitMessage) => {
       state.messages.push(commitMessage);
       const committed = commits.shift() ?? true;

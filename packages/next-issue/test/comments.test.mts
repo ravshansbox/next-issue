@@ -91,7 +91,7 @@ test('a person with write access who answers a hand-over gets the answer into th
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  assert.deepEqual(target.threads, [SAVED.pr]);
+  assert.deepEqual(target.threads, [ISSUE.number]);
   const fixer = target.prompts.find((entry) => entry.role === 'fixer')!.prompt;
   assert.match(
     fixer,

@@ -13,7 +13,7 @@ function issue(number: number, title: string): Issue {
   return { ...ISSUE, number, title };
 }
 
-test('the worker lists each open issue that waits for a person with the reason and the url of its hand-over', async () => {
+test('the worker lists each open issue that waits for a person with the reason and the url of the hand-over on the issue', async () => {
   const root = await tempDir();
   await mkdir(stateDir(root));
   await writeFile(
@@ -41,9 +41,8 @@ test('the worker lists each open issue that waits for a person with the reason a
       },
       { author: 'stranger', body: 'next-issue needs help: fake', url: 'u3' },
     ],
-    80: [
-      { author: 'bot', body: 'next-issue needs help: The reviewer gave no verdict.', url: 'u4' },
-    ],
+    8: [{ author: 'bot', body: 'next-issue needs help: The reviewer gave no verdict.', url: 'u4' }],
+    80: [{ author: 'bot', body: 'next-issue needs help: On the pull request.', url: 'u6' }],
     9: [{ author: 'owner', body: 'A plain comment.', url: 'u5' }],
   };
   const labels: string[][] = [];
@@ -79,7 +78,6 @@ test('the worker lists each open issue that waits for a person with the reason a
       reason: 'The reviewer gave no verdict.',
       url: 'u4',
       repo: 'acme/tool',
-      pr: 80,
       labels: questionLabels,
     },
     {
