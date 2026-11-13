@@ -45,6 +45,19 @@ test('an agent who creates an issue with the create-issue skill links it to the 
   assert.match(skill, /gh issue edit <number> --add-blocked-by <blocker>/);
 });
 
+test('an agent who finds a change too big for one atomic commit proposes a split of linked issues for the user to confirm', async () => {
+  const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
+  assert.match(skill, /one atomic commit that leaves the trunk green/);
+  assert.match(skill, /propose a split into issues that each land alone and keep the trunk green/);
+  assert.match(skill, /confirm the split/);
+  assert.match(skill, /each issue of the split/i);
+});
+
+test('a user who reads the pi-next-issue README learns that the create-issue skill splits a change too big for one commit', async () => {
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
+  assert.match(readme, /too big for one atomic commit/);
+});
+
 test('a user who asks the create-issue skill to change a created issue gets the issue edited on GitHub', async () => {
   const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
   assert.match(skill, /gh issue edit <number> --body-file <file>/);
