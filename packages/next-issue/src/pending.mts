@@ -37,7 +37,7 @@ async function savedIssue(
   }
   try {
     const { open, ...issue } = await ports.viewIssue(repo, number);
-    if (saved === 'broken' || open || (saved.landed ?? []).length > 0) {
+    if (saved === 'broken' || open) {
       return { open, issue };
     }
     return { open };

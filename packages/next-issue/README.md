@@ -51,8 +51,7 @@ the run handles one issue. For each issue:
    resume too. An issue that GitHub lists as blocked by an open issue waits,
    because its blocker closes only when the change of the blocker lands.
    An issue with saved state under `.next-issue/` resumes instead, whatever its
-   other labels and blockers. Such an issue joins the list also when it is
-   closed, if its change has landed on the base branch.
+   other labels and blockers.
 2. Add `status:in-progress` to the issue.
 3. Fetch the remote, fast-forward the local copy of the default branch when
    that is safe, then add a git worktree at `.worktrees/<n>` in the
