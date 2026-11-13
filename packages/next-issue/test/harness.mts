@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import type { TestContext } from 'node:test';
 import type { AgentRequest, AgentResult } from '../src/agents.mts';
 import type { CheckState } from '../src/check-poll.mts';
+import { runChildren, stopRunChildren, withRunChildren } from '../src/children.mts';
 import { type Config, loadConfig } from '../src/config.mts';
 import { HookError } from '../src/git-commit.mts';
 import type { Issue } from '../src/github.mts';
@@ -94,6 +95,7 @@ export type Plan = {
   rerunChecks?: CheckState[];
   rerunFails?: boolean;
   pressDuring?: string;
+  stopNowDuring?: string;
   disputes?: string[];
   earlier?: string;
   thread?: Array<{ author: string; body: string }>;
@@ -159,6 +161,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
   const implementerTexts = [...(plan.implementerText ?? [])];
   let head = 0;
   let pressed = false;
+  const children = runChildren();
   const state: Harness = {
     context: undefined as unknown as Context,
     profiles: [],
@@ -190,7 +193,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     events: [],
     hunts: [],
     head: () => String(head),
-    run: () => processIssue(state.context, issue),
+    run: () => withRunChildren(children, () => processIssue(state.context, issue)),
     state: () => readState(repo, issue.number),
   };
 
@@ -328,6 +331,10 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     runAgent: async (_recorder, request: AgentRequest) => {
       state.prompts.push({ role: request.name, prompt: request.prompt });
       pressed ||= request.name === plan.pressDuring;
+      if (request.name === plan.stopNowDuring) {
+        stopRunChildren(children);
+        throw new Error('The agent was aborted.');
+      }
       state.profiles.push({ role: request.name, tools: request.profile.tools });
       if (request.name === 'reviewer') {
         if (plan.reviewerCommits === true) {

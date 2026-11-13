@@ -1,22 +1,28 @@
+import { type RunChildren, runChildren, stopRunChildren } from './children.mts';
 import { wakeableSleep } from './durations.mts';
 import type { Interrupts } from './interrupt.mts';
 import type { Fields } from './observe.mts';
 import { applyEvent } from './progress.mts';
-import type { Progress, WorkerMessage } from './protocol.mts';
+import { type Progress, STOP_POINTS, type StopPoint, type WorkerMessage } from './protocol.mts';
 import type { RunControls } from './run.mts';
 
 export type Run = {
   progress: Progress;
-  stop: boolean;
+  stop?: StopPoint;
+  children: RunChildren;
   wake?: () => void;
 };
+
+export function newRun(progress: Progress): Run {
+  return { progress, children: runChildren() };
+}
 
 export function active(run: Run | undefined): boolean {
   return run?.progress.status === 'running' || run?.progress.status === 'stopping';
 }
 
 export function endStatus(run: Run): Progress['status'] {
-  if (run.stop) {
+  if (run.stop !== undefined) {
     return 'stopped';
   }
   return run.progress.error === undefined ? 'finished' : 'failed';
@@ -43,21 +49,32 @@ function endsIssue(record: Fields): boolean {
   return record['kind'] === 'issue.end' || record['kind'] === 'issue.error';
 }
 
-export function requestStop(run: Run | undefined): boolean {
-  if (run === undefined || run.progress.status !== 'running') {
+export function stopPoint(after: unknown): StopPoint | undefined {
+  return STOP_POINTS.find((point) => point === (after ?? 'issue'));
+}
+
+function earlier(after: StopPoint, than: StopPoint | undefined): boolean {
+  return than === undefined || STOP_POINTS.indexOf(after) > STOP_POINTS.indexOf(than);
+}
+
+export function requestStop(run: Run | undefined, after: StopPoint): boolean {
+  if (run === undefined || !active(run) || !earlier(after, run.stop)) {
     return false;
   }
-  run.stop = true;
+  run.stop = after;
   run.wake?.();
+  if (after === 'now') {
+    stopRunChildren(run.children);
+  }
   run.progress = { ...run.progress, status: 'stopping' };
   return true;
 }
 
 function runInterrupts(run: Run): Interrupts {
   return {
-    afterIssue: () => run.stop,
-    afterRound: () => run.stop,
-    sleep: (ms) => wakeableSleep(run, ms, run.stop),
+    afterIssue: () => run.stop !== undefined,
+    afterRound: () => run.stop === 'round' || run.stop === 'now',
+    sleep: (ms) => wakeableSleep(run, ms, run.stop !== undefined),
   };
 }
 

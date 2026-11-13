@@ -3,7 +3,10 @@ import { statSync } from 'node:fs';
 import { readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { Server } from 'node:net';
 import { join } from 'node:path';
-import { test } from 'node:test';
+import { type TestContext, test } from 'node:test';
+import { onStop } from '../src/children.mts';
+import { run, type RunResult } from '../src/exec.mts';
+import type { WorkerMessage } from '../src/protocol.mts';
 import { startWorker } from '../src/serve.mts';
 import { tempDir } from './temp-dir.mts';
 import { connect, fakeRuns, noQuestions, runsOf, worker } from './worker-harness.mts';
@@ -112,21 +115,103 @@ test('a client that starts a run with a command or a flag that start does not ta
   assert.equal(fake.calls.length, 0);
 });
 
-test('a client that stops a run sees it stop after the round and end as stopped', async (t) => {
-  const fake = fakeRuns();
+async function startedRun(t: TestContext, fake = fakeRuns()) {
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
   client.send({ type: 'start', root: '/repo' });
   await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
+  return { fake, client, socketPath };
+}
+
+const stopping = (value: WorkerMessage) =>
+  value.type === 'runs' && value.runs['/repo']?.status === 'stopping';
+
+const stoppedRun = (value: WorkerMessage) =>
+  value.type === 'runs' && value.runs['/repo']?.status === 'stopped';
+
+test('a client that stops a run with no point sees it claim nothing new, finish its issues and end as stopped', async (t) => {
+  const { fake, client } = await startedRun(t);
   const controls = fake.controls();
   const asleep = controls.interrupts.sleep(60_000);
   client.send({ type: 'stop', root: '/repo' });
-  await client.next((value) => value.type === 'runs' && value.runs['/repo']?.status === 'stopping');
-  assert.equal(controls.interrupts.afterRound(), true);
+  await client.next(stopping);
   assert.equal(controls.interrupts.afterIssue(), true);
+  assert.equal(controls.interrupts.afterRound(), false);
   assert.equal(await asleep, false);
   fake.finish();
-  await client.next((value) => value.type === 'runs' && value.runs['/repo']?.status === 'stopped');
+  await client.next(stoppedRun);
+});
+
+test('a client that stops a run after the round sees each issue stop after its round and the run end as stopped', async (t) => {
+  const { fake, client } = await startedRun(t);
+  const controls = fake.controls();
+  client.send({ type: 'stop', root: '/repo', after: 'round' });
+  await client.next(stopping);
+  assert.equal(controls.interrupts.afterIssue(), true);
+  assert.equal(controls.interrupts.afterRound(), true);
+  fake.finish();
+  await client.next(stoppedRun);
+});
+
+test('a client that asks for an earlier stop point gets it, and a later one changes nothing', async (t) => {
+  const { fake, client } = await startedRun(t);
+  const controls = fake.controls();
+  client.send({ type: 'stop', root: '/repo', after: 'issue' });
+  await client.next(stopping);
+  assert.equal(controls.interrupts.afterRound(), false);
+  client.send({ type: 'stop', root: '/repo', after: 'round' });
+  for (let left = 100; left > 0 && !controls.interrupts.afterRound(); left -= 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.equal(controls.interrupts.afterRound(), true);
+  client.send({ type: 'stop', root: '/repo', after: 'issue' });
+  client.send({ type: 'stop', root: '/repo' });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(controls.interrupts.afterRound(), true);
+});
+
+test('a client that stops a run now sees its agents and commands stop at once while the worker keeps answering', async (t) => {
+  const fake = fakeRuns();
+  let agentStopped = false;
+  let command: Promise<RunResult> | undefined;
+  let later: Promise<unknown> | undefined;
+  const runRepo: typeof fake.runRepo = (root, args, controls) => {
+    onStop(() => {
+      agentStopped = true;
+    });
+    command = run(process.execPath, ['-e', 'setTimeout(() => {}, 60_000)']);
+    later = command.then(() =>
+      run(process.execPath, ['-e', '']).then(
+        () => 'ran',
+        (error: unknown) => (error as Error).message,
+      ),
+    );
+    return fake.runRepo(root, args, controls);
+  };
+  const outside = run(process.execPath, ['-e', 'setTimeout(() => {}, 500)']);
+  const { client, socketPath } = await startedRun(t, { ...fake, runRepo });
+  client.send({ type: 'stop', root: '/repo', after: 'now' });
+  await client.next(stopping);
+  assert.notEqual((await command!).code, 0);
+  assert.equal(agentStopped, true);
+  assert.equal(await later, 'The run stopped.');
+  assert.equal(fake.controls().interrupts.afterRound(), true);
+  assert.equal((await outside).code, 0);
+  const another = await connect(t, socketPath);
+  await another.next((value) => value.type === 'hello');
+  fake.finish();
+  await client.next(stoppedRun);
+});
+
+test('a client that stops a run with an unknown point gets an error and the run goes on', async (t) => {
+  const { fake, client } = await startedRun(t);
+  client.send({ type: 'stop', root: '/repo', after: 'tool' } as never);
+  assert.deepEqual(await client.next((value) => value.type === 'error'), {
+    type: 'error',
+    root: '/repo',
+    message: 'stop does not take --after tool',
+  });
+  assert.equal(fake.controls().interrupts.afterIssue(), false);
 });
 
 test('a second worker does not start while the first one holds the lock', async (t) => {

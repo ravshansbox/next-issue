@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { type ChildProcess, spawn } from 'node:child_process';
-import { killTree, unwatch, watch } from './children.mts';
+import { killTree, refuseWhenStopped, watch } from './children.mts';
 import { deadline, elapsedMs, minutesToMs } from './durations.mts';
 import { keepTail } from './text.mts';
 
@@ -108,15 +108,15 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
   const started = Date.now();
   const limit = options.timeoutMs ?? defaultTimeout.getStore() ?? DEFAULT_TIMEOUT_MS;
   return new Promise((resolve, reject) => {
+    refuseWhenStopped();
     const child = spawnChild(command, args, options);
-    const pid = child.pid;
-    watch(pid);
+    const unwatch = watch(child.pid);
     const output = collect(child, options);
     const timer = deadline(limit, () => killTree(child));
     let done = false;
     const release = (): void => {
       timer.clear();
-      unwatch(pid);
+      unwatch();
     };
     const settle = (code: number | null): void => {
       release();

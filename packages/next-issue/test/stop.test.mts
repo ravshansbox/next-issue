@@ -31,3 +31,13 @@ test('a user who asks to stop during a review round gets the fix and no next rev
   assert.equal((await target.state())?.reviewRounds, 1);
   assert.equal(target.labels.at(-1)?.label, 'status:in-review');
 });
+
+test('a user who stops a run now during the implementation gets the issue stopped with no hand-over and the state kept', async (t) => {
+  const target = await harness(t, { stopNowDuring: 'implementer' });
+  const report = await target.run();
+  assert.equal(report.outcome, 'stopped');
+  assert.equal(target.pushes, 0);
+  assert.deepEqual(target.comments, []);
+  assert.equal((await target.state())?.handedOver, undefined);
+  assert.equal(target.labels.at(-1)?.label, 'status:in-progress');
+});

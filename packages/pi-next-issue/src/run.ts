@@ -1,4 +1,4 @@
-import { going, type Progress } from './protocol.ts';
+import { going, type Progress, STOP_POINTS, type StopPoint } from './protocol.ts';
 import { accepted } from './requests.ts';
 import { formatStatus, handledNote, type Note } from './status.ts';
 import type { WorkerClient } from './worker.ts';
@@ -57,14 +57,36 @@ export function requestStart(
   return undefined;
 }
 
+export function parseStopArgs(args: string[]): StopPoint {
+  const [flag, value, ...rest] = args;
+  if (flag === undefined) {
+    return 'issue';
+  }
+  if (flag !== '--after') {
+    throw new Error(`stop does not take ${flag}`);
+  }
+  const point = STOP_POINTS.find((candidate) => candidate === value);
+  if (point === undefined) {
+    const known = 'issue, round or now';
+    throw new Error(
+      value === undefined ? `--after takes ${known}` : `--after takes ${known}, not ${value}`,
+    );
+  }
+  if (rest[0] !== undefined) {
+    throw new Error(`stop does not take ${rest[0]}`);
+  }
+  return point;
+}
+
 export function requestStop(
   client: WorkerClient,
   root: string,
   progress: Progress | undefined,
+  after: StopPoint,
 ): Note | undefined {
   if (!going(progress)) {
     return { text: `No run of ${root} is going.`, level: 'info' };
   }
-  client.send({ type: 'stop', root });
+  client.send({ type: 'stop', root, after });
   return undefined;
 }

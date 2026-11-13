@@ -13,8 +13,12 @@ It needs `git`, `npx` and an authenticated [`gh`](https://cli.github.com/). It w
 Run this in pi, inside a git repository:
 
 - `/next-issue start [flags]` starts a run of this repository when none is going. The flags are those of the `next-issue` CLI: `--once`, `--max <n>`, `--watch`, `--hunt`, `--reset`, `--verbose` and `--quiet`. For example, `/next-issue start --hunt` hunts for bugs and keeps watching, like `next-issue --hunt`. The worker refuses any other argument, or a command such as `init`, and a note says why. When a run is going, a note says so, and nothing starts or restarts.
-- `/next-issue stop` stops the run of this repository. A stop takes effect after the current round, and the issue keeps its saved state, so the next run resumes it. When no run is going, a note says so.
-- `/next-issue` with no argument shows the usage: `start [flags]`, `stop` and `answer`. Pi suggests these as you type after `/next-issue `. After `/next-issue start `, pi suggests the flags that are not typed yet, each with a short description.
+- `/next-issue stop [--after issue|round|now]` stops the run of this repository. When no run is going, a note says so. An unknown value or flag shows an error and stops nothing.
+  - `--after issue`, the default: the run claims no new issue and starts no new hunt. It finishes the issues that it holds and a hunt that is going, then ends as `stopped`.
+  - `--after round`: each running issue stops after its current round and keeps its saved state, worktree and labels, so the next run resumes it. A hunt that is going ends first.
+  - `--after now`: the run stops every agent, command and hunt at once. The worker keeps running.
+  - A stop with a later point than one already asked for changes nothing. A stop with an earlier point replaces it.
+- `/next-issue` with no argument shows the usage: `start [flags]`, `stop [--after issue|round|now]` and `answer`. Pi suggests these as you type after `/next-issue `. After `/next-issue start `, pi suggests the flags that are not typed yet, each with a short description.
 - The `next_issue_start` tool lets the model start a run. It takes an optional `args` array with the same flags as `/next-issue start`. When no run is going, it starts a run like `/next-issue start`. When a run is going, it starts nothing and reports the current run, which picks up new issues by itself. It never stops a run, and it does not ask for confirmation. Its result says whether it started a run.
 - The `next_issue_status` tool lets the model see the run of this repository. It returns the footer line, then one line per handled issue with its outcome, for example `#190 done`. When the worker has no run of this repository, it returns `no run of <root>`. When no worker is going, it returns `no worker is running` and does not start one. It reports no other repository.
 

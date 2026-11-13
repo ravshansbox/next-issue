@@ -8,7 +8,7 @@ import { errorText } from './src/errors.ts';
 import { must } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
 import type { Progress, Question } from './src/protocol.ts';
-import { requestStart, requestStop, startRun, statusOf } from './src/run.ts';
+import { parseStopArgs, requestStart, requestStop, startRun, statusOf } from './src/run.ts';
 import {
   type Action,
   cannotNote,
@@ -63,7 +63,8 @@ const FLAGS = START_FLAGS.map(({ flag, argument }) =>
 ).join(', ');
 const USAGE = [
   '/next-issue start [flags]  start a run of this repository, with flags from: ' + FLAGS,
-  '/next-issue stop           stop the run of this repository after the current round',
+  '/next-issue stop [--after issue|round|now]',
+  '                           stop the run of this repository after the running issues (issue, the default), after the current round (round), or at once (now)',
   '/next-issue answer         answer the waiting questions',
 ].join('\n');
 
@@ -302,7 +303,7 @@ export function createExtension(options: Options) {
     });
 
     pi.registerCommand('next-issue', {
-      description: `"start [flags]" starts working through the GitHub issues of this repository, with flags from ${FLAGS}. "stop" stops the run. "answer" answers the waiting questions`,
+      description: `"start [flags]" starts working through the GitHub issues of this repository, with flags from ${FLAGS}. "stop [--after issue|round|now]" stops the run after the running issues (the default), after the current round, or at once. "answer" answers the waiting questions`,
       getArgumentCompletions: (prefix) => {
         const matches = completions(prefix);
         return matches.length === 0 ? null : matches;
@@ -319,11 +320,12 @@ export function createExtension(options: Options) {
           }
         };
         try {
+          const after = subcommand === 'stop' ? parseStopArgs(flags) : undefined;
           const { client, root, progress } = await connect(ctx);
           if (subcommand === 'answer') {
             await answerAll(ctx.ui, options.gh, client, root);
-          } else if (subcommand === 'stop') {
-            notify(requestStop(client, root, progress));
+          } else if (after !== undefined) {
+            notify(requestStop(client, root, progress, after));
           } else {
             notify(requestStart(client, root, progress, flags));
           }

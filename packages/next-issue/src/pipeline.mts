@@ -1,7 +1,8 @@
 import { enterReview } from './enter-review.mts';
 import { branchName } from './git.mts';
 import type { Issue } from './github.mts';
-import { claimedError, stop } from './handover.mts';
+import { runStopped } from './children.mts';
+import { claimedError, stop, stopNow } from './handover.mts';
 import { implement } from './implement.mts';
 import type { Context, IssueReport, Run } from './job.mts';
 import type { Recorder } from './observe.mts';
@@ -29,8 +30,9 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
 
   const state = startState(context, issue, saved);
 
+  let report: IssueReport;
   try {
-    const report = await work(
+    report = await work(
       context,
       issue,
       log,
@@ -38,15 +40,18 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
       saved === undefined,
       saved?.handedOver === true,
     );
-    log.event(
-      'issue.end',
-      { outcome: report.outcome, reason: report.reason, ms: report.ms },
-      'quiet',
-    );
-    return report;
   } catch (error) {
-    return claimedError(context, log, issue, state, error, started);
+    if (!runStopped()) {
+      return claimedError(context, log, issue, state, error, started);
+    }
+    report = stopNow(log, issue, state, started);
   }
+  log.event(
+    'issue.end',
+    { outcome: report.outcome, reason: report.reason, ms: report.ms },
+    'quiet',
+  );
+  return report;
 }
 
 function startState(context: Context, issue: Issue, saved: IssueState | undefined): IssueState {

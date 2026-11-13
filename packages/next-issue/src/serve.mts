@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { dirname } from 'node:path';
 import { type WebSocket, WebSocketServer } from 'ws';
 import { type Args, parseStartArgs } from './args.mts';
-import { stopChildren } from './children.mts';
+import { stopChildren, withRunChildren } from './children.mts';
 import { message } from './errors.mts';
 import { lock } from './lock.mts';
 import { startProgress } from './progress.mts';
@@ -16,11 +16,13 @@ import { checkSocketPath, workerPaths } from './worker-paths.mts';
 import {
   active,
   endStatus,
+  newRun,
   requestStop,
   type Run,
   runControls,
   runsMessage,
   startRefusal,
+  stopPoint,
 } from './worker-run.mts';
 import {
   broadcast,
@@ -86,24 +88,34 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       send(socket, { type: 'error', root, message: message(error) });
       return;
     }
-    const run: Run = { progress: startProgress(), stop: false };
+    const run = newRun(startProgress());
     runs.set(root, run);
     const update = (next: Progress): void => {
       run.progress = next;
       broadcast(sockets, runs);
     };
     broadcast(sockets, runs);
-    options
-      .runRepo(
+    withRunChildren(run.children, () =>
+      options.runRepo(
         root,
         args,
         runControls(run, update, () => void sendQuestions(root, () => sockets.clients)),
-      )
+      ),
+    )
       .then(
         () => update({ ...run.progress, status: endStatus(run) }),
         (error: unknown) => update({ ...run.progress, status: 'failed', error: message(error) }),
       )
       .finally(closeWhenIdle);
+  };
+
+  const stop = (socket: WebSocket, root: string, after: unknown): void => {
+    const point = stopPoint(after);
+    if (point === undefined) {
+      send(socket, { type: 'error', root, message: `stop does not take --after ${String(after)}` });
+    } else if (requestStop(runs.get(root), point)) {
+      broadcast(sockets, runs);
+    }
   };
 
   const receive = (socket: WebSocket, value: ClientMessage): void => {
@@ -115,9 +127,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     } else if (value.type === 'start') {
       start(socket, value.root, value.args ?? []);
     } else if (value.type === 'stop') {
-      if (requestStop(runs.get(value.root))) {
-        broadcast(sockets, runs);
-      }
+      stop(socket, value.root, value.after);
     } else if (value.type === 'questions') {
       void sendQuestions(value.root, () => [socket], value.id);
     }

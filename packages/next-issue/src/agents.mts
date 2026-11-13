@@ -6,7 +6,7 @@ import {
   type SettingsManager,
 } from '@earendil-works/pi-coding-agent';
 import { openSession } from './agent-session.mts';
-import { onStop } from './children.mts';
+import { onStop, refuseWhenStopped } from './children.mts';
 import { deadline, elapsedMs } from './durations.mts';
 import type { Fields, Recorder } from './observe.mts';
 import { isRecord } from './records.mts';
@@ -63,6 +63,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
   const unsubscribe = session.subscribe((event) => observe(log, event));
   const release = onStop(() => void session.abort());
   try {
+    refuseWhenStopped();
     await session.bindExtensions({});
     await session.prompt(request.prompt, { expandPromptTemplates: false });
     if (timer.timedOut()) {

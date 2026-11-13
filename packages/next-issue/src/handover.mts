@@ -46,6 +46,16 @@ export function stop(job: Run): IssueReport {
   return jobReport(job, 'stopped');
 }
 
+export function stopNow(
+  log: Recorder,
+  issue: Issue,
+  state: IssueState,
+  started: number,
+): IssueReport {
+  log.event('issue.stop', { phase: state.phase }, 'quiet');
+  return issueReport(issue.number, 'stopped', state, started);
+}
+
 function jobReport(job: Run, outcome: Outcome, reason?: string): IssueReport {
   return issueReport(job.issue.number, outcome, job.state, job.started, reason);
 }

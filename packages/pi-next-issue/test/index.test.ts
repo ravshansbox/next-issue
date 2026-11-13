@@ -454,7 +454,48 @@ test('a user who runs /next-issue stop while a run is going asks the worker to s
   await emit('session_start');
   await command('stop');
   await until(() => fake.received.some((message) => message.type === 'stop'));
-  assert.deepEqual(fake.received.at(-1), { type: 'stop', root: '/repo' });
+  assert.deepEqual(fake.received.at(-1), { type: 'stop', root: '/repo', after: 'issue' });
+});
+
+test('a user who runs /next-issue stop --after round or now asks the worker to stop at that point', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({ issues: [working(7)] });
+  const { pi, emit, command } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command('stop --after round');
+  await command('stop  --after now ');
+  await until(() => fake.received.filter((message) => message.type === 'stop').length === 2);
+  assert.deepEqual(
+    fake.received.filter((message) => message.type === 'stop'),
+    [
+      { type: 'stop', root: '/repo', after: 'round' },
+      { type: 'stop', root: '/repo', after: 'now' },
+    ],
+  );
+});
+
+test('a user who runs /next-issue stop with an unknown point or flag sees an error and nothing stops', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({ issues: [working(7)] });
+  const { pi, emit, command, notes } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command('stop --after tool');
+  await command('stop --after');
+  await command('stop --now');
+  assert.deepEqual(notes, [
+    'next-issue cannot stop: --after takes issue, round or now, not tool',
+    'next-issue cannot stop: --after takes issue, round or now',
+    'next-issue cannot stop: stop does not take --now',
+  ]);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(
+    fake.received.some((message) => message.type === 'stop'),
+    false,
+  );
 });
 
 test('a user who runs /next-issue stop with no run going is told so and nothing is sent', async () => {
@@ -516,7 +557,7 @@ test('a user who runs /next-issue with no argument or an unknown one sees the us
   assert.equal(notes.length, 2);
   for (const note of notes) {
     assert.match(note, /\/next-issue start \[flags\]/);
-    assert.match(note, /\/next-issue stop/);
+    assert.match(note, /\/next-issue stop \[--after issue\|round\|now\]/);
     assert.match(note, /\/next-issue answer/);
     assert.match(note, /--hunt/);
   }

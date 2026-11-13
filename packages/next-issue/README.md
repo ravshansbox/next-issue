@@ -559,8 +559,16 @@ affect another. The worker:
   a newer one. When the client adds an `"id"` to its message, the list that
   answers it carries the same `id` and is read after the message arrived. When the list cannot be read, the client gets
   `{ "type": "questions-error", "root": "<path>", "message": "<text>" }`;
-- stops a run, when a client asks, like a second `Ctrl-C`: each running issue
-  after its current round, with the state kept;
+- stops a run when a client sends
+  `{ "type": "stop", "root": "<path>", "after": "issue" | "round" | "now" }`.
+  With no `after`, it stops after `issue`. `issue` works like a first
+  `Ctrl-C`: no new claim or hunt, and the held issues and a going hunt finish.
+  `round` works like a second `Ctrl-C`: each running issue stops after its
+  current round, with the state kept, and a going hunt ends first. `now`
+  stops every agent, command and hunt of the run at once, and each running
+  issue ends as `stopped` with its state and labels kept; the worker keeps
+  running. A later point than one already asked for changes nothing, and an
+  earlier one replaces it. An unknown `after` gets an `error` message;
 - exits, and removes its socket and lock files, when no run is going and no
   client is connected, or when no client connects in the 30 seconds after it
   starts;

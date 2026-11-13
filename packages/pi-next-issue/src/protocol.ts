@@ -28,10 +28,14 @@ export type Question = {
   labels: { needsHuman: string; skip: string };
 };
 
+export const STOP_POINTS = ['issue', 'round', 'now'] as const;
+
+export type StopPoint = (typeof STOP_POINTS)[number];
+
 export type ClientMessage =
   | { type: 'hello'; version: string }
   | { type: 'start'; root: string; args?: string[] }
-  | { type: 'stop'; root: string }
+  | { type: 'stop'; root: string; after?: StopPoint }
   | { type: 'questions'; root: string; id?: string };
 
 export type WorkerMessage =
