@@ -523,8 +523,10 @@ The hunter ends its reply with an `issue:` line, and the run log holds it as a `
 
 `next-issue serve` runs one worker for the repository it is run in. The
 [`@ravshansbox/pi-next-issue`](../pi-next-issue) extension starts it and talks
-to it. Each repository has its own worker, so the runs, restarts and upgrades
-of one repository never affect another. The worker:
+to it. `serve` takes no flags apart from `--help` and refuses any other with
+an error, because runs start from a client, not from `serve`. Each repository
+has its own worker, so the runs, restarts and upgrades of one repository never
+affect another. The worker:
 
 - listens with WebSocket on the socket file `.next-issue/worker.sock` in the
   repository. Only your user can open the file. It works on macOS and Linux.

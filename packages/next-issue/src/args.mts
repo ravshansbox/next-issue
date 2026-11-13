@@ -64,8 +64,12 @@ export function parseArgs(argv: string[]): Args {
     hunt: false,
     level: 'normal',
   };
+  let flag: string | undefined;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]!;
+    if (index !== 0 && arg !== '--help') {
+      flag ??= arg;
+    }
     if (index === 0 && !arg.startsWith('-')) {
       args.command = command(arg);
     } else if (SWITCHES.has(arg)) {
@@ -77,6 +81,9 @@ export function parseArgs(argv: string[]): Args {
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
+  }
+  if (args.command === 'serve' && !args.help && flag !== undefined) {
+    throw new Error(`serve does not take ${flag}`);
   }
   args.watch ||= args.hunt;
   return args;

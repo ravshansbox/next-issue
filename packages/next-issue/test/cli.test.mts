@@ -415,3 +415,16 @@ test('a user who runs --help sees the logs command', async () => {
   const { stdout } = await promisify(execFile)(process.execPath, [CLI, '--help']);
   assert.match(stdout, /^ {2}logs {9}show the latest run log and follow it$/m);
 });
+
+test('a user who runs serve --hunt gets an error, exit code 1 and no worker', async () => {
+  const root = await repository();
+  await assert.rejects(
+    promisify(execFile)(process.execPath, [CLI, 'serve', '--hunt'], { cwd: root }),
+    (error: { code: number; stderr: string }) => {
+      assert.equal(error.code, 1);
+      assert.match(error.stderr, /serve does not take --hunt/);
+      return true;
+    },
+  );
+  assert.equal(await exists(workerPaths(root).lockPath), false);
+});

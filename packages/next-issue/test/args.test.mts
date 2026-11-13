@@ -68,3 +68,28 @@ test('a user who passes --hunt asks to hunt and keeps watching', () => {
   assert.equal(args.hunt, true);
   assert.equal(args.watch, true);
 });
+
+test('a user who passes a flag to serve gets an error that serve does not take it', () => {
+  for (const argv of [
+    ['--hunt'],
+    ['--watch'],
+    ['--once'],
+    ['--max', '2'],
+    ['--reset'],
+    ['--verbose'],
+    ['--quiet'],
+    ['--json'],
+    ['--force'],
+  ]) {
+    assert.throws(
+      () => parseArgs(['serve', ...argv]),
+      new RegExp(`serve does not take ${argv[0]}$`),
+    );
+  }
+});
+
+test('a user who passes an unknown flag or --help to serve gets the usual result', () => {
+  assert.throws(() => parseArgs(['serve', '--unknown']), /Unknown argument: --unknown/);
+  assert.equal(parseArgs(['serve', '--help']).help, true);
+  assert.equal(parseArgs(['serve', '--help', '--hunt']).help, true);
+});
