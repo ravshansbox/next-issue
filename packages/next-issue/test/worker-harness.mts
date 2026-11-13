@@ -16,6 +16,8 @@ export type Client = {
   close: () => Promise<void>;
 };
 
+const nextTimeoutMs = 3000;
+
 export async function connect(t: TestContext, socketPath: string): Promise<Client> {
   const socket = new WebSocket(`ws+unix://${socketPath}:/`);
   const seen: WorkerMessage[] = [];
@@ -35,12 +37,25 @@ export async function connect(t: TestContext, socketPath: string): Promise<Clien
   return {
     send: (value) => socket.send(JSON.stringify(value)),
     next: async (match) => {
+      const deadline = Date.now() + nextTimeoutMs;
       for (;;) {
         const index = seen.findIndex(match);
         if (index >= 0) {
           return seen.splice(0, index + 1).at(-1)!;
         }
-        await new Promise<void>((resolve) => waiters.push(resolve));
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) {
+          throw new Error(
+            `client.next timed out after ${nextTimeoutMs} ms waiting for ${String(match)}`,
+          );
+        }
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, remaining);
+          waiters.push(() => {
+            clearTimeout(timer);
+            resolve();
+          });
+        });
       }
     },
     closed,
