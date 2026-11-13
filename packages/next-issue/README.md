@@ -259,7 +259,7 @@ get the full summary object there instead, so the harness fits in a pipe. All
 progress goes to standard error.
 
 Recorded for each step: `claim`, `comments`, `reply`, `worktree`, `setup`,
-`implement`, `review`, `fix`, `commit-fix`, `rebase`, `land`, `main-checks` and `revert`, each with a
+`implement`, `review`, `fix`, `commit-fix`, `rebase`, `land`, `main-checks`, `revert` and `hunt`, each with a
 `.start`, `.end` or `.error` event and a duration in `ms`. Every `git` and `gh`
 command is recorded with its exit code and duration. A `tool` event holds the
 tool name, and for a `bash` tool the command too. Each agent call adds a `usage`
@@ -453,6 +453,7 @@ state of an issue that a label still holds back stays as it was.
 | `--once`    | Stop after the first handled issue                                                   |
 | `--max <n>` | Handle at most n issues                                                              |
 | `--watch`   | Keep running, and read the open issues again after each pass                         |
+| `--hunt`    | Hunt the repository for a bug before each wait, see [Hunt for bugs](#hunt-for-bugs)  |
 | `--reset`   | Drop the saved budgets and findings, and keep the rest of the state                  |
 | `--json`    | Print the machine summary instead of the text one, or the raw JSON lines with `logs` |
 | `--verbose` | Show every command and all agent output                                              |
@@ -489,6 +490,17 @@ The watch stops:
 - after a pass that halts the run, for example when the checks on the base
   branch failed;
 - when the open issues cannot be read.
+
+## Hunt for bugs
+
+With `--hunt`, which turns on `--watch`, the harness runs a hunter agent before each wait, so it finds new work when the issues run out. The hunter:
+
+- works in its own worktree at `.worktrees/hunt`, at the remote base branch, which the harness fetches and resets before each hunt;
+- follows `next-issue.hunt.md` in the repository root, or a short built-in prompt when the file is missing;
+- files one issue, for its most serious finding, with the `labels.ready` label and the sections of the [issue format](#issue-format), after a search for duplicates. It files nothing when it finds no real problem or a duplicate exists;
+- runs no test suite and changes no file. It gets the tools of the reviewer.
+
+The hunter ends its reply with an `issue:` line, and the run log holds it as a `hunt.issue` event with the `url`, or `none`. A hunt that fails writes a `hunt.error` event and the watch goes on. The next pass claims the new issue like any other. The hunter does not run alongside the issues.
 
 ## Worker
 

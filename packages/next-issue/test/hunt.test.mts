@@ -1,0 +1,81 @@
+import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { test } from 'node:test';
+import { REVIEWING } from '../src/agents.mts';
+import { revision } from '../src/git.mts';
+import { HUNT_FILE, hunt, huntWorktree } from '../src/hunt.mts';
+import { ISSUE_SECTIONS } from '../src/issue-format.mts';
+import { clones, commit, git } from './clones.mts';
+import { harness } from './harness.mts';
+
+test('a user who hunts with next-issue.hunt.md sees the hunter follow it in the hunt worktree with read-only tools', async (t) => {
+  const target = await harness(t);
+  await writeFile(join(target.context.repo.root, HUNT_FILE), 'Look only at the parser.\n');
+  await hunt(target.context);
+  assert.deepEqual(target.hunts, ['main']);
+  assert.deepEqual(target.profiles, [{ role: 'hunter', tools: REVIEWING.tools }]);
+  const prompt = target.prompts[0]!.prompt;
+  assert.match(prompt, /Look only at the parser\./);
+  assert.doesNotMatch(prompt, /Read the whole repository/);
+});
+
+test('a user who hunts with no next-issue.hunt.md sees the hunter get the built-in prompt', async (t) => {
+  const target = await harness(t);
+  await hunt(target.context);
+  assert.match(target.prompts[0]!.prompt, /Read the whole repository/);
+});
+
+test('a user who hunts sees the hunter told to file one ready issue in the issue format after a search for duplicates, with no test run and no change', async (t) => {
+  const target = await harness(t);
+  await hunt(target.context);
+  const prompt = target.prompts[0]!.prompt;
+  assert.match(prompt, /one issue/);
+  assert.match(prompt, /most serious finding/);
+  assert.match(prompt, /--label "status:todo"/);
+  assert.match(prompt, /duplicate/);
+  assert.match(prompt, /Run no test suite/);
+  assert.match(prompt, /Change no file/);
+  for (const section of ISSUE_SECTIONS) {
+    assert.match(prompt, new RegExp(`## ${section}`));
+  }
+});
+
+test('a user who hunts sees the filed issue in the run log', async (t) => {
+  const target = await harness(t, {
+    hunterText: 'Found it.\nissue: https://github.com/acme/tool/issues/9',
+  });
+  await hunt(target.context);
+  const event = target.events.find((record) => record.kind === 'hunt.issue');
+  assert.equal(event?.url, 'https://github.com/acme/tool/issues/9');
+});
+
+test('a user whose hunter fails sees a hunt.error event', async (t) => {
+  const target = await harness(t, { fail: 'runAgent' });
+  await assert.rejects(hunt(target.context), /the port broke/);
+  assert.ok(target.events.some((record) => record.kind === 'hunt.error'));
+});
+
+test('a user who hunts gets a worktree at the remote base', async () => {
+  const { repo, other } = await clones();
+  const pushed = await commit(other, 'b.txt');
+  await git(other, 'push', '-q', 'origin', 'main');
+  const path = await huntWorktree(repo, 'main', 'origin');
+  assert.equal(path, join(repo.root, '.worktrees', 'hunt'));
+  assert.equal(await revision(path), pushed);
+});
+
+test('a user who hunts again gets the hunt worktree reset to the new remote base', async () => {
+  const { repo, other } = await clones();
+  const path = await huntWorktree(repo, 'main', 'origin');
+  await writeFile(join(path, 'a.txt'), 'changed\n');
+  await writeFile(join(path, 'stray.txt'), 'stray\n');
+  await commit(path, 'local.txt');
+  const pushed = await commit(other, 'b.txt');
+  await git(other, 'push', '-q', 'origin', 'main');
+  assert.equal(await huntWorktree(repo, 'main', 'origin'), path);
+  assert.equal(await revision(path), pushed);
+  assert.equal(await git(path, 'status', '--porcelain'), '');
+  assert.equal(existsSync(join(path, 'stray.txt')), false);
+});

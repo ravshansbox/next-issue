@@ -8,6 +8,7 @@ import { writeJson } from './files.mts';
 import { slug } from './gh.mts';
 import { detectRepo, type Repo } from './git.mts';
 import { defaultBranch } from './github.mts';
+import { hunt } from './hunt.mts';
 import type { Interrupts } from './interrupt.mts';
 import type { Context, IssueReport } from './job.mts';
 import { exitCode, type Loop, type LoopResult, runIssues } from './loop.mts';
@@ -70,7 +71,7 @@ async function handle(
   };
   const print = controls.print ?? (async () => undefined);
   const { reports, stoppedAt, error } = args.watch
-    ? await watchRun(args, loop, recorder, interrupts, print)
+    ? await watchRun(args, loop, context, interrupts, print)
     : await runIssues(args, loop);
   recordLoopEnd(recorder, stoppedAt, error);
 
@@ -84,10 +85,11 @@ async function handle(
 function watchRun(
   args: Args,
   loop: Loop,
-  recorder: Recorder,
+  context: Context,
   interrupts: Interrupts,
   print: (summary: RunSummary) => Promise<void>,
 ): Promise<LoopResult> {
+  const { recorder } = context;
   let passStart = recorder.summary();
   return watchIssues(args, {
     ...loop,
@@ -97,6 +99,7 @@ function watchRun(
       return interrupts.sleep(minutesToMs(minutes));
     },
     passEnd: (issues) => print({ ...recorder.summary(passStart), issues }),
+    ...(args.hunt ? { hunt: () => hunt(context).catch(() => undefined) } : {}),
   });
 }
 

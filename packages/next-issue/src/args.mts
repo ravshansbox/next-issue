@@ -12,16 +12,18 @@ export type Args = {
   reset: boolean;
   force: boolean;
   watch: boolean;
+  hunt: boolean;
   level: Level;
 };
 
-type Switch = 'once' | 'help' | 'json' | 'reset' | 'force' | 'watch';
+type Switch = 'once' | 'help' | 'json' | 'reset' | 'force' | 'watch' | 'hunt';
 
 const SWITCHES = new Map<string, Switch>([
   ['--force', 'force'],
   ['--json', 'json'],
   ['--help', 'help'],
   ['--watch', 'watch'],
+  ['--hunt', 'hunt'],
   ['--reset', 'reset'],
   ['--once', 'once'],
 ]);
@@ -41,6 +43,7 @@ export const USAGE = `next-issue [command] [options]
   --once       stop after the first handled issue
   --max <n>    handle at most n issues
   --watch      keep running and read the issues again after each pass
+  --hunt       hunt the repository for a bug and file an issue before each wait, turns on --watch
   --reset      drop the saved budgets and findings first
   --json       print the machine summary instead of the text one, or raw lines with logs
   --force      replace an existing config file, with init
@@ -58,6 +61,7 @@ export function parseArgs(argv: string[]): Args {
     reset: false,
     force: false,
     watch: false,
+    hunt: false,
     level: 'normal',
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -74,6 +78,7 @@ export function parseArgs(argv: string[]): Args {
       throw new Error(`Unknown argument: ${arg}`);
     }
   }
+  args.watch ||= args.hunt;
   return args;
 }
 

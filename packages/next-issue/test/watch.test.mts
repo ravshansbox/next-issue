@@ -109,3 +109,28 @@ test('a watch stops after a pass that halts the run', async () => {
   assert.equal(result.stoppedAt, 1);
   assert.deepEqual(fake.passes, [[1]]);
 });
+
+test('a user who watches with --hunt sees a hunt before each wait', async () => {
+  const fake = watcher([['done'], [], ['skipped']]);
+  const steps: string[] = [];
+  fake.hunt = async () => {
+    steps.push(`hunt after ${fake.processed.length}`);
+  };
+  const wait = fake.wait;
+  fake.wait = async (minutes) => {
+    steps.push('wait');
+    return wait(minutes);
+  };
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(steps, ['hunt after 1', 'wait', 'hunt after 1', 'wait', 'hunt after 2', 'wait']);
+});
+
+test('a user who watches with --once sees no hunt once the issue is handled', async () => {
+  const fake = watcher([['done']]);
+  let hunts = 0;
+  fake.hunt = async () => {
+    hunts += 1;
+  };
+  await watchIssues({ ...ARGS, once: true }, fake);
+  assert.equal(hunts, 0);
+});
