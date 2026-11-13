@@ -59,7 +59,11 @@ test('a user who runs init gets .next-issue/ and .worktrees/ once in info/exclud
 
 test('a user who runs init in a linked worktree gets the entries in the shared info/exclude', async () => {
   const root = await repository();
-  await must('git', ['commit', '-q', '--allow-empty', '-m', 'first'], { cwd: root });
+  await must(
+    'git',
+    ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'first'],
+    { cwd: root },
+  );
   const linked = join(await tempDir(), 'linked');
   await must('git', ['worktree', 'add', '-q', linked], { cwd: root });
   await initCommand(linked);
