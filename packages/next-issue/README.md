@@ -420,19 +420,22 @@ the prompt asks them to keep only what still holds. The reviewer only reads it.
 ## Retry an issue that waits for a person
 
 A hand-over marks the state file as handed over. To give the issue another try,
-take the `status:needs-human` label off, or answer the hand-over. The next run that claims the issue puts
-the budgets and the findings back to zero, clears the mark and keeps the branch
-and the step that the last run reached, so the work carries on where it
-stopped. After a revert, the branch holds the change again on top of the
-revert, so the change goes back to the review. An issue that still has the label is not claimed, unless it has an answer to the hand-over: then the run claims it and takes the label off.
+take the `status:needs-human` label off, or answer the hand-over. The next run
+that claims the issue puts the budgets and the findings back to zero, clears
+the mark and keeps the branch and the step that the last run reached, so the
+work carries on where it stopped. After a revert, the branch holds the change
+again on top of the revert, so the change goes back to the review. An issue
+that still has the label is not claimed, unless it has an answer to the
+hand-over: then the run claims it and takes the label off.
 
 To give guidance, answer the hand-over with a comment on the issue. When the run
 resumes the issue, it reads the comments posted after its last
 `next-issue needs help:` comment there. Only comments from users with write
-access to the repository count, for the hand-over comment too. A comment that starts with one of the headings of the harness never counts as an answer. The implementer
-and every fixer of that run get them in their prompt, under the heading
-`Answer of a person to the hand-over`. A short reply such as "ready, take it" is
-enough. With no such comment, the run resumes with no guidance.
+access to the repository count, for the hand-over comment too. A comment that
+starts with one of the headings of the harness never counts as an answer. The
+implementer and every fixer of that run get them in their prompt, under the
+heading `Answer of a person to the hand-over`. A short reply such as "ready,
+take it" is enough. With no such comment, the run resumes with no guidance.
 
 The `--reset` flag does the same for any issue that the run handles, whether or
 not it was handed over. It touches only an issue that the run handles, so the
