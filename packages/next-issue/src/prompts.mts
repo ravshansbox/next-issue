@@ -57,7 +57,10 @@ export function capDiff(diff: string, maxChars: number): string {
 
 function reviewScope(earlier: string[]): string {
   return earlier.length === 0
-    ? 'Check correctness, scope, repository conventions and test cover.'
+    ? [
+        'Check correctness, scope, repository conventions and test cover.',
+        'Raise a finding when a behaviour change has no failing run of its test in the reply of the implementer.',
+      ].join('\n')
     : [
         'This is a later round. Judge two things only:',
         'whether the earlier findings below are now fixed, and whether the new commits broke something.',
@@ -73,8 +76,9 @@ export function reviewPrompt(
   comments: string[],
   diff: string,
   earlier: string[],
-  implementerReply?: string,
+  reply?: string,
 ): string {
+  const role = earlier.length === 0 ? 'implementer' : 'fixer';
   return [
     'You are the reviewer. Judge whether the diff solves the issue correctly.',
     issueBlock(issue, comments),
@@ -82,13 +86,12 @@ export function reviewPrompt(
     '```diff',
     diff,
     '```',
-    `## Reply of the implementer\n${implementerReply ?? '(no reply)'}`,
+    `## Reply of the ${role}\n${reply ?? '(no reply)'}`,
     '## Rules',
     'Read files and run commands to prove what you say: the tests, the type check or the linter.',
     'The worktree is ready to use. Do not change a file. Do not write with git or gh.',
     'The harness discards each change that you make, so a change is only lost work.',
     reviewScope(earlier),
-    'Raise a finding when a behaviour change has no failing run of its test in the reply of the implementer.',
     'Mark a finding blocking only for a wrong result, a missing part of the issue, a regression or a broken convention.',
     'End your final message with the result as a json block in a ```json fence, in the form {"summary": "<short summary>", "findings": [{"severity": "blocking" or "minor", "detail": "<what is wrong and where>"}]}.',
     'Give one entry per finding, and an empty list when nothing is wrong. The findings decide the outcome, so a problem that you leave out counts as no problem.',
@@ -118,7 +121,10 @@ const CONFLICT_RULE = [
 
 const KIND_RULES: Record<FixKind, string> = {
   checks: UNRELATED_RULE,
-  review: DISPUTE_RULE,
+  review: [
+    DISPUTE_RULE,
+    'For a behaviour change, run its test before the change and quote its failing output in your final message.',
+  ].join('\n'),
   conflict: CONFLICT_RULE,
 };
 

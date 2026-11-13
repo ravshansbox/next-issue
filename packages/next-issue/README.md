@@ -82,8 +82,10 @@ the run handles one issue. For each issue:
    reviewer reads files and runs commands in the worktree, so it can prove a
    finding with the tests or the type check. The harness then throws away every
    change that the reviewer left, so no such change can reach a later commit.
-   The reviewer also gets the reply of the implementer, and raises a finding
-   when a behaviour change has no failing run of its test.
+   The first reviewer also gets the reply of the implementer, and raises a
+   finding when a behaviour change has no failing run of its test. A later
+   reviewer gets the reply of the last review fixer instead, who quotes the
+   failing run of a test for a behaviour change.
    The reviewer ends its last message with its verdict as a json block: a
    summary and one entry per finding, each rated `blocking` or `minor`. A
    reply without a valid block hands the issue to a person. The findings are the only ground

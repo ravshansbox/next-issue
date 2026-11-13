@@ -89,7 +89,13 @@ async function runReviewer(job: Run, earlier: string[]): Promise<string> {
     runRole(
       job,
       'reviewer',
-      reviewPrompt(issue, comments, patch, earlier, state.implementerReply),
+      reviewPrompt(
+        issue,
+        comments,
+        patch,
+        earlier,
+        earlier.length === 0 ? state.implementerReply : state.fixerReply,
+      ),
       REVIEWING,
     ),
   );

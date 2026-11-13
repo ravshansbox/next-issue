@@ -97,3 +97,14 @@ test('reviewPrompt gives the reply of the implementer and asks for a finding whe
   assert.match(prompt, /Raise a finding when a behaviour change has no failing run/);
   assert.match(reviewPrompt(ISSUE, [], 'diff', []), /## Reply of the implementer\n\(no reply\)/);
 });
+
+test('a later reviewer gets the reply of the fixer and no new demand for a failing run', () => {
+  const prompt = reviewPrompt(ISSUE, [], 'diff', ['Round 1:\n- x'], 'The test failed first.');
+  assert.match(prompt, /## Reply of the fixer\nThe test failed first\./);
+  assert.doesNotMatch(prompt, /Raise a finding when a behaviour change has no failing run/);
+});
+
+test('the review fixer is told to quote the failing output of a test for a behaviour change', () => {
+  const review = fixPrompt(ISSUE, 'The reviewer requested changes.', 'x', [], 'review');
+  assert.match(review, /quote its failing output in your final message/);
+});
