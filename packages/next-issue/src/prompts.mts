@@ -33,6 +33,7 @@ export function implementPrompt(issue: Issue, comments: string[], reply: string[
     '## Rules',
     'Read the repository conventions first. Keep the change minimal and focused on the issue.',
     'Add or update tests when the repository has a test suite.',
+    'For a behaviour change, write the test first and run it before the change. Then quote its failing output in your final message.',
     COMMIT_RULES,
   ]);
 }
@@ -72,6 +73,7 @@ export function reviewPrompt(
   comments: string[],
   diff: string,
   earlier: string[],
+  implementerReply?: string,
 ): string {
   return [
     'You are the reviewer. Judge whether the diff solves the issue correctly.',
@@ -80,11 +82,13 @@ export function reviewPrompt(
     '```diff',
     diff,
     '```',
+    `## Reply of the implementer\n${implementerReply ?? '(no reply)'}`,
     '## Rules',
     'Read files and run commands to prove what you say: the tests, the type check or the linter.',
     'The worktree is ready to use. Do not change a file. Do not write with git or gh.',
     'The harness discards each change that you make, so a change is only lost work.',
     reviewScope(earlier),
+    'Raise a finding when a behaviour change has no failing run of its test in the reply of the implementer.',
     'Mark a finding blocking only for a wrong result, a missing part of the issue, a regression or a broken convention.',
     'End your final message with the result as a json block in a ```json fence, in the form {"summary": "<short summary>", "findings": [{"severity": "blocking" or "minor", "detail": "<what is wrong and where>"}]}.',
     'Give one entry per finding, and an empty list when nothing is wrong. The findings decide the outcome, so a problem that you leave out counts as no problem.',

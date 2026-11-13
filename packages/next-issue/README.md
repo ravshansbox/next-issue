@@ -66,8 +66,10 @@ the run handles one issue. For each issue:
    base when there is none. A fast-forward of the base that is not safe
    leaves the local base branch as it is and writes a `base.behind` event. A
    new branch then starts from the remote base.
-4. Let the implementer agent do the work, then commit it. The branch is not
-   pushed. When a git
+4. Let the implementer agent do the work, then commit it. For a behaviour
+   change, the implementer writes the test first and quotes its failing output
+   in its reply. The harness keeps that reply in the state file for the
+   reviewer. The branch is not pushed. When a git
    hook stops a commit, the agent that made the change gets the hook output,
    fixes it, and the harness commits again. A `commit:` line in the reply of
    the agent replaces the subject, so a hook that rejects the subject can pass.
@@ -80,6 +82,8 @@ the run handles one issue. For each issue:
    reviewer reads files and runs commands in the worktree, so it can prove a
    finding with the tests or the type check. The harness then throws away every
    change that the reviewer left, so no such change can reach a later commit.
+   The reviewer also gets the reply of the implementer, and raises a finding
+   when a behaviour change has no failing run of its test.
    The reviewer ends its last message with its verdict as a json block: a
    summary and one entry per finding, each rated `blocking` or `minor`. A
    reply without a valid block hands the issue to a person. The findings are the only ground

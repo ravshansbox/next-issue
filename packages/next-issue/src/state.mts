@@ -14,6 +14,7 @@ export type IssueState = {
   phase: Phase;
   branch: string;
   title?: string;
+  implementerReply?: string;
   ciFixes: number;
   commitFixes?: number;
   landed?: string[];
@@ -84,6 +85,7 @@ function isState(value: unknown): value is IssueState {
     PHASES.includes(value.phase) &&
     typeof value.branch === 'string' &&
     isOptional(value.title, 'string') &&
+    isOptional(value.implementerReply, 'string') &&
     typeof value.ciFixes === 'number' &&
     isOptional(value.commitFixes, 'number') &&
     (value.landed === undefined || isLanded(value.landed)) &&

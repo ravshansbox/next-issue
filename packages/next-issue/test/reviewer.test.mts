@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Verdict } from '../src/verdict.mts';
-import { APPROVE, changes, harness } from './harness.mts';
+import { APPROVE, changes, harness, ISSUE, SAVED } from './harness.mts';
 
 test('a reviewer without a verdict hands the issue to a person', async (t) => {
   const target = await harness(t, { verdicts: [] });
@@ -71,4 +71,31 @@ test('a commit that the reviewer makes does not stay on the branch', async (t) =
   assert.equal(report.outcome, 'done');
   assert.equal(target.discards, 2);
   assert.equal(await target.context.ports.revision('worktree'), '3');
+});
+
+test('the reviewer gets the reply of the implementer in its prompt', async (t) => {
+  const reply = 'The test failed first: expected 2, got 1.\ncommit: fix: count the issues';
+  const target = await harness(t, { implementerText: [reply] });
+  assert.equal((await target.run()).outcome, 'done');
+  const reviewer = target.prompts.find((entry) => entry.role === 'reviewer')!;
+  assert.match(
+    reviewer.prompt,
+    /## Reply of the implementer\nThe test failed first: expected 2, got 1\./,
+  );
+});
+
+test('a user who resumes a run after the implementer gets its saved reply to the reviewer', async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: ['status:in-progress'] },
+    saved: {
+      ...SAVED,
+      phase: 'implemented',
+      reviewRounds: 0,
+      reviewLog: [],
+      implementerReply: 'The test failed first.',
+    },
+  });
+  assert.equal((await target.run()).outcome, 'done');
+  const reviewer = target.prompts.find((entry) => entry.role === 'reviewer')!;
+  assert.match(reviewer.prompt, /## Reply of the implementer\nThe test failed first\./);
 });
