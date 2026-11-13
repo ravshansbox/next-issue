@@ -38,6 +38,7 @@ export async function openJob(
     reply,
     started,
     mainBroken: false,
+    repairing: false,
   };
 }
 

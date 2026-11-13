@@ -111,11 +111,11 @@ the run handles one issue. For each issue:
    the checks pass, the harness closes the issue and sets `status:done`, and
    the worktree, the local branch and the state file go away. When the checks
    fail, the fixer gets their logs from the check budget, and its fix lands
-   the same way. When the fixer cannot fix them, or the budget runs out, the
-   harness reverts every commit of the change on the base branch, pushes the
-   revert and hands the issue to a person. A resume that stopped while the
-   checks of a landed commit ran waits for them again, and a fix that was
-   committed but not landed lands first. A problem that the reviewer leaves
+   the same way. When the fixer cannot fix them, its fix cannot land, or the
+   budget runs out, the harness reverts every commit of the change on the
+   base branch, pushes the revert and hands the issue to a person. A resume
+   that stopped while the checks of a landed commit ran waits for them
+   again, and a fix that was committed but not landed lands first. A problem that the reviewer leaves
    out of the findings thus gets an approval: only the findings count.
 8. With an open finding, run the fixer agent and go to step 5 again. The
    budget is `maxReviewRounds`. A fixer that holds every finding to be wrong

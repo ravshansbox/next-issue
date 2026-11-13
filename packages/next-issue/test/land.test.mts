@@ -76,6 +76,82 @@ test('a user whose checks on main fail for an unrelated reason gets the change r
   assert.deepEqual(target.closed, []);
 });
 
+test('a user whose fix for main conflicts with the base after the check budget is used up gets the change reverted and the issue handed over', async (t) => {
+  const target = await harness(t, {
+    config: { maxCiFixes: 1 },
+    baseChecks: ['fail'],
+    merges: [undefined, ['src/a.ts']],
+    fixerText: 'Done.\ncommit: fix: repair main',
+  });
+  const report = await target.run();
+  assert.equal(report.reason, 'merge conflict');
+  assert.deepEqual(
+    target.reverts.map((entry) => entry.shas),
+    [['2']],
+  );
+  assert.match(
+    target.comments.at(-1)!,
+    /limit of 1 check fixes was reached\. The harness reverted the change on main\./,
+  );
+});
+
+test('a user whose fixer leaves a conflict of the fix for main unresolved gets the change reverted', async (t) => {
+  const target = await harness(t, {
+    baseChecks: ['fail'],
+    merges: [undefined, ['src/a.ts']],
+    mergeResolved: false,
+    fixerText: 'Done.\ncommit: fix: repair main',
+  });
+  const report = await target.run();
+  assert.equal(report.reason, 'merge conflict');
+  assert.deepEqual(
+    target.reverts.map((entry) => entry.shas),
+    [['2']],
+  );
+  assert.match(target.comments.at(-1)!, /unresolved\. The harness reverted the change on main\./);
+});
+
+test('a user whose fix for main cannot be pushed gets the change reverted', async (t) => {
+  const target = await harness(t, {
+    baseChecks: ['fail'],
+    fixerText: 'Done.\ncommit: fix: repair main',
+  });
+  const ports = target.context.ports;
+  const pushToBase = ports.pushToBase;
+  ports.pushToBase = async (...args) => (target.landed.length > 0 ? false : pushToBase(...args));
+  const report = await target.run();
+  assert.equal(report.reason, 'push failed');
+  assert.deepEqual(
+    target.reverts.map((entry) => entry.shas),
+    [['2']],
+  );
+  assert.match(
+    target.comments.at(-1)!,
+    /failed 3 times\. The harness reverted the change on main\./,
+  );
+});
+
+test('a user whose landing of the fix for main fails with an error gets the change reverted', async (t) => {
+  const target = await harness(t, {
+    baseChecks: ['fail'],
+    fixerText: 'Done.\ncommit: fix: repair main',
+  });
+  const ports = target.context.ports;
+  const startMerge = ports.startMerge;
+  ports.startMerge = async (...args) => {
+    if (target.landed.length > 0) {
+      throw new Error('git: fetch failed');
+    }
+    return startMerge(...args);
+  };
+  const report = await target.run();
+  assert.equal(report.outcome, 'error');
+  assert.deepEqual(
+    target.reverts.map((entry) => entry.shas),
+    [['2']],
+  );
+});
+
 test('a user whose checks on main fail with no check fix left gets the change reverted and the issue handed over', async (t) => {
   const target = await harness(t, { config: { maxCiFixes: 0 }, baseChecks: ['fail'] });
   const report = await target.run();
@@ -168,14 +244,35 @@ test('a user with several issues gets the others implemented and reviewed while 
   ports.waitForBaseChecks = async (...args) => {
     if (first) {
       first = false;
+      waiting();
       await held;
     }
     return waitForBaseChecks(...args);
   };
+  let waiting: () => void = () => {};
+  const landingWaits = new Promise<void>((resolve) => {
+    waiting = resolve;
+  });
+  let reviewed: () => void = () => {};
+  const otherReviewed = new Promise<void>((resolve) => {
+    reviewed = resolve;
+  });
+  const runAgent = ports.runAgent;
+  let reviews = 0;
+  ports.runAgent = async (...args) => {
+    const result = await runAgent(...args);
+    if (args[1].name === 'reviewer') {
+      reviews += 1;
+      if (reviews === 2) {
+        reviewed();
+      }
+    }
+    return result;
+  };
   const landing = processIssue(target.context, ISSUE);
-  await new Promise((resolve) => setTimeout(resolve, 10));
+  await landingWaits;
   const other = processIssue(target.context, { ...ISSUE, number: 8 });
-  await new Promise((resolve) => setTimeout(resolve, 10));
+  await otherReviewed;
   assert.deepEqual(roles(target), ['implementer', 'reviewer', 'implementer', 'reviewer']);
   release();
   const reports = await Promise.all([landing, other]);

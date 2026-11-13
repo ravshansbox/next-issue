@@ -3,6 +3,7 @@ import { checkGate } from './gate.mts';
 import { escalateAndFinish, finishDone } from './handover.mts';
 import type { Finished, Run } from './job.mts';
 import { oneAtATime } from './lock.mts';
+import { revertFailedFix } from './revert.mts';
 import { writeState } from './state.mts';
 
 const PUSH_TRIES = 3;
@@ -30,7 +31,10 @@ function landing(job: Run, work: () => Promise<Finished>): Promise<Finished> {
 
 async function landLoop(job: Run): Promise<Finished> {
   for (;;) {
-    const pushed = await pushChange(job);
+    const pushed = await pushChange(job).catch(async (error: unknown) => {
+      await revertFailedFix(job);
+      throw error;
+    });
     if (typeof pushed !== 'string') {
       return pushed;
     }
@@ -59,6 +63,7 @@ async function pushChange(job: Run): Promise<Finished | string> {
     if (pushed) {
       state.landed = [...(state.landed ?? []), sha];
       await writeState(repo, state);
+      job.repairing = false;
       return sha;
     }
     if (attempt >= PUSH_TRIES) {

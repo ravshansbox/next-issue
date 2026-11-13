@@ -3,6 +3,7 @@ import { checkWaiting } from './check-poll.mts';
 import { escalateCheckFix, fixRound } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
 import { type Gate, GATE_FIXED, GATE_PASSED, type Run } from './job.mts';
+import { revert } from './revert.mts';
 import { writeState } from './state.mts';
 
 export async function checkGate(job: Run, sha: string): Promise<Gate> {
@@ -53,27 +54,6 @@ async function failedChecksFix(job: Run, sha: string): Promise<Gate> {
     const reverted = await revert(job);
     return escalateCheckFix(job, fix.unrelated, `checks on ${base}`, reverted);
   }
+  job.repairing = true;
   return GATE_FIXED;
-}
-
-async function revert(job: Run): Promise<string> {
-  const { context, issue, log, state, branch, worktree } = job;
-  const { repo, config, ports, base } = context;
-  const shas = state.landed ?? [];
-  const pushed = await log.step('revert', { base, shas }, () =>
-    ports.revertOnBase(worktree, {
-      base,
-      remote: config.remote,
-      branch,
-      shas,
-      message: `revert: issue #${issue.number}\n\nRefs #${issue.number}`,
-      reapply: `${state.title ?? `fix: resolve issue #${issue.number}`}\n\nRefs #${issue.number}`,
-    }),
-  );
-  if (!pushed) {
-    return ` The revert of the change on ${base} failed.`;
-  }
-  state.landed = undefined;
-  await writeState(repo, state);
-  return ` The harness reverted the change on ${base}.`;
 }

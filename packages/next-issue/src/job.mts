@@ -41,6 +41,7 @@ export type Run = {
   reply: string[];
   started: number;
   mainBroken: boolean;
+  repairing: boolean;
 };
 
 export type Finished = { done: true; report: IssueReport };
