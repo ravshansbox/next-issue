@@ -39,6 +39,28 @@ test('a user whose push to the base branch keeps failing gets the issue handed o
   assert.deepEqual(target.closed, []);
 });
 
+test('a user whose checks on main fail once and pass on the rerun gets the issue done with no fixer', async (t) => {
+  const target = await harness(t, { baseChecks: ['fail'], rerunChecks: ['pass'] });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.equal(report.ciFixes, 0);
+  assert.deepEqual(target.reruns, ['2']);
+  assert.deepEqual(roles(target), ['implementer', 'reviewer']);
+  assert.deepEqual(target.reverts, []);
+  assert.ok(target.events.some((event) => event.kind === 'main-checks.rerun' && event.sha === '2'));
+});
+
+test('a user whose checks on main fail again on the rerun gets the fixer only after the second failure', async (t) => {
+  const target = await harness(t, {
+    baseChecks: ['fail', 'pass'],
+    fixerText: 'Done.\ncommit: fix: repair main',
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(target.reruns, ['2']);
+  assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer']);
+});
+
 test('a user whose checks on main fail after the landing gets the fix landed the same way', async (t) => {
   const target = await harness(t, {
     baseChecks: ['fail', 'pass'],

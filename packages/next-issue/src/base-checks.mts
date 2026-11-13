@@ -1,5 +1,5 @@
 import { type CheckState, pollChecks, type PollOptions } from './check-poll.mts';
-import { ghJson } from './gh.mts';
+import { gh, ghJson } from './gh.mts';
 import type { Repo } from './git.mts';
 import { runLogs } from './run-logs.mts';
 
@@ -43,6 +43,16 @@ export function waitForBaseChecks(
     },
     options,
   );
+}
+
+export async function rerunFailedBase(repo: Repo, sha: string): Promise<string[]> {
+  const failed = (await baseRuns(repo, sha))
+    .filter(failedRun)
+    .map((entry) => String(entry.databaseId));
+  for (const runId of failed) {
+    await gh(repo, ['run', 'rerun', runId, '--failed']);
+  }
+  return failed;
 }
 
 export async function failedBaseLogs(repo: Repo, sha: string, maxChars: number): Promise<string> {

@@ -9,7 +9,7 @@ npx -y next-issue@latest
 
 ## Overview
 
-The harness claims the oldest open issue with the `status:todo` label and gives it its own git worktree and branch. An implementer agent does the work and the harness commits it. A reviewer agent judges the diff, and a fixer agent deals with any open finding, and the review runs again. With no open finding left, the harness rebases the change onto the base branch as one commit, pushes it there with no pull request and waits for the checks of that commit. The fixer repairs a red build, and the fix lands the same way. When the checks pass, the issue is closed and gets `status:done`. When a budget runs out or the work cannot go on, the issue gets `status:needs-human` and goes to a person. Then the harness takes the next issue.
+The harness claims the oldest open issue with the `status:todo` label and gives it its own git worktree and branch. An implementer agent does the work and the harness commits it. A reviewer agent judges the diff, and a fixer agent deals with any open finding, and the review runs again. With no open finding left, the harness rebases the change onto the base branch as one commit, pushes it there with no pull request and waits for the checks of that commit. On a red build the harness reruns the failed jobs once, and only a second red build goes to the fixer, whose fix lands the same way. When the checks pass, the issue is closed and gets `status:done`. When a budget runs out or the work cannot go on, the issue gets `status:needs-human` and goes to a person. Then the harness takes the next issue.
 
 ```mermaid
 flowchart TD
@@ -109,7 +109,9 @@ the run handles one issue. For each issue:
    up to `checkTimeoutMinutes`. A read that fails is tried three times. When
    the checks pass, the harness closes the issue and sets `status:done`, and
    the worktree, the local branch and the state file go away. When the checks
-   fail, the fixer gets their logs from the check budget, and its fix lands
+   fail, the harness reruns the failed jobs once with `gh run rerun <id>
+   --failed`, records a `main-checks.rerun` event and waits again. When they
+   fail again, the fixer gets their logs from the check budget, and its fix lands
    the same way. When the fixer cannot fix them, its fix cannot land, or the
    budget runs out, the harness reverts every commit of the change on the
    base branch, pushes the revert and hands the issue to a person. A resume
