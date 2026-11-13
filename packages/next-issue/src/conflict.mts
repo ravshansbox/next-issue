@@ -1,50 +1,70 @@
 import { parseCommitSubject } from './agent-reply.mts';
 import { spendBudget } from './budget.mts';
-import { checkPolling } from './check-poll.mts';
 import { commitWork, runFixer } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
-import { type Gate, GATE_FIXED, type Run } from './job.mts';
+import { fallbackTitle, type Finished, type Run } from './job.mts';
 
-export async function conflicts(job: Run): Promise<boolean> {
-  const { repo, config, ports } = job.context;
-  return ports.prConflicts(repo, job.state.pr!, checkPolling(config));
+export async function rebase(job: Run): Promise<Finished | undefined> {
+  const { context, issue, log, state, worktree } = job;
+  const { config, ports, base } = context;
+  const title = state.title ?? fallbackTitle(issue);
+  const before = await ports.revision(worktree);
+  const files = await log.step('rebase', { base }, () =>
+    ports.startMerge(worktree, base, config.remote),
+  );
+  if (files !== undefined) {
+    log.event('rebase.conflicts', { files }, 'quiet');
+    const merged = await mergeBase(job, before, files);
+    if (merged !== undefined) {
+      return merged;
+    }
+  }
+  const merged = await ports.revision(worktree);
+  const squashed = await commitWork(job, merged, title, 'fixer', (cwd, message) =>
+    ports.squashOnto(cwd, base, config.remote, message),
+  );
+  if (!squashed) {
+    return escalateAndFinish(
+      job,
+      `The change holds nothing that ${config.remote}/${base} does not already hold.`,
+      'empty change',
+    );
+  }
+  return undefined;
 }
 
-export async function resolveConflict(job: Run): Promise<Gate> {
-  const { context, log, worktree, branch } = job;
-  const { config, ports } = context;
-  const exhausted = await spendBudget(
-    job,
-    'ciFixes',
-    `The pull request conflicts with its base, and the limit of ${config.maxCiFixes} check fixes was reached.`,
-    'merge conflict',
-  );
-  if (exhausted) {
-    return exhausted;
+async function mergeBase(job: Run, before: string, files: string[]): Promise<Finished | undefined> {
+  const { context, worktree } = job;
+  const { config, ports, base } = context;
+  if (files.length > 0) {
+    const exhausted = await spendBudget(
+      job,
+      'ciFixes',
+      `The change conflicts with ${base}, and the limit of ${config.maxCiFixes} check fixes was reached.`,
+      'merge conflict',
+    );
+    if (exhausted) {
+      await ports.abortMerge(worktree, before);
+      return exhausted;
+    }
   }
-  const before = await ports.revision(worktree);
-  const files = await log.step('merge-base', { base: context.base }, () =>
-    ports.startMerge(worktree, context.base, config.remote),
-  );
-  log.event('merge-base.conflicts', { files }, 'quiet');
-  if (files !== undefined && !(await mergeBase(job, before, files))) {
+  if (!(await resolve(job, before, files))) {
     await ports.abortMerge(worktree, before);
     return escalateAndFinish(
       job,
-      'The fixer left the conflict with the base unresolved.',
+      `The fixer left the conflict with ${base} unresolved.`,
       'merge conflict',
     );
   }
-  await ports.push(worktree, config.remote, branch);
-  return GATE_FIXED;
+  return undefined;
 }
 
 function fixConflict(job: Run, files: string[]): Promise<string> {
-  const reason = 'The pull request conflicts with its base.';
+  const reason = `The change conflicts with ${job.context.base}.`;
   return runFixer(job, reason, files.join('\n'), [], 'conflict');
 }
 
-async function mergeBase(job: Run, before: string, files: string[]): Promise<boolean> {
+async function resolve(job: Run, before: string, files: string[]): Promise<boolean> {
   const { context, worktree } = job;
   const { config, ports } = context;
   try {

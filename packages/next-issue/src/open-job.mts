@@ -37,7 +37,6 @@ export async function openJob(
     comments,
     reply,
     started,
-    noChecks: false,
     mainBroken: false,
   };
 }

@@ -81,15 +81,12 @@ export type Plan = {
   issue?: Issue;
   baseUpdated?: boolean;
   blockers?: string[];
-  merge?: boolean;
-  mergeFails?: boolean;
-  mergeQueued?: boolean;
+  merges?: Array<string[] | undefined>;
   alreadyMerged?: boolean;
-  conflicts?: boolean[];
-  conflictFiles?: string[];
   mergeResolved?: boolean;
   mergeHook?: string;
-  upToDate?: boolean;
+  pushRejects?: number;
+  revertFails?: boolean;
   fixerThrows?: boolean;
   open?: Issue[];
   closed?: Issue[];
@@ -121,9 +118,10 @@ export type Harness = {
   forcedPushes: number;
   baseMerges: number;
   mergeAborts: string[];
-  ready: number[];
   deleted: string[];
-  merged: number[];
+  landed: string[];
+  reverts: Array<{ shas: string[]; message: string }>;
+  closed: number[];
   baseWaits: string[];
   reopened: number[];
   resets: number;
@@ -152,7 +150,8 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
   const baseChecks = [...(plan.baseChecks ?? [])];
   const verdicts = [...(plan.verdicts ?? [APPROVE])];
   const commits = [...(plan.commits ?? [])];
-  const conflicts = [...(plan.conflicts ?? [])];
+  const merges = [...(plan.merges ?? [])];
+  let rejects = plan.pushRejects ?? 0;
   const fixerTexts = Array.isArray(plan.fixerText) ? [...plan.fixerText] : [];
   const implementerTexts = [...(plan.implementerText ?? [])];
   let head = 0;
@@ -174,9 +173,10 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     forcedPushes: 0,
     baseMerges: 0,
     mergeAborts: [],
-    ready: [],
     deleted: [],
-    merged: [],
+    landed: [],
+    reverts: [],
+    closed: [],
     baseWaits: [],
     reopened: [],
     resets: 0,
@@ -203,8 +203,12 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       state.starts.push(start);
       return { path: join(root, 'worktree'), baseUpdated: plan.baseUpdated ?? true };
     },
+    closeIssue: async (_repo, number) => {
+      state.closed.push(number);
+    },
     commentOnIssue: async (_repo, number, body) => {
       state.issueNotes.push({ number, body });
+      state.comments.push(body);
     },
     commentOnPr: async (_repo, _pr, body) => {
       state.comments.push(body);
@@ -225,7 +229,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     },
     createPr: async (_repo, _branch, _base, title) => {
       state.titles.push(title);
-      return 101 + state.merged.length;
+      return 101;
     },
     detectSetupCommand: async () => plan.detected,
     deleteBranch: async (_repo, branch) => {
@@ -250,21 +254,36 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     isDirty: async () => plan.fixerWrites === true,
     latestSubject: async () => plan.earlier,
     issueComments: async () => plan.issueComments ?? [],
-    markPrReady: async (_repo, pr) => {
-      state.ready.push(pr);
-      return true;
-    },
-    mergePr: async (_repo, pr) => {
-      state.merged.push(pr);
-      return plan.mergeFails !== true;
-    },
-    mergeCommit: async (_repo, pr) => (plan.mergeQueued === true ? undefined : `merge-of-${pr}`),
+    markPrReady: async () => true,
+    mergePr: async () => true,
+    mergeCommit: async () => undefined,
     openBlockers: async () => plan.blockers ?? [],
     openIssues: async () => [...(plan.open ?? [])],
-    prConflicts: async () => conflicts.shift() ?? false,
+    prConflicts: async () => false,
     startMerge: async () => {
       state.baseMerges += 1;
-      return plan.upToDate === true ? undefined : (plan.conflictFiles ?? []);
+      return merges.shift();
+    },
+    squashOnto: async (_worktree, _base, _remote, commitMessage) => {
+      state.messages.push(commitMessage);
+      head += 1;
+      return true;
+    },
+    pushToBase: async () => {
+      if (rejects > 0) {
+        rejects -= 1;
+        return false;
+      }
+      state.landed.push(String(head));
+      return true;
+    },
+    revertOnBase: async (_worktree, revert) => {
+      state.reverts.push({ shas: revert.shas, message: revert.message });
+      if (plan.revertFails === true) {
+        return false;
+      }
+      head += 2;
+      return true;
     },
     commitMerge: async (_worktree, _files, commitMessage) => {
       state.messages.push(commitMessage);
@@ -372,7 +391,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     config,
     base: 'main',
     reset: plan.reset === true,
-    merge: plan.merge === true,
     stopAfterRound: () => pressed,
     recorder,
     ports,

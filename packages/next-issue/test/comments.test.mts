@@ -35,6 +35,23 @@ test('comments on the issue by users with write access reach the implementer and
   }
 });
 
+test('a comment of the harness on the issue stays out of every agent prompt', async (t) => {
+  const target = await harness(t, {
+    issueComments: [
+      { author: 'owner', body: '### Review: changes requested\n\nRename it.' },
+      { author: 'owner', body: '### Fixer: no change\n\nThe name is right.' },
+      { author: 'owner', body: 'next-issue needs help: The limit was reached.' },
+      { author: 'owner', body: 'Use the flag name --quiet.' },
+    ],
+    writers: ['owner'],
+  });
+  await target.run();
+  for (const entry of target.prompts) {
+    assert.doesNotMatch(entry.prompt, /Rename it|The name is right|The limit was reached/);
+  }
+  assert.match(target.prompts[0]!.prompt, /@owner: Use the flag name --quiet\./);
+});
+
 test('a comment on the issue that is left out writes its author to the run log', async (t) => {
   const target = await harness(t, { issueComments: ISSUE_COMMENTS, writers: ['owner', 'admin'] });
   await target.run();

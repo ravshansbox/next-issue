@@ -20,12 +20,11 @@ test('an implementer that changes nothing hands the issue to a person', async (t
   assert.equal(target.pushes, 0);
 });
 
-test('an implementer that changes nothing on a branch already ahead of the base gets a pull request with the title of the earlier commit', async (t) => {
+test('an implementer that changes nothing on a branch already ahead of the base gets the change landed with the subject of the earlier commit', async (t) => {
   const target = await harness(t, { commits: [false], earlier: 'fix: earlier work' });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  assert.equal(target.pushes, 1);
-  assert.deepEqual(target.titles, ['fix: earlier work']);
+  assert.match(target.messages.at(-1)!, /^fix: earlier work\n/);
 });
 
 test('a user whose issue is handed over before a pull request exists gets the reason as a comment on the issue', async (t) => {
@@ -34,19 +33,22 @@ test('a user whose issue is handed over before a pull request exists gets the re
   assert.equal(target.issueNotes.length, 1);
   assert.equal(target.issueNotes[0]!.number, 7);
   assert.match(target.issueNotes[0]!.body, /^next-issue needs help: /);
-  assert.deepEqual(target.comments, []);
 });
 
-test('a user whose issue is handed over after the pull request exists gets the reason on the pull request only', async (t) => {
-  const target = await harness(t, { config: { maxCiFixes: 0 }, checks: ['fail'] });
+test('a user whose issue is handed over after the review gets the verdict and the reason on the issue', async (t) => {
+  const target = await harness(t, { config: { maxCiFixes: 0 }, baseChecks: ['fail'] });
   await target.run();
-  assert.match(target.comments.at(-1)!, /needs help: /);
-  assert.deepEqual(target.issueNotes, []);
+  assert.deepEqual(
+    target.issueNotes.map((note) => note.number),
+    [7, 7],
+  );
+  assert.match(target.issueNotes[0]!.body, /Review: approved/);
+  assert.match(target.issueNotes[1]!.body, /needs help: /);
 });
 
 test('a fixer that changes nothing hands the issue to a person', async (t) => {
-  const target = await harness(t, { checks: ['fail'], commits: [true, false] });
+  const target = await harness(t, { baseChecks: ['fail'], commits: [true, false] });
   const report = await target.run();
   assert.equal(report.reason, 'no fix commit');
-  assert.equal(target.pushes, 1);
+  assert.equal(target.reverts.length, 1);
 });

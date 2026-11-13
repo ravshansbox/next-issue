@@ -133,6 +133,10 @@ export async function reopenIssue(repo: Repo, issue: number): Promise<void> {
   await gh(repo, ['issue', 'reopen', String(issue)]);
 }
 
+export async function closeIssue(repo: Repo, issue: number): Promise<void> {
+  await gh(repo, ['issue', 'close', String(issue), '--reason', 'completed']);
+}
+
 async function comment(repo: Repo, kind: Kind, number: number, body: string): Promise<void> {
   await ghOnce(repo, [kind, 'comment', String(number), '--body-file', '-'], body);
 }

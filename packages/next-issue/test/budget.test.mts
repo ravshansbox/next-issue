@@ -3,21 +3,24 @@ import { test } from 'node:test';
 import { changes, harness, roles } from './harness.mts';
 
 test('the check budget hands the issue to a person', async (t) => {
-  const target = await harness(t, { config: { maxCiFixes: 1 }, checks: ['fail', 'fail'] });
+  const target = await harness(t, { config: { maxCiFixes: 1 }, baseChecks: ['fail', 'fail'] });
   const report = await target.run();
   assert.equal(report.outcome, 'needs-human');
   assert.equal(report.reason, 'check budget');
   assert.equal(report.ciFixes, 1);
   assert.equal(target.labels.at(-1)?.label, 'status:needs-human');
-  assert.match(target.comments.at(-1)!, /needs help: The limit of 1 check fixes/);
+  assert.match(
+    target.comments.at(-1)!,
+    /needs help: The checks on main failed and the limit of 1 check fixes/,
+  );
   assert.equal((await target.state())?.phase, 'review');
 });
 
 test('a check budget of zero stops before the first fix', async (t) => {
-  const target = await harness(t, { config: { maxCiFixes: 0 }, checks: ['fail'] });
+  const target = await harness(t, { config: { maxCiFixes: 0 }, baseChecks: ['fail'] });
   const report = await target.run();
   assert.equal(report.reason, 'check budget');
-  assert.deepEqual(roles(target), ['implementer']);
+  assert.deepEqual(roles(target), ['implementer', 'reviewer']);
 });
 
 test('the review budget hands the issue to a person', async (t) => {

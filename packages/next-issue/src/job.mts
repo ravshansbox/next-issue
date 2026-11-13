@@ -12,7 +12,6 @@ export type Context = {
   config: Config;
   base: string;
   reset: boolean;
-  merge: boolean;
   stopAfterRound: () => boolean;
   recorder: Recorder;
   ports: Ports;
@@ -41,7 +40,6 @@ export type Run = {
   comments: string[];
   reply: string[];
   started: number;
-  noChecks: boolean;
   mainBroken: boolean;
 };
 

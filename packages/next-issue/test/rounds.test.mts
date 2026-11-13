@@ -20,7 +20,7 @@ test('the last review round leaves a minor finding and approves', async (t) => {
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.deepEqual(roles(target), ['implementer', 'reviewer']);
-  assert.deepEqual(target.ready, [101]);
+  assert.deepEqual(target.closed, [7]);
   assert.match(target.comments[0]!, /Review: approved/);
   assert.match(target.comments[0]!, /the review budget is spent/);
 });
@@ -33,7 +33,7 @@ test('the last review round still hands over a blocking finding', async (t) => {
   const report = await target.run();
   assert.equal(report.outcome, 'needs-human');
   assert.equal(report.reason, 'review budget');
-  assert.deepEqual(target.ready, []);
+  assert.deepEqual(target.closed, []);
 });
 
 test('the fixer sees the findings once in the first round and the history later', async (t) => {

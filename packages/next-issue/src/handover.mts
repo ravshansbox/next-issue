@@ -23,6 +23,7 @@ export async function escalateAndFinish(job: Run, note: string, reason: string):
 export async function finishDone(job: Run): Promise<Finished> {
   const { context, issue, state } = job;
   await setStatus(context, issue.number, state.pr, context.config.labels.done);
+  await context.ports.closeIssue(context.repo, issue.number);
   return { done: true, report: await finish(job, 'done') };
 }
 

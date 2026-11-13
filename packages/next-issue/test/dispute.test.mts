@@ -5,16 +5,16 @@ import { APPROVE, changes, harness, roles } from './harness.mts';
 const DISPUTE = 'unrelated: the count follows the convention in CONTRIBUTING.md';
 const DISPUTED = { verdicts: [changes('The count is wrong.'), APPROVE], fixerText: [DISPUTE] };
 
-test('a fixer that reports an unrelated failure hands over without a commit', async (t) => {
+test('a fixer that reports an unrelated failure on main hands over without a commit', async (t) => {
   const target = await harness(t, {
-    checks: ['fail'],
+    baseChecks: ['fail'],
     fixerText: 'unrelated: product-inventories fails on main too, the diff does not touch it',
   });
   const report = await target.run();
   assert.equal(report.outcome, 'needs-human');
   assert.equal(report.reason, 'unrelated failure');
-  assert.equal(target.pushes, 1);
-  assert.deepEqual(target.ready, []);
+  assert.deepEqual(target.landed, ['2']);
+  assert.deepEqual(target.closed, []);
   assert.match(
     target.comments.at(-1)!,
     /a reason this change did not cause: product-inventories fails on main too/,
@@ -51,10 +51,10 @@ test('a fixer that disputes after its own commit hands the issue to a person', a
   const report = await target.run();
   assert.equal(report.outcome, 'needs-human');
   assert.equal(report.reason, 'dispute with changes');
-  assert.equal(target.pushes, 1);
+  assert.deepEqual(target.landed, []);
 });
 
-test('a fixer that disputes after its own commit gets the commit moved off the branch of the pull request', async (t) => {
+test('a fixer that disputes after its own commit gets the commit moved off the branch', async (t) => {
   const target = await harness(t, {
     selfCommit: true,
     ...DISPUTED,
@@ -64,16 +64,15 @@ test('a fixer that disputes after its own commit gets the commit moved off the b
   assert.equal(target.head(), '2');
 });
 
-test('a fixer that reports an unrelated failure after its own commit gets the commit moved off the branch of the pull request', async (t) => {
+test('a fixer that reports an unrelated failure on main after its own commit gets the commit moved off the branch', async (t) => {
   const target = await harness(t, {
     selfCommit: true,
-    checks: ['fail'],
+    baseChecks: ['fail'],
     fixerText: 'unrelated: product-inventories fails on main too, the diff does not touch it',
   });
   const report = await target.run();
   assert.equal(report.reason, 'unrelated failure');
-  assert.deepEqual(target.asides, [{ target: '2', branch: '7-dispute-3' }]);
-  assert.equal(target.head(), '2');
+  assert.deepEqual(target.asides, [{ target: '3', branch: '7-dispute-4' }]);
 });
 
 test('a finished issue gets the dispute branches of an earlier run deleted', async (t) => {

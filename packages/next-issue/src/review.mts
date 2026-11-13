@@ -1,10 +1,9 @@
 import { REVIEWING } from './agents.mts';
 import { budgetUse, spendBudget } from './budget.mts';
 import { fixRound, type Unfixed } from './fix.mts';
-import { checkGate } from './gate.mts';
-import { escalateAndFinish, finishDone } from './handover.mts';
-import { gateRound, ROUND_CONTINUE, type Round, type Run, runRole, setStatus } from './job.mts';
-import { mergeApproved } from './merge.mts';
+import { escalateAndFinish } from './handover.mts';
+import { ROUND_CONTINUE, type Round, type Run, runRole, setStatus } from './job.mts';
+import { landApproved } from './land.mts';
 import { capDiff, history, reviewPrompt } from './prompts.mts';
 import { writeState } from './state.mts';
 import {
@@ -20,7 +19,6 @@ import {
 export async function reviewRound(job: Run): Promise<Round> {
   const { context, issue, state } = job;
   const { repo, config, ports } = context;
-  const pr = state.pr!;
   const exhausted = await spendBudget(
     job,
     'reviewRounds',
@@ -31,7 +29,7 @@ export async function reviewRound(job: Run): Promise<Round> {
     return exhausted;
   }
 
-  await setStatus(context, issue.number, pr, config.labels.inReview);
+  await setStatus(context, issue.number, state.pr, config.labels.inReview);
   const earlier = history(state.reviewLog);
   const verdict = parseVerdict(await runReviewer(job, earlier));
   if (verdict === undefined) {
@@ -40,10 +38,10 @@ export async function reviewRound(job: Run): Promise<Round> {
   const { round, limit } = budgetUse(job, 'reviewRounds');
   const open = openFindings(verdict, round >= limit);
   recordVerdict(job, verdict, open);
-  await ports.commentOnPr(repo, pr, formatVerdict(verdict, open));
+  await ports.commentOnIssue(repo, issue.number, formatVerdict(verdict, open));
 
   if (open.length === 0) {
-    return approvedRound(job);
+    return landApproved(job);
   }
   return changesRequestedRound(job, open, earlier);
 }
@@ -97,7 +95,7 @@ async function runReviewer(job: Run, earlier: string[]): Promise<string> {
 }
 
 async function unfixedRound(job: Run, fix: Unfixed): Promise<Round> {
-  const { context, state } = job;
+  const { context, issue, state } = job;
   const { repo, ports } = context;
   const note = fix.unrelated;
   if (note === undefined) {
@@ -116,23 +114,6 @@ async function unfixedRound(job: Run, fix: Unfixed): Promise<Round> {
   }
   state.reviewLog.at(-1)!.dispute = note;
   await writeState(repo, state);
-  await ports.commentOnPr(repo, state.pr!, `### Fixer: no change\n\n${note}`);
+  await ports.commentOnIssue(repo, issue.number, `### Fixer: no change\n\n${note}`);
   return ROUND_CONTINUE;
-}
-
-async function approvedRound(job: Run): Promise<Round> {
-  const { context, log, state } = job;
-  const { repo, config, ports } = context;
-  const pr = state.pr!;
-  const round = gateRound(await checkGate(job));
-  if (round) {
-    return round;
-  }
-  if (config.draftPullRequest && !(await ports.markPrReady(repo, pr))) {
-    log.event('pull-request.undraft.fail', { pr }, 'quiet');
-  }
-  if (context.merge) {
-    return mergeApproved(job);
-  }
-  return finishDone(job);
 }

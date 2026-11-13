@@ -3,86 +3,49 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { stateDir } from '../src/state.mts';
-import { changes, harness, ISSUE, roles, SAVED, stages } from './harness.mts';
+import { changes, harness, ISSUE, roles, SAVED } from './harness.mts';
 
 const IN_PROGRESS = { ...ISSUE, labels: ['status:in-progress'] };
 const IN_REVIEW = { ...ISSUE, labels: ['status:in-review'] };
 const HANDED_OVER = { ...SAVED, handedOver: true };
 
-test('a user who resumes a run that died after the merge gets the merge carried on without a second pull request', async (t) => {
+test('a user who resumes a run that died while the checks of a landed change ran gets the wait carried on without a second landing', async (t) => {
   const target = await harness(t, {
     issue: IN_REVIEW,
-    saved: SAVED,
-    merge: true,
-    alreadyMerged: true,
+    saved: { ...SAVED, landed: ['0'] },
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  assert.equal(report.pr, 101);
-  assert.deepEqual(target.titles, []);
-  assert.equal(target.pushes, 0);
-  assert.deepEqual(target.merged, []);
+  assert.deepEqual(target.landed, []);
   assert.deepEqual(roles(target), []);
-  assert.deepEqual(target.baseWaits, ['merge-of-101']);
-  assert.equal(target.labels.at(-1)!.label, 'status:done');
+  assert.deepEqual(target.baseWaits, ['0']);
+  assert.deepEqual(target.closed, [7]);
   assert.equal(await target.state(), undefined);
 });
 
-test('a user who resumes a merged run whose checks on main fail gets the fix through a new pull request', async (t) => {
+test('a user who resumes a landed change whose checks on main fail gets the fix landed', async (t) => {
   const target = await harness(t, {
     issue: IN_REVIEW,
-    saved: SAVED,
-    merge: true,
-    alreadyMerged: true,
+    saved: { ...SAVED, ciFixes: 0, landed: ['0'] },
     baseChecks: ['fail', 'pass'],
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  assert.equal(report.pr, 101);
-  assert.deepEqual(target.baseWaits, ['merge-of-101', 'merge-of-101']);
-  assert.deepEqual(roles(target), ['fixer', 'reviewer']);
-  assert.deepEqual(target.reopened, [7]);
-  assert.equal(target.titles.length, 1);
+  assert.deepEqual(target.baseWaits, ['0', '2']);
+  assert.deepEqual(roles(target), ['fixer']);
+  assert.deepEqual(target.landed, ['2']);
 });
 
-test('a user who resumes without --merge a pull request that a person merged gets the issue done without a wait on main', async (t) => {
+test('a user who resumes a run that died after the fix of main was committed gets the fix landed without another check fix', async (t) => {
   const target = await harness(t, {
     issue: IN_REVIEW,
-    saved: SAVED,
-    alreadyMerged: true,
-    baseChecks: ['fail'],
-  });
-  const report = await target.run();
-  assert.equal(report.outcome, 'done');
-  assert.deepEqual(target.baseWaits, []);
-  assert.deepEqual(roles(target), []);
-  assert.equal(target.pushes, 0);
-  assert.deepEqual(target.titles, []);
-  assert.deepEqual(target.reopened, []);
-  assert.equal(target.labels.at(-1)!.label, 'status:done');
-  assert.equal(await target.state(), undefined);
-});
-
-test('a user who resumes a run that died in the fix of main gets the fix carried on without another check fix', async (t) => {
-  const target = await harness(t, {
-    issue: IN_REVIEW,
-    saved: { ...SAVED, ciFixes: 1, baseFix: { sha: 'merge-of-101', head: '-1' } },
-    merge: true,
-    alreadyMerged: true,
-    commits: [false],
+    saved: { ...SAVED, ciFixes: 1, landed: ['-1'] },
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.equal(report.ciFixes, 1);
-  assert.equal(target.resets, 0);
-  assert.equal(target.forcedPushes, 1);
-  assert.deepEqual(target.reopened, [7]);
-  assert.equal(target.titles.length, 1);
-  assert.deepEqual(roles(target), ['fixer', 'reviewer']);
-  assert.deepEqual(
-    stages(target).filter((stage) => /\//.test(stage)),
-    ['checks fix 1/5', 'review 1/5'],
-  );
+  assert.deepEqual(roles(target), []);
+  assert.deepEqual(target.landed, ['1']);
 });
 
 test('--reset puts the budgets back and keeps the resume point', async (t) => {
@@ -128,8 +91,7 @@ test('a user who resumes a handed-over issue that is handed over again gets the 
   const target = await harness(t, {
     issue: IN_REVIEW,
     saved: HANDED_OVER,
-    merge: true,
-    mergeFails: true,
+    pushRejects: 3,
   });
   const report = await target.run();
   assert.equal(report.outcome, 'needs-human');
@@ -186,22 +148,22 @@ test('a run that finds a state file of the wrong shape reports an error that nam
   assert.deepEqual(roles(target), []);
 });
 
-test('a user who resumes an implemented issue gets the pull request titled with the saved subject', async (t) => {
+test('a user who resumes an implemented issue gets the change landed with the saved subject', async (t) => {
   const target = await harness(t, {
     issue: IN_PROGRESS,
     saved: { ...SAVED, phase: 'implemented', pr: undefined, title: 'feat: add the saved flag' },
   });
   await target.run();
-  assert.deepEqual(target.titles, ['feat: add the saved flag']);
+  assert.match(target.messages.at(-1)!, /^feat: add the saved flag\n/);
 });
 
-test('a user who resumes from a state file without a title gets a conventional pull request title', async (t) => {
+test('a user who resumes from a state file without a title gets the change landed with a conventional subject', async (t) => {
   const target = await harness(t, {
     issue: IN_PROGRESS,
     saved: { ...SAVED, phase: 'implemented', pr: undefined },
   });
   await target.run();
-  assert.deepEqual(target.titles, ['fix: resolve issue #7']);
+  assert.match(target.messages.at(-1)!, /^fix: resolve issue #7\n/);
 });
 
 test('a saved state carries on and does not implement again', async (t) => {

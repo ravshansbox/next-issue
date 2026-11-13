@@ -9,21 +9,21 @@ npx -y next-issue@latest
 
 ## Overview
 
-The harness claims the oldest open issue with the `status:todo` label and gives it its own git worktree and branch. An implementer agent does the work, and the harness commits, pushes and opens a draft pull request. It then waits for the checks. A fixer agent repairs a red build, and a reviewer agent judges the diff. The fixer deals with any open finding, and the checks and review run again. With no open finding left, the pull request is marked ready and the issue gets `status:done`. When a budget runs out or the work cannot go on, the issue gets `status:needs-human` and goes to a person. Then the harness takes the next issue.
+The harness claims the oldest open issue with the `status:todo` label and gives it its own git worktree and branch. An implementer agent does the work and the harness commits it. A reviewer agent judges the diff, and a fixer agent deals with any open finding, and the review runs again. With no open finding left, the harness rebases the change onto the base branch as one commit, pushes it there with no pull request and waits for the checks of that commit. The fixer repairs a red build, and the fix lands the same way. When the checks pass, the issue is closed and gets `status:done`. When a budget runs out or the work cannot go on, the issue gets `status:needs-human` and goes to a person. Then the harness takes the next issue.
 
 ```mermaid
 flowchart TD
     claim[Claim the oldest status:todo issue] --> worktree[Add a worktree and branch]
-    worktree --> implement[Implementer does the work, harness commits and pushes]
-    implement --> pr[Open a draft pull request]
-    pr --> checks{Checks pass?}
-    checks -- no --> fixCi[Fixer repairs the build]
-    fixCi --> checks
-    checks -- yes --> review{Reviewer finds an open finding?}
+    worktree --> implement[Implementer does the work, harness commits]
+    implement --> review{Reviewer finds an open finding?}
     review -- yes --> fixReview[Fixer deals with the findings]
-    fixReview --> checks
-    review -- no --> done[Mark ready, set status:done]
-    fixCi -. budget runs out .-> human[Hand over to a person: status:needs-human]
+    fixReview --> review
+    review -- no --> land[Rebase onto the base branch and push there]
+    land --> checks{Checks on the base branch pass?}
+    checks -- no --> fixCi[Fixer repairs the build]
+    fixCi --> land
+    checks -- yes --> done[Close the issue, set status:done]
+    fixCi -. budget runs out .-> human[Revert, hand over to a person: status:needs-human]
     fixReview -. budget runs out .-> human
     done --> claim
     human --> claim
@@ -49,7 +49,7 @@ the run handles one issue. For each issue:
    `status:in-progress` or `status:in-review` label. A `status:done`,
    `status:needs-human` or `status:blocked` label always stops the claim, a
    resume too. An issue that GitHub lists as blocked by an open issue waits,
-   because its blocker closes only when the pull request of the blocker merges.
+   because its blocker closes only when the change of the blocker lands.
    An issue with saved state under `.next-issue/` resumes instead, whatever its
    other labels and blockers. Such an issue joins the list also when it is
    closed, if its pull request is merged.
@@ -67,7 +67,8 @@ the run handles one issue. For each issue:
    base when there is none. A fast-forward of the base that is not safe
    leaves the local base branch as it is and writes a `base.behind` event. A
    new branch then starts from the remote base.
-4. Let the implementer agent do the work, then commit and push. When a git
+4. Let the implementer agent do the work, then commit it. The branch is not
+   pushed. When a git
    hook stops a commit, the agent that made the change gets the hook output,
    fixes it, and the harness commits again. A `commit:` line in the reply of
    the agent replaces the subject, so a hook that rejects the subject can pass.
@@ -75,33 +76,8 @@ the run handles one issue. For each issue:
    the run with an error. An implementer that makes no change hands the issue
    to a person, unless the branch is already ahead of the base, for example
    after the state file was lost: the run then carries on with the commits on
-   the branch, and the newest of them gives the title of the pull request.
-5. Open a draft pull request that closes the issue. Its title is the subject
-   of the commit that starts it, so a squash merge gives a conventional
-   commit.
-6. Wait for the checks, once the pull request shows the pushed commit. A
-   pending state waits again, up to `checkTimeoutMinutes`. A read that fails
-   is tried three times before the run stops. A watch that exits with an error
-   while no check failed counts as such a read, not as a red build. A repository that reports no
-   check keeps asking for `checkGraceSeconds`, because a new pull request often
-   shows no check yet, and only then goes straight to the review. The later
-   gates of the same issue ask once. GitHub runs no check on a pull request
-   that conflicts with its base, so no check and a conflict start a merge of
-   the remote base into the branch. While GitHub still works out whether the
-   pull request can merge, the run asks again until `checkTimeoutMinutes`.
-   When git merges the base cleanly, the harness commits the merge with no
-   agent. When git reports conflicted files, the fixer gets the list, removes
-   the conflict markers, and the harness commits the merge. The harness then
-   pushes without force, and the run goes to step 6 again. The merge commit
-   runs the `pre-commit` and `commit-msg` hooks like any other commit. When
-   the branch already holds the base, the harness only pushes. Each attempt
-   comes from the check budget, `maxCiFixes`. With the budget used up, or when
-   the fixer leaves a conflict marker or the merge unresolved, or the fixer
-   fails, the harness undoes the merge and hands the issue to a person with the
-   reason `merge conflict`.
-7. On a red build, give the failed job logs to the fixer agent, then go to step
-   6 again. The budget is `maxCiFixes`.
-8. Let the reviewer agent judge the diff, at most `diffMaxChars` of it. The
+   the branch, and the newest of them gives the subject of the landed commit.
+5. Let the reviewer agent judge the diff, at most `diffMaxChars` of it. The
    reviewer reads files and runs commands in the worktree, so it can prove a
    finding with the tests or the type check. The harness then throws away every
    change that the reviewer left, so no such change can reach a later commit.
@@ -109,41 +85,45 @@ the run handles one issue. For each issue:
    summary and one entry per finding, each rated `blocking` or `minor`. A
    reply without a valid block hands the issue to a person. The findings are the only ground
    truth. The reviewer gives no approve or reject field, because such a field
-   can contradict the findings. The harness puts the result on the pull
-   request.
-9. An open finding is any finding, blocking or minor, while a review round is
+   can contradict the findings. The harness puts the result on the issue.
+6. An open finding is any finding, blocking or minor, while a review round is
    left. In the last round, only a blocking finding stays open: a minor finding
-   there goes on the pull request but starts no fix, because a fix in the last
+   there goes on the issue but starts no fix, because a fix in the last
    round gets no review. Thus `maxReviewRounds` of `1` never fixes a minor
    finding.
-10. No open finding means approval: mark the pull request ready for review and
-    set `status:done`. The merge stays with you, unless you pass `--merge`:
-    then the harness first asks whether the pull request conflicts with its
-    base. A conflict starts the merge of the base from step 6, and the run
-    goes to step 6 again. With no conflict, the harness squash-merges the pull
-    request, deletes the remote branch, waits until the pull request is merged,
-    for example through a merge queue, and then waits for the checks that the
-    merge commit starts on the base branch. A cancelled run there is no
-    failure. When those checks fail, the fixer gets their logs on a branch
-    reset to the base branch, from the check budget, and the harness
-    force-pushes the fix, reopens the issue and opens a new pull request that
-    goes to step 6 again, with fresh review rounds. The next issue waits for
-    this, and a second ctrl-c stops only after it. The worktree, the local
-    branch and the state file go away. A resume whose pull request is already
-    merged goes straight to the wait for the checks on the base branch, and
-    opens no new pull request. A resume that stopped inside the fix of the
-    base branch carries on with that fix, and uses no more of the check
-    budget. Without `--merge`, the remote branch stays, and a resume whose
-    pull request a person merged sets `status:done` and waits for no check. A
-    problem that the reviewer leaves out of the findings thus gets an
-    approval: only the findings count.
-11. With an open finding, run the fixer agent and go to step 6 again. The
-    budget is `maxReviewRounds`. A fixer that holds every finding to be wrong
-    changes nothing and gives its reason instead. The reason goes on the pull
-    request and into the next round, where it answers every finding of its own
-    round, so the reviewer withdraws them all or repeats them all. With only
-    some findings wrong, the fixer fixes the correct ones, and the next round
-    holds the rest.
+7. No open finding means approval: the change lands on the base branch.
+   Approved changes land one at a time, so the next one waits until the
+   checks of the last one end, and other issues go on meanwhile. The
+   harness fetches the remote base, merges it into the branch and makes the
+   change one commit on top of it, with the subject of the newest commit of
+   the change. When git merges the base cleanly, no agent runs. When git
+   reports conflicted files, the fixer gets the list from the check budget,
+   `maxCiFixes`, removes the conflict markers, and the harness commits the
+   merge. With the budget used up, or when the fixer leaves a conflict marker
+   or the merge unresolved, or the fixer fails, the harness undoes the merge
+   and hands the issue to a person with the reason `merge conflict`. The
+   harness then pushes the commit to the base branch, without force. A push
+   that the remote refuses, for example because the base moved, starts the
+   rebase again, three times at most. The harness then waits for the checks
+   of the pushed commit on the base branch. A repository that reports no
+   check keeps asking for `checkGraceSeconds`. A pending state waits again,
+   up to `checkTimeoutMinutes`. A read that fails is tried three times. When
+   the checks pass, the harness closes the issue and sets `status:done`, and
+   the worktree, the local branch and the state file go away. When the checks
+   fail, the fixer gets their logs from the check budget, and its fix lands
+   the same way. When the fixer cannot fix them, or the budget runs out, the
+   harness reverts every commit of the change on the base branch, pushes the
+   revert and hands the issue to a person. A resume that stopped while the
+   checks of a landed commit ran waits for them again, and a fix that was
+   committed but not landed lands first. A problem that the reviewer leaves
+   out of the findings thus gets an approval: only the findings count.
+8. With an open finding, run the fixer agent and go to step 5 again. The
+   budget is `maxReviewRounds`. A fixer that holds every finding to be wrong
+   changes nothing and gives its reason instead. The reason goes on the issue
+   and into the next round, where it answers every finding of its own
+   round, so the reviewer withdraws them all or repeats them all. With only
+   some findings wrong, the fixer fixes the correct ones, and the next round
+   holds the rest.
 
 ## Issue format
 
@@ -160,8 +140,7 @@ The list lives in `src/issue-format.mts`. The `create-issue` skill of [`@ravshan
 ## Stops for a loop
 
 The harness hands the issue to a person, with the `status:needs-human` label,
-and comments the reason on the pull request, or on the issue when there is no
-pull request yet, when:
+and comments the reason on the issue, when:
 
 - the check budget or the review budget runs out. A finding that the reviewer
   repeats, even one that the fixer disputed, goes back to the fixer until the
@@ -169,31 +148,23 @@ pull request yet, when:
 - a fixer round adds no commit and gives no reason, so there is no progress;
 - the fixer reports that the checks fail for a reason the change did not cause,
   such as a test already broken on the base branch or one that fails only under
-  load. It changes nothing and the reason reaches the pull request, rather than
+  load. It changes nothing and the reason reaches the issue, rather than
   the fixer spending its whole budget on a failure it cannot fix. A commit it
   makes anyway moves aside, as for a dispute of the findings;
 - a fixer disputes the findings and leaves a change behind, either in the
   worktree or in a commit of its own. A dispute carries a reason, not a diff,
   so the harness throws none of it away: an unclean worktree stays on the
   disk, and a commit of the fixer moves to a new local
-  `<n>-dispute-<commit>` branch, so the `<n>` branch keeps only what the pull
-  request holds. The worktree drops the change of that commit, unless the fixer
+  `<n>-dispute-<commit>` branch, so the `<n>` branch keeps only what will land. The worktree drops the change of that commit, unless the fixer
   edited the worktree after the commit: then the worktree keeps both and stays
-  on the disk. Neither is pushed, so the pull request shows no such change. It
-  holds the reason of the dispute, and the change is on the machine that ran
+  on the disk. Neither lands. The issue holds the reason of the dispute, and the change is on the machine that ran
   the harness. The `<n>-dispute-<commit>` branches go away with the `<n>`
   branch when the issue is done;
 - the reviewer gives no verdict, or the checks do not finish in time;
-- someone pushes to the pull request while the harness waits for the checks,
-  so the pull request no longer shows the commit that the harness pushed;
-- with `--merge`, the merge of an approved pull request fails, for example
-  because branch protection asks for a human approval;
-- with `--merge`, a queued merge does not finish in `checkTimeoutMinutes`, or
-  the pull request closes without a merge;
-- with `--merge`, the checks on the base branch fail after the merge and the
-  fixer cannot fix them, or they do not finish in time. The base branch is
-  then broken, so the run claims no new issue and ends once the running
-  issues end;
+- the push to the base branch fails three times;
+- the checks on the base branch fail and the fixer cannot fix them, or they
+  do not finish in time. The base branch is then broken, so the run claims
+  no new issue and ends once the running issues end;
 - an agent does not finish in `agentTimeoutMinutes`;
 - the setup command fails, or does not finish in `setupTimeoutMinutes`;
 - a step of the run fails with an error. A `gh` call that is safe to repeat,
@@ -205,12 +176,13 @@ The fixer sees the findings of all earlier rounds, not only the last one, with
 its own disputes next to them. From round two, the reviewer judges only the
 earlier findings and any regression.
 
-Each agent that writes to the pull request names itself in the first line of the
+Each agent that writes to the issue names itself in the first line of the
 comment: `### Review: approved`, `### Review: changes requested` and
 `### Fixer: no change`. The account is the same for all of them, so the heading,
-not the author, tells them apart. The agents read the comments of the issue, not
-of the pull request, so a comment of an agent never returns to a prompt: the
-dispute of the fixer reaches the reviewer through the state file. The one
+not the author, tells them apart. The agents get no comment that starts with
+one of these headings or with `next-issue needs help:`, so a comment of an
+agent never returns to a prompt: the dispute of the fixer reaches the reviewer
+through the state file. The one
 exception is the answer to a hand-over, see
 [Retry an issue that waits for a person](#retry-an-issue-that-waits-for-a-person).
 
@@ -221,8 +193,8 @@ Press `Ctrl-C` to stop the run step by step:
 1. The first press stops new claims. The harness finishes every issue that it
    holds and then writes the summary as usual.
 2. The second press stops every running issue after its current round: the
-   implementation, one checks round (wait, then fix) or one review round
-   (review, then fix). The issue ends as `stopped`. Its state, worktree and
+   implementation or one review round (review, then fix). An issue that
+   lands goes on until its checks on the base branch end. The issue ends as `stopped`. Its state, worktree and
    labels stay, so the next run carries on from that point.
 3. The third press stops every agent, kills the command that runs and every
    child of it, so the run dies in the middle of a step. The saved state lets the next run continue the
@@ -232,12 +204,6 @@ Press `Ctrl-C` to stop the run step by step:
 Each of the first two presses prints a line that says what happens next. The
 agents run inside the harness, and their commands and the harness commands run
 in a process group of their own, so a press reaches only the harness.
-
-A status label that the harness puts on the issue goes on the pull request too,
-but only if the pull request exists at that moment. The `status:in-progress`
-label of a fresh issue comes before the pull request, and stays on the issue
-alone. Thus a draft pull request shows work that the harness has not finished,
-and a `status:needs-human` pull request shows work that waits for a person.
 
 The harness runs all git and `gh` commands itself. The commit holds all the
 changes in the worktree, so a setup command that writes a file outside
@@ -442,13 +408,12 @@ silent skip.
 
 A hand-over marks the state file as handed over. To give the issue another try,
 take the `status:needs-human` label off. The next run that claims the issue puts
-the budgets and the findings back to zero, clears the mark and keeps the branch,
-the pull request and the step that the last run reached, so the work carries on
-where it stopped. A commit that you pushed to the pull request in the meantime
-is fetched first. An issue that still has the label is not claimed.
+the budgets and the findings back to zero, clears the mark and keeps the branch
+and the step that the last run reached, so the work carries on where it
+stopped. After a revert, the branch holds the change again on top of the
+revert, so the change goes back to the review. An issue that still has the label is not claimed.
 
-To give guidance, answer the hand-over with a comment in the same place: on the
-pull request, or on the issue when there is no pull request. When the run
+To give guidance, answer the hand-over with a comment on the issue. When the run
 resumes the issue, it reads the comments posted after its last
 `next-issue needs help:` comment there. Only comments from users with write
 access to the repository count, for the hand-over comment too. The implementer
@@ -462,22 +427,22 @@ state of an issue that a label still holds back stays as it was.
 
 ## Commands and options
 
-| Argument    | Effect                                                                                                                        |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `init`      | Write the config file with the defaults                                                                                       |
-| `serve`     | Run the worker of this repository that pi extensions talk to, see [Worker](#worker)                                           |
-| `stop`      | Stop the worker of this repository, see [Worker](#worker)                                                                     |
-| `logs`      | Show the latest run log and follow it, see [Observability](#observability)                                                    |
-| `--force`   | Replace an existing config file, with `init`                                                                                  |
-| `--once`    | Stop after the first handled issue                                                                                            |
-| `--max <n>` | Handle at most n issues                                                                                                       |
-| `--merge`   | Squash-merge the pull request after the approval, delete the remote branch and fix a failure of the checks on the base branch |
-| `--watch`   | Keep running, and read the open issues again after each pass                                                                  |
-| `--reset`   | Drop the saved budgets and findings, and keep the rest of the state                                                           |
-| `--json`    | Print the machine summary instead of the text one, or the raw JSON lines with `logs`                                          |
-| `--verbose` | Show every command and all agent output                                                                                       |
-| `--quiet`   | Show only the milestones and the summary                                                                                      |
-| `--help`    | Show the option list                                                                                                          |
+| Argument    | Effect                                                                               |
+| ----------- | ------------------------------------------------------------------------------------ |
+| `init`      | Write the config file with the defaults                                              |
+| `serve`     | Run the worker of this repository that pi extensions talk to, see [Worker](#worker)  |
+| `stop`      | Stop the worker of this repository, see [Worker](#worker)                            |
+| `logs`      | Show the latest run log and follow it, see [Observability](#observability)           |
+| `--force`   | Replace an existing config file, with `init`                                         |
+| `--once`    | Stop after the first handled issue                                                   |
+| `--max <n>` | Handle at most n issues                                                              |
+| `--merge`   | No effect: an approved change always lands on the base branch                        |
+| `--watch`   | Keep running, and read the open issues again after each pass                         |
+| `--reset`   | Drop the saved budgets and findings, and keep the rest of the state                  |
+| `--json`    | Print the machine summary instead of the text one, or the raw JSON lines with `logs` |
+| `--verbose` | Show every command and all agent output                                              |
+| `--quiet`   | Show only the milestones and the summary                                             |
+| `--help`    | Show the option list                                                                 |
 
 The exit code is 1 when an issue needs a person or failed, and 0 when it does
 not, so a cron job or a CI step can read the result of the run.
@@ -506,8 +471,8 @@ The watch stops:
 
 - at the first `Ctrl-C` during a wait, at once;
 - at the first `Ctrl-C` during an issue, after the running issues;
-- after a pass that halts the run, for example when the base branch is broken
-  after `--merge`;
+- after a pass that halts the run, for example when the checks on the base
+  branch failed;
 - when the open issues cannot be read.
 
 ## Worker
