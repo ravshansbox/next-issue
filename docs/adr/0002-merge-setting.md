@@ -16,13 +16,13 @@ points start a run, and each sets this in its own way:
   `{ type: 'start', root, merge: true }` from both `/next-issue` and the
   `next_issue_start` tool. A pi user cannot turn the merge off.
 
-`next-issue.config.json`, read by `packages/next-issue/src/config.mts`, has no
+`.next-issue/config.json`, read by `packages/next-issue/src/config.mts`, has no
 `merge` field. So the two entry points have opposite defaults and share no
 setting, and nothing records which design is intended.
 
 ## Options
 
-### A. A `merge` field in `next-issue.config.json`
+### A. A `merge` field in `.next-issue/config.json`
 
 Add `merge: boolean` to the config. The worker reads it for each run, whatever
 started the run. `--merge` on the command line still turns the merge on for

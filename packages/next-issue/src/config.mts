@@ -1,7 +1,15 @@
-import { join } from 'node:path';
-import { CONFIG_FILE, record, rejectUnknown, text, whole } from './config-fields.mts';
+import { mkdir, readFile, rename } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import {
+  CONFIG_FILE,
+  OLD_CONFIG_FILE,
+  record,
+  rejectUnknown,
+  text,
+  whole,
+} from './config-fields.mts';
 import { hasCode, message, parseJson } from './errors.mts';
-import { readTextIfPresent, writeJson } from './files.mts';
+import { readTextIfPresent, unlessMissing, writeJson } from './files.mts';
 
 export type Config = {
   remote: string;
@@ -111,17 +119,42 @@ function configFile(root: string): string {
   return join(root, CONFIG_FILE);
 }
 
+function existsAlready(): Error {
+  return new Error(`${CONFIG_FILE} exists already. Use --force to replace it.`);
+}
+
 export async function writeDefaultConfig(root: string, force: boolean): Promise<string> {
   const path = configFile(root);
+  await mkdir(dirname(path), { recursive: true });
   try {
     await writeJson(path, FILE_DEFAULTS, { flag: force ? 'w' : 'wx' });
   } catch (error) {
     if (hasCode(error, 'EEXIST')) {
-      throw new Error(`${CONFIG_FILE} exists already. Use --force to replace it.`);
+      throw existsAlready();
     }
     throw error;
   }
   return path;
+}
+
+export async function moveOldConfig(root: string, force: boolean): Promise<string | undefined> {
+  const old = join(root, OLD_CONFIG_FILE);
+  if ((await readTextIfPresent(old)) === undefined) {
+    return undefined;
+  }
+  const path = configFile(root);
+  if (!force && (await unlessMissing(() => readFile(path))) !== undefined) {
+    throw existsAlready();
+  }
+  await mkdir(dirname(path), { recursive: true });
+  await rename(old, path);
+  return path;
+}
+
+export async function rejectOldConfig(root: string): Promise<void> {
+  if ((await readTextIfPresent(join(root, OLD_CONFIG_FILE))) !== undefined) {
+    throw new Error(`${OLD_CONFIG_FILE} moved to ${CONFIG_FILE}. Run next-issue init to move it.`);
+  }
 }
 
 export async function loadConfig(root: string): Promise<Config> {

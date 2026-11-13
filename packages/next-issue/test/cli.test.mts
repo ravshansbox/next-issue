@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
-import { appendFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { access, appendFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { promisify } from 'node:util';
@@ -36,11 +36,96 @@ async function serveWorker(root: string) {
   return { child, exited, stderr: () => stderr };
 }
 
-test('a user who runs init gets .next-issue/ and .worktrees/ in .gitignore', async () => {
+async function initCommand(cwd: string) {
+  return promisify(execFile)(process.execPath, [CLI, 'init'], { cwd });
+}
+
+async function exists(path: string): Promise<boolean> {
+  return access(path).then(
+    () => true,
+    () => false,
+  );
+}
+
+test('a user who runs init gets .next-issue/ and .worktrees/ once in info/exclude and no .gitignore', async () => {
+  const root = await repository();
+  await initCommand(root);
+  await initCommand(root).catch(() => undefined);
+  const exclude = await readFile(join(root, '.git/info/exclude'), 'utf8');
+  assert.equal(exclude.split('\n').filter((line) => line === '.next-issue/').length, 1);
+  assert.equal(exclude.split('\n').filter((line) => line === '.worktrees/').length, 1);
+  assert.equal(await exists(join(root, '.gitignore')), false);
+});
+
+test('a user who runs init in a linked worktree gets the entries in the shared info/exclude', async () => {
+  const root = await repository();
+  await must('git', ['commit', '-q', '--allow-empty', '-m', 'first'], { cwd: root });
+  const linked = join(await tempDir(), 'linked');
+  await must('git', ['worktree', 'add', '-q', linked], { cwd: root });
+  await initCommand(linked);
+  const exclude = await readFile(join(root, '.git/info/exclude'), 'utf8');
+  assert.match(exclude, /^\.next-issue\/$/m);
+  assert.match(exclude, /^\.worktrees\/$/m);
+  assert.equal(await exists(join(linked, '.next-issue/config.json')), true);
+});
+
+test('a user who runs init sees .next-issue/ and .worktrees/ removed from .gitignore and other lines kept', async () => {
+  const root = await repository();
+  await writeFile(join(root, '.gitignore'), 'node_modules/\n.next-issue/\n  dist/\n.worktrees/\n');
+  await initCommand(root);
+  assert.equal(await readFile(join(root, '.gitignore'), 'utf8'), 'node_modules/\n  dist/\n');
+});
+
+test('a user who runs init sees a .gitignore deleted when only next-issue entries were in it', async () => {
+  const root = await repository();
+  await writeFile(join(root, '.gitignore'), '.next-issue/\n.worktrees/\n');
+  await initCommand(root);
+  assert.equal(await exists(join(root, '.gitignore')), false);
+});
+
+test('a user who runs init outside a git repository gets an error, a non-zero exit code and no file', async () => {
   const root = await tempDir();
-  await must('git', ['init', '-q'], { cwd: root });
-  await must(process.execPath, [CLI, 'init'], { cwd: root });
-  assert.equal(await readFile(join(root, '.gitignore'), 'utf8'), '.next-issue/\n.worktrees/\n');
+  await assert.rejects(initCommand(root), (error: { code: number; stderr: string }) => {
+    assert.notEqual(error.code, 0);
+    assert.match(error.stderr, /not a git repository/);
+    return true;
+  });
+  assert.deepEqual(await readdir(root), []);
+});
+
+test('a user who runs init gets the config at .next-issue/config.json and output that names it and info/exclude', async () => {
+  const root = await repository();
+  const { stdout } = await initCommand(root);
+  assert.equal(await exists(join(root, '.next-issue/config.json')), true);
+  assert.equal(await exists(join(root, 'next-issue.config.json')), false);
+  assert.match(stdout, /\.next-issue\/config\.json/);
+  assert.match(stdout, /added \.next-issue\/ to .*info\/exclude/);
+  assert.match(stdout, /added \.worktrees\/ to .*info\/exclude/);
+});
+
+test('a user who runs init with a root next-issue.config.json sees it moved to .next-issue/config.json', async () => {
+  const root = await repository();
+  await writeFile(join(root, 'next-issue.config.json'), '{ "maxCiFixes": 9 }\n');
+  const { stdout } = await initCommand(root);
+  assert.equal(await exists(join(root, 'next-issue.config.json')), false);
+  assert.equal(
+    await readFile(join(root, '.next-issue/config.json'), 'utf8'),
+    '{ "maxCiFixes": 9 }\n',
+  );
+  assert.match(stdout, /moved next-issue\.config\.json to .*\.next-issue\/config\.json/);
+});
+
+test('a user who runs another command with a root next-issue.config.json gets an error that the config moved', async () => {
+  const root = await repository();
+  await writeFile(join(root, 'next-issue.config.json'), '{}\n');
+  await assert.rejects(
+    promisify(execFile)(process.execPath, [CLI, 'stop'], { cwd: root }),
+    (error: { code: number; stderr: string }) => {
+      assert.notEqual(error.code, 0);
+      assert.match(error.stderr, /moved to \.next-issue\/config\.json/);
+      return true;
+    },
+  );
 });
 
 test('a user who runs --watch with no open issue sees one wait of 1 minute and no summary after Ctrl-C', async () => {

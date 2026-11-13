@@ -30,11 +30,11 @@ Run `/next-issue answer` to go through the waiting questions one at a time. Each
 - **Retry with guidance**: asks for text, posts it as a comment on the issue, where the worker reads it, then takes the `needsHuman` label off.
 - **Give up**: takes the `needsHuman` label off the issue and adds the `skip` label.
 
-Press Escape, or leave the guidance empty, to stop. Pi reads the list again before each question, so it skips a question answered elsewhere in the meantime. The worker sends the repository and the label names with each question, from `next-issue.config.json` and its `remote`. Pi uses `gh` for the comment and the labels.
+Press Escape, or leave the guidance empty, to stop. Pi reads the list again before each question, so it skips a question answered elsewhere in the meantime. The worker sends the repository and the label names with each question, from `.next-issue/config.json` and its `remote`. Pi uses `gh` for the comment and the labels.
 
 ## Create an issue
 
-The package ships the `create-issue` skill. Ask pi to write an issue, ask for a change in a repository with `next-issue.config.json`, or run `/skill:create-issue <problem>`. Pi then:
+The package ships the `create-issue` skill. Ask pi to write an issue, ask for a change in a repository with `.next-issue/config.json`, or run `/skill:create-issue <problem>`. Pi then:
 
 1. restates the problem, reads the code when the problem touches it, and finds the open issues that must be done first;
 2. asks numbered questions until none is open;

@@ -12,6 +12,7 @@ async function parse(value: unknown): Promise<Config> {
 
 async function root(content?: string): Promise<string> {
   const dir = await tempDir();
+  await mkdir(join(dir, '.next-issue'));
   if (content !== undefined) {
     await writeFile(join(dir, CONFIG_FILE), content);
   }
@@ -68,7 +69,7 @@ test('a broken file stops the run', async () => {
 test('a config file that cannot be read stops the run', async () => {
   const dir = await root();
   await mkdir(join(dir, CONFIG_FILE));
-  await assert.rejects(loadConfig(dir), /next-issue\.config\.json cannot be read: .*EISDIR/);
+  await assert.rejects(loadConfig(dir), /\.next-issue\/config\.json cannot be read: .*EISDIR/);
 });
 
 test('a field of the wrong type stops the run', async () => {

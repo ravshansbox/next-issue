@@ -222,8 +222,8 @@ agents run inside the harness, and their commands and the harness commands run
 in a process group of their own, so a press reaches only the harness.
 
 The harness runs all git and `gh` commands itself. The commit holds all the
-changes in the worktree, so a setup command that writes a file outside
-`.gitignore` puts that file in the commit. The reviewer is the one agent whose
+changes in the worktree, so a setup command that writes a file that git does
+not ignore puts that file in the commit. The reviewer is the one agent whose
 changes never get that far: the harness discards them, and undoes any commit
 that the reviewer made, before it reads the verdict.
 
@@ -314,9 +314,13 @@ To write the file with the defaults, run the `init` command in the repository:
 npx -y next-issue@latest init
 ```
 
-The command writes `next-issue.config.json` in the root of the repository and
-adds `.next-issue/` and `.worktrees/` to `.gitignore`. It stops when the
-config file is there already; `--force` replaces it. The file holds no
+The command writes `.next-issue/config.json` in the repository and adds
+`.next-issue/` and `.worktrees/` to `info/exclude` in the git directory, which
+linked worktrees share. It removes those two lines from `.gitignore`, and
+deletes `.gitignore` when nothing else is left in it. It moves a
+`next-issue.config.json` in the root to `.next-issue/config.json`; every other
+command stops while that old file is there. It stops when the config file is
+there already; `--force` replaces it. The file holds no
 `setupCommand`, because the harness deduces one from the lock file of the
 project.
 

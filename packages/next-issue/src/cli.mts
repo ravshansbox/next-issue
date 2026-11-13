@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { type Args, parseArgs, USAGE } from './args.mts';
-import { writeDefaultConfig } from './config.mts';
+import { moveOldConfig, rejectOldConfig, writeDefaultConfig } from './config.mts';
+import { OLD_CONFIG_FILE } from './config-fields.mts';
 import { message } from './errors.mts';
 import { prettyJson } from './files.mts';
 import { repoRoot } from './git.mts';
-import { ensureIgnored } from './gitignore.mts';
+import { ensureExcluded, excludeFile, removeIgnored } from './ignore.mts';
 import { listenForInterrupts } from './interrupt.mts';
 import { stopWorker } from './lock.mts';
 import { followLog, newestRunLog } from './logs.mts';
@@ -28,14 +29,15 @@ async function main(): Promise<number> {
     return 0;
   }
   const root = await repoRoot(process.cwd());
+  if (args.command === 'init') {
+    return init(root, args.force);
+  }
+  await rejectOldConfig(root);
   if (args.command === 'serve') {
     return serve(root);
   }
   if (args.command === 'stop') {
     return stop(root);
-  }
-  if (args.command === 'init') {
-    return init(root, args.force);
   }
   if (args.command === 'logs') {
     return logs(root, args.json);
@@ -74,12 +76,21 @@ async function logs(root: string, json: boolean): Promise<number> {
 }
 
 async function init(root: string, force: boolean): Promise<number> {
-  const path = await writeDefaultConfig(root, force);
-  await write(process.stdout, `wrote ${path}\n`);
-  for (const directory of [STATE_DIR, WORKTREE_DIR]) {
-    if (await ensureIgnored(root, `${directory}/`)) {
-      await write(process.stdout, `added ${directory}/ to .gitignore\n`);
+  const exclude = await excludeFile(root);
+  const moved = await moveOldConfig(root, force);
+  if (moved === undefined) {
+    await write(process.stdout, `wrote ${await writeDefaultConfig(root, force)}\n`);
+  } else {
+    await write(process.stdout, `moved ${OLD_CONFIG_FILE} to ${moved}\n`);
+  }
+  const entries = [STATE_DIR, WORKTREE_DIR].map((directory) => `${directory}/`);
+  for (const entry of entries) {
+    if (await ensureExcluded(exclude, entry)) {
+      await write(process.stdout, `added ${entry} to ${exclude}\n`);
     }
+  }
+  for (const entry of await removeIgnored(root, entries)) {
+    await write(process.stdout, `removed ${entry} from .gitignore\n`);
   }
   return 0;
 }

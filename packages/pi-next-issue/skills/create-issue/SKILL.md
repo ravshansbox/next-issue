@@ -1,6 +1,6 @@
 ---
 name: create-issue
-description: Turn a problem into a clear GitHub issue that the next-issue worker can claim. Use when the user wants to write, file or create an issue, or asks for a change to the code of a repository that has `next-issue.config.json`.
+description: Turn a problem into a clear GitHub issue that the next-issue worker can claim. Use when the user wants to write, file or create an issue, or asks for a change to the code of a repository that has `.next-issue/config.json`.
 ---
 
 # Create an issue

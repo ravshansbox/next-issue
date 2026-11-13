@@ -1,4 +1,5 @@
-export const CONFIG_FILE = 'next-issue.config.json';
+export const CONFIG_FILE = '.next-issue/config.json';
+export const OLD_CONFIG_FILE = 'next-issue.config.json';
 
 export function record(value: unknown, what: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
