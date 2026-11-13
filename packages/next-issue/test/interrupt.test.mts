@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { type TestContext, test } from 'node:test';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { type Interrupts, listenForInterrupts } from '../src/interrupt.mts';
 
 function listen(t: TestContext, say: (text: string) => void): Interrupts {
@@ -36,4 +37,29 @@ test('a user who presses Ctrl-C during a wait while a hunt runs is told the run 
 test('a wait with no Ctrl-C runs to its end', async (t) => {
   const interrupts = listen(t, () => undefined);
   assert.equal(await interrupts.sleep(1), true);
+});
+
+test('a user whose one Ctrl-C press arrives as two signals within 100 ms sees it count as one press', async (t) => {
+  const said: string[] = [];
+  const interrupts = listen(t, (text) => said.push(text));
+  process.emit('SIGINT');
+  process.emit('SIGINT');
+  assert.equal(interrupts.afterIssue(), true);
+  assert.equal(interrupts.afterRound(), false);
+  assert.deepEqual(said, [
+    'Stopping after the running issues. Press Ctrl-C again to stop after the current round.',
+  ]);
+});
+
+test('a user who presses Ctrl-C twice more than 100 ms apart sees two presses counted', async (t) => {
+  const said: string[] = [];
+  const interrupts = listen(t, (text) => said.push(text));
+  process.emit('SIGINT');
+  await sleep(150);
+  process.emit('SIGINT');
+  assert.equal(interrupts.afterRound(), true);
+  assert.deepEqual(said, [
+    'Stopping after the running issues. Press Ctrl-C again to stop after the current round.',
+    'Stopping after the current round. Press Ctrl-C again to stop now.',
+  ]);
 });

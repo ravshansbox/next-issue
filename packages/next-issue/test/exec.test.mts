@@ -182,6 +182,7 @@ test('a user who presses Ctrl-C twice is told the run stops after the round, and
   const { harness, pid, line, stopped } = await interrupted(t);
   harness.kill('SIGINT');
   await line(1);
+  await sleep(150);
   harness.kill('SIGINT');
   assert.equal(
     await line(2),
@@ -196,8 +197,10 @@ test('a user who presses Ctrl-C three times kills the command, stops every agent
   const { harness, pid, line, stopped } = await interrupted(t);
   harness.kill('SIGINT');
   await line(1);
+  await sleep(150);
   harness.kill('SIGINT');
   await line(2);
+  await sleep(150);
   harness.kill('SIGINT');
   assert.deepEqual(await once(harness, 'exit'), [null, 'SIGINT']);
   assert.equal(await gone(pid), true);

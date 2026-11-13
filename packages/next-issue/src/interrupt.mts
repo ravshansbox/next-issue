@@ -9,9 +9,15 @@ export type Interrupts = {
 
 export function listenForInterrupts(say: (text: string) => void): Interrupts {
   let presses = 0;
+  let lastPress = -Infinity;
   const sleeper: Sleeper = {};
   let hunting = (): boolean => false;
   const press = (): void => {
+    const now = performance.now();
+    if (now - lastPress < 100) {
+      return;
+    }
+    lastPress = now;
     presses += 1;
     if (presses === 1 && sleeper.wake !== undefined) {
       say(

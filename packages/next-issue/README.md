@@ -210,6 +210,9 @@ Press `Ctrl-C` to stop the run step by step:
    issue, but the issue keeps `status:in-progress` and the run writes no
    summary.
 
+Signals that arrive within 100 ms of the last counted one count as one press,
+because `npx` and `npm exec` pass on a press as a second signal.
+
 Each of the first two presses prints a line that says what happens next. The
 agents run inside the harness, and their commands and the harness commands run
 in a process group of their own, so a press reaches only the harness.
