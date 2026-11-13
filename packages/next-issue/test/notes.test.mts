@@ -37,7 +37,7 @@ test('an agent gets no shared notes when the repository has no notes file', asyn
   const target = await harness(t);
   await target.run();
   const [implementer, reviewer] = target.prompts;
-  assert.doesNotMatch(implementer!.prompt, /## Shared notes\n\n/);
+  assert.doesNotMatch(implementer!.prompt, /Shared notes/);
   assert.match(implementer!.prompt, /add a short note to .*notes\.md/);
   assert.doesNotMatch(reviewer!.prompt, /Shared notes|notes\.md/);
 });
