@@ -18,6 +18,7 @@ export async function watchIssues(
   const reports: IssueReport[] = [];
   const failed = new Set<number>();
   let step = 0;
+  let hunting = true;
   for (;;) {
     const pass = await runIssues(
       { once: false, max: limit === undefined ? undefined : limit - handled(reports) },
@@ -29,6 +30,7 @@ export async function watchIssues(
     if (handled(pass.reports) > 0) {
       await watch.passEnd(pass.reports);
       step = 0;
+      hunting = true;
     }
     if (pass.error !== undefined || pass.stoppedAt !== undefined) {
       return { ...pass, reports };
@@ -36,7 +38,10 @@ export async function watchIssues(
     if ((limit !== undefined && handled(reports) >= limit) || watch.stop()) {
       return { reports };
     }
-    await watch.hunt?.();
+    if (hunting) {
+      hunting = false;
+      await watch.hunt?.();
+    }
     const minutes = backOffMinutes(step);
     step += 1;
     if (!(await watch.wait(minutes))) {

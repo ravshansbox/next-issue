@@ -443,22 +443,22 @@ state of an issue that a label still holds back stays as it was.
 
 ## Commands and options
 
-| Argument    | Effect                                                                               |
-| ----------- | ------------------------------------------------------------------------------------ |
-| `init`      | Write the config file with the defaults                                              |
-| `serve`     | Run the worker of this repository that pi extensions talk to, see [Worker](#worker)  |
-| `stop`      | Stop the worker of this repository, see [Worker](#worker)                            |
-| `logs`      | Show the latest run log and follow it, see [Observability](#observability)           |
-| `--force`   | Replace an existing config file, with `init`                                         |
-| `--once`    | Stop after the first handled issue                                                   |
-| `--max <n>` | Handle at most n issues                                                              |
-| `--watch`   | Keep running, and read the open issues again after each pass                         |
-| `--hunt`    | Hunt the repository for a bug before each wait, see [Hunt for bugs](#hunt-for-bugs)  |
-| `--reset`   | Drop the saved budgets and findings, and keep the rest of the state                  |
-| `--json`    | Print the machine summary instead of the text one, or the raw JSON lines with `logs` |
-| `--verbose` | Show every command and all agent output                                              |
-| `--quiet`   | Show only the milestones and the summary                                             |
-| `--help`    | Show the option list                                                                 |
+| Argument    | Effect                                                                                     |
+| ----------- | ------------------------------------------------------------------------------------------ |
+| `init`      | Write the config file with the defaults                                                    |
+| `serve`     | Run the worker of this repository that pi extensions talk to, see [Worker](#worker)        |
+| `stop`      | Stop the worker of this repository, see [Worker](#worker)                                  |
+| `logs`      | Show the latest run log and follow it, see [Observability](#observability)                 |
+| `--force`   | Replace an existing config file, with `init`                                               |
+| `--once`    | Stop after the first handled issue                                                         |
+| `--max <n>` | Handle at most n issues                                                                    |
+| `--watch`   | Keep running, and read the open issues again after each pass                               |
+| `--hunt`    | Hunt the repository for a bug when the issues run out, see [Hunt for bugs](#hunt-for-bugs) |
+| `--reset`   | Drop the saved budgets and findings, and keep the rest of the state                        |
+| `--json`    | Print the machine summary instead of the text one, or the raw JSON lines with `logs`       |
+| `--verbose` | Show every command and all agent output                                                    |
+| `--quiet`   | Show only the milestones and the summary                                                   |
+| `--help`    | Show the option list                                                                       |
 
 The exit code is 1 when an issue needs a person or failed, and 0 when it does
 not, so a cron job or a CI step can read the result of the run.
@@ -493,7 +493,7 @@ The watch stops:
 
 ## Hunt for bugs
 
-With `--hunt`, which turns on `--watch`, the harness runs a hunter agent before each wait, so it finds new work when the issues run out. The hunter:
+With `--hunt`, which turns on `--watch`, the harness runs a hunter agent once when the issues run out, before the wait. It hunts again only after a pass that handled an issue, so an idle watch does not start a hunter before each wait. The hunter:
 
 - works in its own worktree at `.worktrees/hunt`, at the remote base branch, which the harness fetches and resets before each hunt;
 - follows `next-issue.hunt.md` in the repository root, or a short built-in prompt when the file is missing;
