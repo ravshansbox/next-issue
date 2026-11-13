@@ -120,7 +120,12 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
 
 type FakeHunter = { steps: string[]; idle: Promise<void> };
 
-function hunter(fake: FakeWatch, readyLists: number[][], cap = 1): FakeHunter {
+function hunter(
+  fake: FakeWatch,
+  readyLists: number[][],
+  cap = 1,
+  failures: boolean[] = [],
+): FakeHunter {
   const steps: string[] = [];
   const { promise: idle, resolve } = deferred();
   const busy = Array.from({ length: cap }, (_, index) => issue(100 + index));
@@ -137,7 +142,9 @@ function hunter(fake: FakeWatch, readyLists: number[][], cap = 1): FakeHunter {
       return numbers.map(issue);
     },
     hunt: async () => {
-      steps.push('hunt');
+      const failed = failures.shift() ?? false;
+      steps.push(failed ? 'hunt failed' : 'hunt');
+      return !failed;
     },
     wait: async (minutes, signal) => {
       steps.push(`wait ${minutes}`);
@@ -208,6 +215,7 @@ test('a user who presses Ctrl-C during a hunt sees the watch stop after that hun
       resolve();
       await new Promise((done) => setTimeout(done, 10));
       steps.push('hunt end');
+      return true;
     },
     wait: async () => {
       steps.push('wait');
@@ -218,4 +226,45 @@ test('a user who presses Ctrl-C during a hunt sees the watch stop after that hun
   steps.push('watch end');
   assert.deepEqual(steps, ['hunt start', 'hunt end', 'watch end']);
   assert.equal(result.stoppedAt, 1);
+});
+
+test('a user who watches with --hunt sees the hunter wait with the back-off after each failed hunt, and back at 1 minute after a hunt that succeeds', async () => {
+  const fake = watcher([['done']]);
+  const hunting = hunter(fake, [[], [], [], []], 1, [true, true, false, true]);
+  holdIssues(fake, hunting.idle);
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(hunting.steps, [
+    'hunt failed',
+    'wait 1',
+    'hunt failed',
+    'wait 2',
+    'hunt',
+    'hunt failed',
+    'wait 1',
+    'wait 2',
+  ]);
+});
+
+test('a user whose watch ends while the hunter waits after a failed hunt sees the hunter stop', async () => {
+  const fake = watcher([['done']]);
+  const steps: string[] = [];
+  const { promise: waiting, resolve } = deferred();
+  fake.hunter = {
+    cap: 1,
+    ready: async () => [],
+    hunt: async () => {
+      steps.push('hunt failed');
+      return false;
+    },
+    wait: async (minutes, signal) => {
+      steps.push(`wait ${minutes}`);
+      resolve();
+      await new Promise((done) => signal.addEventListener('abort', done));
+      steps.push('wait end');
+    },
+  };
+  holdIssues(fake, waiting);
+  await watchIssues(ARGS, fake);
+  steps.push('watch end');
+  assert.deepEqual(steps, ['hunt failed', 'wait 1', 'wait end', 'watch end']);
 });

@@ -65,7 +65,10 @@ export function hunter(context: Context): Hunter & { busy: () => boolean } {
     hunt: async () => {
       hunting = true;
       try {
-        await hunt(context).catch(() => undefined);
+        await hunt(context);
+        return true;
+      } catch {
+        return false;
       } finally {
         hunting = false;
       }

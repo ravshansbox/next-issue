@@ -153,3 +153,13 @@ test('a user who hunts sees the hunter busy only during a hunt', async (t) => {
   await hunting;
   assert.equal(watched.busy(), false);
 });
+
+test('a user whose hunt fails sees the hunter report the failure so the watch backs off', async (t) => {
+  const target = await harness(t, { fail: 'runAgent' });
+  assert.equal(await hunter(target.context).hunt(), false);
+});
+
+test('a user whose hunt succeeds sees the hunter report the success', async (t) => {
+  const target = await harness(t);
+  assert.equal(await hunter(target.context).hunt(), true);
+});
