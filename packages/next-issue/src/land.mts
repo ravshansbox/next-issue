@@ -15,6 +15,8 @@ export function landApproved(job: Run): Promise<Finished> {
 export function resumeLanding(job: Run, sha: string): Promise<Finished> {
   return landing(job, async () => {
     if ((await job.context.ports.revision(job.worktree)) !== sha) {
+      job.mainBroken = true;
+      job.repairing = true;
       return landLoop(job);
     }
     const gate = await checkGate(job, sha);

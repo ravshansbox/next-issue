@@ -48,6 +48,25 @@ test('a user who resumes a run that died after the fix of main was committed get
   assert.deepEqual(target.landed, ['1']);
 });
 
+test('a user who resumes a run that died after the fix of main was committed gets the change reverted and the run halted when the fix cannot be pushed', async (t) => {
+  const target = await harness(t, {
+    issue: IN_REVIEW,
+    saved: { ...SAVED, ciFixes: 1, landed: ['-1'] },
+    pushRejects: 3,
+  });
+  const report = await target.run();
+  assert.equal(report.reason, 'push failed');
+  assert.equal(report.halt, true);
+  assert.deepEqual(
+    target.reverts.map((entry) => entry.shas),
+    [['-1']],
+  );
+  assert.match(
+    target.comments.at(-1)!,
+    /failed 3 times\. The harness reverted the change on main\./,
+  );
+});
+
 test('--reset puts the budgets back and keeps the resume point', async (t) => {
   const target = await harness(t, {
     issue: IN_PROGRESS,
