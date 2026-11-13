@@ -61,3 +61,10 @@ test('an unknown option stops the run', () => {
   assert.throws(() => parseArgs(['--nope']), /Unknown argument: --nope/);
   assert.throws(() => parseArgs(['--issue', '7']), /Unknown argument: --issue/);
 });
+
+test('a user who passes --hunt asks to hunt and keeps watching', () => {
+  assert.equal(parseArgs([]).hunt, false);
+  const args = parseArgs(['--hunt']);
+  assert.equal(args.hunt, true);
+  assert.equal(args.watch, true);
+});

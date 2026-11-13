@@ -109,3 +109,40 @@ test('a watch stops after a pass that halts the run', async () => {
   assert.equal(result.stoppedAt, 1);
   assert.deepEqual(fake.passes, [[1]]);
 });
+
+function hunter(fake: FakeWatch): string[] {
+  const steps: string[] = [];
+  fake.hunt = async () => {
+    steps.push(`hunt after ${fake.processed.length}`);
+  };
+  const wait = fake.wait;
+  fake.wait = async (minutes) => {
+    steps.push('wait');
+    return wait(minutes);
+  };
+  return steps;
+}
+
+test('a user who watches with --hunt sees one hunt per idle stretch, not one before each wait', async () => {
+  const fake = watcher([['done'], [], ['skipped']]);
+  const steps = hunter(fake);
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(steps, ['hunt after 1', 'wait', 'wait', 'wait']);
+});
+
+test('a user who watches with --hunt sees a new hunt after a pass that handled an issue', async () => {
+  const fake = watcher([[], [], ['done'], []]);
+  const steps = hunter(fake);
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(steps, ['hunt after 0', 'wait', 'wait', 'hunt after 1', 'wait', 'wait']);
+});
+
+test('a user who watches with --once sees no hunt once the issue is handled', async () => {
+  const fake = watcher([['done']]);
+  let hunts = 0;
+  fake.hunt = async () => {
+    hunts += 1;
+  };
+  await watchIssues({ ...ARGS, once: true }, fake);
+  assert.equal(hunts, 0);
+});

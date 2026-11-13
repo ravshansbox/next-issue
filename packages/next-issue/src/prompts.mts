@@ -1,4 +1,5 @@
 import type { Issue } from './github.mts';
+import { ISSUE_SECTIONS } from './issue-format.mts';
 import type { ReviewRound } from './state.mts';
 import { paragraphs } from './text.mts';
 
@@ -181,4 +182,28 @@ export function history(rounds: ReviewRound[]): string[] {
       ? head
       : `${head}\nThe fixer disputed every finding of this round: ${round.dispute}`;
   });
+}
+
+const HUNT_DEFAULT = [
+  'Read the whole repository and look for bugs: wrong results, unhandled errors, races, security holes and documentation that contradicts the code.',
+  'Prove each finding from the code. A guess is not a finding.',
+].join('\n');
+
+export function huntPrompt(instructions: string | undefined, ready: string): string {
+  const kept = instructions?.trim() ?? '';
+  const label = ready === '' ? '' : ` --label "${ready}"`;
+  return paragraphs([
+    'You are the hunter. Find the most serious problem in this repository and file one issue for it.',
+    `## Instructions\n${kept === '' ? HUNT_DEFAULT : kept}`,
+    '## Rules',
+    [
+      'Run no test suite and no build. Change no file. Do not commit or push.',
+      'File one issue only, for your most serious finding. File nothing when you find no real problem.',
+      'Before you file it, search the open and closed issues for a duplicate, for example with `gh issue list --state all --search "<words>"`. File nothing when a duplicate exists.',
+      `File it with \`gh issue create${label} --title "<conventional commit subject>" --body-file -\`.`,
+      `The body holds these sections as \`##\` headings, in this order: ${ISSUE_SECTIONS.map((section) => `\`## ${section}\``).join(', ')}.`,
+      'Give the file and line of each piece of evidence. Leave the Open questions section empty.',
+      'End your final message with one line in the form `issue: <url of the new issue>`, or `issue: none` when you filed nothing.',
+    ].join('\n'),
+  ]);
 }

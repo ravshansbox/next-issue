@@ -5,6 +5,7 @@ import { handled, type Loop, type LoopResult, runIssues } from './loop.mts';
 export type Watch = Loop & {
   wait: (minutes: number) => Promise<boolean>;
   passEnd: (reports: IssueReport[]) => Promise<void>;
+  hunt?: () => Promise<void>;
 };
 
 const BACK_OFF_MINUTES = [1, 2, 3, 5, 10];
@@ -17,6 +18,7 @@ export async function watchIssues(
   const reports: IssueReport[] = [];
   const failed = new Set<number>();
   let step = 0;
+  let hunting = true;
   for (;;) {
     const pass = await runIssues(
       { once: false, max: limit === undefined ? undefined : limit - handled(reports) },
@@ -28,12 +30,17 @@ export async function watchIssues(
     if (handled(pass.reports) > 0) {
       await watch.passEnd(pass.reports);
       step = 0;
+      hunting = true;
     }
     if (pass.error !== undefined || pass.stoppedAt !== undefined) {
       return { ...pass, reports };
     }
     if ((limit !== undefined && handled(reports) >= limit) || watch.stop()) {
       return { reports };
+    }
+    if (hunting) {
+      hunting = false;
+      await watch.hunt?.();
     }
     const minutes = backOffMinutes(step);
     step += 1;

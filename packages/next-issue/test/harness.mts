@@ -97,6 +97,7 @@ export type Plan = {
   writers?: string[];
   issueComments?: Array<{ author: string; body: string }>;
   accessFails?: boolean;
+  hunterText?: string;
 };
 
 export type Harness = {
@@ -127,6 +128,7 @@ export type Harness = {
   asides: Array<{ target: string; branch: string }>;
   threads: number[];
   events: Array<Record<string, unknown>>;
+  hunts: string[];
   head: () => string;
   run: () => Promise<IssueReport>;
   state: () => Promise<IssueState | undefined>;
@@ -181,6 +183,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     asides: [],
     threads: [],
     events: [],
+    hunts: [],
     head: () => String(head),
     run: () => processIssue(state.context, issue),
     state: () => readState(repo, issue.number),
@@ -234,6 +237,10 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     disputeBranches: async () => plan.disputes ?? [],
     failedBaseLogs: async () => 'the failed main logs',
     findWorktree: async () => undefined,
+    huntWorktree: async (_repo, base) => {
+      state.hunts.push(base);
+      return join(root, 'hunt');
+    },
     isDirty: async () => plan.fixerWrites === true,
     latestSubject: async () => plan.earlier,
     issueComments: async () => plan.issueComments ?? [],
@@ -315,6 +322,9 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
             ? 'reviewed'
             : `reviewed\n\n\`\`\`json\n${JSON.stringify(verdict)}\n\`\`\``,
         );
+      }
+      if (request.name === 'hunter') {
+        return result(plan.hunterText ?? 'Nothing found.\nissue: none');
       }
       if (plan.selfCommit === true) {
         head += 1;
