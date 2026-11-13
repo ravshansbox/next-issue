@@ -795,6 +795,74 @@ test('a user who types /next-issue followed by nothing or a start of a subcomman
   assert.equal(complete('x'), null);
 });
 
+const flagItems = {
+  once: { label: '--once', description: 'Stop after the first handled issue' },
+  max: { label: '--max', description: 'Handle at most n issues' },
+  watch: {
+    label: '--watch',
+    description: 'Keep running, and read the open issues again after each pass',
+  },
+  hunt: { label: '--hunt', description: 'Hunt the repository for bugs alongside the issues' },
+  reset: {
+    label: '--reset',
+    description: 'Drop the saved budgets and findings, and keep the rest of the state',
+  },
+  verbose: { label: '--verbose', description: 'Show every command and all agent output' },
+  quiet: { label: '--quiet', description: 'Show only the milestones and the summary' },
+};
+
+test('a user who types /next-issue start followed by a space is offered all seven flags', () => {
+  const { extension } = setup();
+  const { pi, complete } = host();
+  extension(pi as never);
+  assert.deepEqual(complete('start '), [
+    { value: 'start --once', ...flagItems.once },
+    { value: 'start --max ', ...flagItems.max },
+    { value: 'start --watch', ...flagItems.watch },
+    { value: 'start --hunt', ...flagItems.hunt },
+    { value: 'start --reset', ...flagItems.reset },
+    { value: 'start --verbose', ...flagItems.verbose },
+    { value: 'start --quiet', ...flagItems.quiet },
+  ]);
+});
+
+test('a user who types the start of a flag after /next-issue start is offered only the matching flags', () => {
+  const { extension } = setup();
+  const { pi, complete } = host();
+  extension(pi as never);
+  assert.deepEqual(complete('start --h'), [{ value: 'start --hunt', ...flagItems.hunt }]);
+  assert.deepEqual(complete('start --hunt --q'), [
+    { value: 'start --hunt --quiet', ...flagItems.quiet },
+  ]);
+  assert.deepEqual(complete('start --m'), [{ value: 'start --max ', ...flagItems.max }]);
+  assert.equal(complete('start --x'), null);
+});
+
+test('a user who already typed a flag after /next-issue start is not offered it again', () => {
+  const { extension } = setup();
+  const { pi, complete } = host();
+  extension(pi as never);
+  const values = (complete('start --hunt --max 3 ') as Array<{ value: string }>).map(
+    (item) => item.value,
+  );
+  assert.deepEqual(values, [
+    'start --hunt --max 3 --once',
+    'start --hunt --max 3 --watch',
+    'start --hunt --max 3 --reset',
+    'start --hunt --max 3 --verbose',
+    'start --hunt --max 3 --quiet',
+  ]);
+});
+
+test('a user who types /next-issue stop or answer followed by a space is offered no flags', () => {
+  const { extension } = setup();
+  const { pi, complete } = host();
+  extension(pi as never);
+  assert.equal(complete('stop '), null);
+  assert.equal(complete('answer '), null);
+  assert.equal(complete('stop --'), null);
+});
+
 test('a user sees how many questions wait in the footer and a note for each new question', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);

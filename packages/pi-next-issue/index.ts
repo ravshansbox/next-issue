@@ -33,12 +33,57 @@ const QUESTIONS_KEY = 'next-issue-questions';
 const RENDER_MS = 1000;
 const QUESTIONS_MS = 60_000;
 const SUBCOMMANDS: Action[] = ['start', 'stop', 'answer'];
-const FLAGS = '--once, --max <n>, --watch, --hunt, --reset, --verbose, --quiet';
+const START_FLAGS = [
+  { flag: '--once', insert: '--once', description: 'Stop after the first handled issue' },
+  { flag: '--max', insert: '--max ', argument: '<n>', description: 'Handle at most n issues' },
+  {
+    flag: '--watch',
+    insert: '--watch',
+    description: 'Keep running, and read the open issues again after each pass',
+  },
+  {
+    flag: '--hunt',
+    insert: '--hunt',
+    description: 'Hunt the repository for bugs alongside the issues',
+  },
+  {
+    flag: '--reset',
+    insert: '--reset',
+    description: 'Drop the saved budgets and findings, and keep the rest of the state',
+  },
+  {
+    flag: '--verbose',
+    insert: '--verbose',
+    description: 'Show every command and all agent output',
+  },
+  { flag: '--quiet', insert: '--quiet', description: 'Show only the milestones and the summary' },
+];
+const FLAGS = START_FLAGS.map(({ flag, argument }) =>
+  argument ? `${flag} ${argument}` : flag,
+).join(', ');
 const USAGE = [
   '/next-issue start [flags]  start a run of this repository, with flags from: ' + FLAGS,
   '/next-issue stop           stop the run of this repository after the current round',
   '/next-issue answer         answer the waiting questions',
 ].join('\n');
+
+function completions(prefix: string) {
+  if (!prefix.includes(' ')) {
+    return SUBCOMMANDS.filter((name) => name.startsWith(prefix)).map((name) => ({
+      value: name,
+      label: name,
+    }));
+  }
+  if (!prefix.startsWith('start ')) {
+    return [];
+  }
+  const head = prefix.slice(0, prefix.lastIndexOf(' ') + 1);
+  const partial = prefix.slice(head.length);
+  const typed = head.split(/\s+/);
+  return START_FLAGS.filter(({ flag }) => flag.startsWith(partial) && !typed.includes(flag)).map(
+    ({ flag, insert, description }) => ({ value: head + insert, label: flag, description }),
+  );
+}
 
 function background(callback: () => void, ms: number): ReturnType<typeof setInterval> {
   const timer = setInterval(callback, ms);
@@ -259,8 +304,8 @@ export function createExtension(options: Options) {
     pi.registerCommand('next-issue', {
       description: `"start [flags]" starts working through the GitHub issues of this repository, with flags from ${FLAGS}. "stop" stops the run. "answer" answers the waiting questions`,
       getArgumentCompletions: (prefix) => {
-        const matches = SUBCOMMANDS.filter((name) => name.startsWith(prefix));
-        return matches.length === 0 ? null : matches.map((name) => ({ value: name, label: name }));
+        const matches = completions(prefix);
+        return matches.length === 0 ? null : matches;
       },
       handler: async (args, ctx) => {
         const [subcommand, ...flags] = args.trim().split(/\s+/).filter(Boolean);
