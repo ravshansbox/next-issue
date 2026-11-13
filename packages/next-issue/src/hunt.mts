@@ -33,11 +33,12 @@ export async function hunt(context: Context): Promise<void> {
   const { repo, config, base, recorder, ports } = context;
   await recorder.step('hunt', {}, async () => {
     const cwd = await oneAtATime(repo.root, () => ports.huntWorktree(repo, base, config.remote));
+    await ports.ensureLabel(repo, config.labels.hunt);
     const instructions = await readTextIfPresent(join(repo.root, HUNT_FILE));
     const result = await ports.runAgent(recorder, {
       name: 'hunter',
       cwd,
-      prompt: huntPrompt(instructions, config.labels.ready),
+      prompt: huntPrompt(instructions, config.labels.ready, config.labels.hunt),
       profile: REVIEWING,
       timeoutMs: minutesToMs(config.agentTimeoutMinutes),
     });

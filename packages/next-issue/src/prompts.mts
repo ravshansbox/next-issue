@@ -189,9 +189,16 @@ const HUNT_DEFAULT = [
   'Prove each finding from the code. A guess is not a finding.',
 ].join('\n');
 
-export function huntPrompt(instructions: string | undefined, ready: string): string {
+export function huntPrompt(
+  instructions: string | undefined,
+  ready: string,
+  source: string,
+): string {
   const kept = instructions?.trim() ?? '';
-  const label = ready === '' ? '' : ` --label "${ready}"`;
+  const label = [ready, source]
+    .filter((name) => name !== '')
+    .map((name) => ` --label "${name}"`)
+    .join('');
   return paragraphs([
     'You are the hunter. Find the most serious problem in this repository and file one issue for it.',
     `## Instructions\n${kept === '' ? HUNT_DEFAULT : kept}`,

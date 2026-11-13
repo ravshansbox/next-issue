@@ -31,6 +31,13 @@ export async function setLabel(
   }
 }
 
+export async function ensureLabel(repo: Repo, label: string): Promise<void> {
+  const created = await createUnknownLabel(repo, label);
+  if (created instanceof Error) {
+    throw created;
+  }
+}
+
 async function retryWithLabel(
   repo: Repo,
   args: string[],

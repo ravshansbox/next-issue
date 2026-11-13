@@ -3,7 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { type CommandRecord, setCommandObserver } from '../src/exec.mts';
-import { labelArgs, setLabel } from '../src/labels.mts';
+import { ensureLabel, labelArgs, setLabel } from '../src/labels.mts';
 import { installGh } from './fake-gh.mts';
 import { tempDir } from './temp-dir.mts';
 
@@ -117,4 +117,12 @@ esac
     setLabel(repo, 'issue', 1, 'status:todo', []),
     /label create .*permission denied/,
   );
+});
+
+test('ensureLabel creates a missing label and leaves a known one alone', async (t) => {
+  const dir = await fakeGh(t);
+  const repo = { owner: 'acme', name: 'ensure', root: dir };
+  await ensureLabel(repo, 'status:todo');
+  await ensureLabel(repo, 'source:hunt');
+  assert.equal(await readFile(join(dir, 'labels'), 'utf8'), 'status:todo\nsource:hunt\n');
 });

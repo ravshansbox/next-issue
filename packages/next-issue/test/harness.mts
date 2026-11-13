@@ -235,6 +235,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       return moved || plan.reviewerWrites === true;
     },
     disputeBranches: async () => plan.disputes ?? [],
+    ensureLabel: async () => undefined,
     failedBaseLogs: async () => 'the failed main logs',
     findWorktree: async () => undefined,
     huntWorktree: async (_repo, base) => {

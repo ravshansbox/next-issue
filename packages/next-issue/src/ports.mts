@@ -28,7 +28,7 @@ import {
   viewIssue,
 } from './github.mts';
 import { huntWorktree } from './hunt.mts';
-import { setLabel } from './labels.mts';
+import { ensureLabel, setLabel } from './labels.mts';
 import { detectSetupCommand } from './setup.mts';
 import { addWorktree, findWorktree, removeWorktree } from './worktree.mts';
 
@@ -51,6 +51,7 @@ export const PORTS = {
   diff,
   discardChanges,
   disputeBranches,
+  ensureLabel,
   failedBaseLogs,
   findWorktree,
   huntWorktree,

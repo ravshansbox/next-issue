@@ -30,6 +30,7 @@ test('a missing file gives the defaults', async () => {
   assert.equal(config.commandTimeoutMinutes, 10);
   assert.equal(config.diffMaxChars, 60000);
   assert.deepEqual(config.models, {});
+  assert.equal(config.labels.hunt, 'source:hunt');
 });
 
 test('a change to a loaded config leaves the next load alone', async () => {
@@ -48,7 +49,7 @@ test('the file merges into the defaults', async () => {
       JSON.stringify({
         maxCiFixes: 1,
         models: { fixer: 'm' },
-        labels: { done: 'shipped' },
+        labels: { done: 'shipped', hunt: 'bot' },
       }),
     ),
   );
@@ -56,6 +57,7 @@ test('the file merges into the defaults', async () => {
   assert.equal(config.maxReviewRounds, 5);
   assert.deepEqual(config.models, { fixer: 'm' });
   assert.equal(config.labels.done, 'shipped');
+  assert.equal(config.labels.hunt, 'bot');
   assert.equal(config.labels.needsHuman, 'status:needs-human');
 });
 

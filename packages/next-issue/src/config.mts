@@ -33,6 +33,7 @@ export type Config = {
     done: string;
     needsHuman: string;
     skip: string;
+    hunt: string;
   };
 };
 
@@ -61,6 +62,7 @@ const DEFAULTS: Config = {
     done: 'status:done',
     needsHuman: 'status:needs-human',
     skip: 'status:blocked',
+    hunt: 'source:hunt',
   },
 };
 
@@ -90,7 +92,15 @@ const WHOLE_FIELDS: Array<[keyof Config, number]> = [
 
 const MODEL_ROLES = ['implementer', 'reviewer', 'fixer'] as const;
 
-const LABEL_NAMES = ['ready', 'inProgress', 'inReview', 'done', 'needsHuman', 'skip'] as const;
+const LABEL_NAMES = [
+  'ready',
+  'inProgress',
+  'inReview',
+  'done',
+  'needsHuman',
+  'skip',
+  'hunt',
+] as const;
 
 const FILE_DEFAULTS = {
   ...defaults(),
@@ -183,5 +193,7 @@ function parseLabels(value: unknown, defaultLabels: Config['labels']): Config['l
 }
 
 export function managedLabels(config: Config): string[] {
-  return LABEL_NAMES.filter((name) => name !== 'skip').map((name) => config.labels[name]);
+  return LABEL_NAMES.filter((name) => name !== 'skip' && name !== 'hunt').map(
+    (name) => config.labels[name],
+  );
 }

@@ -42,6 +42,41 @@ test('a user who hunts sees the hunter told to file one ready issue in the issue
   }
 });
 
+test('a user who hunts sees the hunter told to add the source label, which the harness creates first', async (t) => {
+  const target = await harness(t);
+  const order: string[] = [];
+  const ports = target.context.ports;
+  const runAgent = ports.runAgent;
+  ports.ensureLabel = async (_repo, label) => {
+    order.push(`ensure ${label}`);
+  };
+  ports.runAgent = async (recorder, request) => {
+    order.push('hunter');
+    return runAgent(recorder, request);
+  };
+  await hunt(target.context);
+  assert.deepEqual(order, ['ensure source:hunt', 'hunter']);
+  assert.match(target.prompts[0]!.prompt, /--label "status:todo" --label "source:hunt"/);
+});
+
+test('a user who sets labels.hunt sees the hunter add that label', async (t) => {
+  const defaults = await harness(t);
+  const target = await harness(t, {
+    config: { labels: { ...defaults.context.config.labels, hunt: 'bot' } },
+  });
+  await hunt(target.context);
+  assert.match(target.prompts[0]!.prompt, /--label "bot"/);
+});
+
+test('a user who sets an empty labels.ready sees the hunter add only the source label', async (t) => {
+  const defaults = await harness(t);
+  const target = await harness(t, {
+    config: { labels: { ...defaults.context.config.labels, ready: '' } },
+  });
+  await hunt(target.context);
+  assert.match(target.prompts[0]!.prompt, /gh issue create --label "source:hunt" --title/);
+});
+
 test('a user who hunts sees the filed issue in the run log', async (t) => {
   const target = await harness(t, {
     hunterText: 'Found it.\nissue: https://github.com/acme/tool/issues/9',
