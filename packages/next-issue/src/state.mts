@@ -35,6 +35,10 @@ export function stateDir(root: string): string {
   return join(root, STATE_DIR);
 }
 
+export function notesPath(root: string): string {
+  return join(stateDir(root), 'notes.md');
+}
+
 export function runsDir(root: string): string {
   return join(stateDir(root), 'runs');
 }
