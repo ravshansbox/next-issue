@@ -1,6 +1,7 @@
 import { parseCommitSubject } from './agent-reply.mts';
 import { CODING } from './agents.mts';
 import { commitWork } from './fix.mts';
+import { HAND_OVER } from './hand-over-comments.mts';
 import { escalateAndFinish } from './handover.mts';
 import { fallbackTitle, ROUND_CONTINUE, type Round, type Run, runRole } from './job.mts';
 import { implementPrompt } from './prompts.mts';
@@ -31,11 +32,25 @@ async function useEarlierCommit(job: Run): Promise<Round | undefined> {
   if (earlier === undefined) {
     return escalateAndFinish(
       job,
-      'The implementer produced no change.',
+      noChangeNote(state.implementerReply ?? ''),
       'no implementation commit',
     );
   }
   log.event('implement.earlier', { subject: earlier }, 'quiet');
   state.title = earlier;
   return undefined;
+}
+
+const NO_CHANGE = 'The implementer produced no change.';
+const COMMENT_LIMIT = 65536;
+const CUT = '\n\nThe reply was too long for a GitHub comment and was cut.';
+
+function noChangeNote(reply: string): string {
+  const text = reply.trim();
+  if (text === '') {
+    return NO_CHANGE;
+  }
+  const note = `${NO_CHANGE}\n\n${text}`;
+  const room = COMMENT_LIMIT - HAND_OVER.length - 1;
+  return note.length > room ? `${note.slice(0, room - CUT.length)}${CUT}` : note;
 }

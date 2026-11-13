@@ -19,6 +19,34 @@ test('an implementer that changes nothing hands the issue to a person', async (t
   assert.equal(target.pushes, 0);
 });
 
+test('a user whose issue is handed over because the implementer made no change sees the reply of the implementer after the note', async (t) => {
+  const reply = 'I need answers first.\n\n1. Use A or B? I recommend A.';
+  const target = await harness(t, { commits: [false], implementerText: [reply] });
+  await target.run();
+  assert.equal(
+    target.issueNotes[0]!.body,
+    `next-issue needs help: The implementer produced no change.\n\n${reply}`,
+  );
+});
+
+test('a user whose implementer gave a reply too long for a GitHub comment sees it cut to fit with a line that says so', async (t) => {
+  const target = await harness(t, { commits: [false], implementerText: ['x'.repeat(70000)] });
+  await target.run();
+  const body = target.issueNotes[0]!.body;
+  assert.ok(body.length <= 65536);
+  assert.match(body, /^next-issue needs help: The implementer produced no change\.\n\nxxx/);
+  assert.match(body, /\n\nThe reply was too long for a GitHub comment and was cut\.$/);
+});
+
+test('a user whose implementer made no change and gave no reply sees only the note', async (t) => {
+  const target = await harness(t, { commits: [false], implementerText: ['  '] });
+  await target.run();
+  assert.equal(
+    target.issueNotes[0]!.body,
+    'next-issue needs help: The implementer produced no change.',
+  );
+});
+
 test('an implementer that changes nothing on a branch already ahead of the base gets the change landed with the subject of the earlier commit', async (t) => {
   const target = await harness(t, { commits: [false], earlier: 'fix: earlier work' });
   const report = await target.run();
