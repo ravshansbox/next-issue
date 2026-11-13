@@ -411,6 +411,11 @@ run stopped. A state file that is not valid JSON, or that does not hold a valid
 state, gives the issue an `error` outcome that names the file, rather than a
 silent skip.
 
+Every agent prompt holds `.next-issue/notes.md` when it exists, so lessons
+such as test commands, tool quirks and deliberate behaviour carry over from one
+issue to the next. The implementer and the fixer may add a short note to it, and
+the prompt asks them to keep only what still holds. The reviewer only reads it.
+
 ## Retry an issue that waits for a person
 
 A hand-over marks the state file as handed over. To give the issue another try,

@@ -49,6 +49,21 @@ export function hookPrompt(issue: Issue, comments: string[], role: string, outpu
   ]);
 }
 
+export function notesBlock(path: string, notes: string | undefined, writable: boolean): string {
+  const kept = notes?.trim() ?? '';
+  return paragraphs([
+    kept === ''
+      ? ''
+      : `## Shared notes\nEarlier agents left these notes for this repository.\n\n${kept}`,
+    writable
+      ? [
+          `When you learn something that the next issue needs, such as a test command, a tool quirk or deliberate behaviour, add a short note to ${path}.`,
+          'Keep the file short: keep only what still holds, and remove a note that no longer holds.',
+        ].join('\n')
+      : '',
+  ]);
+}
+
 export function capDiff(diff: string, maxChars: number): string {
   return diff.length <= maxChars
     ? diff

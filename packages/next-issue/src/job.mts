@@ -1,11 +1,14 @@
 import type { AgentResult, Profile } from './agents.mts';
 import { type Config, managedLabels } from './config.mts';
 import { minutesToMs } from './durations.mts';
+import { readTextIfPresent } from './files.mts';
 import type { Repo } from './git.mts';
 import type { Issue } from './github.mts';
 import type { Recorder } from './observe.mts';
 import type { Ports } from './ports.mts';
-import type { IssueState } from './state.mts';
+import { notesBlock } from './prompts.mts';
+import { type IssueState, notesPath } from './state.mts';
+import { paragraphs } from './text.mts';
 
 export type Context = {
   repo: Repo;
@@ -62,17 +65,20 @@ export function gateRound(gate: Gate): Round | undefined {
   return gate.fixed ? ROUND_CONTINUE : undefined;
 }
 
-export function runRole(
+export async function runRole(
   job: Run,
   role: keyof Config['models'],
   prompt: string,
   profile: Profile,
 ): Promise<AgentResult> {
-  const { config, ports } = job.context;
+  const { config, ports, repo } = job.context;
+  const path = notesPath(repo.root);
+  const notes = await readTextIfPresent(path);
+  const writable = role === 'implementer' || role === 'fixer';
   return ports.runAgent(job.log, {
     name: role,
     cwd: job.worktree,
-    prompt,
+    prompt: paragraphs([notesBlock(path, notes, writable), prompt]),
     profile,
     model: config.models[role],
     timeoutMs: minutesToMs(config.agentTimeoutMinutes),
