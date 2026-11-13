@@ -30,7 +30,7 @@ export type Question = {
 
 export type ClientMessage =
   | { type: 'hello'; version: string }
-  | { type: 'start'; root: string; merge: boolean }
+  | { type: 'start'; root: string }
   | { type: 'stop'; root: string }
   | { type: 'questions'; root: string; id?: string };
 

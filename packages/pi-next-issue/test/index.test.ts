@@ -169,7 +169,7 @@ async function worker(path: string, version = '1.0.0') {
   return started;
 }
 
-test('a user who runs /next-issue with no worker going starts one and asks it to run this repository with merge on', async () => {
+test('a user who runs /next-issue with no worker going starts one and asks it to run this repository', async () => {
   let started: FakeWorker | undefined;
   const { spawns, extension } = setup({
     spawn: async (path) => {
@@ -184,11 +184,11 @@ test('a user who runs /next-issue with no worker going starts one and asks it to
   await until(() => started?.received.some((message) => message.type === 'start') === true);
   assert.deepEqual(
     started!.received.find((message) => message.type === 'start'),
-    { type: 'start', root: '/repo', merge: true },
+    { type: 'start', root: '/repo' },
   );
 });
 
-test('a model that calls next_issue_start with no worker going starts one, asks it to run this repository with merge on and reports the start', async () => {
+test('a model that calls next_issue_start with no worker going starts one, asks it to run this repository and reports the start', async () => {
   let started: FakeWorker | undefined;
   const { spawns, extension } = setup({
     spawn: async (path) => {
@@ -210,7 +210,7 @@ test('a model that calls next_issue_start with no worker going starts one, asks 
   await until(() => started?.received.some((message) => message.type === 'start') === true);
   assert.deepEqual(
     started!.received.find((message) => message.type === 'start'),
-    { type: 'start', root: '/repo', merge: true },
+    { type: 'start', root: '/repo' },
   );
 });
 
@@ -549,7 +549,7 @@ test('a user starts a run in one repository while a run is going in another, eac
   await until(() => two.received.some((message) => message.type === 'start'));
   assert.deepEqual(
     two.received.find((message) => message.type === 'start'),
-    { type: 'start', root: '/two', merge: true },
+    { type: 'start', root: '/two' },
   );
   assert.equal(
     one.received.some((message) => message.type === 'start'),

@@ -1,6 +1,5 @@
 import { runAgent } from './agents.mts';
 import { failedBaseLogs, waitForBaseChecks } from './base-checks.mts';
-import { failedCheckLogs, waitForChecks } from './checks.mts';
 import { run } from './exec.mts';
 import { commitAll } from './git-commit.mts';
 import { pushToBase, revertOnBase, squashOnto } from './git-land.mts';
@@ -29,15 +28,6 @@ import {
   viewIssue,
 } from './github.mts';
 import { setLabel } from './labels.mts';
-import {
-  createPr,
-  findPr,
-  markPrReady,
-  mergeCommit,
-  mergePr,
-  prConflicts,
-  prMerged,
-} from './pull-requests.mts';
 import { detectSetupCommand } from './setup.mts';
 import { addWorktree, findWorktree, removeWorktree } from './worktree.mts';
 
@@ -55,26 +45,18 @@ export const PORTS = {
   commentOnIssue,
   commitAll,
   commitMerge,
-  createPr,
   deleteBranch,
   detectSetupCommand,
   diff,
   discardChanges,
   disputeBranches,
   failedBaseLogs,
-  failedCheckLogs,
-  findPr,
   findWorktree,
   isDirty,
   issueComments,
   latestSubject,
-  markPrReady,
-  mergeCommit,
-  mergePr,
   openBlockers,
   openIssues,
-  prConflicts,
-  prMerged,
   push,
   pushToBase,
   removeWorktree,
@@ -91,7 +73,6 @@ export const PORTS = {
   threadComments,
   viewIssue,
   waitForBaseChecks,
-  waitForChecks,
 };
 
 export type Ports = typeof PORTS;

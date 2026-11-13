@@ -37,11 +37,7 @@ async function savedIssue(
   }
   try {
     const { open, ...issue } = await ports.viewIssue(repo, number);
-    if (
-      saved === 'broken' ||
-      open ||
-      (saved.pr !== undefined && (await ports.prMerged(repo, saved.pr)))
-    ) {
+    if (saved === 'broken' || open || (saved.landed ?? []).length > 0) {
       return { open, issue };
     }
     return { open };

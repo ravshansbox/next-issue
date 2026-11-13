@@ -170,7 +170,7 @@ test('a run that finds a state file of the wrong shape reports an error that nam
 test('a user who resumes an implemented issue gets the change landed with the saved subject', async (t) => {
   const target = await harness(t, {
     issue: IN_PROGRESS,
-    saved: { ...SAVED, phase: 'implemented', pr: undefined, title: 'feat: add the saved flag' },
+    saved: { ...SAVED, phase: 'implemented', title: 'feat: add the saved flag' },
   });
   await target.run();
   assert.match(target.messages.at(-1)!, /^feat: add the saved flag\n/);
@@ -179,7 +179,7 @@ test('a user who resumes an implemented issue gets the change landed with the sa
 test('a user who resumes from a state file without a title gets the change landed with a conventional subject', async (t) => {
   const target = await harness(t, {
     issue: IN_PROGRESS,
-    saved: { ...SAVED, phase: 'implemented', pr: undefined },
+    saved: { ...SAVED, phase: 'implemented' },
   });
   await target.run();
   assert.match(target.messages.at(-1)!, /^fix: resolve issue #7\n/);
@@ -192,7 +192,6 @@ test('a saved state carries on and does not implement again', async (t) => {
       issue: 7,
       phase: 'review',
       branch: 'issue-7',
-      pr: 101,
       ciFixes: 2,
       reviewRounds: 1,
       reviewLog: [{ round: 1, findings: '- old' }],

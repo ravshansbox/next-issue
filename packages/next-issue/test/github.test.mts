@@ -15,17 +15,6 @@ import {
   viewIssue,
 } from '../src/github.mts';
 import { setLabel } from '../src/labels.mts';
-import {
-  createPr,
-  findPr,
-  markPrReady,
-  mergeCommit,
-  mergePr,
-  prConflicts,
-  prMerged,
-  prNumber,
-} from '../src/pull-requests.mts';
-import { fakeClock } from './fake-clock.mts';
 import { installGh } from './fake-gh.mts';
 import { tempDir } from './temp-dir.mts';
 
@@ -38,12 +27,9 @@ echo "$1 $2" >> "${calls}"
 case "$1 $2" in
   "label list") echo '[{"name":"status:todo"}]' ;;
   "issue view") echo '{"labels":[]}' ;;
-  "issue edit"|"pr comment"|"issue comment")
+  "issue edit"|"issue comment")
     cat > /dev/null
     if [ "$(grep -c -- "$1 $2" "${calls}")" -le ${failures} ]; then echo '${error}' >&2; exit 1; fi ;;
-  "pr list")
-    if [ "$(grep -c -- "$1 $2" "${calls}")" -le ${failures} ]; then echo '${error}' >&2; exit 1; fi
-    echo '[{"number":5}]' ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `;
@@ -91,27 +77,6 @@ test('commentOnIssue posts once and fails when the network fails, so no comment 
   assert.equal(await callsOf(dir, 'issue comment'), 1);
 });
 
-test('findPr looks up the pull request again and finds it when the network fails once', async (t) => {
-  const dir = await flakyGh(t, 1, NETWORK_FAULT);
-  assert.equal(await findPr({ owner: 'acme', name: 'flaky', root: dir }, 'issue-1'), 5);
-  assert.equal(await callsOf(dir, 'pr list'), 2);
-});
-
-test('findPr reports the gh error when the lookup fails for a reason other than the network', async (t) => {
-  const dir = await flakyGh(t, 1, 'HTTP 401: Bad credentials');
-  await assert.rejects(
-    findPr({ owner: 'acme', name: 'denied', root: dir }, 'issue-1'),
-    /Bad credentials/,
-  );
-  assert.equal(await callsOf(dir, 'pr list'), 1);
-});
-
-test('prNumber reads the number from the pull request URL', () => {
-  assert.equal(prNumber('https://github.com/acme/tool/pull/42\n'), 42);
-  assert.equal(prNumber('https://github.example.com/acme/tool/pull/7'), 7);
-  assert.equal(prNumber('no url here'), undefined);
-});
-
 test('openBlockers lists the open blockers and names those of another repository', async (t) => {
   const dir = await tempDir();
   const response = JSON.stringify([
@@ -129,62 +94,6 @@ jq -r "$5" "${join(dir, 'response.json')}"
     '#3',
     'acme/other#9',
   ]);
-});
-
-async function fakeMergeGh(t: TestContext, views: string[]): Promise<string> {
-  const dir = await tempDir();
-  const calls = join(dir, 'calls');
-  await writeFile(calls, '');
-  const cases = views.map((view, index) => `  ${index + 1}) echo '${view}' ;;`).join('\n');
-  const script = `#!/bin/sh
-echo "$1 $2" >> "${calls}"
-case "$(grep -c . "${calls}")" in
-${cases}
-  *) echo '${views.at(-1)}' ;;
-esac
-`;
-  await installGh(t, dir, script);
-  return dir;
-}
-
-const MERGE_OPTIONS = { intervalSeconds: 10, timeoutMs: 60_000 };
-const QUEUED = '{"state":"OPEN","mergeCommit":null}';
-
-test('mergeCommit waits for a queued merge and gives the merge commit once the pull request is merged', async (t) => {
-  const dir = await fakeMergeGh(t, [
-    QUEUED,
-    QUEUED,
-    '{"state":"MERGED","mergeCommit":{"oid":"abc123"}}',
-  ]);
-  const repo = { owner: 'acme', name: 'queue', root: dir };
-  assert.equal(await mergeCommit(repo, 5, MERGE_OPTIONS, fakeClock()), 'abc123');
-  assert.equal(await callsOf(dir, 'pr view'), 3);
-});
-
-test('mergeCommit gives no merge commit when the queued merge does not finish in time', async (t) => {
-  const dir = await fakeMergeGh(t, [QUEUED]);
-  const repo = { owner: 'acme', name: 'slow', root: dir };
-  assert.equal(await mergeCommit(repo, 5, MERGE_OPTIONS, fakeClock()), undefined);
-});
-
-test('mergeCommit gives no merge commit when the pull request closes without a merge', async (t) => {
-  const dir = await fakeMergeGh(t, ['{"state":"CLOSED","mergeCommit":null}']);
-  const repo = { owner: 'acme', name: 'closed', root: dir };
-  assert.equal(await mergeCommit(repo, 5, MERGE_OPTIONS, fakeClock()), undefined);
-  assert.equal(await callsOf(dir, 'pr view'), 1);
-});
-
-test('prConflicts waits while GitHub still works out mergeability and reports the conflict it then finds', async (t) => {
-  const dir = await fakeMergeGh(t, ['UNKNOWN', 'UNKNOWN', 'CONFLICTING']);
-  const repo = { owner: 'acme', name: 'unknown', root: dir };
-  assert.equal(await prConflicts(repo, 5, MERGE_OPTIONS, fakeClock()), true);
-  assert.equal(await callsOf(dir, 'pr view'), 3);
-});
-
-test('prConflicts reports no conflict when mergeability stays unknown past the timeout', async (t) => {
-  const dir = await fakeMergeGh(t, ['UNKNOWN']);
-  const repo = { owner: 'acme', name: 'stuck', root: dir };
-  assert.equal(await prConflicts(repo, 5, MERGE_OPTIONS, fakeClock()), false);
 });
 
 test('a user with a ready issue newer than the issue limit gets it listed', async (t) => {
@@ -211,10 +120,7 @@ async function fakeAnyGh(t: TestContext): Promise<string> {
 case "$1 $2" in
   "repo view") echo '{"defaultBranchRef":{"name":"main"}}' ;;
   "issue view") echo '{"number":7,"title":"t","body":"","createdAt":"2026-01-01T00:00:00Z","labels":[],"comments":[],"state":"OPEN"}' ;;
-  "pr list") echo '[{"number":42}]' ;;
-  "pr create") echo https://github.com/acme/tool/pull/42 ;;
-  "pr view") echo MERGED ;;
-  "pr ready"|"pr merge"|"issue reopen") ;;
+  "issue reopen") ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `;
@@ -222,7 +128,7 @@ esac
   return dir;
 }
 
-test('the worker passes gh the repository and the issue or pull request number it acts on', async (t) => {
+test('the worker passes gh the repository and the issue number it acts on', async (t) => {
   const dir = await fakeAnyGh(t);
   const seen: string[][] = [];
   setCommandObserver((record) => seen.push(record.args));
@@ -231,12 +137,6 @@ test('the worker passes gh the repository and the issue or pull request number i
   await defaultBranch(repo);
   await viewIssue(repo, 7);
   await issueComments(repo, 7);
-  await findPr(repo, '7');
-  await createPr(repo, '7', 'main', 'fix: x', 'Closes #7', true);
-  await markPrReady(repo, 42);
-  await mergePr(repo, 42);
-  await prMerged(repo, 42);
-  await prConflicts(repo, 42, MERGE_OPTIONS);
   await reopenIssue(repo, 7);
   assert.deepEqual(seen, [
     ['repo', 'view', 'acme/tool', '--json', 'defaultBranchRef'],
@@ -250,26 +150,6 @@ test('the worker passes gh the repository and the issue or pull request number i
       'acme/tool',
     ],
     ['issue', 'view', '7', '--json', 'comments', '--repo', 'acme/tool'],
-    ['pr', 'list', '--head', '7', '--state', 'open', '--json', 'number', '--repo', 'acme/tool'],
-    [
-      'pr',
-      'create',
-      '--head',
-      '7',
-      '--base',
-      'main',
-      '--title',
-      'fix: x',
-      '--body',
-      'Closes #7',
-      '--draft',
-      '--repo',
-      'acme/tool',
-    ],
-    ['pr', 'ready', '42', '--repo', 'acme/tool'],
-    ['pr', 'merge', '42', '--squash', '--delete-branch', '--repo', 'acme/tool'],
-    ['pr', 'view', '42', '--json', 'state', '--jq', '.state', '--repo', 'acme/tool'],
-    ['pr', 'view', '42', '--json', 'mergeable', '--jq', '.mergeable', '--repo', 'acme/tool'],
     ['issue', 'reopen', '7', '--repo', 'acme/tool'],
   ]);
 });

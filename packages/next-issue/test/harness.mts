@@ -2,7 +2,6 @@ import { join } from 'node:path';
 import type { TestContext } from 'node:test';
 import type { AgentRequest, AgentResult } from '../src/agents.mts';
 import type { CheckState } from '../src/check-poll.mts';
-import type { WaitOptions } from '../src/checks.mts';
 import { type Config, loadConfig } from '../src/config.mts';
 import { HookError } from '../src/git-commit.mts';
 import type { Issue } from '../src/github.mts';
@@ -29,7 +28,6 @@ export const SAVED: IssueState = {
   issue: 7,
   phase: 'review',
   branch: 'issue-7',
-  pr: 101,
   ciFixes: 2,
   reviewRounds: 1,
   reviewLog: [{ round: 1, findings: '- old' }],
@@ -62,7 +60,6 @@ export function result(text: string): AgentResult {
 
 export type Plan = {
   config?: Partial<Config>;
-  checks?: CheckState[];
   verdicts?: Verdict[];
   commits?: Array<boolean | string | Error>;
   diff?: string;
@@ -82,7 +79,6 @@ export type Plan = {
   baseUpdated?: boolean;
   blockers?: string[];
   merges?: Array<string[] | undefined>;
-  alreadyMerged?: boolean;
   mergeResolved?: boolean;
   mergeHook?: string;
   pushRejects?: number;
@@ -109,11 +105,8 @@ export type Harness = {
   messages: string[];
   comments: string[];
   issueNotes: Array<{ number: number; body: string }>;
-  checkReads: number;
   discards: number;
   setups: string[];
-  waits: WaitOptions[];
-  checked: unknown[];
   pushes: number;
   forcedPushes: number;
   baseMerges: number;
@@ -125,7 +118,6 @@ export type Harness = {
   baseWaits: string[];
   reopened: number[];
   resets: number;
-  titles: string[];
   branches: string[];
   starts: boolean[];
   asides: Array<{ target: string; branch: string }>;
@@ -146,7 +138,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     await writeState(repo, plan.saved);
   }
 
-  const checks = [...(plan.checks ?? ['pass'])];
   const baseChecks = [...(plan.baseChecks ?? [])];
   const verdicts = [...(plan.verdicts ?? [APPROVE])];
   const commits = [...(plan.commits ?? [])];
@@ -164,11 +155,8 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     messages: [],
     comments: [],
     issueNotes: [],
-    checkReads: 0,
     discards: 0,
     setups: [],
-    waits: [],
-    checked: [],
     pushes: 0,
     forcedPushes: 0,
     baseMerges: 0,
@@ -180,7 +168,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     baseWaits: [],
     reopened: [],
     resets: 0,
-    titles: [],
     branches: [],
     starts: [],
     asides: [],
@@ -224,10 +211,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       }
       return committed;
     },
-    createPr: async (_repo, _branch, _base, title) => {
-      state.titles.push(title);
-      return 101;
-    },
     detectSetupCommand: async () => plan.detected,
     deleteBranch: async (_repo, branch) => {
       state.deleted.push(branch);
@@ -241,22 +224,13 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       return moved || plan.reviewerWrites === true;
     },
     disputeBranches: async () => plan.disputes ?? [],
-    failedCheckLogs: async (_repo, pr) => {
-      state.checked.push(pr);
-      return 'the failed job logs';
-    },
     failedBaseLogs: async () => 'the failed main logs',
-    findPr: async () => undefined,
     findWorktree: async () => undefined,
     isDirty: async () => plan.fixerWrites === true,
     latestSubject: async () => plan.earlier,
     issueComments: async () => plan.issueComments ?? [],
-    markPrReady: async () => true,
-    mergePr: async () => true,
-    mergeCommit: async () => undefined,
     openBlockers: async () => plan.blockers ?? [],
     openIssues: async () => [...(plan.open ?? [])],
-    prConflicts: async () => false,
     startMerge: async () => {
       state.baseMerges += 1;
       return merges.shift();
@@ -297,7 +271,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       state.mergeAborts.push(target);
       head = Number(target);
     },
-    prMerged: async () => plan.alreadyMerged === true,
     push: async (_worktree, _remote, _branch, force) => {
       state.pushes += 1;
       if (force === true) {
@@ -366,13 +339,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     waitForBaseChecks: async (_repo, sha) => {
       state.baseWaits.push(sha);
       return baseChecks.shift() ?? 'pass';
-    },
-    waitForChecks: async (_repo, pr, options) => {
-      state.checked.push(pr);
-      state.waits.push(options);
-      const next = checks[Math.min(state.checkReads, checks.length - 1)]!;
-      state.checkReads += 1;
-      return next;
     },
   };
   if (plan.fail !== undefined) {

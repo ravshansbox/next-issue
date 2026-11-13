@@ -52,7 +52,7 @@ the run handles one issue. For each issue:
    because its blocker closes only when the change of the blocker lands.
    An issue with saved state under `.next-issue/` resumes instead, whatever its
    other labels and blockers. Such an issue joins the list also when it is
-   closed, if its pull request is merged.
+   closed, if its change has landed on the base branch.
 2. Add `status:in-progress` to the issue.
 3. Fetch the remote, fast-forward the local copy of the default branch when
    that is safe, then add a git worktree at `.worktrees/<n>` in the
@@ -169,7 +169,7 @@ and comments the reason on the issue, when:
 - the setup command fails, or does not finish in `setupTimeoutMinutes`;
 - a step of the run fails with an error. A `gh` call that is safe to repeat,
   such as a read or a label edit, is tried up to three times first when the
-  network fails. A `gh pr create`, `gh pr comment` or `gh issue comment` is
+  network fails. A `gh issue comment` is
   tried once, so a lost reply never makes a duplicate.
 
 The fixer sees the findings of all earlier rounds, not only the last one, with
@@ -237,8 +237,7 @@ Every run has an id, `<timestamp>`, and writes these under `.next-issue/runs/`:
 - `<id>.jsonl` — one JSON object per event, with `ts`, `runId`, `kind`, and the
   `issue`, `role` or `round` in scope;
 - `<id>.summary.json` — token totals per agent role, event counts, and
-  one report per issue with the outcome, the reason, the pull request number
-  and the budgets used;
+  one report per issue with the outcome, the reason and the budgets used;
 - `<id>/sessions/` — the full pi session of each agent call, with every
   message, tool call and tool result. The session id in a `usage` event is
   part of the file name.
@@ -251,7 +250,7 @@ get the full summary object there instead, so the harness fits in a pipe. All
 progress goes to standard error.
 
 Recorded for each step: `claim`, `comments`, `reply`, `worktree`, `setup`,
-`implement`, `push`, `pull-request`, `checks`, `review` and `fix`, each with a
+`implement`, `review`, `fix`, `commit-fix`, `rebase`, `land`, `main-checks` and `revert`, each with a
 `.start`, `.end` or `.error` event and a duration in `ms`. Every `git` and `gh`
 command is recorded with its exit code and duration. A `tool` event holds the
 tool name, and for a `bash` tool the command too. Each agent call adds a `usage`
@@ -308,7 +307,9 @@ project.
 With no file, every field keeps its default. A field that is not in the file
 keeps its default. A file that cannot be read, a file that is not valid
 JSON, a field with a value of the wrong type and a field name that the harness
-does not know all stop the run, so a typo cannot pass without a word.
+does not know all stop the run, so a typo cannot pass without a word. An old
+`draftPullRequest` field stops the run with an error that says to remove it,
+because no pull request is opened.
 
 ```json
 {
@@ -327,7 +328,6 @@ does not know all stop the run, so a typo cannot pass without a word.
   "logMaxChars": 20000,
   "diffMaxChars": 60000,
   "keepRunDays": 7,
-  "draftPullRequest": true,
   "models": {
     "implementer": null,
     "reviewer": null,
@@ -361,7 +361,6 @@ does not know all stop the run, so a typo cannot pass without a word.
 | `logMaxChars`           | `20000`            | The maximum length of the failed job logs, shared between the failed jobs                                                            |
 | `diffMaxChars`          | `60000`            | The maximum length of the diff that the reviewer reads                                                                               |
 | `keepRunDays`           | `7`                | The number of days to keep the run files; `0` keeps them all                                                                         |
-| `draftPullRequest`      | `true`             | Open the pull request as a draft, until the review approves                                                                          |
 | `setupCommand`          | from the lock file | A shell command to run in a new worktree, before the implementer                                                                     |
 | `models`                | `null` per role    | The pi model per agent role, as `provider/model`: `implementer`, `reviewer`, `fixer`                                                 |
 | `labels`                | see above          | The names of the labels that the harness reads and sets                                                                              |
@@ -436,7 +435,6 @@ state of an issue that a label still holds back stays as it was.
 | `--force`   | Replace an existing config file, with `init`                                         |
 | `--once`    | Stop after the first handled issue                                                   |
 | `--max <n>` | Handle at most n issues                                                              |
-| `--merge`   | No effect: an approved change always lands on the base branch                        |
 | `--watch`   | Keep running, and read the open issues again after each pass                         |
 | `--reset`   | Drop the saved budgets and findings, and keep the rest of the state                  |
 | `--json`    | Print the machine summary instead of the text one, or the raw JSON lines with `logs` |
@@ -452,7 +450,7 @@ not, so a cron job or a CI step can read the result of the run.
 A run without `--watch` ends when no unseen issue is left. With `--watch`, the
 harness then waits, reads the open issues again and runs another pass, so it
 picks up an issue that someone opens during the run, or one whose blocker
-merges. Each pass tries every open issue again, also one that an earlier pass
+closes. Each pass tries every open issue again, also one that an earlier pass
 skipped. An issue that failed in an earlier pass is not tried again until the
 next run.
 
@@ -490,7 +488,7 @@ of one repository never affect another. The worker:
   only one worker runs per repository. A lock whose process is no longer alive
   is taken over;
 - runs at most one run at a time. Each run is like `next-issue` without
-  `--watch`, and the client says whether it merges;
+  `--watch`;
 - sends every client the progress of every run when it connects and on every
   change: for each running issue the issue, the step, the tool count and the
   last tool, and the handled issues;

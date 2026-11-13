@@ -1,7 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { secondsToMs } from './durations.mts';
 import { errorMatches } from './errors.mts';
-import { must, optionalFlag, run, type RunOptions, type RunResult, succeeded } from './exec.mts';
+import { must, optionalFlag, run, type RunOptions, type RunResult } from './exec.mts';
 import type { Repo } from './git.mts';
 
 const NETWORK_TRIES = 3;
@@ -37,7 +37,7 @@ export async function ghJson<T>(repo: Repo, args: string[]): Promise<T> {
   return JSON.parse(await gh(repo, args)) as T;
 }
 
-export type Kind = 'issue' | 'pr';
+export type Kind = 'issue';
 
 export async function viewJson<T>(
   repo: Repo,
@@ -73,10 +73,6 @@ export async function ghApi(
     '--jq',
     jq,
   ]);
-}
-
-export async function ghSucceeds(repo: Repo, args: string[]): Promise<boolean> {
-  return succeeded(await ghRun(repo, args));
 }
 
 export type Named = { name: string };

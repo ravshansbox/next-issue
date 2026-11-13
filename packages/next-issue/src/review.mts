@@ -29,7 +29,7 @@ export async function reviewRound(job: Run): Promise<Round> {
     return exhausted;
   }
 
-  await setStatus(context, issue.number, state.pr, config.labels.inReview);
+  await setStatus(context, issue.number, config.labels.inReview);
   const earlier = history(state.reviewLog);
   const verdict = parseVerdict(await runReviewer(job, earlier));
   if (verdict === undefined) {

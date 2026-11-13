@@ -8,11 +8,10 @@ test('an empty command line gives the defaults', () => {
   assert.equal(args.level, 'normal');
   assert.equal(args.max, undefined);
   assert.equal(args.once, false);
-  assert.equal(args.merge, false);
 });
 
-test('a user who passes --merge asks for the merge', () => {
-  assert.equal(parseArgs(['--merge']).merge, true);
+test('a user who passes --merge gets an unknown argument error', () => {
+  assert.throws(() => parseArgs(['--merge']), /Unknown argument: --merge/);
 });
 
 test('a user who passes --watch asks to keep watching', () => {

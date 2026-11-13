@@ -23,8 +23,8 @@ export async function escalateAndFinish(job: Run, note: string, reason: string):
 }
 
 export async function finishDone(job: Run): Promise<Finished> {
-  const { context, issue, state } = job;
-  await setStatus(context, issue.number, state.pr, context.config.labels.done);
+  const { context, issue } = job;
+  await setStatus(context, issue.number, context.config.labels.done);
   await context.ports.closeIssue(context.repo, issue.number);
   return { done: true, report: await finish(job, 'done') };
 }
@@ -49,7 +49,6 @@ function issueReport(
     issue,
     outcome,
     reason,
-    pr: state.pr,
     ciFixes: state.ciFixes,
     reviewRounds: state.reviewRounds,
     ms: elapsedMs(started),
@@ -116,7 +115,7 @@ async function handOver(
   const { repo, ports, config } = context;
   log.event('hand-over', { reason }, 'quiet');
   await writeState(repo, { ...state, handedOver: true });
-  await setStatus(context, issue, state.pr, config.labels.needsHuman);
+  await setStatus(context, issue, config.labels.needsHuman);
   await ports.commentOnIssue(repo, issue, `${HAND_OVER} ${reason}`);
 }
 

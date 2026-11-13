@@ -14,12 +14,11 @@ const SUMMARY: RunSummary = {
   counts: { 'issue.start': 2 },
   total: { ...emptyUsage(), total: 59_600 },
   issues: [
-    { issue: 41, outcome: 'done', pr: 57, ciFixes: 0, reviewRounds: 2, ms: 72_000 },
+    { issue: 41, outcome: 'done', ciFixes: 0, reviewRounds: 2, ms: 72_000 },
     {
       issue: 43,
       outcome: 'needs-human',
       reason: 'review budget',
-      pr: 58,
       ciFixes: 1,
       reviewRounds: 3,
       ms: 245_000,
@@ -36,7 +35,7 @@ test('formatSummary counts every outcome', () => {
 
 test('formatSummary drops the empty fields of an issue', () => {
   const lines = formatSummary(SUMMARY).split('\n');
-  assert.match(lines[2]!, /#41 done\b.*pr 57 .*reviews 2 .*1m12s$/);
+  assert.match(lines[2]!, /#41 done\b.*reviews 2 .*1m12s$/);
   assert.doesNotMatch(lines[2]!, /ci fixes/);
   assert.match(lines[3]!, /#43 needs-human\b.*ci fixes 1 .*reviews 3 .*4m05s .*\(review budget\)$/);
   assert.equal(lines[4], '  #44 skipped');

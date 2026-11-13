@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { CONFIG_FILE, flag, record, rejectUnknown, text, whole } from './config-fields.mts';
+import { CONFIG_FILE, record, rejectUnknown, text, whole } from './config-fields.mts';
 import { hasCode, message, parseJson } from './errors.mts';
 import { readTextIfPresent, writeJson } from './files.mts';
 
@@ -19,7 +19,6 @@ export type Config = {
   logMaxChars: number;
   diffMaxChars: number;
   keepRunDays: number;
-  draftPullRequest: boolean;
   setupCommand?: string;
   models: {
     implementer?: string;
@@ -52,7 +51,6 @@ const DEFAULTS: Config = {
   logMaxChars: 20000,
   diffMaxChars: 60000,
   keepRunDays: 7,
-  draftPullRequest: true,
   models: {},
   labels: {
     ready: 'status:todo',
@@ -130,6 +128,11 @@ export async function loadConfig(root: string): Promise<Config> {
 
 function parseConfig(value: unknown): Config {
   const file = record(value, 'the file');
+  if (file.draftPullRequest !== undefined) {
+    throw new Error(
+      `${CONFIG_FILE}: draftPullRequest is no longer used, because changes land on the base branch with no pull request. Remove the field.`,
+    );
+  }
   rejectUnknown(file, FIELDS, 'field');
   const config: Config = defaults();
   if (file.remote !== undefined) {
@@ -139,9 +142,6 @@ function parseConfig(value: unknown): Config {
     if (file[field] !== undefined) {
       (config[field] as number) = whole(file[field], field, least);
     }
-  }
-  if (file.draftPullRequest !== undefined) {
-    config.draftPullRequest = flag(file.draftPullRequest, 'draftPullRequest');
   }
   if (file.setupCommand !== undefined) {
     config.setupCommand = text(file.setupCommand, 'setupCommand', false);

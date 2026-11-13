@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Superseded by [ADR 0003](0003-land-without-pull-requests.md)
 
 ## Context
 

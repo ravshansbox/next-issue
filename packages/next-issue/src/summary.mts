@@ -35,9 +35,6 @@ export function count(reports: IssueReport[], outcome: Outcome): number {
 
 function issueLine(report: IssueReport): string {
   const parts = [`#${report.issue} ${report.outcome.padEnd(11)}`];
-  if (report.pr !== undefined) {
-    parts.push(`pr ${report.pr}`);
-  }
   if (report.ciFixes > 0) {
     parts.push(`ci fixes ${report.ciFixes}`);
   }
