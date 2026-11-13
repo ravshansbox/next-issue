@@ -1,4 +1,3 @@
-import { setTimeout as delay } from 'node:timers/promises';
 import type { Args } from './args.mts';
 import { recordCommands } from './command-records.mts';
 import { type Config, loadConfig } from './config.mts';
@@ -9,7 +8,7 @@ import { writeJson } from './files.mts';
 import { slug } from './gh.mts';
 import { detectRepo, type Repo } from './git.mts';
 import { defaultBranch } from './github.mts';
-import { hunt } from './hunt.mts';
+import { hunter } from './hunt.mts';
 import type { Interrupts } from './interrupt.mts';
 import type { Context, IssueReport } from './job.mts';
 import { exitCode, type Loop, type LoopResult, runIssues } from './loop.mts';
@@ -18,10 +17,9 @@ import { pendingIssues } from './pending.mts';
 import { processIssue } from './pipeline.mts';
 import { PORTS } from './ports.mts';
 import { pruneRuns } from './prune-runs.mts';
-import { skipReason } from './skip.mts';
 import { count, type RunSummary } from './summary.mts';
 import { packageVersion } from './version.mts';
-import { type Hunter, watchIssues } from './watch.mts';
+import { watchIssues } from './watch.mts';
 
 export type RunControls = {
   interrupts: Interrupts;
@@ -93,32 +91,17 @@ function watchRun(
 ): Promise<LoopResult> {
   const { recorder } = context;
   let passStart = recorder.summary();
+  const hunting = args.hunt ? hunter(context) : undefined;
   return watchIssues(args, {
     ...loop,
     wait: (minutes) => {
       recorder.event('watch.wait', { minutes }, 'quiet');
       passStart = recorder.summary();
-      return interrupts.sleep(minutesToMs(minutes));
+      return interrupts.sleep(minutesToMs(minutes), () => hunting?.busy() === true);
     },
     passEnd: (issues) => print({ ...recorder.summary(passStart), issues }),
-    ...(args.hunt ? { hunter: hunter(context) } : {}),
+    ...(hunting === undefined ? {} : { hunter: hunting }),
   });
-}
-
-function hunter(context: Context): Hunter {
-  const { repo, config, ports } = context;
-  const { ready } = config.labels;
-  const labels = ready.length === 0 ? [] : [ready];
-  return {
-    cap: config.huntCap,
-    ready: async () =>
-      (await ports.openIssues(repo, config.issueLimit, labels)).filter(
-        (issue) => skipReason(issue, config, false) === undefined,
-      ),
-    hunt: () => hunt(context).catch(() => undefined),
-    wait: (minutes, signal) =>
-      delay(minutesToMs(minutes), undefined, { signal }).catch(() => undefined),
-  };
 }
 
 function recordLoopEnd(recorder: Recorder, stoppedAt: number | undefined, error: unknown): void {

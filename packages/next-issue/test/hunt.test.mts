@@ -5,10 +5,10 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { REVIEWING } from '../src/agents.mts';
 import { revision } from '../src/git.mts';
-import { HUNT_FILE, hunt, huntWorktree } from '../src/hunt.mts';
+import { HUNT_FILE, hunt, hunter, huntWorktree } from '../src/hunt.mts';
 import { ISSUE_SECTIONS } from '../src/issue-format.mts';
 import { clones, commit, git } from './clones.mts';
-import { harness } from './harness.mts';
+import { harness, ISSUE } from './harness.mts';
 
 test('a user who hunts with next-issue.hunt.md sees the hunter follow it in the hunt worktree with read-only tools', async (t) => {
   const target = await harness(t);
@@ -78,4 +78,43 @@ test('a user who hunts again gets the hunt worktree reset to the new remote base
   assert.equal(await revision(path), pushed);
   assert.equal(await git(path, 'status', '--porcelain'), '');
   assert.equal(existsSync(join(path, 'stray.txt')), false);
+});
+
+test('a user who hunts sees the hunter count only issues that the watch can claim', async (t) => {
+  const open = [7, 8, 9, 10].map((number) => ({ ...ISSUE, number }));
+  open[2]!.labels = ['status:todo', 'status:in-progress'];
+  open[3]!.labels = ['status:todo', 'status:done'];
+  const target = await harness(t, { open, config: { huntCap: 3 } });
+  const asked: string[][] = [];
+  const ports = target.context.ports;
+  const list = ports.openIssues;
+  ports.openIssues = async (repo, limit, labels) => {
+    asked.push(labels);
+    return list(repo, limit, labels);
+  };
+  ports.openBlockers = async (_repo, number) => (number === 8 ? ['#3'] : []);
+  const watched = hunter(target.context);
+  assert.equal(watched.cap, 3);
+  assert.deepEqual(
+    (await watched.ready()).map((issue) => issue.number),
+    [7],
+  );
+  assert.deepEqual(asked, [['status:todo']]);
+});
+
+test('a user who hunts sees each back-off wait of the hunter in the run log', async (t) => {
+  const target = await harness(t);
+  await hunter(target.context).wait(1, AbortSignal.abort());
+  const event = target.events.find((record) => record.kind === 'hunt.wait');
+  assert.equal(event?.minutes, 1);
+});
+
+test('a user who hunts sees the hunter busy only during a hunt', async (t) => {
+  const target = await harness(t);
+  const watched = hunter(target.context);
+  assert.equal(watched.busy(), false);
+  const hunting = watched.hunt();
+  assert.equal(watched.busy(), true);
+  await hunting;
+  assert.equal(watched.busy(), false);
 });

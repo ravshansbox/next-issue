@@ -495,14 +495,14 @@ The watch stops:
 
 ## Hunt for bugs
 
-With `--hunt`, which turns on `--watch`, the harness runs a hunter agent at the same time as the issues. Before each hunt it reads the open issues with the `labels.ready` label and counts those that are ready to claim and not running. It hunts only while that count is less than `huntCap`, 1 by default. Otherwise it waits and checks again, with the same back-off as the watch: 1, 2, 3, 5, 10, then 10 minutes, back to 1 minute after a hunt. A hunt that files nothing does not stop the next one. The hunter:
+With `--hunt`, which turns on `--watch`, the harness runs a hunter agent at the same time as the issues. Before each hunt it reads the open issues with the `labels.ready` label and counts those that are ready to claim, have no open blocker and are not running. It hunts only while that count is less than `huntCap`, 1 by default. Otherwise it waits and checks again, with the same back-off as the watch: 1, 2, 3, 5, 10, then 10 minutes, back to 1 minute after a hunt. Each wait writes a `hunt.wait` event with the `minutes` to the run log. A hunt that files nothing does not stop the next one. The hunter:
 
 - works in its own worktree at `.worktrees/hunt`, at the remote base branch, which the harness fetches and resets before each hunt;
 - follows `next-issue.hunt.md` in the repository root, or a short built-in prompt when the file is missing;
 - files one issue, for its most serious finding, with the `labels.ready` label and the sections of the [issue format](#issue-format), after a search for duplicates. It files nothing when it finds no real problem or a duplicate exists;
 - runs no test suite and changes no file. It gets the tools of the reviewer.
 
-The hunter ends its reply with an `issue:` line, and the run log holds it as a `hunt.issue` event with the `url`, or `none`. A hunt that fails writes a `hunt.error` event and the watch goes on. The next pass claims the new issue like any other. At the first `Ctrl-C` the hunter stops after its current hunt, and the watch ends once the hunt and the running issues end. The hunter stops too when the watch ends for another reason.
+The hunter ends its reply with an `issue:` line, and the run log holds it as a `hunt.issue` event with the `url`, or `none`. A hunt that fails writes a `hunt.error` event and the watch goes on. The next pass claims the new issue like any other. At the first `Ctrl-C` the hunter stops after its current hunt, and the watch ends once the hunt and the running issues end. A first `Ctrl-C` during the watch wait tells you so while a hunt runs, and the third press stops the hunter at once. The hunter stops too when the watch ends for another reason.
 
 ## Worker
 
