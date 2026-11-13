@@ -89,6 +89,7 @@ export type Plan = {
   unlisted?: Issue[];
   baseChecks?: CheckState[];
   rerunChecks?: CheckState[];
+  rerunFails?: boolean;
   pressDuring?: string;
   disputes?: string[];
   earlier?: string;
@@ -291,6 +292,9 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     },
     rerunFailedBase: async (_repo, sha) => {
       state.reruns.push(sha);
+      if (plan.rerunFails === true) {
+        throw new Error('run 41 cannot be rerun');
+      }
       rerun = true;
       return ['41'];
     },

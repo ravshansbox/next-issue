@@ -1,5 +1,6 @@
 import { budgetUse } from './budget.mts';
 import { type CheckState, checkWaiting } from './check-poll.mts';
+import { asError } from './errors.mts';
 import { escalateCheckFix, fixRound } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
 import { type Gate, GATE_FIXED, GATE_PASSED, type Run } from './job.mts';
@@ -34,12 +35,19 @@ async function waitForChecks(job: Run, sha: string, fields = {}): Promise<CheckS
 }
 
 async function rerunOnce(job: Run, sha: string, checks: CheckState): Promise<CheckState> {
-  if (checks !== 'fail') {
+  const { context, log, state } = job;
+  if (checks !== 'fail' || state.rerun === sha) {
     return checks;
   }
-  const { context, log } = job;
-  const runs = await context.ports.rerunFailedBase(context.repo, sha);
-  log.event('main-checks.rerun', { sha, runs });
+  state.rerun = sha;
+  await writeState(context.repo, state);
+  try {
+    const runs = await context.ports.rerunFailedBase(context.repo, sha);
+    log.event('main-checks.rerun', { sha, runs });
+  } catch (error) {
+    log.event('main-checks.rerun-failed', { sha, error: asError(error).message });
+    return checks;
+  }
   return waitForChecks(job, sha, { rerun: true });
 }
 

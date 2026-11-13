@@ -110,8 +110,9 @@ the run handles one issue. For each issue:
    the checks pass, the harness closes the issue and sets `status:done`, and
    the worktree, the local branch and the state file go away. When the checks
    fail, the harness reruns the failed jobs once with `gh run rerun <id>
-   --failed`, records a `main-checks.rerun` event and waits again. When they
-   fail again, the fixer gets their logs from the check budget, and its fix lands
+   --failed`, records a `main-checks.rerun` event, saves the rerun in the
+   state file and waits again once the runs restart. When the rerun cannot
+   start, or the checks fail again, the fixer gets their logs from the check budget, and its fix lands
    the same way. When the fixer cannot fix them, its fix cannot land, or the
    budget runs out, the harness reverts every commit of the change on the
    base branch, pushes the revert and hands the issue to a person. A resume

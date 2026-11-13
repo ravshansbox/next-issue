@@ -61,6 +61,18 @@ test('a user whose checks on main fail again on the rerun gets the fixer only af
   assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer']);
 });
 
+test('a user whose failed jobs on main cannot be rerun gets the fixer for the red build', async (t) => {
+  const target = await harness(t, {
+    baseChecks: ['fail', 'pass'],
+    rerunFails: true,
+    fixerText: 'Done.\ncommit: fix: repair main',
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer']);
+  assert.ok(target.events.some((event) => event.kind === 'main-checks.rerun-failed'));
+});
+
 test('a user whose checks on main fail after the landing gets the fix landed the same way', async (t) => {
   const target = await harness(t, {
     baseChecks: ['fail', 'pass'],
@@ -204,6 +216,7 @@ test('a user whose revert cannot be pushed gets the issue handed over with the l
   await target.run();
   assert.match(target.comments.at(-1)!, /The revert of the change on main failed/);
   assert.deepEqual((await target.state())?.landed, ['2']);
+  assert.equal((await target.state())?.rerun, '2');
 });
 
 test('a user whose checks on main do not finish in time gets the issue handed over and the run halted', async (t) => {

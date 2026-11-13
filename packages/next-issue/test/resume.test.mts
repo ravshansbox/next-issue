@@ -36,6 +36,18 @@ test('a user who resumes a landed change whose checks on main fail gets the fix 
   assert.deepEqual(target.landed, ['2']);
 });
 
+test('a user who resumes a landed change whose failed jobs were already rerun gets the fixer without a second rerun', async (t) => {
+  const target = await harness(t, {
+    issue: IN_REVIEW,
+    saved: { ...SAVED, ciFixes: 0, landed: ['0'], rerun: '0' },
+    baseChecks: ['fail', 'pass'],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(target.reruns, []);
+  assert.deepEqual(roles(target), ['fixer']);
+});
+
 test('a user who resumes a run that died after the fix of main was committed gets the fix landed without another check fix', async (t) => {
   const target = await harness(t, {
     issue: IN_REVIEW,

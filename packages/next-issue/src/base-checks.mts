@@ -1,9 +1,19 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import { type CheckState, pollChecks, type PollOptions } from './check-poll.mts';
+import { secondsToMs } from './durations.mts';
 import { gh, ghJson } from './gh.mts';
 import type { Repo } from './git.mts';
 import { runLogs } from './run-logs.mts';
 
-type BaseRun = { databaseId: number; name: string; status: string; conclusion: string };
+type BaseRun = {
+  databaseId: number;
+  name: string;
+  status: string;
+  conclusion: string;
+  attempt: number;
+};
+
+const RESTART_TRIES = 10;
 
 const FAILED_CONCLUSIONS = new Set(['failure', 'timed_out', 'startup_failure']);
 
@@ -14,7 +24,7 @@ async function baseRuns(repo: Repo, sha: string): Promise<BaseRun[]> {
     '--commit',
     sha,
     '--json',
-    'databaseId,name,status,conclusion',
+    'databaseId,name,status,conclusion,attempt',
   ]);
 }
 
@@ -46,13 +56,25 @@ export function waitForBaseChecks(
 }
 
 export async function rerunFailedBase(repo: Repo, sha: string): Promise<string[]> {
-  const failed = (await baseRuns(repo, sha))
-    .filter(failedRun)
-    .map((entry) => String(entry.databaseId));
-  for (const runId of failed) {
-    await gh(repo, ['run', 'rerun', runId, '--failed']);
+  const failed = (await baseRuns(repo, sha)).filter(failedRun);
+  for (const entry of failed) {
+    await gh(repo, ['run', 'rerun', String(entry.databaseId), '--failed']);
   }
-  return failed;
+  await waitForRestart(repo, sha, failed);
+  return failed.map((entry) => String(entry.databaseId));
+}
+
+async function waitForRestart(repo: Repo, sha: string, failed: BaseRun[]): Promise<void> {
+  for (let attempt = 1; attempt <= RESTART_TRIES; attempt += 1) {
+    const runs = await baseRuns(repo, sha);
+    const restarted = failed.every((entry) =>
+      runs.some((run) => run.databaseId === entry.databaseId && run.attempt > entry.attempt),
+    );
+    if (restarted) {
+      return;
+    }
+    await delay(secondsToMs(1));
+  }
 }
 
 export async function failedBaseLogs(repo: Repo, sha: string, maxChars: number): Promise<string> {
