@@ -325,6 +325,7 @@ because no pull request is opened.
   "remote": "origin",
   "issueLimit": 100,
   "concurrency": 1,
+  "huntCap": 1,
   "maxCiFixes": 5,
   "maxCommitFixes": 10,
   "maxReviewRounds": 5,
@@ -358,6 +359,7 @@ because no pull request is opened.
 | `remote`                | `origin`           | The git remote for the repository and the branches                                                                                   |
 | `issueLimit`            | `100`              | The maximum number of open issues to read. With `labels.ready` set, only issues with the ready, in-progress or in-review label count |
 | `concurrency`           | `1`                | The most issues that a run handles at the same time                                                                                  |
+| `huntCap`               | `1`                | With `--hunt`, the hunter hunts only while fewer ready issues than this wait besides the running ones                                |
 | `maxCiFixes`            | `5`                | The budget for check fixes per issue                                                                                                 |
 | `maxCommitFixes`        | `10`               | The budget for fixes of a commit that a git hook stopped, per issue                                                                  |
 | `maxReviewRounds`       | `5`                | The budget for review rounds per issue                                                                                               |
@@ -443,22 +445,22 @@ state of an issue that a label still holds back stays as it was.
 
 ## Commands and options
 
-| Argument    | Effect                                                                                     |
-| ----------- | ------------------------------------------------------------------------------------------ |
-| `init`      | Write the config file with the defaults                                                    |
-| `serve`     | Run the worker of this repository that pi extensions talk to, see [Worker](#worker)        |
-| `stop`      | Stop the worker of this repository, see [Worker](#worker)                                  |
-| `logs`      | Show the latest run log and follow it, see [Observability](#observability)                 |
-| `--force`   | Replace an existing config file, with `init`                                               |
-| `--once`    | Stop after the first handled issue                                                         |
-| `--max <n>` | Handle at most n issues                                                                    |
-| `--watch`   | Keep running, and read the open issues again after each pass                               |
-| `--hunt`    | Hunt the repository for a bug when the issues run out, see [Hunt for bugs](#hunt-for-bugs) |
-| `--reset`   | Drop the saved budgets and findings, and keep the rest of the state                        |
-| `--json`    | Print the machine summary instead of the text one, or the raw JSON lines with `logs`       |
-| `--verbose` | Show every command and all agent output                                                    |
-| `--quiet`   | Show only the milestones and the summary                                                   |
-| `--help`    | Show the option list                                                                       |
+| Argument    | Effect                                                                                 |
+| ----------- | -------------------------------------------------------------------------------------- |
+| `init`      | Write the config file with the defaults                                                |
+| `serve`     | Run the worker of this repository that pi extensions talk to, see [Worker](#worker)    |
+| `stop`      | Stop the worker of this repository, see [Worker](#worker)                              |
+| `logs`      | Show the latest run log and follow it, see [Observability](#observability)             |
+| `--force`   | Replace an existing config file, with `init`                                           |
+| `--once`    | Stop after the first handled issue                                                     |
+| `--max <n>` | Handle at most n issues                                                                |
+| `--watch`   | Keep running, and read the open issues again after each pass                           |
+| `--hunt`    | Hunt the repository for bugs alongside the issues, see [Hunt for bugs](#hunt-for-bugs) |
+| `--reset`   | Drop the saved budgets and findings, and keep the rest of the state                    |
+| `--json`    | Print the machine summary instead of the text one, or the raw JSON lines with `logs`   |
+| `--verbose` | Show every command and all agent output                                                |
+| `--quiet`   | Show only the milestones and the summary                                               |
+| `--help`    | Show the option list                                                                   |
 
 The exit code is 1 when an issue needs a person or failed, and 0 when it does
 not, so a cron job or a CI step can read the result of the run.
@@ -493,14 +495,14 @@ The watch stops:
 
 ## Hunt for bugs
 
-With `--hunt`, which turns on `--watch`, the harness runs a hunter agent once when the issues run out, before the wait. It hunts again only after a pass that handled an issue, so an idle watch does not start a hunter before each wait. The hunter:
+With `--hunt`, which turns on `--watch`, the harness runs a hunter agent at the same time as the issues. Before each hunt it reads the open issues with the `labels.ready` label and counts those that are ready to claim and not running. It hunts only while that count is less than `huntCap`, 1 by default. Otherwise it waits and checks again, with the same back-off as the watch: 1, 2, 3, 5, 10, then 10 minutes, back to 1 minute after a hunt. A hunt that files nothing does not stop the next one. The hunter:
 
 - works in its own worktree at `.worktrees/hunt`, at the remote base branch, which the harness fetches and resets before each hunt;
 - follows `next-issue.hunt.md` in the repository root, or a short built-in prompt when the file is missing;
 - files one issue, for its most serious finding, with the `labels.ready` label and the sections of the [issue format](#issue-format), after a search for duplicates. It files nothing when it finds no real problem or a duplicate exists;
 - runs no test suite and changes no file. It gets the tools of the reviewer.
 
-The hunter ends its reply with an `issue:` line, and the run log holds it as a `hunt.issue` event with the `url`, or `none`. A hunt that fails writes a `hunt.error` event and the watch goes on. The next pass claims the new issue like any other. The hunter does not run alongside the issues.
+The hunter ends its reply with an `issue:` line, and the run log holds it as a `hunt.issue` event with the `url`, or `none`. A hunt that fails writes a `hunt.error` event and the watch goes on. The next pass claims the new issue like any other. At the first `Ctrl-C` the hunter stops after its current hunt, and the watch ends once the hunt and the running issues end. The hunter stops too when the watch ends for another reason.
 
 ## Worker
 

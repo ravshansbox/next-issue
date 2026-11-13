@@ -110,39 +110,112 @@ test('a watch stops after a pass that halts the run', async () => {
   assert.deepEqual(fake.passes, [[1]]);
 });
 
-function hunter(fake: FakeWatch): string[] {
-  const steps: string[] = [];
-  fake.hunt = async () => {
-    steps.push(`hunt after ${fake.processed.length}`);
-  };
-  const wait = fake.wait;
-  fake.wait = async (minutes) => {
-    steps.push('wait');
-    return wait(minutes);
-  };
-  return steps;
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve: () => void = () => undefined;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
 }
 
-test('a user who watches with --hunt sees one hunt per idle stretch, not one before each wait', async () => {
-  const fake = watcher([['done'], [], ['skipped']]);
-  const steps = hunter(fake);
-  await watchIssues(ARGS, fake);
-  assert.deepEqual(steps, ['hunt after 1', 'wait', 'wait', 'wait']);
-});
+type FakeHunter = { steps: string[]; idle: Promise<void> };
 
-test('a user who watches with --hunt sees a new hunt after a pass that handled an issue', async () => {
-  const fake = watcher([[], [], ['done'], []]);
-  const steps = hunter(fake);
-  await watchIssues(ARGS, fake);
-  assert.deepEqual(steps, ['hunt after 0', 'wait', 'wait', 'hunt after 1', 'wait', 'wait']);
-});
-
-test('a user who watches with --once sees no hunt once the issue is handled', async () => {
-  const fake = watcher([['done']]);
-  let hunts = 0;
-  fake.hunt = async () => {
-    hunts += 1;
+function hunter(fake: FakeWatch, readyLists: number[][], cap = 1): FakeHunter {
+  const steps: string[] = [];
+  const { promise: idle, resolve } = deferred();
+  const busy = Array.from({ length: cap }, (_, index) => issue(100 + index));
+  let checks = 0;
+  fake.hunter = {
+    cap,
+    ready: async () => {
+      const numbers = readyLists[checks];
+      checks += 1;
+      if (numbers === undefined) {
+        resolve();
+        return busy;
+      }
+      return numbers.map(issue);
+    },
+    hunt: async () => {
+      steps.push('hunt');
+    },
+    wait: async (minutes, signal) => {
+      steps.push(`wait ${minutes}`);
+      if (checks > readyLists.length) {
+        await new Promise((done) => signal.addEventListener('abort', done));
+      }
+    },
   };
-  await watchIssues({ ...ARGS, once: true }, fake);
-  assert.equal(hunts, 0);
+  return { steps, idle };
+}
+
+function holdIssues(fake: FakeWatch, until: Promise<void>): void {
+  const process = fake.process;
+  fake.process = async (target) => {
+    await until;
+    return process(target);
+  };
+}
+
+test('a user who watches with --hunt sees the hunter hunt while an issue runs', async () => {
+  const fake = watcher([['done']]);
+  const hunting = hunter(fake, [[]]);
+  holdIssues(fake, hunting.idle);
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(hunting.steps, ['hunt', 'wait 1']);
+  assert.deepEqual(fake.processed, [1]);
+});
+
+test('a user who watches with --hunt sees the hunter hunt only while fewer than huntCap issues are ready, and wait otherwise', async () => {
+  const fake = watcher([['done']]);
+  const hunting = hunter(fake, [[7], [7, 8], [7, 8], [8]], 2);
+  holdIssues(fake, hunting.idle);
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(hunting.steps, ['hunt', 'wait 1', 'wait 2', 'hunt', 'wait 1']);
+});
+
+test('a user who watches with --hunt sees the running issues left out of the ready count', async () => {
+  const fake = watcher([['done']]);
+  const { promise: started, resolve } = deferred();
+  const hunting = hunter(fake, [[1]]);
+  const ready = fake.hunter!.ready;
+  fake.hunter!.ready = async () => {
+    await started;
+    return ready();
+  };
+  const process = fake.process;
+  fake.process = async (target) => {
+    resolve();
+    await hunting.idle;
+    return process(target);
+  };
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(hunting.steps, ['hunt', 'wait 1']);
+});
+
+test('a user who presses Ctrl-C during a hunt sees the watch stop after that hunt', async () => {
+  const fake = watcher([['done'], ['done']]);
+  const steps: string[] = [];
+  let stopped = false;
+  const { promise: hunted, resolve } = deferred();
+  fake.stop = () => stopped;
+  fake.hunter = {
+    cap: 1,
+    ready: async () => [],
+    hunt: async () => {
+      steps.push('hunt start');
+      stopped = true;
+      resolve();
+      await new Promise((done) => setTimeout(done, 10));
+      steps.push('hunt end');
+    },
+    wait: async () => {
+      steps.push('wait');
+    },
+  };
+  holdIssues(fake, hunted);
+  const result = await watchIssues(ARGS, fake);
+  steps.push('watch end');
+  assert.deepEqual(steps, ['hunt start', 'hunt end', 'watch end']);
+  assert.equal(result.stoppedAt, 1);
 });
