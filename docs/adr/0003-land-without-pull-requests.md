@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -47,11 +47,12 @@ ends, so each commit gets its own CI run.
 
 ## Decision
 
-To be decided by the maintainer. The proposal is option C.
+Option C. The review is already done by an agent in the worktree, so a pull
+request adds a second CI run and little else, and `concurrency` keeps the
+issues working in parallel.
 
 ## Consequences
 
-If option C is accepted:
 
 - The pull request and merge code, `--merge` and `draftPullRequest` go, and
   [ADR 0002](0002-merge-setting.md) no longer applies.
