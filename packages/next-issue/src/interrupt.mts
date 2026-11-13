@@ -4,16 +4,21 @@ import { type Sleeper, wakeableSleep } from './durations.mts';
 export type Interrupts = {
   afterIssue: () => boolean;
   afterRound: () => boolean;
-  sleep: (ms: number) => Promise<boolean>;
+  sleep: (ms: number, hunting?: () => boolean) => Promise<boolean>;
 };
 
 export function listenForInterrupts(say: (text: string) => void): Interrupts {
   let presses = 0;
   const sleeper: Sleeper = {};
+  let hunting = (): boolean => false;
   const press = (): void => {
     presses += 1;
     if (presses === 1 && sleeper.wake !== undefined) {
-      say('Stopping now.');
+      say(
+        hunting()
+          ? 'Stopping after the current hunt. Press Ctrl-C twice more to stop now.'
+          : 'Stopping now.',
+      );
       sleeper.wake();
     } else if (presses === 1) {
       say('Stopping after the running issues. Press Ctrl-C again to stop after the current round.');
@@ -28,6 +33,9 @@ export function listenForInterrupts(say: (text: string) => void): Interrupts {
   return {
     afterIssue: () => presses >= 1,
     afterRound: () => presses >= 2,
-    sleep: (ms) => wakeableSleep(sleeper, ms, presses >= 1),
+    sleep: (ms, busy = () => false) => {
+      hunting = busy;
+      return wakeableSleep(sleeper, ms, presses >= 1);
+    },
   };
 }

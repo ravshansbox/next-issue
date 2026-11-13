@@ -8,7 +8,7 @@ import { writeJson } from './files.mts';
 import { slug } from './gh.mts';
 import { detectRepo, type Repo } from './git.mts';
 import { defaultBranch } from './github.mts';
-import { hunt } from './hunt.mts';
+import { hunter } from './hunt.mts';
 import type { Interrupts } from './interrupt.mts';
 import type { Context, IssueReport } from './job.mts';
 import { exitCode, type Loop, type LoopResult, runIssues } from './loop.mts';
@@ -91,15 +91,16 @@ function watchRun(
 ): Promise<LoopResult> {
   const { recorder } = context;
   let passStart = recorder.summary();
+  const hunting = args.hunt ? hunter(context) : undefined;
   return watchIssues(args, {
     ...loop,
     wait: (minutes) => {
       recorder.event('watch.wait', { minutes }, 'quiet');
       passStart = recorder.summary();
-      return interrupts.sleep(minutesToMs(minutes));
+      return interrupts.sleep(minutesToMs(minutes), () => hunting?.busy() === true);
     },
     passEnd: (issues) => print({ ...recorder.summary(passStart), issues }),
-    ...(args.hunt ? { hunt: () => hunt(context).catch(() => undefined) } : {}),
+    ...(hunting === undefined ? {} : { hunter: hunting }),
   });
 }
 

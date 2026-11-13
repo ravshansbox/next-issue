@@ -24,6 +24,15 @@ test('a user who presses Ctrl-C during a wait ends the wait at once', async (t) 
   assert.equal(await interrupts.sleep(60_000), false);
 });
 
+test('a user who presses Ctrl-C during a wait while a hunt runs is told the run stops after the hunt', async (t) => {
+  const said: string[] = [];
+  const interrupts = listen(t, (text) => said.push(text));
+  const waited = interrupts.sleep(60_000, () => true);
+  process.emit('SIGINT');
+  assert.equal(await waited, false);
+  assert.deepEqual(said, ['Stopping after the current hunt. Press Ctrl-C twice more to stop now.']);
+});
+
 test('a wait with no Ctrl-C runs to its end', async (t) => {
   const interrupts = listen(t, () => undefined);
   assert.equal(await interrupts.sleep(1), true);

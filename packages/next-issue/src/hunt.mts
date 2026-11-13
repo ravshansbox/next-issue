@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { REVIEWING } from './agents.mts';
 import { minutesToMs } from './durations.mts';
 import { readTextIfPresent } from './files.mts';
@@ -7,6 +8,8 @@ import { git, remoteRef, type Repo, resetHard } from './git.mts';
 import type { Context } from './job.mts';
 import { oneAtATime } from './lock.mts';
 import { huntPrompt } from './prompts.mts';
+import { skipReason } from './skip.mts';
+import type { Hunter } from './watch.mts';
 import { WORKTREE_DIR } from './worktree.mts';
 
 export const HUNT_FILE = 'next-issue.hunt.md';
@@ -40,4 +43,36 @@ export async function hunt(context: Context): Promise<void> {
     });
     recorder.event('hunt.issue', { url: FILED.exec(result.text)?.[1] ?? 'none' }, 'quiet');
   });
+}
+
+export function hunter(context: Context): Hunter & { busy: () => boolean } {
+  const { repo, config, recorder, ports } = context;
+  const { ready } = config.labels;
+  const labels = ready.length === 0 ? [] : [ready];
+  let hunting = false;
+  return {
+    cap: config.huntCap,
+    ready: async () => {
+      const open = (await ports.openIssues(repo, config.issueLimit, labels)).filter(
+        (issue) => skipReason(issue, config, false) === undefined,
+      );
+      const blockers = await Promise.all(
+        open.map((issue) => ports.openBlockers(repo, issue.number)),
+      );
+      return open.filter((_issue, index) => blockers[index]!.length === 0);
+    },
+    hunt: async () => {
+      hunting = true;
+      try {
+        await hunt(context).catch(() => undefined);
+      } finally {
+        hunting = false;
+      }
+    },
+    wait: (minutes, signal) => {
+      recorder.event('hunt.wait', { minutes });
+      return delay(minutesToMs(minutes), undefined, { signal }).catch(() => undefined);
+    },
+    busy: () => hunting,
+  };
 }

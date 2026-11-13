@@ -43,7 +43,7 @@ export const USAGE = `next-issue [command] [options]
   --once       stop after the first handled issue
   --max <n>    handle at most n issues
   --watch      keep running and read the issues again after each pass
-  --hunt       hunt the repository for a bug and file an issue when the issues run out, turns on --watch
+  --hunt       hunt the repository for bugs and file issues alongside the issues, turns on --watch
   --reset      drop the saved budgets and findings first
   --json       print the machine summary instead of the text one, or raw lines with logs
   --force      replace an existing config file, with init

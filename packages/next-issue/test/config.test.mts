@@ -24,6 +24,7 @@ test('a missing file gives the defaults', async () => {
   assert.equal(config.maxCiFixes, 5);
   assert.equal(config.maxCommitFixes, 10);
   assert.equal(config.concurrency, 1);
+  assert.equal(config.huntCap, 1);
   assert.equal(config.agentTimeoutMinutes, 30);
   assert.equal(config.setupTimeoutMinutes, 15);
   assert.equal(config.commandTimeoutMinutes, 10);
@@ -82,6 +83,7 @@ test('a field of the wrong type stops the run', async () => {
     /maxReviewRounds must be a whole number of 1/,
   );
   await assert.rejects(parse({ concurrency: 0 }), /concurrency must be a whole number of 1/);
+  await assert.rejects(parse({ huntCap: 0 }), /huntCap must be a whole number of 1/);
   await assert.rejects(parse({ diffMaxChars: 0 }), /diffMaxChars must be a whole number of 1/);
   await assert.rejects(
     parse({ setupTimeoutMinutes: 0 }),
