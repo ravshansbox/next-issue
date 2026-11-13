@@ -36,7 +36,7 @@ The package ships the `create-issue` skill. Ask pi to write an issue, ask for a 
 
 1. restates the problem, reads the code when the problem touches it, and finds the open issues that must be done first;
 2. asks numbered questions until none is open;
-3. runs `gh issue create --body-file` with the body from [`template.md`](skills/create-issue/template.md) and the `status:todo` label, without showing the body first;
+3. creates the `status:todo` label with `gh label create` when the repository does not have it, then runs `gh issue create --body-file` with the body from [`template.md`](skills/create-issue/template.md) and the `status:todo` label, without showing the body first;
 4. links each blocker with `gh issue edit --add-blocked-by`, so the worker waits for it;
 5. gives you the issue url and asks once whether to start a run, leave it or change it, and changes it with `gh issue edit --body-file` or `--title` until you start a run or leave it;
 6. calls `next_issue_start` when you asked for a run.

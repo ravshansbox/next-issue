@@ -11,7 +11,14 @@ Turn the problem of the user into one GitHub issue in the format of `template.md
 2. Investigate the code when the problem touches it. Read the relevant files and note what you find, with file paths. Run `gh issue list` and note each open issue that must be done first, including the issues you create in the same session.
 3. Ask numbered questions about anything that is unclear: the scope, the expected behaviour, the acceptance criteria. Label options with letters and recommend one. Ask again until no question is open.
 4. Write the body from `template.md` into a temporary file. Keep every heading of the template and its order. Leave `Open questions` empty.
-5. Create the issue without showing the body first:
+5. Create the `status:todo` label when the repository does not have it, so the worker can claim the issue:
+
+   ```bash
+   gh label list --search status:todo
+   gh label create status:todo
+   ```
+
+   Then create the issue without showing the body first:
 
    ```bash
    gh issue create --title "<title>" --body-file <file> --label status:todo

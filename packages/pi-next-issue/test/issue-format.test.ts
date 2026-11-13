@@ -27,6 +27,11 @@ test('a user who installs pi-next-issue gets the create-issue skill', async () =
   assert.match(skill, /gh issue create .*--body-file .*--label status:todo/);
 });
 
+test('an agent who creates an issue in a repository without the status:todo label creates the label first', async () => {
+  const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
+  assert.match(skill, /gh label create status:todo[\s\S]*gh issue create/);
+});
+
 test('a user who asks pi for a change in a repository with next-issue.config.json gets the create-issue skill', async () => {
   const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
   const description = skill.match(/^description: (.+)$/m)?.[1] ?? '';
