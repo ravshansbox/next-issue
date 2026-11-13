@@ -142,6 +142,46 @@ test('a handed-over issue that still has the needs-human label is not claimed', 
   assert.deepEqual(await target.state(), HANDED_OVER);
 });
 
+const NEEDS_HUMAN = { ...ISSUE, labels: ['status:needs-human'] };
+
+const HAND_OVER_NOTE = { author: 'bot', body: 'next-issue needs help: No fix commit.' };
+
+test('a person with write access who answers a handed-over issue gets the issue claimed again and the needs-human label removed', async (t) => {
+  const target = await harness(t, {
+    issue: NEEDS_HUMAN,
+    saved: HANDED_OVER,
+    thread: [HAND_OVER_NOTE, { author: 'owner', body: 'Ready, take it.' }],
+    writers: ['owner', 'bot'],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(roles(target), ['reviewer']);
+  assert.deepEqual(target.labels[0], {
+    kind: 'issue',
+    number: 7,
+    label: 'status:in-progress',
+  });
+  assert.ok(target.removable[0]!.includes('status:needs-human'));
+});
+
+test('a handed-over issue whose only later comments come from the harness or a user without write access is not claimed', async (t) => {
+  const target = await harness(t, {
+    issue: NEEDS_HUMAN,
+    saved: HANDED_OVER,
+    thread: [
+      HAND_OVER_NOTE,
+      { author: 'bot', body: '### Review: approved' },
+      { author: 'bot', body: '### Fixer: no change\n\nNothing to do.' },
+      { author: 'stranger', body: 'Ready, take it.' },
+    ],
+    writers: ['bot'],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'skipped');
+  assert.deepEqual(target.labels, []);
+  assert.deepEqual(roles(target), []);
+});
+
 test('--reset leaves the state of a skipped issue alone', async (t) => {
   const target = await harness(t, {
     issue: { ...ISSUE, labels: ['status:needs-human'] },

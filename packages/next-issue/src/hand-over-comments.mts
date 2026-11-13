@@ -125,5 +125,8 @@ export async function handOverReply(context: Context, issue: number): Promise<st
   if (last === -1) {
     return [];
   }
-  return writerQuotes(comments.slice(last + 1), writer);
+  return writerQuotes(
+    comments.slice(last + 1).filter((comment) => !fromHarness(comment)),
+    writer,
+  );
 }

@@ -2,16 +2,23 @@ import type { Config } from './config.mts';
 import { elapsedMs } from './durations.mts';
 import { message } from './errors.mts';
 import type { Issue } from './github.mts';
+import { handOverReply } from './hand-over-comments.mts';
 import type { Context, IssueReport } from './job.mts';
 import type { Recorder } from './observe.mts';
 import type { IssueState } from './state.mts';
 
 type Skip = 'stop-label' | 'not-ready' | 'in-flight';
 
-export function skipReason(issue: Issue, config: Config, resuming: boolean): Skip | undefined {
+export function skipReason(
+  issue: Issue,
+  config: Config,
+  resuming: boolean,
+  answered = false,
+): Skip | undefined {
   const labels = new Set(issue.labels);
   const names = config.labels;
-  if (labels.has(names.done) || labels.has(names.needsHuman) || labels.has(names.skip)) {
+  const waiting = labels.has(names.needsHuman) && !answered;
+  if (labels.has(names.done) || waiting || labels.has(names.skip)) {
     return 'stop-label';
   }
   if (resuming) {
@@ -33,7 +40,13 @@ export async function skipReport(
   saved: IssueState | undefined,
   started: number,
 ): Promise<IssueReport | undefined> {
-  const skip = skipReason(issue, context.config, saved !== undefined);
+  let answered: boolean;
+  try {
+    answered = await hasAnswer(context, issue);
+  } catch (error) {
+    return unclaimedError(log, issue, error, started);
+  }
+  const skip = skipReason(issue, context.config, saved !== undefined, answered);
   if (skip !== undefined) {
     log.event('issue.skip', { title: issue.title, reason: skip });
     return skipped(issue);
@@ -52,6 +65,13 @@ export async function skipReport(
     return skipped(issue);
   }
   return undefined;
+}
+
+async function hasAnswer(context: Context, issue: Issue): Promise<boolean> {
+  if (!issue.labels.includes(context.config.labels.needsHuman)) {
+    return false;
+  }
+  return (await handOverReply(context, issue.number)).length > 0;
 }
 
 export function unclaimedError(
