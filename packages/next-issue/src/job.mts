@@ -5,7 +5,7 @@ import type { Repo } from './git.mts';
 import type { Issue } from './github.mts';
 import type { Recorder } from './observe.mts';
 import type { Ports } from './ports.mts';
-import { type IssueState, writeState } from './state.mts';
+import type { IssueState } from './state.mts';
 
 export type Context = {
   repo: Repo;
@@ -23,7 +23,6 @@ export type IssueReport = {
   issue: number;
   outcome: Outcome;
   reason?: string;
-  pr?: number;
   ciFixes: number;
   reviewRounds: number;
   ms: number;
@@ -84,38 +83,7 @@ export function fallbackTitle(issue: Issue): string {
   return `fix: resolve issue #${issue.number}`;
 }
 
-export async function openPr(job: Run): Promise<void> {
-  const { context, issue, log, state, branch } = job;
+export async function setStatus(context: Context, issue: number, label: string): Promise<void> {
   const { repo, config, ports } = context;
-  const pr = await log.step('pull-request', { branch }, async () => {
-    const existing = await ports.findPr(repo, branch);
-    return (
-      existing ??
-      ports.createPr(
-        repo,
-        branch,
-        context.base,
-        state.title ?? fallbackTitle(issue),
-        `Closes #${issue.number}\n\nOpened by next-issue.`,
-        config.draftPullRequest,
-      )
-    );
-  });
-  state.pr = pr;
-  await writeState(repo, state);
-  log.event('pull-request.ready', { pr }, 'quiet');
-}
-
-export async function setStatus(
-  context: Context,
-  issue: number,
-  pr: number | undefined,
-  label: string,
-): Promise<void> {
-  const { repo, config, ports } = context;
-  const managed = managedLabels(config);
-  await ports.setLabel(repo, 'issue', issue, label, managed);
-  if (pr !== undefined) {
-    await ports.setLabel(repo, 'pr', pr, label, managed);
-  }
+  await ports.setLabel(repo, 'issue', issue, label, managedLabels(config));
 }

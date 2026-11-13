@@ -7,8 +7,6 @@ test('a user whose change is approved gets it pushed to the base branch as one c
   const target = await harness(t, { implementerText: ['Done.\ncommit: feat: add the flag'] });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  assert.equal(report.pr, undefined);
-  assert.deepEqual(target.titles, []);
   assert.equal(target.pushes, 0);
   assert.deepEqual(target.landed, ['2']);
   assert.match(target.messages.at(-1)!, /^feat: add the flag\n\nRefs #7$/);

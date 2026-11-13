@@ -26,13 +26,6 @@ export function whole(value: unknown, field: string, least: number): number {
   return value;
 }
 
-export function flag(value: unknown, field: string): boolean {
-  if (typeof value !== 'boolean') {
-    throw new Error(`${CONFIG_FILE}: ${field} must be true or false.`);
-  }
-  return value;
-}
-
 export function text(value: unknown, field: string, allowEmpty: boolean): string {
   if (typeof value !== 'string' || (!allowEmpty && value.length === 0)) {
     throw new Error(

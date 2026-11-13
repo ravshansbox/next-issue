@@ -70,7 +70,7 @@ test('every client gets the new waiting questions after an issue of a run ends',
   const { socketPath } = await worker(t, fake, '2.0.0', async () => questions);
   const starter = await connect(t, socketPath);
   const watcher = await connect(t, socketPath);
-  starter.send({ type: 'start', root: '/repo', merge: false });
+  starter.send({ type: 'start', root: '/repo' });
   await watcher.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
   questions = [QUESTION];
   fake.controls().onEvent!({ kind: 'issue.end', issue: 7, outcome: 'needs-human' });

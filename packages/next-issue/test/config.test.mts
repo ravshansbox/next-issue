@@ -24,7 +24,6 @@ test('a missing file gives the defaults', async () => {
   assert.equal(config.maxCiFixes, 5);
   assert.equal(config.maxCommitFixes, 10);
   assert.equal(config.concurrency, 1);
-  assert.equal(config.draftPullRequest, true);
   assert.equal(config.agentTimeoutMinutes, 30);
   assert.equal(config.setupTimeoutMinutes, 15);
   assert.equal(config.commandTimeoutMinutes, 10);
@@ -47,14 +46,12 @@ test('the file merges into the defaults', async () => {
     await root(
       JSON.stringify({
         maxCiFixes: 1,
-        draftPullRequest: false,
         models: { fixer: 'm' },
         labels: { done: 'shipped' },
       }),
     ),
   );
   assert.equal(config.maxCiFixes, 1);
-  assert.equal(config.draftPullRequest, false);
   assert.equal(config.maxReviewRounds, 5);
   assert.deepEqual(config.models, { fixer: 'm' });
   assert.equal(config.labels.done, 'shipped');
@@ -90,10 +87,6 @@ test('a field of the wrong type stops the run', async () => {
     parse({ setupTimeoutMinutes: 0 }),
     /setupTimeoutMinutes must be a whole number of 1/,
   );
-  await assert.rejects(
-    parse({ draftPullRequest: 'yes' }),
-    /draftPullRequest must be true or false/,
-  );
   await assert.rejects(parse({ remote: '' }), /remote must be text that is not empty/);
   await assert.rejects(parse({ setupCommand: 12 }), /setupCommand must be text that is not empty/);
   await assert.rejects(parse({ labels: 'none' }), /labels must be an object/);
@@ -105,6 +98,13 @@ test('a field of the wrong type stops the run', async () => {
 
 test('a user who sets agent in the file gets an unknown field error', async () => {
   await assert.rejects(parse({ agent: 'claude' }), /unknown field: agent/);
+});
+
+test('a user whose config still sets draftPullRequest gets an error that says to remove it', async () => {
+  await assert.rejects(
+    parse({ draftPullRequest: true }),
+    /draftPullRequest is no longer used, because changes land on the base branch with no pull request\. Remove the field\./,
+  );
 });
 
 test('an unknown field stops the run', async () => {

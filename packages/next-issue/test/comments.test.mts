@@ -103,7 +103,7 @@ test('a person with write access who answers a hand-over gets the answer into th
 test('a person who answers a hand-over before the implementation gets the answer into the prompt of the implementer', async (t) => {
   const target = await harness(t, {
     issue: UNLABELLED,
-    saved: { ...SAVED, phase: 'claimed', pr: undefined, handedOver: true },
+    saved: { ...SAVED, phase: 'claimed', handedOver: true },
     thread: THREAD,
     writers: ['owner', 'bot'],
   });

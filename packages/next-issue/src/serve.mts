@@ -73,7 +73,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     }
   };
 
-  const start = (socket: WebSocket, root: string, merge: boolean): void => {
+  const start = (socket: WebSocket, root: string): void => {
     const refusal = startRefusal(runs.get(root), restart);
     if (refusal !== undefined) {
       send(socket, { type: 'error', root, message: refusal });
@@ -89,7 +89,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     options
       .runRepo(
         root,
-        { ...parseArgs([]), merge },
+        parseArgs([]),
         runControls(run, update, () => void sendQuestions(root, () => sockets.clients)),
       )
       .then(
@@ -106,7 +106,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
         closeWhenIdle();
       }
     } else if (value.type === 'start') {
-      start(socket, value.root, value.merge === true);
+      start(socket, value.root);
     } else if (value.type === 'stop') {
       if (requestStop(runs.get(value.root))) {
         broadcast(sockets, runs);

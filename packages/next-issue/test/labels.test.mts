@@ -58,7 +58,6 @@ test('setLabel creates a missing label once and records no failed command', asyn
   const repo = { owner: 'acme', name: 'labels', root: dir };
   await setLabel(repo, 'issue', 1, 'status:todo', []);
   await setLabel(repo, 'issue', 1, 'status:new', []);
-  await setLabel(repo, 'pr', 2, 'status:new', []);
   assert.deepEqual(
     seen.filter((record) => record.code !== 0),
     [],

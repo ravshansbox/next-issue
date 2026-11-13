@@ -21,7 +21,7 @@ export async function statusOf(client: WorkerClient, root: string) {
 }
 
 function sendStart(client: WorkerClient, root: string): void {
-  client.send({ type: 'start', root, merge: true });
+  client.send({ type: 'start', root });
 }
 
 export async function startRun(

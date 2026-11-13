@@ -8,7 +8,6 @@ test('a clean run implements, reviews and finishes', async (t) => {
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.equal(report.reason, undefined);
-  assert.equal(report.pr, undefined);
   assert.equal(report.reviewRounds, 1);
   assert.equal(report.ciFixes, 0);
   assert.deepEqual(roles(target), ['implementer', 'reviewer']);

@@ -11,18 +11,16 @@ export type Args = {
   json: boolean;
   reset: boolean;
   force: boolean;
-  merge: boolean;
   watch: boolean;
   level: Level;
 };
 
-type Switch = 'once' | 'help' | 'json' | 'reset' | 'force' | 'merge' | 'watch';
+type Switch = 'once' | 'help' | 'json' | 'reset' | 'force' | 'watch';
 
 const SWITCHES = new Map<string, Switch>([
   ['--force', 'force'],
   ['--json', 'json'],
   ['--help', 'help'],
-  ['--merge', 'merge'],
   ['--watch', 'watch'],
   ['--reset', 'reset'],
   ['--once', 'once'],
@@ -42,7 +40,6 @@ export const USAGE = `next-issue [command] [options]
 
   --once       stop after the first handled issue
   --max <n>    handle at most n issues
-  --merge      no effect: an approved change always lands on the base branch
   --watch      keep running and read the issues again after each pass
   --reset      drop the saved budgets and findings first
   --json       print the machine summary instead of the text one, or raw lines with logs
@@ -60,7 +57,6 @@ export function parseArgs(argv: string[]): Args {
     json: false,
     reset: false,
     force: false,
-    merge: false,
     watch: false,
     level: 'normal',
   };

@@ -17,5 +17,4 @@ test('a user whose change lands gets the checks of the pushed commit on the base
   const target = await harness(t, { baseChecks: ['fail', 'pass'] });
   await target.run();
   assert.deepEqual(target.baseWaits, target.landed);
-  assert.deepEqual(target.waits, []);
 });

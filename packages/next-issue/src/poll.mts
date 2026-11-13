@@ -19,20 +19,3 @@ export const REAL_CLOCK: Clock = {
 export function pause(clock: Clock, options: Polling, rest: number): Promise<void> {
   return clock.sleep(Math.min(secondsToMs(options.intervalSeconds), rest));
 }
-
-export async function pollUntil<T>(
-  options: Polling,
-  clock: Clock,
-  probe: () => Promise<T>,
-  settled: (value: T) => boolean,
-): Promise<T> {
-  const deadline = clock.now() + options.timeoutMs;
-  for (;;) {
-    const value = await probe();
-    const rest = deadline - clock.now();
-    if (settled(value) || rest <= 0) {
-      return value;
-    }
-    await pause(clock, options, rest);
-  }
-}

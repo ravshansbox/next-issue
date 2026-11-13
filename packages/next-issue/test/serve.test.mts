@@ -47,10 +47,9 @@ test('a client that starts a run sees the progress of every running issue in eve
   const starter = await connect(t, socketPath);
   const watcher = await connect(t, socketPath);
   await watcher.next(runsOf);
-  starter.send({ type: 'start', root: '/repo', merge: true });
+  starter.send({ type: 'start', root: '/repo' });
   await watcher.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
   assert.equal(fake.calls[0]!.root, '/repo');
-  assert.equal(fake.calls[0]!.args.merge, true);
   fake.controls().onEvent!({ kind: 'issue.start', issue: 7, ts: '2026-11-02T10:00:00.000Z' });
   fake.controls().onEvent!({ kind: 'issue.start', issue: 8, ts: '2026-11-02T10:00:00.000Z' });
   const running = await watcher.next(
@@ -71,8 +70,8 @@ test('a client that starts a second run in the same repository gets an error', a
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo', merge: true });
-  client.send({ type: 'start', root: '/repo', merge: true });
+  client.send({ type: 'start', root: '/repo' });
+  client.send({ type: 'start', root: '/repo' });
   assert.deepEqual(await client.next((value) => value.type === 'error'), {
     type: 'error',
     root: '/repo',
@@ -85,7 +84,7 @@ test('a client that stops a run sees it stop after the round and end as stopped'
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo', merge: false });
+  client.send({ type: 'start', root: '/repo' });
   await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
   const controls = fake.controls();
   const asleep = controls.interrupts.sleep(60_000);
@@ -173,10 +172,10 @@ test('a worker that meets a newer client closes once no run is going', async (t)
   const fake = fakeRuns();
   const { socketPath, worker: started } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo', merge: true });
+  client.send({ type: 'start', root: '/repo' });
   await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
   client.send({ type: 'hello', version: '2.1.0' });
-  client.send({ type: 'start', root: '/other', merge: true });
+  client.send({ type: 'start', root: '/other' });
   assert.deepEqual(await client.next((value) => value.type === 'error'), {
     type: 'error',
     root: '/other',
@@ -193,7 +192,7 @@ test('a worker that meets an older or equal client keeps running', async (t) => 
   const client = await connect(t, socketPath);
   client.send({ type: 'hello', version: '1.9.9' });
   client.send({ type: 'hello', version: '2.0.0' });
-  client.send({ type: 'start', root: '/repo', merge: true });
+  client.send({ type: 'start', root: '/repo' });
   await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
   assert.equal(fake.calls.length, 1);
 });
@@ -216,7 +215,7 @@ test('a worker whose last client leaves during a run keeps the run going and clo
   const fake = fakeRuns();
   const { socketPath, dir, worker: started } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo', merge: true });
+  client.send({ type: 'start', root: '/repo' });
   await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
   await client.close();
   await new Promise((resolve) => setTimeout(resolve, 50));
@@ -232,12 +231,12 @@ test('a client starts a run in one repository while the worker of another reposi
   const first = await worker(t, busy);
   const second = await worker(t, other);
   const waiting = await connect(t, first.socketPath);
-  waiting.send({ type: 'start', root: '/repo', merge: true });
+  waiting.send({ type: 'start', root: '/repo' });
   await waiting.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
   waiting.send({ type: 'hello', version: '2.1.0' });
   const client = await connect(t, second.socketPath);
   client.send({ type: 'hello', version: '2.0.0' });
-  client.send({ type: 'start', root: '/repo', merge: true });
+  client.send({ type: 'start', root: '/repo' });
   await client.next((value) => value.type === 'runs' && value.runs['/repo']?.status === 'running');
   assert.equal(other.calls.length, 1);
   busy.finish();

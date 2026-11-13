@@ -16,7 +16,6 @@ test('an implementer that changes nothing hands the issue to a person', async (t
   const target = await harness(t, { commits: [false] });
   const report = await target.run();
   assert.equal(report.reason, 'no implementation commit');
-  assert.equal(report.pr, undefined);
   assert.equal(target.pushes, 0);
 });
 

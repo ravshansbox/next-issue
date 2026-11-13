@@ -18,7 +18,7 @@ export async function openJob(
   const branch = state.branch;
 
   await log.step('claim', { label: config.labels.inProgress }, async () => {
-    await setStatus(context, issue.number, state.pr, config.labels.inProgress);
+    await setStatus(context, issue.number, config.labels.inProgress);
     await writeState(repo, state);
   });
 

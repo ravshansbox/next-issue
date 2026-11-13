@@ -13,7 +13,6 @@ export type IssueState = {
   issue: number;
   phase: Phase;
   branch: string;
-  pr?: number;
   title?: string;
   ciFixes: number;
   commitFixes?: number;
@@ -83,7 +82,6 @@ function isState(value: unknown): value is IssueState {
     typeof value.issue === 'number' &&
     PHASES.includes(value.phase) &&
     typeof value.branch === 'string' &&
-    isOptional(value.pr, 'number') &&
     isOptional(value.title, 'string') &&
     typeof value.ciFixes === 'number' &&
     isOptional(value.commitFixes, 'number') &&
