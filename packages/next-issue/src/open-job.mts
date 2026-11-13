@@ -24,7 +24,7 @@ export async function openJob(
 
   const comments = await log.step('comments', {}, () => writerComments(context, log, issue.number));
   const reply = handedOver
-    ? await log.step('reply', {}, () => handOverReply(context, issue.number, state.pr))
+    ? await log.step('reply', {}, () => handOverReply(context, issue.number))
     : [];
   const worktree = await openWorktree(context, issue, log, branch, start);
   return {

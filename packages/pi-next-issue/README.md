@@ -24,11 +24,11 @@ When an issue waits for a person, with the `needsHuman` label of the [config](..
 
 Run `/next-issue answer` to go through the waiting questions one at a time. Pi suggests `answer` as you type after `/next-issue `. Each shows the issue, the title and the reason of the hand-over. Choose:
 
-- **Retry**: takes the `needsHuman` label off the issue and its pull request, so the next run resumes it.
-- **Retry with guidance**: asks for text, posts it as a comment where the worker reads it, on the pull request of the issue or on the issue when it has none, then takes the `needsHuman` label off.
-- **Give up**: takes the `needsHuman` label off the issue and its pull request and adds the `skip` label.
+- **Retry**: takes the `needsHuman` label off the issue, so the next run resumes it.
+- **Retry with guidance**: asks for text, posts it as a comment on the issue, where the worker reads it, then takes the `needsHuman` label off.
+- **Give up**: takes the `needsHuman` label off the issue and adds the `skip` label.
 
-Press Escape, or leave the guidance empty, to stop. Pi reads the list again before each question, so it skips a question answered elsewhere in the meantime. The worker sends the repository, the pull request and the label names with each question, from `next-issue.config.json` and its `remote`. Pi uses `gh` for the comment and the labels.
+Press Escape, or leave the guidance empty, to stop. Pi reads the list again before each question, so it skips a question answered elsewhere in the meantime. The worker sends the repository and the label names with each question, from `next-issue.config.json` and its `remote`. Pi uses `gh` for the comment and the labels.
 
 ## Create an issue
 

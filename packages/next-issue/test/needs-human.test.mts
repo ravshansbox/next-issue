@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { changes, harness } from './harness.mts';
+import { changes, harness, ISSUE, SAVED } from './harness.mts';
 
 test('a fixer that changes nothing and says nothing hands the issue to a person', async (t) => {
   const target = await harness(t, {
@@ -32,6 +32,21 @@ test('a user whose issue is handed over before a pull request exists gets the re
   await target.run();
   assert.equal(target.issueNotes.length, 1);
   assert.equal(target.issueNotes[0]!.number, 7);
+  assert.match(target.issueNotes[0]!.body, /^next-issue needs help: /);
+});
+
+test('a user whose resumed issue has a pull request in its state gets the hand-over as a comment on the issue', async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: [] },
+    saved: SAVED,
+    config: { maxReviewRounds: 1 },
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.deepEqual(
+    target.issueNotes.map((note) => note.number),
+    [7],
+  );
   assert.match(target.issueNotes[0]!.body, /^next-issue needs help: /);
 });
 
