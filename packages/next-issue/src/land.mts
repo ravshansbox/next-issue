@@ -14,7 +14,7 @@ export function landApproved(job: Run): Promise<Finished> {
 
 export function resumeLanding(job: Run, sha: string): Promise<Finished> {
   return landing(job, async () => {
-    if ((await job.context.ports.revision(job.worktree)) !== sha) {
+    if (await holdsUnlandedFix(job, sha)) {
       job.mainBroken = true;
       job.repairing = true;
       return landLoop(job);
@@ -25,6 +25,15 @@ export function resumeLanding(job: Run, sha: string): Promise<Finished> {
     }
     return gate.fixed ? landLoop(job) : finishDone(job);
   });
+}
+
+async function holdsUnlandedFix(job: Run, sha: string): Promise<boolean> {
+  const { context, worktree } = job;
+  const { ports, config, base } = context;
+  if ((await ports.revision(worktree)) === sha) {
+    return false;
+  }
+  return !(await ports.isLanded(worktree, base, config.remote));
 }
 
 function landing(job: Run, work: () => Promise<Finished>): Promise<Finished> {

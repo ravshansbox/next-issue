@@ -128,8 +128,9 @@ the run handles one issue. For each issue:
    budget runs out, the harness reverts every commit of the change on the
    base branch, pushes the revert and hands the issue to a person. A resume
    that stopped while the checks of a landed commit ran waits for them
-   again, and a fix that was committed but not landed lands first. A problem that the reviewer leaves
-   out of the findings thus gets an approval: only the findings count.
+   again, even when more commits landed on the base since, and a fix that
+   was committed but not landed lands first. A problem that the reviewer
+   leaves out of the findings thus gets an approval: only the findings count.
 8. With an open finding, run the fixer agent and go to step 5 again. The
    budget is `maxReviewRounds`. A fixer that holds every finding to be wrong
    changes nothing and gives its reason instead. The reason goes on the issue

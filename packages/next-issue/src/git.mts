@@ -127,6 +127,10 @@ export async function isAncestor(
   return succeeds(cwd, ['merge-base', '--is-ancestor', ancestor, descendant]);
 }
 
+export async function isLanded(cwd: string, base: string, remote: string): Promise<boolean> {
+  return isAncestor(cwd, 'HEAD', remoteRef(remote, base));
+}
+
 export async function deleteBranch(repo: Repo, branch: string): Promise<boolean> {
   return succeeds(repo.root, ['branch', '-D', branch]);
 }

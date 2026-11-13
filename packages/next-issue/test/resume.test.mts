@@ -23,6 +23,21 @@ test('a user who resumes a run that died while the checks of a landed change ran
   assert.equal(await target.state(), undefined);
 });
 
+test('a user who resumes a handed-over issue whose landed change timed out after the base moved gets the wait carried on without a revert', async (t) => {
+  const target = await harness(t, {
+    issue: IN_REVIEW,
+    saved: { ...HANDED_OVER, landed: ['-1'] },
+    baseMoved: true,
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.notEqual(report.reason, 'empty change');
+  assert.deepEqual(target.reverts, []);
+  assert.deepEqual(target.landed, []);
+  assert.deepEqual(target.baseWaits, ['-1']);
+  assert.deepEqual(target.closed, [7]);
+});
+
 test('a user who resumes a landed change whose checks on main fail gets the fix landed', async (t) => {
   const target = await harness(t, {
     issue: IN_REVIEW,

@@ -84,6 +84,7 @@ export type Plan = {
   mergeResolved?: boolean;
   mergeHook?: string;
   pushRejects?: number;
+  baseMoved?: boolean;
   revertFails?: boolean;
   fixerThrows?: boolean;
   open?: Issue[];
@@ -323,6 +324,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       return ['41'];
     },
     revision: async () => String(head),
+    isLanded: async () => plan.baseMoved === true,
     runAgent: async (_recorder, request: AgentRequest) => {
       state.prompts.push({ role: request.name, prompt: request.prompt });
       pressed ||= request.name === plan.pressDuring;

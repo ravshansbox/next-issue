@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { pushToBase, revertOnBase, squashOnto } from '../src/git-land.mts';
 import { commitMerge, startMerge } from '../src/git-merge.mts';
+import { isLanded } from '../src/git.mts';
 import { addWorktree } from '../src/worktree.mts';
 import { clones, commit, git } from './clones.mts';
 
@@ -89,4 +90,18 @@ test('revertOnBase that cannot push puts the branch back as it was', async () =>
   assert.equal(pushed, false);
   assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');
   assert.equal(await git(path, 'rev-parse', 'HEAD'), landed);
+});
+
+test('isLanded tells a branch whose head the base already holds from one with a commit the base lacks', async () => {
+  const { path, other } = await branch();
+  assert.equal(await isLanded(path, 'main', 'origin'), false);
+  assert.equal(await pushToBase(path, 'origin', 'main'), true);
+  await commit(other, 'd.txt');
+  await git(other, 'pull', '-q', '--rebase', 'origin', 'main');
+  await git(other, 'push', '-q', 'origin', 'main');
+  await git(path, 'fetch', '-q', 'origin');
+  await git(path, 'reset', '-q', '--hard', 'origin/main');
+  assert.equal(await isLanded(path, 'main', 'origin'), true);
+  await commit(path, 'e.txt');
+  assert.equal(await isLanded(path, 'main', 'origin'), false);
 });
