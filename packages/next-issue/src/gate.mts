@@ -1,5 +1,6 @@
 import { budgetUse } from './budget.mts';
-import { checkWaiting } from './check-poll.mts';
+import { type CheckState, checkWaiting } from './check-poll.mts';
+import { asError } from './errors.mts';
 import { escalateCheckFix, fixRound } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
 import { type Gate, GATE_FIXED, GATE_PASSED, type Run } from './job.mts';
@@ -7,12 +8,8 @@ import { revert } from './revert.mts';
 import { writeState } from './state.mts';
 
 export async function checkGate(job: Run, sha: string): Promise<Gate> {
-  const { context, log } = job;
-  const { repo, config, ports, base } = context;
-  const checks = await log.step('main-checks', { sha }, () =>
-    ports.waitForBaseChecks(repo, sha, checkWaiting(config, true)),
-  );
-  log.event('main-checks.state', { state: checks });
+  const { base } = job.context;
+  const checks = await rerunOnce(job, sha, await waitForChecks(job, sha));
   if (checks === 'pass' || checks === 'none') {
     return GATE_PASSED;
   }
@@ -25,6 +22,33 @@ export async function checkGate(job: Run, sha: string): Promise<Gate> {
     );
   }
   return failedChecksFix(job, sha);
+}
+
+async function waitForChecks(job: Run, sha: string, fields = {}): Promise<CheckState> {
+  const { context, log } = job;
+  const { repo, config, ports } = context;
+  const checks = await log.step('main-checks', { sha, ...fields }, () =>
+    ports.waitForBaseChecks(repo, sha, checkWaiting(config, true)),
+  );
+  log.event('main-checks.state', { state: checks, ...fields });
+  return checks;
+}
+
+async function rerunOnce(job: Run, sha: string, checks: CheckState): Promise<CheckState> {
+  const { context, log, state } = job;
+  if (checks !== 'fail' || state.rerun === sha) {
+    return checks;
+  }
+  state.rerun = sha;
+  await writeState(context.repo, state);
+  try {
+    const runs = await context.ports.rerunFailedBase(context.repo, sha);
+    log.event('main-checks.rerun', { sha, runs });
+  } catch (error) {
+    log.event('main-checks.rerun-failed', { sha, error: asError(error).message });
+    return checks;
+  }
+  return waitForChecks(job, sha, { rerun: true });
 }
 
 async function failedChecksFix(job: Run, sha: string): Promise<Gate> {

@@ -1,5 +1,5 @@
 import { runAgent } from './agents.mts';
-import { failedBaseLogs, waitForBaseChecks } from './base-checks.mts';
+import { failedBaseLogs, rerunFailedBase, waitForBaseChecks } from './base-checks.mts';
 import { run } from './exec.mts';
 import { commitAll } from './git-commit.mts';
 import { pushToBase, revertOnBase, squashOnto } from './git-land.mts';
@@ -61,6 +61,7 @@ export const PORTS = {
   pushToBase,
   removeWorktree,
   reopenIssue,
+  rerunFailedBase,
   resetToBase,
   revertOnBase,
   revision,

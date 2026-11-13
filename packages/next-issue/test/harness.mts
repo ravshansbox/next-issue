@@ -88,6 +88,8 @@ export type Plan = {
   closed?: Issue[];
   unlisted?: Issue[];
   baseChecks?: CheckState[];
+  rerunChecks?: CheckState[];
+  rerunFails?: boolean;
   pressDuring?: string;
   disputes?: string[];
   earlier?: string;
@@ -116,6 +118,7 @@ export type Harness = {
   reverts: Array<{ shas: string[]; message: string }>;
   closed: number[];
   baseWaits: string[];
+  reruns: string[];
   reopened: number[];
   resets: number;
   branches: string[];
@@ -139,6 +142,8 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
   }
 
   const baseChecks = [...(plan.baseChecks ?? [])];
+  const rerunChecks = [...(plan.rerunChecks ?? [])];
+  let rerun = false;
   const verdicts = [...(plan.verdicts ?? [APPROVE])];
   const commits = [...(plan.commits ?? [])];
   const merges = [...(plan.merges ?? [])];
@@ -166,6 +171,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     reverts: [],
     closed: [],
     baseWaits: [],
+    reruns: [],
     reopened: [],
     resets: 0,
     branches: [],
@@ -284,6 +290,14 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     resetToBase: async () => {
       state.resets += 1;
     },
+    rerunFailedBase: async (_repo, sha) => {
+      state.reruns.push(sha);
+      if (plan.rerunFails === true) {
+        throw new Error('run 41 cannot be rerun');
+      }
+      rerun = true;
+      return ['41'];
+    },
     revision: async () => String(head),
     runAgent: async (_recorder, request: AgentRequest) => {
       state.prompts.push({ role: request.name, prompt: request.prompt });
@@ -337,6 +351,10 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
         : { ...closed, open: false };
     },
     waitForBaseChecks: async (_repo, sha) => {
+      if (rerun) {
+        rerun = false;
+        return rerunChecks.shift() ?? 'fail';
+      }
       state.baseWaits.push(sha);
       return baseChecks.shift() ?? 'pass';
     },
