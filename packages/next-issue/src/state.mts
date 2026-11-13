@@ -17,15 +17,10 @@ export type IssueState = {
   title?: string;
   ciFixes: number;
   commitFixes?: number;
-  baseFix?: BaseFix;
+  landed?: string[];
   reviewRounds: number;
   reviewLog: ReviewRound[];
   handedOver?: boolean;
-};
-
-type BaseFix = {
-  sha: string;
-  head: string;
 };
 
 export type ReviewRound = {
@@ -69,8 +64,8 @@ function isOptional(value: unknown, type: 'boolean' | 'number' | 'string'): bool
   return value === undefined || typeof value === type;
 }
 
-function isBaseFix(value: unknown): value is BaseFix {
-  return isRecord(value) && typeof value.sha === 'string' && typeof value.head === 'string';
+function isLanded(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((sha) => typeof sha === 'string');
 }
 
 function isReviewRound(value: unknown): value is ReviewRound {
@@ -92,7 +87,7 @@ function isState(value: unknown): value is IssueState {
     isOptional(value.title, 'string') &&
     typeof value.ciFixes === 'number' &&
     isOptional(value.commitFixes, 'number') &&
-    (value.baseFix === undefined || isBaseFix(value.baseFix)) &&
+    (value.landed === undefined || isLanded(value.landed)) &&
     typeof value.reviewRounds === 'number' &&
     Array.isArray(value.reviewLog) &&
     value.reviewLog.every(isReviewRound) &&

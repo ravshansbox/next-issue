@@ -8,12 +8,13 @@ test('a clean run implements, reviews and finishes', async (t) => {
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.equal(report.reason, undefined);
-  assert.equal(report.pr, 101);
+  assert.equal(report.pr, undefined);
   assert.equal(report.reviewRounds, 1);
   assert.equal(report.ciFixes, 0);
   assert.deepEqual(roles(target), ['implementer', 'reviewer']);
-  assert.equal(target.pushes, 1);
-  assert.deepEqual(target.ready, [101]);
+  assert.equal(target.pushes, 0);
+  assert.deepEqual(target.landed, ['2']);
+  assert.deepEqual(target.closed, [7]);
   assert.equal(await target.state(), undefined);
   assert.deepEqual(target.deleted, ['7']);
   assert.match(target.comments[0]!, /Review: approved/);
@@ -40,12 +41,6 @@ test('a user with several issues at once gets their worktrees made one at a time
   assert.equal(most, 1);
 });
 
-test("a user gets the pull request titled with the subject of the implementer's commit", async (t) => {
-  const target = await harness(t, { implementerText: ['Done.\ncommit: feat: add the flag'] });
-  await target.run();
-  assert.deepEqual(target.titles, ['feat: add the flag']);
-});
-
 test('a base that stays behind goes to the log', async (t) => {
   const target = await harness(t, { baseUpdated: false });
   await target.run();
@@ -58,65 +53,23 @@ test('a base that the harness fast-forwards writes no such event', async (t) => 
   assert.equal(target.context.recorder.summary().counts['base.behind'], undefined);
 });
 
-test('the status labels go to the issue and to the pull request', async (t) => {
+test('the status labels go to the issue alone', async (t) => {
   const target = await harness(t);
   await target.run();
   assert.deepEqual(target.labels, [
     { kind: 'issue', number: 7, label: 'status:in-progress' },
     { kind: 'issue', number: 7, label: 'status:in-review' },
-    { kind: 'pr', number: 101, label: 'status:in-review' },
     { kind: 'issue', number: 7, label: 'status:done' },
-    { kind: 'pr', number: 101, label: 'status:done' },
   ]);
 });
 
-test('a failed build gives the logs to the fixer and then reviews', async (t) => {
-  const target = await harness(t, { checks: ['fail', 'pass'] });
-  const report = await target.run();
-  assert.equal(report.outcome, 'done');
-  assert.equal(report.ciFixes, 1);
-  assert.deepEqual(roles(target), ['implementer', 'fixer', 'reviewer']);
-  assert.match(target.prompts[1]!.prompt, /the failed job logs/);
-  assert.equal(target.pushes, 2);
-});
-
-test('a user whose branch is named after the issue number gets the checks read from the pull request number', async (t) => {
-  const target = await harness(t, { checks: ['fail', 'pass'] });
-  await target.run();
-  assert.deepEqual(new Set(target.checked), new Set([101]));
-});
-
-test('a build that fails after the approval keeps the issue open', async (t) => {
-  const target = await harness(t, { config: { maxCiFixes: 0 }, checks: ['pass', 'fail'] });
-  const report = await target.run();
-  assert.equal(report.outcome, 'needs-human');
-  assert.equal(report.reason, 'check budget');
-  assert.deepEqual(target.ready, []);
-  assert.equal(
-    target.labels.some((entry) => entry.label === 'status:done'),
-    false,
-  );
-});
-
-test('a build that fails after the approval starts a fix round', async (t) => {
-  const target = await harness(t, {
-    checks: ['pass', 'fail', 'pass'],
-    verdicts: [APPROVE, APPROVE],
-  });
-  const report = await target.run();
-  assert.equal(report.outcome, 'done');
-  assert.equal(report.ciFixes, 1);
-  assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer', 'reviewer']);
-  assert.deepEqual(target.ready, [101]);
-});
-
 test('a step that throws gives the error outcome and hands the issue over', async (t) => {
-  const target = await harness(t, { fail: 'push' });
+  const target = await harness(t, { fail: 'pushToBase' });
   const report = await target.run();
   assert.equal(report.outcome, 'error');
   assert.match(report.reason!, /the port broke/);
   assert.equal(target.labels.at(-1)?.label, 'status:needs-human');
-  assert.equal((await target.state())?.phase, 'implemented');
+  assert.equal((await target.state())?.phase, 'review');
 });
 
 test('a new issue asks for its worktree to start from the base branch', async (t) => {
@@ -129,13 +82,13 @@ test('a watcher sees each limited round with its count and its limit', async (t)
   const target = await harness(t, {
     verdicts: [changes('Rename it.'), APPROVE],
     commits: [true, 'oxlint: x is never used', true, true],
-    checks: ['pass', 'fail', 'pass'],
+    baseChecks: ['fail', 'pass'],
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.deepEqual(
     stages(target).filter((stage) => /\//.test(stage)),
-    ['review 1/5', 'review fix 1/5', 'commit fix 1/10', 'checks fix 1/5', 'review 2/5'],
+    ['review 1/5', 'review fix 1/5', 'commit fix 1/10', 'review 2/5', 'checks fix 1/5'],
   );
 });
 
@@ -143,5 +96,5 @@ test('an agent that commits its own work counts as progress', async (t) => {
   const target = await harness(t, { commits: [false], selfCommit: true });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  assert.equal(target.pushes, 1);
+  assert.equal(target.landed.length, 1);
 });

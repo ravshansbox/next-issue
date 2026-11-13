@@ -1,63 +1,59 @@
-import { spendBudget } from './budget.mts';
+import { budgetUse } from './budget.mts';
 import { checkWaiting } from './check-poll.mts';
-import { conflicts, resolveConflict } from './conflict.mts';
 import { escalateCheckFix, fixRound } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
 import { type Gate, GATE_FIXED, GATE_PASSED, type Run } from './job.mts';
-import { history } from './prompts.mts';
+import { revert } from './revert.mts';
+import { writeState } from './state.mts';
 
-export async function checkGate(job: Run): Promise<Gate> {
-  const { context, log, state, worktree } = job;
-  const { repo, config, ports } = context;
-  const head = await ports.revision(worktree);
-  const checks = await log.step('checks', { pr: state.pr, head }, () =>
-    ports.waitForChecks(repo, state.pr!, {
-      head,
-      ...checkWaiting(config, !job.noChecks),
-      show: log.level === 'verbose',
-    }),
+export async function checkGate(job: Run, sha: string): Promise<Gate> {
+  const { context, log } = job;
+  const { repo, config, ports, base } = context;
+  const checks = await log.step('main-checks', { sha }, () =>
+    ports.waitForBaseChecks(repo, sha, checkWaiting(config, true)),
   );
-  log.event('checks.state', { state: checks });
-  job.noChecks ||= checks === 'none';
-  if (checks === 'timeout') {
-    return escalateAndFinish(job, 'The checks did not finish in time.', 'checks timeout');
+  log.event('main-checks.state', { state: checks });
+  if (checks === 'pass' || checks === 'none') {
+    return GATE_PASSED;
   }
-  if (checks === 'none' && (await conflicts(job))) {
-    return resolveConflict(job);
-  }
-  if (checks === 'moved') {
+  job.mainBroken = true;
+  if (checks !== 'fail') {
     return escalateAndFinish(
       job,
-      'Someone pushed to the pull request while the harness waited for the checks.',
-      'pull request moved',
+      `The checks on ${base} did not finish in time.`,
+      'main checks timeout',
     );
   }
-  return checks === 'fail' ? failedChecksFix(job) : GATE_PASSED;
+  return failedChecksFix(job, sha);
 }
 
-async function failedChecksFix(job: Run): Promise<Gate> {
+async function failedChecksFix(job: Run, sha: string): Promise<Gate> {
   const { context, log, state } = job;
-  const { repo, config, ports } = context;
-  const exhausted = await spendBudget(
-    job,
-    'ciFixes',
-    `The limit of ${config.maxCiFixes} check fixes was reached.`,
-    'check budget',
-  );
-  if (exhausted) {
-    return exhausted;
+  const { repo, config, ports, base } = context;
+  const { round, limit } = budgetUse(job, 'ciFixes');
+  if (round >= limit) {
+    const reverted = await revert(job);
+    return escalateAndFinish(
+      job,
+      `The checks on ${base} failed and the limit of ${limit} check fixes was reached.${reverted}`,
+      'check budget',
+    );
   }
-  const logs = await ports.failedCheckLogs(repo, state.pr!, config.logMaxChars);
-  log.event('checks.logs', { chars: logs.length });
+  state.ciFixes += 1;
+  await writeState(repo, state);
+  const logs = await ports.failedBaseLogs(repo, sha, config.logMaxChars);
+  log.event('main-checks.logs', { chars: logs.length });
   const fix = await fixRound(
     job,
-    'The continuous integration checks failed.',
+    `The checks on ${base} failed after the change landed there.`,
     logs,
-    history(state.reviewLog),
+    [],
     'checks',
   );
   if (!fix.committed) {
-    return escalateCheckFix(job, fix.unrelated, 'checks');
+    const reverted = await revert(job);
+    return escalateCheckFix(job, fix.unrelated, `checks on ${base}`, reverted);
   }
+  job.repairing = true;
   return GATE_FIXED;
 }

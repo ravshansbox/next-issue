@@ -1,5 +1,4 @@
 import { enterReview } from './enter-review.mts';
-import { checkGate } from './gate.mts';
 import { branchName } from './git.mts';
 import type { Issue } from './github.mts';
 import { claimedError, stop } from './handover.mts';
@@ -91,16 +90,6 @@ async function work(
 
 async function reviewLoop(job: Run): Promise<IssueReport> {
   for (;;) {
-    if (job.context.stopAfterRound()) {
-      return stop(job);
-    }
-    const gate = await checkGate(job);
-    if (gate.done) {
-      return gate.report;
-    }
-    if (gate.fixed) {
-      continue;
-    }
     if (job.context.stopAfterRound()) {
       return stop(job);
     }

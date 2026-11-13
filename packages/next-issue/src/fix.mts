@@ -19,17 +19,18 @@ export function escalateCheckFix(
   job: Run,
   unrelated: string | undefined,
   checks: string,
+  after = '',
 ): Promise<Finished> {
   if (unrelated === undefined) {
     return escalateAndFinish(
       job,
-      `The fixer added no commit for the failed ${checks}.`,
+      `The fixer added no commit for the failed ${checks}.${after}`,
       'no fix commit',
     );
   }
   return escalateAndFinish(
     job,
-    `The ${checks} fail for a reason this change did not cause: ${unrelated}`,
+    `The ${checks} fail for a reason this change did not cause: ${unrelated}${after}`,
     'unrelated failure',
   );
 }
@@ -40,12 +41,10 @@ export async function fixRound(
   detail: string,
   earlier: string[],
   kind: FixKind,
-  force = false,
-  from?: string,
 ): Promise<Fix> {
-  const { context, issue, log, worktree, branch } = job;
-  const { ports, config } = context;
-  const before = from ?? (await ports.revision(worktree));
+  const { context, issue, log, worktree } = job;
+  const { ports } = context;
+  const before = await ports.revision(worktree);
   const text = await runFixer(job, reason, detail, earlier, kind);
   const unrelated = parseUnrelated(text);
   if (unrelated !== undefined) {
@@ -56,7 +55,6 @@ export async function fixRound(
     log.event('commit.empty', { reason }, 'quiet');
     return { committed: false };
   }
-  await ports.push(worktree, config.remote, branch, force);
   return { committed: true };
 }
 

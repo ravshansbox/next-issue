@@ -12,12 +12,12 @@ test('a user who asks to stop during the implementation gets the run stopped bef
   assert.equal(target.labels.at(-1)?.label, 'status:in-progress');
 });
 
-test('a user who asks to stop during a checks round gets the fix and no review', async (t) => {
-  const target = await harness(t, { pressDuring: 'fixer', checks: ['fail', 'pass'] });
+test('a user who asks to stop during the fix of main gets the fix landed first', async (t) => {
+  const target = await harness(t, { pressDuring: 'fixer', baseChecks: ['fail', 'pass'] });
   const report = await target.run();
-  assert.equal(report.outcome, 'stopped');
-  assert.deepEqual(roles(target), ['implementer', 'fixer']);
-  assert.equal((await target.state())?.ciFixes, 1);
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer']);
+  assert.deepEqual(target.landed, ['2', '4']);
 });
 
 test('a user who asks to stop during a review round gets the fix and no next review', async (t) => {

@@ -10,6 +10,12 @@ import { readState } from './state.mts';
 
 export const HAND_OVER = 'next-issue needs help:';
 
+const HARNESS_HEADINGS = [HAND_OVER, '### Review:', '### Fixer:'];
+
+function fromHarness(comment: Comment): boolean {
+  return HARNESS_HEADINGS.some((heading) => comment.body.startsWith(heading));
+}
+
 type Writer = (author: string) => Promise<boolean>;
 
 function writers(repo: Repo, ports: Pick<Ports, 'canWrite'>): Writer {
@@ -107,7 +113,10 @@ export async function writerComments(
   issue: number,
 ): Promise<string[]> {
   const { repo, ports } = context;
-  return writerQuotes(await ports.issueComments(repo, issue), writers(repo, ports), (comment) =>
+  const comments = (await ports.issueComments(repo, issue)).filter(
+    (comment) => !fromHarness(comment),
+  );
+  return writerQuotes(comments, writers(repo, ports), (comment) =>
     log.event('comment.skip', { author: comment.author }, 'quiet'),
   );
 }

@@ -132,7 +132,6 @@ async function startRun(
     config,
     base,
     reset: args.reset,
-    merge: args.merge,
     stopAfterRound: interrupts.afterRound,
     recorder,
     ports: PORTS,

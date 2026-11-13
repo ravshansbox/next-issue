@@ -12,17 +12,20 @@ import {
 } from './job.mts';
 import { oneAtATime } from './lock.mts';
 import type { Fields, Recorder } from './observe.mts';
+import { revertFailedFix } from './revert.mts';
 import { logIssueError } from './skip.mts';
 import { dropState, type IssueState, writeState } from './state.mts';
 
 export async function escalateAndFinish(job: Run, note: string, reason: string): Promise<Finished> {
-  await handOver(job.context, job.log, job.issue.number, job.state, note);
+  const reverted = await revertFailedFix(job);
+  await handOver(job.context, job.log, job.issue.number, job.state, `${note}${reverted}`);
   return { done: true, report: await finish(job, 'needs-human', reason) };
 }
 
 export async function finishDone(job: Run): Promise<Finished> {
   const { context, issue, state } = job;
   await setStatus(context, issue.number, state.pr, context.config.labels.done);
+  await context.ports.closeIssue(context.repo, issue.number);
   return { done: true, report: await finish(job, 'done') };
 }
 

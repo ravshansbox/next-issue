@@ -8,7 +8,7 @@ test('an implementer whose commit fails in a hook gets the hook output and commi
   assert.equal(report.outcome, 'done');
   assert.deepEqual(roles(target), ['implementer', 'implementer', 'reviewer']);
   assert.match(target.prompts[1]!.prompt, /oxlint: publicProcedure is never used/);
-  assert.equal(target.pushes, 1);
+  assert.equal(target.landed.length, 1);
   assert.equal(report.ciFixes, 0);
 });
 

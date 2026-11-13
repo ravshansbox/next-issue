@@ -3,6 +3,7 @@ import { failedBaseLogs, waitForBaseChecks } from './base-checks.mts';
 import { failedCheckLogs, waitForChecks } from './checks.mts';
 import { run } from './exec.mts';
 import { commitAll } from './git-commit.mts';
+import { pushToBase, revertOnBase, squashOnto } from './git-land.mts';
 import { abortMerge, commitMerge, startMerge } from './git-merge.mts';
 import {
   deleteBranch,
@@ -18,6 +19,7 @@ import {
 } from './git.mts';
 import {
   canWrite,
+  closeIssue,
   commentOnIssue,
   commentOnPr,
   issueComments,
@@ -50,6 +52,7 @@ export const PORTS = {
   abortMerge,
   addWorktree,
   canWrite,
+  closeIssue,
   commentOnIssue,
   commentOnPr,
   commitAll,
@@ -75,14 +78,17 @@ export const PORTS = {
   prConflicts,
   prMerged,
   push,
+  pushToBase,
   removeWorktree,
   reopenIssue,
   resetToBase,
+  revertOnBase,
   revision,
   runAgent,
   runSetup,
   setAside,
   setLabel,
+  squashOnto,
   startMerge,
   threadComments,
   viewIssue,

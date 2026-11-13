@@ -42,7 +42,7 @@ export const USAGE = `next-issue [command] [options]
 
   --once       stop after the first handled issue
   --max <n>    handle at most n issues
-  --merge      squash-merge the pull request after the approval
+  --merge      no effect: an approved change always lands on the base branch
   --watch      keep running and read the issues again after each pass
   --reset      drop the saved budgets and findings first
   --json       print the machine summary instead of the text one, or raw lines with logs
