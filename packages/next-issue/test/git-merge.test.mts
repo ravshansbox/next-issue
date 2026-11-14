@@ -65,6 +65,8 @@ test('startMerge lists a modify/delete or binary conflict, which holds no confli
   await git(other, 'push', '-q', 'origin', 'main');
   await git(repo.root, 'fetch', '-q', 'origin');
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  await git(path, 'config', 'user.name', 't');
+  await git(path, 'config', 'user.email', 't@t');
   await writeFile(join(path, 'gone.txt'), 'branch\n');
   await writeFile(join(path, 'img.bin'), Buffer.from([0, 3, 4]));
   await git(path, 'commit', '-q', '-am', 'branch');
