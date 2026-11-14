@@ -38,6 +38,7 @@ export async function setLabel(
 }
 
 export async function ensureLabel(repo: Repo, label: string): Promise<void> {
+  KNOWN_LABELS.delete(repoArg(repo));
   const created = await createUnknownLabel(repo, label);
   if (created instanceof Error) {
     KNOWN_LABELS.delete(repoArg(repo));

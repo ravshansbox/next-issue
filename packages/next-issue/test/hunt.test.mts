@@ -460,6 +460,21 @@ test('a user whose hunt label was created by someone else after the harness read
   assert.ok(!target.events.some((record) => record.kind === 'hunt.error'));
 });
 
+test('a user who deletes the ready and hunt labels after the harness read the labels sees the next hunt create them again before the hunter runs', async (t) => {
+  const { target, file } = await labelledHunt(t, 'label-deleted', 'status:todo\nsource:hunt\n');
+  assert.equal(await hunter(target.context).hunt(1), true);
+  await writeFile(file, '');
+  let labelsAtHunt = '';
+  const runAgent = target.context.ports.runAgent;
+  target.context.ports.runAgent = async (...args) => {
+    labelsAtHunt = await readFile(file, 'utf8');
+    return runAgent(...args);
+  };
+  assert.equal(await hunter(target.context).hunt(1), true);
+  assert.equal(labelsAtHunt, 'status:todo\nsource:hunt\n');
+  assert.ok(!target.events.some((record) => record.kind === 'hunt.error'));
+});
+
 test('a user whose hunt label create fails for another reason sees the hunt fail with a hunt.error event and no hunter run', async (t) => {
   const { target } = await labelledHunt(t, 'label-denied', '', 'permission denied');
   assert.equal(await hunter(target.context).hunt(1), false);
