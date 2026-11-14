@@ -44,7 +44,7 @@ async function savedIssue(
   } catch (error) {
     context.recorder
       .scope({ issue: number })
-      .event('issue.error', { error: message(error) }, 'quiet');
+      .event('issue.unreadable', { error: message(error) }, 'quiet');
     return { open: false };
   }
 }

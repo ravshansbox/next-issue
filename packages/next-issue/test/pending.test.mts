@@ -7,6 +7,7 @@ import { pendingIssues } from '../src/pending.mts';
 import { processIssue } from '../src/pipeline.mts';
 import { applyEvent, startProgress } from '../src/progress.mts';
 import { type IssueState, stateDir, writeState } from '../src/state.mts';
+import { newRun, runControls } from '../src/worker-run.mts';
 import { harness, ISSUE, roles, SAVED } from './harness.mts';
 
 const OLDER: Issue = { ...ISSUE, number: 3, createdAt: '2025-12-01T00:00:00Z' };
@@ -81,7 +82,7 @@ test('a user whose open issue has a saved state but lost its status label gets i
   );
 });
 
-test('a user whose saved issue can no longer be read gets the other issues and an error for that issue', async (t) => {
+test('a user whose saved issue can no longer be read gets the other issues and a logged error for that issue', async (t) => {
   const target = await harness(t, {
     saved: SAVED,
     open: [LATER],
@@ -92,7 +93,43 @@ test('a user whose saved issue can no longer be read gets the other issues and a
     issues.map((entry) => entry.number),
     [9],
   );
-  assert.equal(target.context.recorder.summary().counts['issue.error'], 1);
+  const unreadable = target.events.filter((record) => record.kind === 'issue.unreadable');
+  assert.deepEqual(
+    unreadable.map((record) => record.issue),
+    [7],
+  );
+});
+
+test('a watcher whose run cannot read a saved issue sees no handled issue for it', async (t) => {
+  const target = await harness(t, {
+    saved: SAVED,
+    open: [LATER],
+    fail: 'viewIssue',
+  });
+  await pendingIssues(target.context);
+  assert.deepEqual(target.events.reduce(applyEvent, startProgress()).handled, []);
+});
+
+test('a watcher whose run cannot read a saved issue is not sent the question list again', async (t) => {
+  const target = await harness(t, {
+    saved: SAVED,
+    open: [LATER],
+    fail: 'viewIssue',
+  });
+  await pendingIssues(target.context);
+  let sent = 0;
+  const run = newRun(startProgress());
+  const controls = runControls(
+    run,
+    (next) => {
+      run.progress = next;
+    },
+    () => {
+      sent += 1;
+    },
+  );
+  target.events.forEach((record) => controls.onEvent?.(record));
+  assert.equal(sent, 0);
 });
 
 test('a user with a ready label gets only the ready, in-progress and in-review issues asked for', async (t) => {
