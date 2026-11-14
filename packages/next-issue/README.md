@@ -544,9 +544,12 @@ affect another. The worker:
   repository. Only your user can open the file. It works on macOS and Linux.
   When the path of the socket file is too long for the system, about 103
   bytes on macOS and 107 on Linux, it exits with an error that says so;
-- holds `.next-issue/worker.lock` in the repository, with its process id, so
-  only one worker runs per repository. A lock whose process is no longer alive
-  is taken over;
+- holds `.next-issue/worker.lock` in the repository, with its process id and
+  the start time of that process, so only one worker runs per repository. A
+  lock is stale, and is taken over, when no process has that id or the process
+  with that id started at another time, for example because the system gave
+  the id of a worker that was killed or lost in a reboot to another process.
+  A lock without a start time, from an older version, is stale too;
 - refuses a `start`, `stop` or `questions` message whose `root` is not
   the exact path of its repository with an `error` message, and starts or
   stops nothing;
@@ -595,9 +598,9 @@ affect another. The worker:
 
 Stop the worker of a repository with `next-issue stop` in that repository.
 Workers of other repositories carry on. This sends `SIGTERM` to the process in
-the lock file, so the worker stops at once and a run that is going resumes from
-its saved state next time. When no worker is running, the command says so and
-exits with 0.
+the lock file when the lock is not stale, so the worker stops at once and a
+run that is going resumes from its saved state next time. When no worker is
+running, the command says so and exits with 0.
 
 Versions before one worker per repository ran one worker for the machine,
 with `next-issue.sock`, `next-issue.lock` and `next-issue.roots.json` in

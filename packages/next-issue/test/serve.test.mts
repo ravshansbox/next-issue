@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { statSync } from 'node:fs';
 import { readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { Server } from 'node:net';
@@ -7,6 +8,7 @@ import { type TestContext, test } from 'node:test';
 import { onStop } from '../src/children.mts';
 import { run, type RunResult } from '../src/exec.mts';
 import type { WorkerMessage } from '../src/protocol.mts';
+import { processStart } from '../src/lock.mts';
 import { startWorker } from '../src/serve.mts';
 import { tempDir } from './temp-dir.mts';
 import { connect, fakeRuns, noQuestions, runsOf, worker } from './worker-harness.mts';
@@ -308,7 +310,7 @@ test('a worker started while the last one closes takes the lock once it is relea
   const dir = await tempDir();
   const socketPath = join(dir, 'w.sock');
   const lockPath = join(dir, 'w.lock');
-  await writeFile(lockPath, `${process.pid}\n`);
+  await writeFile(lockPath, `${process.pid} ${await processStart(process.pid)}\n`);
   setTimeout(() => void rm(lockPath, { force: true }), 100);
   const started = await startWorker({
     root: '/repo',
@@ -352,6 +354,27 @@ test('a worker takes over the lock and the socket file that a dead worker left',
     version: '2.0.0',
     runRepo: fakeRuns().runRepo,
     questions: noQuestions,
+  });
+  assert.ok(started);
+  t.after(() => started.close());
+  await connect(t, socketPath);
+});
+
+test('a worker takes over the lock when its process id now belongs to a process that is not a worker', async (t) => {
+  const dir = await tempDir();
+  const socketPath = join(dir, 'w.sock');
+  const lockPath = join(dir, 'w.lock');
+  const other = spawn('sleep', ['30']);
+  t.after(() => other.kill('SIGKILL'));
+  await writeFile(lockPath, `${other.pid} Thu Jan  1 00:00:00 1970\n`);
+  const started = await startWorker({
+    root: '/repo',
+    socketPath,
+    lockPath,
+    version: '2.0.0',
+    runRepo: fakeRuns().runRepo,
+    questions: noQuestions,
+    lockWaitMs: 0,
   });
   assert.ok(started);
   t.after(() => started.close());

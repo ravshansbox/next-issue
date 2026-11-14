@@ -1,5 +1,7 @@
+import { execFile } from 'node:child_process';
 import { rm, writeFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
+import { promisify } from 'node:util';
 import { hasCode } from './errors.mts';
 import { readTextOrEmpty } from './files.mts';
 
@@ -16,18 +18,29 @@ export function oneAtATime<T>(root: string, work: () => Promise<T>): Promise<T> 
   return result;
 }
 
-function alive(pid: number): boolean {
+export async function processStart(pid: number): Promise<string | undefined> {
+  const stat = await readTextOrEmpty(`/proc/${pid}/stat`);
+  if (stat !== '') {
+    return stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19];
+  }
   try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return hasCode(error, 'EPERM');
+    const { stdout } = await promisify(execFile)('ps', ['-o', 'lstart=', '-p', String(pid)], {
+      env: { ...process.env, LC_ALL: 'C' },
+    });
+    return stdout.trim() || undefined;
+  } catch {
+    return undefined;
   }
 }
 
 async function holder(lockPath: string): Promise<number | undefined> {
-  const pid = Number((await readTextOrEmpty(lockPath)).trim());
-  return pid > 0 && alive(pid) ? pid : undefined;
+  const [first = '', ...rest] = (await readTextOrEmpty(lockPath)).trim().split(' ');
+  const pid = Number(first);
+  const started = rest.join(' ');
+  if (!(pid > 0) || started === '') {
+    return undefined;
+  }
+  return (await processStart(pid)) === started ? pid : undefined;
 }
 
 export async function stopWorker(lockPath: string): Promise<number | undefined> {
@@ -42,7 +55,10 @@ export async function lock(path: string, waitMs: number): Promise<boolean> {
   const deadline = Date.now() + waitMs;
   for (;;) {
     try {
-      await writeFile(path, `${process.pid}\n`, { flag: 'wx', mode: 0o600 });
+      await writeFile(path, `${process.pid} ${await processStart(process.pid)}\n`, {
+        flag: 'wx',
+        mode: 0o600,
+      });
       return true;
     } catch (error) {
       if (!hasCode(error, 'EEXIST')) {

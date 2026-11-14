@@ -218,6 +218,20 @@ test('a user who runs stop with no worker alive sees that none is running', asyn
   assert.equal(await stopCommand(root), 'next-issue: no worker is running\n');
 });
 
+test('a user who runs stop while the lock holds the id of a live process that is not a worker sees that none is running and the process keeps going', async (t) => {
+  const root = await repository();
+  const other = spawn('sleep', ['30']);
+  t.after(() => other.kill('SIGKILL'));
+  await mkdir(stateDir(root));
+  for (const lock of [`${other.pid}\n`, `${other.pid} Thu Jan  1 00:00:00 1970\n`]) {
+    await writeFile(workerPaths(root).lockPath, lock);
+    assert.equal(await stopCommand(root), 'next-issue: no worker is running\n');
+  }
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(other.signalCode, null);
+  assert.equal(other.exitCode, null);
+});
+
 test('a user who serves a repository whose socket path is too long sees an error that says so', async () => {
   const root = join(await tempDir(), 'a'.repeat(120));
   await mkdir(root);
