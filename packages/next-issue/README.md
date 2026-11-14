@@ -670,13 +670,18 @@ major. Any other type releases nothing.
 The workflow then gives `next-issue` and `@ravshansbox/pi-next-issue` the same
 new version and publishes both packages to npm with a
 [trusted publish](https://docs.npmjs.com/trusted-publishers), so no token is
-stored. Only after the publish does it push the tag and make the GitHub release,
-so a failed publish leaves no half-release behind. npm makes a new version
-live a few minutes after the publish, and not always in the order it got them,
-so before it publishes, the job waits until npm serves both packages at the
-version of the last tag, for up to 10 minutes. Thus a new version never goes
-live before the one that came before it. A manual run of the workflow checks
-out the last tag and publishes that commit under the tag version, and
-changes nothing else. This repairs a release that reached GitHub but not npm.
+stored. It pushes the tag before the publish and makes the GitHub release after
+it, so the next release always counts from the new tag and never tries to
+publish a version that npm already holds. npm makes a new version live a few
+minutes after the publish, and not always in the order it got them, so before
+it publishes, the job waits until npm serves both packages at the version of the
+last tag, for up to 10 minutes. Thus a new version never goes live before the
+one that came before it. Every run first repairs the last tag: from a checkout
+of that tag it publishes each package that npm does not serve at the tag
+version, and makes the GitHub release if it is missing. A package that npm
+refuses as a version it already holds, but does not serve yet, counts as
+published. So when a step fails after the tag push, the next run finishes that
+release before it makes a new one. To repair a release without a new commit,
+run the workflow by hand; a manual run does nothing else.
 The release job stays on a GitHub runner, because npm takes provenance only
 from a GitHub runner.

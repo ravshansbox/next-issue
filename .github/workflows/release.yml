@@ -20,8 +20,6 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - if: github.event_name == 'workflow_dispatch'
-        run: git checkout "$(git describe --tags --match 'v*' --abbrev=0)"
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -30,11 +28,9 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - if: github.event_name == 'workflow_dispatch'
-        run: |
-          last=$(git describe --tags --exact-match --match 'v*')
-          npm version --no-git-tag-version --allow-same-version --workspaces "${last#v}" > /dev/null
-          npm publish --workspaces
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/repair-release.sh
       - if: github.event_name == 'push'
         id: bump
         run: |
@@ -67,7 +63,7 @@ jobs:
           version=$(node -p "require('./packages/next-issue/package.json').version")
           npm version --no-git-tag-version --allow-same-version --workspaces "$version" > /dev/null
           tag="v$version"
-          npm publish --workspaces
           git tag "$tag"
           git push origin "$tag"
+          npm publish --workspaces
           gh release create "$tag" --title "$tag" --generate-notes
