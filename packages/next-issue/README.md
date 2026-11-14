@@ -396,7 +396,9 @@ Recorded for each step: `claim`, `comments`, `reply`, `worktree`, `setup`,
 command is recorded with its exit code and duration. A `tool` event holds the
 tool name, and for a `bash` tool the command too. Each agent call adds a `usage`
 event with the tokens, the turn count, the
-tool-call count, the model and the session id.
+tool-call count, the model and the session id. A call that times out, ends
+with a model error or is stopped after its session started adds one too, and
+its tokens count in the summary totals.
 
 ```bash
 jq -r 'select(.kind=="usage") | [.issue,.role,.turns,.total] | @tsv' \

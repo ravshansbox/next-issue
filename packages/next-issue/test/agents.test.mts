@@ -237,6 +237,74 @@ test('a user who stops a run now while a pi agent runs gets no agent reply, only
   await assert.rejects(running, { message: 'The run stopped.' });
 });
 
+async function assertFailedUsage(
+  recorder: Recorder,
+  request: { name: string; model: string },
+  turns: number,
+): Promise<void> {
+  const usages = (await logRecords(recorder)).filter((record) => record.kind === 'usage');
+  assert.equal(usages.length, 1);
+  const usage = usages[0]!;
+  assert.equal(usage.role, request.name);
+  assert.equal(usage.turns, turns);
+  assert.equal(usage.toolCalls, turns > 1 ? 1 : 0);
+  assert.equal(usage.model, request.model);
+  assert.equal(typeof usage.session, 'string');
+  assert.ok(Number(usage.total) > 0);
+  const summary = recorder.summary();
+  assert.equal(summary.roles[request.name]?.calls, 1);
+  assert.equal(summary.total.total, usage.total);
+}
+
+test('a user whose agent times out sees a usage event and summary totals with the tokens it spent', async () => {
+  const { recorder, request } = await fakePi(
+    [
+      fauxAssistantMessage([fauxToolCall('ls', { path: '.' })], { stopReason: 'toolUse' }),
+      fauxAssistantMessage('word '.repeat(500)),
+    ],
+    50,
+  );
+  await assert.rejects(runAgent(recorder, { ...request, timeoutMs: 1000 }), {
+    message: 'The coder agent did not finish in 1000 ms.',
+  });
+  await assertFailedUsage(recorder, request, 2);
+});
+
+test('a user whose agent model fails sees a usage event and summary totals with the tokens it spent', async () => {
+  const { recorder, request } = await fakePi([
+    fauxAssistantMessage([fauxToolCall('ls', { path: '.' })], { stopReason: 'toolUse' }),
+    fauxAssistantMessage('', { stopReason: 'error', errorMessage: 'no credit' }),
+  ]);
+  request.runtime.settingsManager = SettingsManager.inMemory({ retry: { enabled: false } });
+  await assert.rejects(runAgent(recorder, request), {
+    message: 'The coder agent failed: no credit',
+  });
+  await assertFailedUsage(recorder, request, 2);
+});
+
+test('a user who stops a run now while an agent runs sees a usage event and summary totals with the tokens it spent', async () => {
+  const { recorder, request } = await fakePi(
+    [
+      fauxAssistantMessage([fauxToolCall('ls', { path: '.' })], { stopReason: 'toolUse' }),
+      fauxAssistantMessage('word '.repeat(500)),
+    ],
+    50,
+  );
+  const children = runChildren();
+  const running = withRunChildren(children, () => runAgent(recorder, request));
+  setTimeout(() => stopRunChildren(children), 1000);
+  await assert.rejects(running, { message: 'The run stopped.' });
+  await assertFailedUsage(recorder, request, 2);
+});
+
+test('a user whose agent succeeds sees exactly one usage event', async () => {
+  const { recorder, request } = await fakePi([fauxAssistantMessage('done')]);
+  await runAgent(recorder, request);
+  const usages = (await logRecords(recorder)).filter((record) => record.kind === 'usage');
+  assert.equal(usages.length, 1);
+  assert.equal(recorder.summary().roles[request.name]?.calls, 1);
+});
+
 test('the harness refuses a model name without a provider', async () => {
   const { recorder, request } = await fakePi([]);
   await assert.rejects(runAgent(recorder, { ...request, model: 'opus' }), {

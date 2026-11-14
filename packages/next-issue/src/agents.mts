@@ -80,7 +80,13 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
   try {
     refuseWhenStopped();
     await session.bindExtensions({});
-    await session.prompt(request.prompt, { expandPromptTemplates: false });
+    let result: AgentResult;
+    try {
+      await session.prompt(request.prompt, { expandPromptTemplates: false });
+    } finally {
+      // A call that times out, fails or is stopped has spent tokens too.
+      result = sessionResult(recorder, request, session, started);
+    }
     refuseWhenStopped();
     if (timer.timedOut()) {
       throw new Error(`The ${request.name} agent did not finish in ${request.timeoutMs} ms.`);
@@ -89,7 +95,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     if (failure !== undefined) {
       throw new Error(`The ${request.name} agent failed: ${failure}`);
     }
-    return sessionResult(recorder, request, session, started);
+    return result;
   } finally {
     timer.clear();
     release();
