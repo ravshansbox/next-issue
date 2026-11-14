@@ -1,3 +1,5 @@
+import { runStopped } from './children.mts';
+import { message } from './errors.mts';
 import type { Run } from './job.mts';
 import { writeState } from './state.mts';
 
@@ -6,7 +8,23 @@ export async function revertFailedFix(job: Run): Promise<string> {
     return '';
   }
   job.repairing = false;
-  return revert(job);
+  return revertOrReport(job);
+}
+
+export async function revertOrReport(job: Run): Promise<string> {
+  try {
+    return await revert(job);
+  } catch (error) {
+    if (runStopped()) {
+      throw error;
+    }
+    job.repairing = false;
+    return ` The revert of the change on ${job.context.base} failed: ${sentence(message(error))} The landed commits stay on ${job.context.base}.`;
+  }
+}
+
+export function sentence(text: string): string {
+  return text.endsWith('.') ? text : `${text}.`;
 }
 
 export async function revert(job: Run): Promise<string> {

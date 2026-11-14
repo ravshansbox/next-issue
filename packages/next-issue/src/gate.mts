@@ -5,7 +5,7 @@ import { asError, message } from './errors.mts';
 import { escalateCheckFix, type Fix, fixRound } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
 import { type Finished, type Gate, GATE_FIXED, GATE_PASSED, type Run } from './job.mts';
-import { revert } from './revert.mts';
+import { revertOrReport, sentence } from './revert.mts';
 import { writeState } from './state.mts';
 
 export async function checkGate(job: Run, sha: string): Promise<Gate> {
@@ -114,20 +114,4 @@ export async function escalateError(
   }
   const reverted = await revertOrReport(job);
   return escalateAndFinish(job, `${note}: ${sentence(message(error))}${reverted}`, reason);
-}
-
-async function revertOrReport(job: Run): Promise<string> {
-  try {
-    return await revert(job);
-  } catch (error) {
-    if (runStopped()) {
-      throw error;
-    }
-    job.repairing = false;
-    return ` The revert of the change on ${job.context.base} failed: ${sentence(message(error))} The landed commits stay on ${job.context.base}.`;
-  }
-}
-
-function sentence(text: string): string {
-  return text.endsWith('.') ? text : `${text}.`;
 }

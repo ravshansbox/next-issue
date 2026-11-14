@@ -208,6 +208,55 @@ test('a user whose fix for main cannot be pushed gets the change reverted', asyn
   );
 });
 
+function revertThrows(target: Awaited<ReturnType<typeof harness>>) {
+  target.context.ports.revertOnBase = async () => {
+    throw new Error('git: fetch failed');
+  };
+}
+
+test('a user whose fix for main cannot be pushed and whose revert throws gets the landed commits kept, the issue handed over and the run halted', async (t) => {
+  const target = await harness(t, {
+    baseChecks: ['fail'],
+    fixerText: 'Done.\ncommit: fix: repair main',
+  });
+  const ports = target.context.ports;
+  const pushToBase = ports.pushToBase;
+  ports.pushToBase = async (...args) => (target.landed.length > 0 ? false : pushToBase(...args));
+  revertThrows(target);
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'push failed');
+  assert.equal(report.halt, true);
+  assert.match(
+    target.comments.at(-1)!,
+    /needs help: The push to main failed 3 times\. The revert of the change on main failed: git: fetch failed\. The landed commits stay on main\./,
+  );
+  assert.deepEqual((await target.state())?.landed, ['2']);
+});
+
+test('a user whose push of the fix for main reports a failure, whose fetch of the base fails and whose revert throws gets the issue handed over and the run halted', async (t) => {
+  const target = await harness(t, {
+    baseChecks: ['fail'],
+    fixerText: 'Done.\ncommit: fix: repair main',
+  });
+  const ports = target.context.ports;
+  const pushToBase = ports.pushToBase;
+  ports.pushToBase = async (...args) => (target.landed.length > 0 ? false : pushToBase(...args));
+  ports.isOnBase = async () => {
+    throw new Error('fetch failed');
+  };
+  revertThrows(target);
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'push unknown');
+  assert.equal(report.halt, true);
+  assert.match(
+    target.comments.at(-1)!,
+    /needs help: The push to main failed and the fetch of main failed too, .* The revert of the change on main failed: git: fetch failed\. The landed commits stay on main\./,
+  );
+  assert.deepEqual((await target.state())?.landed, ['2']);
+});
+
 async function fixLandingFails(t: Parameters<typeof harness>[0], options = {}) {
   const target = await harness(t, {
     baseChecks: ['fail'],
