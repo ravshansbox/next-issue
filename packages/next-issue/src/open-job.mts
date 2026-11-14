@@ -18,8 +18,8 @@ export async function openJob(
   const branch = state.branch;
 
   await log.step('claim', { label: config.labels.inProgress }, async () => {
-    await setStatus(context, issue.number, config.labels.inProgress);
     await writeState(repo, state);
+    await setStatus(context, issue.number, config.labels.inProgress);
   });
 
   const comments = await log.step('comments', {}, () => writerComments(context, log, issue.number));

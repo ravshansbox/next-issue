@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { APPROVE, changes, harness, roles } from './harness.mts';
+import { APPROVE, changes, harness, ISSUE, roles } from './harness.mts';
 
 test('a user who asks to stop during the implementation gets the run stopped before the push, with the state kept', async (t) => {
   const target = await harness(t, { pressDuring: 'implementer' });
@@ -53,4 +53,15 @@ test('a user who stops a run now during the implementation gets the issue stoppe
   assert.deepEqual(target.comments, []);
   assert.equal((await target.state())?.handedOver, undefined);
   assert.equal(target.labels.at(-1)?.label, 'status:in-progress');
+});
+
+test('a user who stops a run now while a new issue is claimed, after GitHub applied the in-progress label, gets the next run to resume that issue', async (t) => {
+  const first = await harness(t, { stopNowOnLabel: 'status:in-progress' });
+  assert.equal((await first.run()).outcome, 'stopped');
+  const saved = await first.state();
+  const issue = { ...ISSUE, labels: ['status:in-progress'] };
+  const target = await harness(t, { saved, issue });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(target.closed, [7]);
 });

@@ -104,6 +104,7 @@ export type Plan = {
   rerunFails?: boolean;
   pressDuring?: string;
   stopNowDuring?: string;
+  stopNowOnLabel?: string;
   disputes?: string[];
   earlier?: string;
   thread?: Array<{ author: string; body: string }>;
@@ -415,6 +416,10 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     setLabel: async (_repo, kind, number, label, remove) => {
       state.labels.push({ kind, number, label });
       state.removable.push(remove);
+      if (label === plan.stopNowOnLabel) {
+        stopRunChildren(children);
+        refuseWhenStopped();
+      }
     },
     threadComments: async (_repo, number) => {
       state.threads.push(number);
