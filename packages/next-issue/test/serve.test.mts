@@ -5,7 +5,7 @@ import { statSync } from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import { readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { syncBuiltinESMExports } from 'node:module';
-import { Server } from 'node:net';
+import { createConnection, Server } from 'node:net';
 import { dirname, join } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import { onStop } from '../src/children.mts';
@@ -283,6 +283,32 @@ test('a client that sends a malformed message gets no reply, no run starts and t
   assert.equal(fake.calls.length, 0);
   const another = await connect(t, socketPath);
   assert.deepEqual(await another.next(runsOf), { type: 'runs', runs: {} });
+});
+
+async function sendMalformedFrame(socketPath: string): Promise<void> {
+  const raw = createConnection(socketPath);
+  const closed = new Promise<void>((resolve) => raw.on('close', () => resolve()));
+  raw.on('error', () => {});
+  raw.once('connect', () => {
+    raw.write(
+      'GET / HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n' +
+        'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n',
+    );
+  });
+  raw.once('data', () => {
+    raw.write(Buffer.from([0x81, 0x02, 0x68, 0x69]));
+  });
+  await closed;
+}
+
+test('a client that sends a malformed frame loses its connection while the worker keeps its run going and answers other clients', async (t) => {
+  const { fake, socketPath } = await startedRun(t);
+  await sendMalformedFrame(socketPath);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const another = await connect(t, socketPath);
+  const runs = await another.next(runsOf);
+  assert.equal(runs.type === 'runs' && runs.runs['/repo']?.status, 'running');
+  assert.equal(fake.controls().interrupts.afterIssue(), false);
 });
 
 test('a client whose message the worker fails to handle gets an error and the worker keeps answering', async (t) => {

@@ -152,6 +152,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     send(socket, runsMessage(runs));
     void sendQuestions(options.root, () => [socket]);
     socket.on('close', closeWhenIdle);
+    socket.on('error', () => socket.terminate());
     socket.on('message', (data) => {
       const value = parseMessage(String(data));
       if (value === undefined) {
