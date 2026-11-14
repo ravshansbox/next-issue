@@ -16,6 +16,7 @@ export async function enterReview(job: Run): Promise<Round> {
       'revert stopped',
     );
   }
+  await settleSquash(job);
   const landed = state.landed?.at(-1);
   if (landed !== undefined) {
     return resumeLanding(job, landed);
@@ -42,6 +43,17 @@ async function settlePush(job: Run): Promise<void> {
   }
   state.pushing = undefined;
   await writeState(repo, state);
+}
+
+async function settleSquash(job: Run): Promise<void> {
+  const { context, state, worktree, branch } = job;
+  const sha = state.squashing;
+  if (sha === undefined) {
+    return;
+  }
+  await context.ports.discardChanges(worktree, sha, branch);
+  state.squashing = undefined;
+  await writeState(context.repo, state);
 }
 
 async function settleRevert(job: Run): Promise<boolean> {

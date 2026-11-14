@@ -22,6 +22,7 @@ export type IssueState = {
   landed?: string[];
   pushing?: string;
   reverting?: string;
+  squashing?: string;
   rerun?: string;
   reviewing?: string;
   reviewRounds: number;
@@ -104,6 +105,7 @@ function isState(value: unknown): value is IssueState {
     (value.landed === undefined || isLanded(value.landed)) &&
     isOptional(value.pushing, 'string') &&
     isOptional(value.reverting, 'string') &&
+    isOptional(value.squashing, 'string') &&
     isOptional(value.rerun, 'string') &&
     isOptional(value.reviewing, 'string') &&
     typeof value.reviewRounds === 'number' &&

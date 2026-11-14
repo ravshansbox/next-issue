@@ -4,6 +4,7 @@ import type { Merge } from './git-merge.mts';
 import { commitWork, runFixer } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
 import { fallbackTitle, type Finished, type Run } from './job.mts';
+import { writeState } from './state.mts';
 
 export async function rebase(job: Run): Promise<Finished | undefined> {
   const { context, issue, log, state, worktree } = job;
@@ -31,7 +32,7 @@ export async function rebase(job: Run): Promise<Finished | undefined> {
   }
   const merged = await ports.revision(worktree);
   const squashed = await commitWork(job, merged, title, 'fixer', (cwd, message) =>
-    ports.squashOnto(cwd, target, message),
+    squash(job, cwd, target, message),
   );
   if (!squashed) {
     return escalateAndFinish(
@@ -41,6 +42,17 @@ export async function rebase(job: Run): Promise<Finished | undefined> {
     );
   }
   return undefined;
+}
+
+async function squash(job: Run, cwd: string, target: string, message: string): Promise<boolean> {
+  const { context, state } = job;
+  state.squashing = await context.ports.revision(cwd);
+  await writeState(context.repo, state);
+  try {
+    return await context.ports.squashOnto(cwd, target, message);
+  } finally {
+    state.squashing = undefined;
+  }
 }
 
 async function mergeBase(job: Run, merge: Merge): Promise<Finished | undefined> {

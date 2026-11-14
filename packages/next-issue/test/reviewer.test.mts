@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { access, chmod, writeFile } from 'node:fs/promises';
+import { access, chmod, copyFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { AgentRequest } from '../src/agents.mts';
@@ -9,6 +9,7 @@ import {
   diff,
   discardChanges,
   isDirty,
+  isLanded,
   isOnBase,
   latestSubject,
   type Repo,
@@ -230,6 +231,85 @@ test('a user who stops now during the squash hook keeps the change on branch 7, 
   assert.deepEqual(roles(resumed), []);
   await git(repo.root, 'fetch', '-q', 'origin');
   await git(repo.root, 'cat-file', '-e', 'origin/main:implementer.txt');
+});
+
+function squashKilledInHook(
+  killed: Harness,
+  root: string,
+  hooks: string,
+  call: number,
+): { restore: () => Promise<void> } {
+  const saved = join(hooks, 'state.json');
+  let calls = 0;
+  killed.context.ports.squashOnto = async (worktree, target, message) => {
+    calls += 1;
+    if (calls === call) {
+      await writeFile(
+        join(hooks, 'pre-commit'),
+        `#!/bin/sh\ncp '${join(root, '.next-issue', '7.json')}' '${saved}'\ntouch "$(git rev-parse --git-common-dir)/refs/heads/7.lock"\nexit 1\n`,
+      );
+      await chmod(join(hooks, 'pre-commit'), 0o755);
+      await git(worktree, 'config', 'core.hooksPath', hooks);
+    }
+    try {
+      return await squashOnto(worktree, target, message);
+    } catch (error) {
+      killed.stopNow();
+      throw error;
+    }
+  };
+  return {
+    restore: async () => {
+      const common = await git(root, 'rev-parse', '--path-format=absolute', '--git-common-dir');
+      await rm(join(common, 'refs', 'heads', '7.lock'));
+      await git(root, 'config', '--unset', 'core.hooksPath');
+      await copyFile(saved, join(root, '.next-issue', '7.json'));
+    },
+  };
+}
+
+test('a user whose run dies during the squash hook gets the approved change landed by the next run with no new review', async (t) => {
+  const repo = await gitRepo();
+  const first = await harness(t, { root: repo.root });
+  withGit(first, async () => undefined);
+  const killed = squashKilledInHook(first, repo.root, await tempDir(), 1);
+  assert.equal((await first.run()).outcome, 'stopped');
+  assert.equal(
+    await git(repo.root, 'rev-parse', '7'),
+    await git(repo.root, 'rev-parse', 'origin/main'),
+  );
+  await killed.restore();
+  const resumed = await harness(t, { root: repo.root });
+  withGit(resumed, async () => undefined);
+  Object.assign(resumed.context.ports, { squashOnto, pushToBase });
+  const report = await resumed.run();
+  assert.equal(report.reason, undefined);
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(roles(resumed), []);
+  await git(repo.root, 'fetch', '-q', 'origin');
+  await git(repo.root, 'cat-file', '-e', 'origin/main:implementer.txt');
+});
+
+test('a user whose run dies during the squash hook of a fix for failed main checks gets the fix landed by the next run', async (t) => {
+  const repo = await gitRepo();
+  const first = await harness(t, { root: repo.root, baseChecks: ['fail'] });
+  withGit(first, async () => undefined);
+  Object.assign(first.context.ports, { pushToBase, isLanded });
+  const killed = squashKilledInHook(first, repo.root, await tempDir(), 2);
+  assert.equal((await first.run()).outcome, 'stopped');
+  await git(repo.root, 'fetch', '-q', 'origin');
+  assert.equal(
+    await git(repo.root, 'rev-parse', '7'),
+    await git(repo.root, 'rev-parse', 'origin/main'),
+  );
+  await killed.restore();
+  const resumed = await harness(t, { root: repo.root });
+  withGit(resumed, async () => undefined);
+  Object.assign(resumed.context.ports, { squashOnto, pushToBase, isLanded });
+  assert.equal((await resumed.run()).outcome, 'done');
+  assert.deepEqual(roles(resumed), []);
+  await git(repo.root, 'fetch', '-q', 'origin');
+  await git(repo.root, 'cat-file', '-e', 'origin/main:fixer.txt');
 });
 
 test('a user who stops the run after the revert push lands and then resumes gets the change on branch 7 on top of the revert, and a retry lands it again', async (t) => {
