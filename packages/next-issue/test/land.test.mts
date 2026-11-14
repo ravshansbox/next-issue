@@ -57,6 +57,20 @@ test('a user whose push to the base branch lands but reports a failure and whose
   );
 });
 
+test('a user whose push to the base branch reports a failure and whose fetch of the base then fails gets the issue handed over, the commit kept and the run halted', async (t) => {
+  const first = await harness(t, { pushLandsAndFails: true, baseFetchFails: true });
+  const report = await first.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'push unknown');
+  assert.equal(report.halt, true);
+  const saved = await first.state();
+  assert.equal(saved?.pushing, '2');
+  const target = await harness(t, { saved, issue: { ...ISSUE, labels: [] }, baseMoved: true });
+  assert.equal((await target.run()).outcome, 'done');
+  assert.deepEqual(roles(target), []);
+  assert.deepEqual(target.baseWaits, ['2']);
+});
+
 test('a user whose push to the base branch keeps failing gets the issue handed over', async (t) => {
   const target = await harness(t, { pushRejects: 3 });
   const report = await target.run();

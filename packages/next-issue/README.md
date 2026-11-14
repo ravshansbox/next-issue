@@ -112,13 +112,15 @@ the run handles one issue. For each issue:
    that the remote refuses, for example because the base moved, starts the
    rebase again, three times at most. When the push fails, the harness
    fetches the base first, and treats the push as landed when the base holds
-   the commit, for example after a timeout. The state file holds the commit
-   during the push, so a run stopped meanwhile checks the base on resume and
-   waits for the checks of the commit when it landed. The harness then waits
-   for the checks of the pushed commit on the base branch. A repository that
-   reports no check keeps asking for `checkGraceSeconds`. A pending state
-   waits again, up to `checkTimeoutMinutes`. A read that fails is tried
-   three times. When the checks pass, the harness closes the issue and sets
+   the commit, for example after a timeout. When that fetch fails too, the
+   harness hands the issue to a person with the reason `push unknown` and
+   halts. The state file holds the commit during the push, so a run stopped
+   meanwhile, or the next run after that hand-over, checks the base on resume
+   and waits for the checks of the commit when it landed. The harness then
+   waits for the checks of the pushed commit on the base branch. A repository
+   that reports no check keeps asking for `checkGraceSeconds`. A pending state
+   waits again, up to `checkTimeoutMinutes`. A read that fails is tried three
+   times. When the checks pass, the harness closes the issue and sets
    `status:done`, fetches the remote and fast-forwards the local base branch
    to the landed commit when that is safe, and the worktree, the local branch
    and the state file go away. A fetch that fails or a fast-forward that is

@@ -38,6 +38,17 @@ test('a user who resumes a handed-over issue whose landed change timed out after
   assert.deepEqual(target.closed, [7]);
 });
 
+test('a user who resumes a run whose saved push never reached the base gets a review round and no wait for the checks of that commit', async (t) => {
+  const target = await harness(t, {
+    issue: IN_REVIEW,
+    saved: { ...SAVED, pushing: '9' },
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(roles(target), ['reviewer']);
+  assert.deepEqual(target.baseWaits, ['1']);
+});
+
 test('a user who resumes a landed change whose checks on main fail gets the fix landed', async (t) => {
   const target = await harness(t, {
     issue: IN_REVIEW,

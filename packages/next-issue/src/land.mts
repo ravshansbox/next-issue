@@ -1,3 +1,4 @@
+import { runStopped } from './children.mts';
 import { rebase } from './conflict.mts';
 import { checkGate } from './gate.mts';
 import { PUSH_TRIES } from './git-land.mts';
@@ -74,8 +75,21 @@ async function pushChange(job: Run): Promise<Finished | string> {
       { base, sha },
       async () =>
         (await ports.pushToBase(worktree, config.remote, base)) ||
-        ports.isOnBase(worktree, base, config.remote, sha),
+        ports.isOnBase(worktree, base, config.remote, sha).catch((error: unknown) => {
+          if (runStopped()) {
+            throw error;
+          }
+          return undefined;
+        }),
     );
+    if (pushed === undefined) {
+      job.mainBroken = true;
+      return escalateAndFinish(
+        job,
+        `The push to ${base} failed and the fetch of ${base} failed too, so the harness cannot tell whether the commit landed.`,
+        'push unknown',
+      );
+    }
     state.pushing = undefined;
     if (pushed) {
       state.landed = [...(state.landed ?? []), sha];

@@ -91,6 +91,7 @@ export type Plan = {
   pushRejects?: number;
   pushLandsAndFails?: boolean;
   pushLandsAndStops?: boolean;
+  baseFetchFails?: boolean;
   baseMoved?: boolean;
   revertFails?: boolean;
   fixerThrows?: boolean;
@@ -295,6 +296,9 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     },
     isOnBase: async (_worktree, _base, _remote, sha) => {
       refuseWhenStopped();
+      if (plan.baseFetchFails === true) {
+        throw new Error('fetch failed');
+      }
       return state.landed.includes(sha) || plan.baseMoved === true;
     },
     revertOnBase: async (_worktree, revert) => {
