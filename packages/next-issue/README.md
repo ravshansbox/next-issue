@@ -483,7 +483,10 @@ A `setupCommand` that fails, or that does not finish in `setupTimeoutMinutes`,
 hands the issue to a person. The wait for the checks has its own limit, so
 `commandTimeoutMinutes` holds for every other `git` and `gh` command. State per
 issue goes to `.next-issue/<issue>.json`, so a new run continues where the last
-run stopped. A state file that is not valid JSON, or that does not hold a valid
+run stopped. The harness writes a state file to a temporary file in the same
+folder and renames it over the old one, so a state file is replaced in one
+step: a run killed or a disk that fills up during a write leaves the earlier
+state. A state file that is not valid JSON, or that does not hold a valid
 state, gives the issue an `error` outcome that names the file, rather than a
 silent skip.
 

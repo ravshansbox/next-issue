@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { writeFile } from 'node:fs/promises';
+import fsPromises from 'node:fs/promises';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { syncBuiltinESMExports } from 'node:module';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { Repo } from '../src/git.mts';
@@ -8,6 +10,7 @@ import {
   type IssueState,
   readState,
   resetState,
+  savedIssues,
   stateDir,
   writeState,
 } from '../src/state.mts';
@@ -43,6 +46,38 @@ test('a caller that reads a state file of an earlier version with a fingerprint 
   assert.deepEqual((await readState(target, 7))?.reviewLog, [
     { round: 1, fingerprint: 'a b', findings: '- a b' },
   ]);
+});
+
+test('a write of the state that fails part-way leaves the earlier state file readable and unchanged', async (t) => {
+  const target = await repo();
+  await writeState(target, STATE);
+  const path = join(stateDir(target.root), '7.json');
+  const before = await readFile(path, 'utf8');
+  const realWriteFile = fsPromises.writeFile;
+  t.mock.method(fsPromises, 'writeFile', async (file: string, data: string) => {
+    await realWriteFile(file, data.slice(0, 5));
+    throw Object.assign(new Error('ENOSPC'), { code: 'ENOSPC' });
+  });
+  syncBuiltinESMExports();
+  t.after(() => {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  });
+  await assert.rejects(writeState(target, { ...STATE, ciFixes: 2 }), { message: 'ENOSPC' });
+  t.mock.restoreAll();
+  syncBuiltinESMExports();
+  assert.equal(await readFile(path, 'utf8'), before);
+  assert.deepEqual(await readState(target, 7), STATE);
+  assert.deepEqual(await readdir(stateDir(target.root)), ['7.json']);
+});
+
+test('a completed write of the state leaves only the state file, and savedIssues lists only the issue', async () => {
+  const target = await repo();
+  await writeState(target, STATE);
+  await writeState(target, { ...STATE, ciFixes: 2 });
+  assert.deepEqual(await readdir(stateDir(target.root)), ['7.json']);
+  assert.equal((await readState(target, 7))?.ciFixes, 2);
+  assert.deepEqual(await savedIssues(target), [7]);
 });
 
 test('a missing state gives undefined', async () => {

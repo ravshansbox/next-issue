@@ -1,4 +1,5 @@
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { hasCode } from './errors.mts';
 
 export function readTextOrEmpty(path: string): Promise<string> {
@@ -15,6 +16,17 @@ export function prettyJson(value: unknown): string {
 
 export function writeJson(path: string, value: unknown, options?: { flag: string }): Promise<void> {
   return writeFile(path, prettyJson(value), options);
+}
+
+export async function replaceJson(path: string, value: unknown): Promise<void> {
+  const draft = `${path}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(draft, prettyJson(value));
+    await rename(draft, path);
+  } catch (error) {
+    await rm(draft, { force: true });
+    throw error;
+  }
 }
 
 export async function unlessMissing<T>(read: () => Promise<T>): Promise<T | undefined> {
