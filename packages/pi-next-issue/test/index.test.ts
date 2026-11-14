@@ -124,7 +124,7 @@ function setup(
   options: {
     version?: string;
     spawn?: (path: string) => Promise<void>;
-    gh?: (call: GhCall) => void;
+    gh?: (call: GhCall) => string | undefined;
     paths?: Record<string, string>;
   } = {},
 ) {
@@ -156,8 +156,7 @@ function setup(
         ...(run.input === undefined ? {} : { input: run.input }),
       };
       calls.push(call);
-      options.gh?.(call);
-      return '';
+      return options.gh?.(call) ?? '';
     },
   });
   return { path, spawns, calls, extension };
@@ -1012,8 +1011,81 @@ test('a user who answers retry with guidance posts it on the issue, then takes t
   ]);
 });
 
+function labelledGh(repoLabels: string[], createFails = false) {
+  const issueLabels = new Set(['status:needs-human']);
+  const gh = ({ args }: GhCall): string | undefined => {
+    const [noun, verb] = args;
+    if (noun === 'label' && verb === 'list') {
+      return JSON.stringify(repoLabels.map((name) => ({ name })));
+    }
+    if (noun === 'label' && verb === 'create') {
+      if (createFails) {
+        throw new Error('gh label create failed: HTTP 403');
+      }
+      repoLabels.push(args[2] ?? '');
+      return undefined;
+    }
+    if (noun === 'issue' && verb === 'edit') {
+      const added = args.filter((_, index) => args[index - 1] === '--add-label');
+      const removed = args.filter((_, index) => args[index - 1] === '--remove-label');
+      const unknown = added.find((label) => !repoLabels.includes(label));
+      if (unknown !== undefined) {
+        throw new Error(`'${unknown}' not found`);
+      }
+      removed.forEach((label) => issueLabels.delete(label));
+      added.forEach((label) => issueLabels.add(label));
+    }
+    return undefined;
+  };
+  return { gh, issueLabels, repoLabels };
+}
+
+test('a user who gives up in a repository without the skip label creates it and sees it on the issue', async () => {
+  const fake = labelledGh([]);
+  const { path, calls, extension } = setup({ gh: fake.gh });
+  await questionWorker(path, [[question(4)], []]);
+  const { pi, emit, command, notes } = host('tui', '/repo', ['Give up']);
+  extension(pi as never);
+  await emit('session_start');
+  await command('answer');
+  assert.deepEqual([...fake.issueLabels], ['status:blocked']);
+  assert.deepEqual(fake.repoLabels, ['status:blocked']);
+  assert.equal(calls.filter((call) => call.args[1] === 'create').length, 1);
+  assert.ok(notes.includes('next-issue: #4 given up'));
+});
+
+test('a user who gives up in a repository with the skip label does not create it again', async () => {
+  const fake = labelledGh(['status:blocked']);
+  const { path, calls, extension } = setup({ gh: fake.gh });
+  await questionWorker(path, [[question(4)], []]);
+  const { pi, emit, command } = host('tui', '/repo', ['Give up']);
+  extension(pi as never);
+  await emit('session_start');
+  await command('answer');
+  assert.deepEqual([...fake.issueLabels], ['status:blocked']);
+  assert.deepEqual(fake.repoLabels, ['status:blocked']);
+  assert.equal(calls.filter((call) => call.args[1] === 'create').length, 0);
+});
+
+test('a user who gives up when the skip label cannot be created sees an error that names it, and the issue keeps its labels', async () => {
+  const fake = labelledGh([], true);
+  const { path, extension } = setup({ gh: fake.gh });
+  await questionWorker(path, [[question(4)], []]);
+  const { pi, emit, command, notes } = host('tui', '/repo', ['Give up']);
+  extension(pi as never);
+  await emit('session_start');
+  await command('answer');
+  assert.deepEqual([...fake.issueLabels], ['status:needs-human']);
+  assert.ok(
+    notes.some((note) =>
+      note.startsWith('next-issue cannot answer: cannot create the label status:blocked'),
+    ),
+    notes.join('\n'),
+  );
+});
+
 test('a user who gives up takes the needs-human label off and adds the skip label, then sees the next question', async () => {
-  const { path, calls, extension } = setup();
+  const { path, calls, extension } = setup({ gh: labelledGh(['status:blocked']).gh });
   await questionWorker(path, [[question(4), question(5)], [question(5)], []]);
   const { pi, emit, command, asked } = host('tui', '/repo', ['Give up', undefined]);
   extension(pi as never);
@@ -1021,6 +1093,10 @@ test('a user who gives up takes the needs-human label off and adds the skip labe
   await command('answer');
   assert.deepEqual(asked, ['#4 Title 4\n\nReason 4', '#5 Title 5\n\nReason 5']);
   assert.deepEqual(calls, [
+    {
+      args: ['label', 'list', '--repo', 'owner/name', '--limit', '1000', '--json', 'name'],
+      cwd: '/repo',
+    },
     {
       args: [
         'issue',
