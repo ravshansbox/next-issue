@@ -85,6 +85,9 @@ async function runReviewer(job: Run, earlier: string[]): Promise<string> {
     cut: full.length > config.diffMaxChars,
   };
   const before = await ports.revision(worktree);
+  if (await ports.discardChanges(worktree, before, job.branch)) {
+    log.event('review.clean', { round: state.reviewRounds }, 'quiet');
+  }
   const review = await log.step('review', fields, () =>
     runRole(
       job,

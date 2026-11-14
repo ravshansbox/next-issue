@@ -269,7 +269,12 @@ Press `Ctrl-C` to stop the run step by step:
 3. The third press stops every agent, kills the command that runs and every
    child of it, so the run dies in the middle of a step. The saved state lets the next run continue the
    issue, but the issue keeps `status:in-progress` and the run writes no
-   summary.
+   summary. Edits that an agent did not commit stay in the worktree. When
+   the issue resumes in review, the harness drops them before the reviewer
+   starts, so the reviewer sees only the commits of the branch. Files that
+   git ignores, such as build output, stay. When it
+   resumes before the first commit, the implementer runs again and the
+   commit holds them.
 
 Signals that arrive within 100 ms of the last counted one count as one press,
 because `npx` and `npm exec` pass on a press as a second signal.

@@ -105,7 +105,7 @@ test('a change that the reviewer leaves never reaches a commit', async (t) => {
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  assert.equal(target.discards, 2);
+  assert.equal(target.discards, 4);
 });
 
 test('a reviewer that checks out another branch leaves that branch where it was and gets branch 7 put back, so the fixer commit moves branch 7', async (t) => {
@@ -142,6 +142,44 @@ test('a user who stops and resumes issue 7 after a reviewer detached HEAD still 
   const worktree = (await findWorktree(repo, '7'))!;
   assert.equal(await git(worktree, 'branch', '--show-current'), '7');
   await git(worktree, 'cat-file', '-e', 'HEAD:fixer.txt');
+});
+
+test('a user who resumes issue 7 after a stop now during the fixer gets a reviewer that sees only the branch 7 commit, and the change that lands is what the reviewer saw', async (t) => {
+  const repo = await gitRepo();
+  const first = await harness(t, {
+    root: repo.root,
+    stopNowDuring: 'fixer',
+    verdicts: [changes('The count is wrong.')],
+  });
+  withGit(first, async () => undefined);
+  const writeFiles = first.context.ports.runAgent;
+  first.context.ports.runAgent = async (recorder, request) => {
+    if (request.name === 'fixer') {
+      await writeFile(join(request.cwd, 'implementer.txt'), 'fixed\n');
+    }
+    return writeFiles(recorder, request);
+  };
+  assert.equal((await first.run()).outcome, 'stopped');
+  const worktree = (await findWorktree(repo, '7'))!;
+  assert.notEqual(await git(worktree, 'status', '--porcelain'), '');
+  const resumed = await harness(t, { root: repo.root });
+  const seen: { status: string; head: string; tree: string }[] = [];
+  withGit(resumed, async (cwd) => {
+    seen.push({
+      status: await git(cwd, 'status', '--porcelain'),
+      head: await git(cwd, 'rev-parse', 'HEAD'),
+      tree: await git(cwd, 'rev-parse', 'HEAD^{tree}'),
+    });
+  });
+  Object.assign(resumed.context.ports, { squashOnto, pushToBase });
+  const branch = await git(repo.root, 'rev-parse', '7');
+  assert.equal((await resumed.run()).outcome, 'done');
+  assert.deepEqual(
+    seen.map(({ status, head }) => ({ status, head })),
+    [{ status: '', head: branch }],
+  );
+  await git(repo.root, 'fetch', '-q', 'origin');
+  assert.equal(await git(repo.root, 'rev-parse', 'origin/main^{tree}'), seen[0]!.tree);
 });
 
 function squashStoppedInHook(stopped: Harness, root: string): { head: () => string } {
@@ -283,7 +321,7 @@ test('a commit that the reviewer makes does not stay on the branch', async (t) =
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  assert.equal(target.discards, 2);
+  assert.equal(target.discards, 4);
   assert.equal(await target.context.ports.revision('worktree'), '3');
 });
 
