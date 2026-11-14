@@ -257,7 +257,12 @@ and comments the reason on the issue, when:
   end. It halts this way even when the hand-over fails; the issue then ends
   in error with both the reason and the hand-over error;
 - an agent does not finish in `agentTimeoutMinutes`;
-- the setup command fails, or does not finish in `setupTimeoutMinutes`;
+- the setup command fails, or does not finish in `setupTimeoutMinutes`. On a
+  resume whose state holds a landed commit, or a push or revert that may have
+  reached the base, the setup runs before the harness checks the base, so it
+  then also halts the run, with the commits and state kept for the next run.
+  The comment says what may be on the base and that its checks were not
+  awaited;
 - a step of the run fails with an error. A `gh` call that is safe to repeat,
   such as a read or a label edit, is tried up to three times first when the
   network fails. A `gh issue comment` is
