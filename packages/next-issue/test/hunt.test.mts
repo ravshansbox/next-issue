@@ -1,14 +1,17 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { test } from 'node:test';
+import { test, type TestContext } from 'node:test';
 import { REVIEWING } from '../src/agents.mts';
 import { revision } from '../src/git.mts';
 import { HUNT_FILE, hunt, hunter, huntWorktree } from '../src/hunt.mts';
 import { ISSUE_SECTIONS } from '../src/issue-format.mts';
+import { ensureLabel } from '../src/labels.mts';
 import { clones, commit, git } from './clones.mts';
+import { installGh } from './fake-gh.mts';
 import { harness, ISSUE } from './harness.mts';
+import { tempDir } from './temp-dir.mts';
 
 test('a user who hunts with next-issue.hunt.md sees the hunter follow it in the hunt worktree with read-only tools', async (t) => {
   const target = await harness(t);
@@ -335,4 +338,57 @@ test('a user whose hunt replies issue: none sees the hunter report it so the wat
 test('a user whose hunt reply has no issue line sees the hunter report it so the watch backs off', async (t) => {
   const target = await harness(t, { hunterText: 'Nothing found.' });
   assert.equal(await hunter(target.context).hunt(1), false);
+});
+
+async function labelledHunt(t: TestContext, name: string, labels: string, create = '') {
+  const dir = await tempDir();
+  const file = join(dir, 'labels');
+  await writeFile(file, labels);
+  const refusal = create === '' ? '' : `echo "${create}" >&2; exit 1;`;
+  await installGh(
+    t,
+    dir,
+    `#!/bin/sh
+case "$1 $2" in
+  "label list") printf '['; sed 's/.*/{"name":"&"}/' "${file}" | paste -sd, -; printf ']' ;;
+  "label create")
+    ${refusal}
+    if grep -qix -- "$3" "${file}"; then echo "label with name $3 already exists" >&2; exit 1; fi
+    echo "$3" >> "${file}" ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+`,
+  );
+  const target = await harness(t, {
+    hunterText: `Found it.\nissue: https://github.com/acme/${name}/issues/9`,
+  });
+  target.context.repo.name = name;
+  target.context.ports.ensureLabel = ensureLabel;
+  return { target, file };
+}
+
+test('a user whose repository holds the ready and hunt labels in another case sees the hunter run and file an issue, with no hunt.error event', async (t) => {
+  const { target, file } = await labelledHunt(t, 'label-case', 'Status:Todo\nSource:Hunt\n');
+  assert.equal(await hunter(target.context).hunt(1), true);
+  assert.equal(target.prompts.length, 1);
+  assert.ok(!target.events.some((record) => record.kind === 'hunt.error'));
+  assert.equal(await readFile(file, 'utf8'), 'Status:Todo\nSource:Hunt\n');
+});
+
+test('a user whose hunt label was created by someone else after the harness read the labels sees the next hunt run, with no hunt.error event', async (t) => {
+  const { target, file } = await labelledHunt(t, 'label-stale', 'status:todo\n');
+  await ensureLabel(target.context.repo, 'status:todo');
+  await writeFile(file, 'status:todo\nsource:hunt\n');
+  assert.equal(await hunter(target.context).hunt(1), true);
+  assert.equal(await hunter(target.context).hunt(1), true);
+  assert.equal(target.prompts.length, 2);
+  assert.ok(!target.events.some((record) => record.kind === 'hunt.error'));
+});
+
+test('a user whose hunt label create fails for another reason sees the hunt fail with a hunt.error event and no hunter run', async (t) => {
+  const { target } = await labelledHunt(t, 'label-denied', '', 'permission denied');
+  assert.equal(await hunter(target.context).hunt(1), false);
+  assert.equal(target.prompts.length, 0);
+  const error = target.events.find((record) => record.kind === 'hunt.error');
+  assert.match(String(error?.error), /permission denied/);
 });

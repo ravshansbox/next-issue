@@ -34,7 +34,10 @@ export async function setLabel(
 export async function ensureLabel(repo: Repo, label: string): Promise<void> {
   const created = await createUnknownLabel(repo, label);
   if (created instanceof Error) {
-    throw created;
+    KNOWN_LABELS.delete(slug(repo));
+    if (!(await knownLabels(repo)).has(label.toLowerCase())) {
+      throw created;
+    }
   }
 }
 
@@ -69,14 +72,14 @@ async function knownLabels(repo: Repo): Promise<Set<string>> {
     '--json',
     'name',
   ]);
-  const known = new Set(names(listed));
+  const known = new Set(names(listed).map((name) => name.toLowerCase()));
   KNOWN_LABELS.set(repoSlug, known);
   return known;
 }
 
 async function createUnknownLabel(repo: Repo, label: string): Promise<'known' | 'created' | Error> {
   const known = await knownLabels(repo);
-  if (known.has(label)) {
+  if (known.has(label.toLowerCase())) {
     return 'known';
   }
   try {
@@ -84,6 +87,6 @@ async function createUnknownLabel(repo: Repo, label: string): Promise<'known' | 
   } catch (error) {
     return asError(error);
   }
-  known.add(label);
+  known.add(label.toLowerCase());
   return 'created';
 }
