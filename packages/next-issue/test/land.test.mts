@@ -310,6 +310,42 @@ test('a user whose revert cannot be pushed gets the issue handed over with the l
   assert.equal((await target.state())?.rerun, '2');
 });
 
+test('a user whose checks on main fail and whose read of the failed runs then fails gets the change reverted, the issue handed over and the run halted', async (t) => {
+  const target = await harness(t, { baseChecks: ['fail'] });
+  target.context.ports.failedBaseLogs = async () => {
+    throw new Error('gh: API rate limit exceeded');
+  };
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'logs error');
+  assert.equal(report.halt, true);
+  assert.deepEqual(
+    target.reverts.map((entry) => entry.shas),
+    [['2']],
+  );
+  assert.match(
+    target.comments.at(-1)!,
+    /needs help: The read of the failed checks on main failed: gh: API rate limit exceeded\. The harness reverted the change on main\./,
+  );
+  assert.equal((await target.state())?.landed, undefined);
+});
+
+test('a user whose checks on main fail with no check fix left and whose revert fails with an error gets the issue handed over and the run halted', async (t) => {
+  const target = await harness(t, { config: { maxCiFixes: 0 }, baseChecks: ['fail'] });
+  target.context.ports.revertOnBase = async () => {
+    throw new Error('git: fetch failed');
+  };
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'check budget');
+  assert.equal(report.halt, true);
+  assert.match(
+    target.comments.at(-1)!,
+    /needs help: The checks on main failed and the limit of 0 check fixes was reached\. The revert of the change on main failed: git: fetch failed\./,
+  );
+  assert.deepEqual((await target.state())?.landed, ['2']);
+});
+
 test('a user whose checks on main do not finish in time gets the issue handed over and the run halted', async (t) => {
   const target = await harness(t, { baseChecks: ['timeout'] });
   const report = await target.run();

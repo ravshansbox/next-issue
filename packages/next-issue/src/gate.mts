@@ -57,7 +57,7 @@ async function failedChecksFix(job: Run, sha: string): Promise<Gate> {
   const { repo, config, ports, base } = context;
   const { round, limit } = budgetUse(job, 'ciFixes');
   if (round >= limit) {
-    const reverted = await revert(job);
+    const reverted = await revertOrReport(job);
     return escalateAndFinish(
       job,
       `The checks on ${base} failed and the limit of ${limit} check fixes was reached.${reverted}`,
@@ -66,7 +66,17 @@ async function failedChecksFix(job: Run, sha: string): Promise<Gate> {
   }
   state.ciFixes += 1;
   await writeState(repo, state);
-  const logs = await ports.failedBaseLogs(repo, sha, config.logMaxChars);
+  let logs: string;
+  try {
+    logs = await ports.failedBaseLogs(repo, sha, config.logMaxChars);
+  } catch (error) {
+    return escalateError(
+      job,
+      error,
+      `The read of the failed checks on ${base} failed`,
+      'logs error',
+    );
+  }
   log.event('main-checks.logs', { chars: logs.length });
   let fix: Fix;
   try {
@@ -78,22 +88,46 @@ async function failedChecksFix(job: Run, sha: string): Promise<Gate> {
       'checks',
     );
   } catch (error) {
-    if (runStopped()) {
-      throw error;
-    }
-    const reverted = await revert(job);
-    const detail = message(error);
-    const stop = detail.endsWith('.') ? '' : '.';
-    return escalateAndFinish(
+    return escalateError(
       job,
-      `The fixer for the failed checks on ${base} failed: ${detail}${stop}${reverted}`,
+      error,
+      `The fixer for the failed checks on ${base} failed`,
       'fixer error',
     );
   }
   if (!fix.committed) {
-    const reverted = await revert(job);
+    const reverted = await revertOrReport(job);
     return escalateCheckFix(job, fix.unrelated, `checks on ${base}`, reverted);
   }
   job.repairing = true;
   return GATE_FIXED;
+}
+
+async function escalateError(
+  job: Run,
+  error: unknown,
+  note: string,
+  reason: string,
+): Promise<Gate> {
+  if (runStopped()) {
+    throw error;
+  }
+  const reverted = await revertOrReport(job);
+  return escalateAndFinish(job, `${note}: ${sentence(message(error))}${reverted}`, reason);
+}
+
+async function revertOrReport(job: Run): Promise<string> {
+  try {
+    return await revert(job);
+  } catch (error) {
+    if (runStopped()) {
+      throw error;
+    }
+    job.repairing = false;
+    return ` The revert of the change on ${job.context.base} failed: ${sentence(message(error))}`;
+  }
+}
+
+function sentence(text: string): string {
+  return text.endsWith('.') ? text : `${text}.`;
 }

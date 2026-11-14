@@ -129,10 +129,11 @@ the run handles one issue. For each issue:
    reruns the failed jobs once with `gh run rerun <id> --failed`, records a
    `main-checks.rerun` event, saves the rerun in the state file and waits
    again once the runs restart. When the rerun cannot start, or the checks
-   fail again, the fixer gets their logs from the check budget, and its fix lands
-   the same way. When the fixer cannot fix them, its fix cannot land, or the
-   budget runs out, the harness reverts every commit of the change on the
-   base branch, pushes the revert and hands the issue to a person. A revert
+   fail again, the fixer gets their logs from the check budget, and its fix
+   lands the same way. When the fixer cannot fix them, its fix cannot land,
+   an error stops the fix, or the budget runs out, the harness reverts every
+   commit of the change on the base branch, pushes the revert and hands the
+   issue to a person. A revert
    push that the remote refuses, for example because the base moved, makes
    the revert again on the new base, three times at most. A resume
    that stopped while the checks of a landed commit ran waits for them
@@ -189,9 +190,10 @@ and comments the reason on the issue, when:
   branches go away with the `<n>` branch when the issue is done;
 - the reviewer gives no verdict, or the checks do not finish in time;
 - the push to the base branch fails three times;
-- the checks on the base branch fail and the fixer cannot fix them, or they
-  do not finish in time. The base branch is then broken, so the run claims
-  no new issue and ends once the running issues end;
+- the checks on the base branch fail and the fixer cannot fix them, an error
+  stops the fix, or they do not finish in time. The base branch is then
+  broken, so the run claims no new issue and ends once the running issues
+  end;
 - an agent does not finish in `agentTimeoutMinutes`;
 - the setup command fails, or does not finish in `setupTimeoutMinutes`;
 - a step of the run fails with an error. A `gh` call that is safe to repeat,
