@@ -63,9 +63,12 @@ test('a user with concurrency 3 and --max 2 gets no more than 2 handled issues',
 });
 
 test('a user with concurrency 2 who asks to stop gets no new claim and every running issue finished', async () => {
-  const fake = pool([1, 2, 3], 2, [true]);
+  const fake = pool([1, 2, 3], 2);
+  let stopped = false;
+  fake.stop = () => stopped;
   const result = runIssues(ARGS, fake);
   await settle();
+  stopped = true;
   await fake.finish(1, 'done');
   assert.deepEqual(fake.started, [1, 2]);
   await fake.finish(2, 'done');

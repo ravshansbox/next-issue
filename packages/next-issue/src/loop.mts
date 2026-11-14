@@ -31,7 +31,7 @@ export async function runIssues(
   for (;;) {
     if (claiming && room()) {
       try {
-        await claimIssues(loop, seen, running, room);
+        claiming = await claimIssues(loop, seen, running, room);
       } catch (failure) {
         error = failure;
         claiming = false;
@@ -76,8 +76,14 @@ async function claimIssues(
   seen: Set<number>,
   running: Map<number, Promise<Settled>>,
   room: () => boolean,
-): Promise<void> {
+): Promise<boolean> {
+  if (loop.stop()) {
+    return false;
+  }
   const issues = await loop.issues();
+  if (loop.stop()) {
+    return false;
+  }
   for (const issue of issues.filter((candidate) => !seen.has(candidate.number))) {
     if (!room()) {
       break;
@@ -91,6 +97,7 @@ async function claimIssues(
       ),
     );
   }
+  return true;
 }
 
 export function exitCode(reports: IssueReport[]): number {

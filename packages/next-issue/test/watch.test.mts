@@ -97,11 +97,33 @@ test('a user who presses Ctrl-C during a wait stops watching at once', async () 
 
 test('a user who presses Ctrl-C during an issue stops watching after that issue', async () => {
   const fake = watcher([['done', 'done'], ['done']]);
-  fake.stop = () => true;
+  let stopped = false;
+  const process = fake.process;
+  fake.process = async (target, claimed) => {
+    stopped = true;
+    return process(target, claimed);
+  };
+  fake.stop = () => stopped;
   const result = await watchIssues(ARGS, fake);
   assert.deepEqual(fake.processed, [1]);
   assert.equal(result.stoppedAt, 1);
   assert.deepEqual(fake.waits, []);
+});
+
+test('a user who asks to stop while a pass fetches the open issues gets no issue claimed in that pass', async () => {
+  const fake = watcher([['done'], ['done', 'done']]);
+  let stopped = false;
+  const issues = fake.issues;
+  fake.issues = async () => {
+    const list = await issues();
+    stopped = fake.waits.length === 1;
+    return list;
+  };
+  fake.stop = () => stopped;
+  const result = await watchIssues(ARGS, fake);
+  assert.deepEqual(fake.processed, [1]);
+  assert.deepEqual(fake.waits, [1]);
+  assert.equal(result.reports.length, 1);
 });
 
 test('a watch stops after a pass that halts the run', async () => {
@@ -263,11 +285,13 @@ test('a user who presses Ctrl-C during a hunt sees the watch stop after that hun
   const steps: string[] = [];
   let stopped = false;
   const { promise: hunted, resolve } = deferred();
+  const { promise: claimed, resolve: claim } = deferred();
   fake.stop = () => stopped;
   fake.hunter = {
     cap: 1,
     ready: async () => [],
     hunt: async () => {
+      await claimed;
       steps.push('hunt start');
       stopped = true;
       resolve();
@@ -278,6 +302,11 @@ test('a user who presses Ctrl-C during a hunt sees the watch stop after that hun
     wait: async () => {
       steps.push('wait');
     },
+  };
+  const process = fake.process;
+  fake.process = async (target, claimedIssue) => {
+    claim();
+    return process(target, claimedIssue);
   };
   holdIssues(fake, hunted);
   const result = await watchIssues(ARGS, fake);

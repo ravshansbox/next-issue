@@ -44,10 +44,40 @@ test('--once stops after the first handled issue', async () => {
 });
 
 test('a user who asks to stop ends the run after the current issue', async () => {
-  const fake = loop({ 1: 'done', 2: 'done', 3: 'done' }, [false, true]);
+  const fake = loop({ 1: 'done', 2: 'done', 3: 'done' });
+  let stopped = false;
+  const process = fake.process;
+  fake.process = async (target) => {
+    stopped = target.number === 2;
+    return process(target);
+  };
+  fake.stop = () => stopped;
   const result = await runIssues(ARGS, fake);
   assert.deepEqual(fake.processed, [1, 2]);
   assert.equal(result.stoppedAt, 2);
+});
+
+test('a user who asks to stop before the run fetches the open issues gets no issue claimed', async () => {
+  const fake = loop({ 1: 'done', 2: 'done' });
+  fake.stop = () => true;
+  const result = await runIssues(ARGS, fake);
+  assert.deepEqual(fake.processed, []);
+  assert.deepEqual(result.reports, []);
+});
+
+test('a user who asks to stop while the run fetches the open issues gets no issue claimed', async () => {
+  const fake = loop({ 1: 'done', 2: 'done' });
+  let stopped = false;
+  const issues = fake.issues;
+  fake.issues = async () => {
+    const list = await issues();
+    stopped = true;
+    return list;
+  };
+  fake.stop = () => stopped;
+  const result = await runIssues(ARGS, fake);
+  assert.deepEqual(fake.processed, []);
+  assert.deepEqual(result.reports, []);
 });
 
 test('a run ends after an issue that leaves main broken', async () => {
