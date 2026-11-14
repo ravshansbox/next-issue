@@ -85,6 +85,7 @@ export type Plan = {
   landedBaseUpdated?: boolean;
   landedFetchFails?: boolean;
   blockers?: string[];
+  canonicalSlug?: string;
   merges?: Array<string[] | undefined>;
   mergeResolved?: boolean;
   mergeHook?: string;
@@ -283,6 +284,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     latestSubject: async () => plan.earlier,
     issueComments: async () => plan.issueComments ?? [],
     openBlockers: async () => plan.blockers ?? [],
+    repositorySlug: async (repo) => plan.canonicalSlug ?? `${repo.owner}/${repo.name}`,
     openIssues: async () => [...(plan.open ?? [])],
     startMerge: async (_worktree, base, remote) => {
       state.baseMerges += 1;

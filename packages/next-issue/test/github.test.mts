@@ -9,6 +9,7 @@ import {
   canWrite,
   issueComments,
   openBlockers,
+  repositorySlug,
   openIssues,
   reopenIssue,
   threadComments,
@@ -151,6 +152,18 @@ esac
     '#12',
     'acme/other#9',
   ]);
+});
+
+test('repositorySlug gives the new owner and name of a repository whose remote url holds its old name', async (t) => {
+  const dir = await tempDir();
+  const script = `#!/bin/sh
+case "$*" in
+  "api repos/old/name --jq .full_name") echo acme/tool ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+`;
+  await installGh(t, dir, script);
+  assert.equal(await repositorySlug({ owner: 'old', name: 'name', root: dir }), 'acme/tool');
 });
 
 test('a user with a ready issue newer than the issue limit gets it listed', async (t) => {

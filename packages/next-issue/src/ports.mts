@@ -26,6 +26,7 @@ import {
   openBlockers,
   openIssues,
   reopenIssue,
+  repositorySlug,
   threadComments,
   viewIssue,
 } from './github.mts';
@@ -70,6 +71,7 @@ export const PORTS = {
   reapplyRevert,
   removeWorktree,
   reopenIssue,
+  repositorySlug,
   rerunFailedBase,
   resetToBase,
   revertOnBase,

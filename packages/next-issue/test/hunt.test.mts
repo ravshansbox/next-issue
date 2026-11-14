@@ -184,6 +184,32 @@ test('a user whose hunter reports issues of the configured repository and of ano
   assert.deepEqual(urls, ['https://github.com/Acme/Tool/issues/10']);
 });
 
+test('a user whose remote url holds the old name of a renamed repository sees an issue filed under the new name counted, and an issue of another repository not', async (t) => {
+  const target = await harness(t, {
+    canonicalSlug: 'Acme/Renamed',
+    hunterText:
+      'Filed.\nissue: https://github.com/acme/renamed/issues/9\nissue: https://github.com/upstream/tool/issues/3',
+  });
+  assert.equal(await hunter(target.context).hunt(2), true);
+  const urls = target.events
+    .filter((record) => record.kind === 'hunt.issue')
+    .map((record) => record.url);
+  assert.deepEqual(urls, ['https://github.com/acme/renamed/issues/9']);
+});
+
+test('a user whose hunter reports only an issue of another repository sees none logged when GitHub cannot give the repository name', async (t) => {
+  const target = await harness(t, {
+    fail: 'repositorySlug',
+    hunterText: 'Filed.\nissue: https://github.com/upstream/tool/issues/3',
+  });
+  assert.equal(await hunter(target.context).hunt(1), false);
+  const urls = target.events
+    .filter((record) => record.kind === 'hunt.issue')
+    .map((record) => record.url);
+  assert.deepEqual(urls, ['none']);
+  assert.ok(!target.events.some((record) => record.kind === 'hunt.error'));
+});
+
 test('a user whose hunter fails sees a hunt.error event', async (t) => {
   const target = await harness(t, { fail: 'runAgent' });
   await assert.rejects(hunt(target.context, 1), /the port broke/);

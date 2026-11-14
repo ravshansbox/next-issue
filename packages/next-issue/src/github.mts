@@ -136,6 +136,10 @@ export async function openBlockers(repo: Repo, issue: number): Promise<string[]>
   });
 }
 
+export async function repositorySlug(repo: Repo): Promise<string> {
+  return repeatable(repo, ['api', `repos/${slug(repo)}`, '--jq', '.full_name']);
+}
+
 export async function reopenIssue(repo: Repo, issue: number): Promise<void> {
   await gh(repo, ['issue', 'reopen', String(issue)]);
 }

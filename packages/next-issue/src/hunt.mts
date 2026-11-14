@@ -31,9 +31,23 @@ export async function huntWorktree(repo: Repo, base: string, remote: string): Pr
   return path;
 }
 
-function isIssueOf(repo: Repo, url: string): boolean {
-  const issue = /^https:\/\/github\.com\/([^/]+\/[^/]+)\/issues\/\d+\/?$/i.exec(url);
-  return issue?.[1]?.toLowerCase() === slug(repo).toLowerCase();
+function issueSlug(url: string): string | undefined {
+  return /^https:\/\/github\.com\/([^/]+\/[^/]+)\/issues\/\d+\/?$/i.exec(url)?.[1]?.toLowerCase();
+}
+
+async function issuesOf(context: Context, urls: string[]): Promise<string[]> {
+  const found = urls.flatMap((url) => {
+    const repository = issueSlug(url);
+    return repository === undefined ? [] : [{ url, repository }];
+  });
+  const slugs = [slug(context.repo).toLowerCase()];
+  if (found.some(({ repository }) => !slugs.includes(repository))) {
+    const canonical = await context.ports.repositorySlug(context.repo).catch(() => undefined);
+    if (canonical !== undefined) {
+      slugs.push(canonical.trim().toLowerCase());
+    }
+  }
+  return found.filter(({ repository }) => slugs.includes(repository)).map(({ url }) => url);
 }
 
 export async function hunt(context: Context, count: number): Promise<boolean> {
@@ -57,9 +71,10 @@ export async function hunt(context: Context, count: number): Promise<boolean> {
       profile: REVIEWING,
       timeoutMs: minutesToMs(config.agentTimeoutMinutes),
     });
-    const urls = [...result.text.matchAll(FILED)]
-      .map((match) => match[1]!)
-      .filter((url) => isIssueOf(repo, url));
+    const urls = await issuesOf(
+      context,
+      [...result.text.matchAll(FILED)].map((match) => match[1]!),
+    );
     for (const url of urls.length === 0 ? ['none'] : urls) {
       recorder.event('hunt.issue', { url }, 'quiet');
     }
