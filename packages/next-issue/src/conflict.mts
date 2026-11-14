@@ -10,11 +10,19 @@ export async function rebase(job: Run): Promise<Finished | undefined> {
   const { config, ports, base } = context;
   const title = state.title ?? fallbackTitle(issue);
   const before = await ports.revision(worktree);
-  const { target, files } = await log.step('rebase', { base }, () =>
+  const { target, files, unmarked } = await log.step('rebase', { base }, () =>
     ports.startMerge(worktree, base, config.remote),
   );
   if (files !== undefined) {
     log.event('rebase.conflicts', { files }, 'quiet');
+    if (unmarked.length > 0) {
+      await ports.abortMerge(worktree, before);
+      return escalateAndFinish(
+        job,
+        `The change conflicts with ${base} in files that hold no conflict marker, such as a deleted, renamed or binary file: ${unmarked.join(', ')}.`,
+        'merge conflict',
+      );
+    }
     const merged = await mergeBase(job, { before, target, files });
     if (merged !== undefined) {
       return merged;

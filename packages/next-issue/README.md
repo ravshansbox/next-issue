@@ -128,7 +128,12 @@ the run handles one issue. For each issue:
    implementer's commit replaces it, and a fix for failed checks after the
    landing lands under the fixer's own subject. The reapply commit after a
    revert uses the subject of the change. When git merges the base cleanly,
-   no agent runs. When git reports conflicted files, the fixer gets the
+   no agent runs. When a conflicted file holds no conflict marker, for
+   example a file that one side deletes and the other changes, a renamed
+   file or a binary file that both sides change, no agent runs: the
+   harness undoes the merge and hands the issue to a person with the
+   reason `merge conflict`, since git leaves only one side in the file.
+   When git reports conflicted files, the fixer gets the
    list from the check budget, `maxCiFixes`, removes the conflict markers,
    and the harness commits the merge. A merge that the fixer commits itself
    counts only when the branch then holds the base commit that was merged

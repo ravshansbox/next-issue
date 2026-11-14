@@ -28,7 +28,11 @@ test('startMerge merges a base that git can merge cleanly and commitMerge commit
   await git(base, 'push', '-q', 'origin', 'main');
   const head = await revision(path);
   const started = await startMerge(path, 'main', 'origin');
-  assert.deepEqual(started, { target: await git(path, 'rev-parse', 'origin/main'), files: [] });
+  assert.deepEqual(started, {
+    target: await git(path, 'rev-parse', 'origin/main'),
+    files: [],
+    unmarked: [],
+  });
   assert.equal(await commitMerge(path, merge(head, []), 'chore: merge origin/main'), true);
   assert.equal(await git(path, 'log', '-1', '--format=%s'), 'chore: merge origin/main');
   assert.equal(await git(path, 'rev-parse', 'HEAD^1'), head);
@@ -42,12 +46,35 @@ test('startMerge lists the conflicted files, and commitMerge refuses them while 
   await git(base, 'commit', '-q', '-am', 'base');
   await git(base, 'push', '-q', 'origin', 'main');
   const head = await revision(path);
-  assert.deepEqual((await startMerge(path, 'main', 'origin')).files, ['a.txt']);
+  const started = await startMerge(path, 'main', 'origin');
+  assert.deepEqual(started.files, ['a.txt']);
+  assert.deepEqual(started.unmarked, []);
   assert.equal(await commitMerge(path, merge(head, ['a.txt']), 'chore: merge'), false);
   await abortMerge(path, head);
   assert.equal(await revision(path), head);
   assert.equal(await isDirty(path), false);
   await assert.rejects(git(path, 'rev-parse', '--verify', '--quiet', 'MERGE_HEAD'));
+});
+
+test('startMerge lists a modify/delete or binary conflict, which holds no conflict marker, as unmarked', async () => {
+  const { repo, other } = await clones();
+  await writeFile(join(other, 'gone.txt'), 'start\n');
+  await writeFile(join(other, 'img.bin'), Buffer.from([0, 1, 2]));
+  await git(other, 'add', '-A');
+  await git(other, 'commit', '-q', '-m', 'start');
+  await git(other, 'push', '-q', 'origin', 'main');
+  await git(repo.root, 'fetch', '-q', 'origin');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  await writeFile(join(path, 'gone.txt'), 'branch\n');
+  await writeFile(join(path, 'img.bin'), Buffer.from([0, 3, 4]));
+  await git(path, 'commit', '-q', '-am', 'branch');
+  await git(other, 'rm', '-q', 'gone.txt');
+  await writeFile(join(other, 'img.bin'), Buffer.from([0, 5, 6]));
+  await git(other, 'commit', '-q', '-am', 'base');
+  await git(other, 'push', '-q', 'origin', 'main');
+  const started = await startMerge(path, 'main', 'origin');
+  assert.deepEqual(started.files, ['gone.txt', 'img.bin']);
+  assert.deepEqual(started.unmarked, ['gone.txt', 'img.bin']);
 });
 
 test('commitMerge commits a conflict that the fixer resolved, and refuses a merge that the fixer aborted', async () => {

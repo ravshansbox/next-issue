@@ -5,20 +5,26 @@ import { commitEverything } from './git-commit.mts';
 import { fetchBase, git, isAncestor, resetHard, succeeds } from './git.mts';
 import { lines } from './text.mts';
 
-export type MergeStart = { target: string; files: string[] | undefined };
+export type MergeStart = { target: string; files: string[] | undefined; unmarked: string[] };
 
 export async function startMerge(cwd: string, base: string, remote: string): Promise<MergeStart> {
   const target = await git(cwd, ['rev-parse', await fetchBase(cwd, base, remote)]);
   const result = await run('git', ['merge', '--no-ff', '--no-commit', target], { cwd });
   if (succeeded(result)) {
-    return { target, files: (await merging(cwd)) ? [] : undefined };
+    return { target, files: (await merging(cwd)) ? [] : undefined, unmarked: [] };
   }
   const listed = await git(cwd, ['diff', '--name-only', '--diff-filter=U']);
   const files = lines(listed);
   if (files.length === 0) {
     throw new Error(`git merge ${target} failed: ${result.stderr.trim()}`);
   }
-  return { target, files };
+  const unmarked: string[] = [];
+  for (const file of files) {
+    if (!(await hasConflictMarkers(cwd, [file]))) {
+      unmarked.push(file);
+    }
+  }
+  return { target, files, unmarked };
 }
 
 async function merging(cwd: string): Promise<boolean> {

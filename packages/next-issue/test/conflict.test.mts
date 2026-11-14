@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { writeFile } from 'node:fs/promises';
+import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import type { AgentRequest } from '../src/agents.mts';
@@ -103,8 +103,32 @@ test('a user who resumes an issue whose squash failed after a merge of the base 
 
 type Fixer = (worktree: string) => Promise<unknown>;
 
-async function realMerge(t: TestContext, fixer: Fixer): Promise<{ target: Harness; base: string }> {
+type Change = (cwd: string) => Promise<unknown>;
+
+type Conflict = { start?: Change; branch: Change; base: Change };
+
+const TEXT_CONFLICT: Conflict = {
+  branch: (worktree) => writeFile(join(worktree, 'a.txt'), 'branch\n'),
+  base: async (other) => {
+    await writeFile(join(other, 'a.txt'), 'base\n');
+    await writeFile(join(other, 'b.txt'), 'base\n');
+  },
+};
+
+async function realMerge(
+  t: TestContext,
+  fixer: Fixer,
+  conflict: Conflict = TEXT_CONFLICT,
+): Promise<{ target: Harness; base: string }> {
   const { repo, other } = await clones();
+  if (conflict.start !== undefined) {
+    await conflict.start(other);
+    await git(other, 'add', '-A');
+    await git(other, 'commit', '-q', '-m', 'start');
+    await git(other, 'push', '-q', 'origin', 'main');
+    await git(repo.root, 'fetch', '-q', 'origin');
+    await git(repo.root, 'reset', '-q', '--hard', 'origin/main');
+  }
   await git(repo.root, 'config', 'user.name', 't');
   await git(repo.root, 'config', 'user.email', 't@t');
   const target = await harness(t, { root: repo.root });
@@ -128,9 +152,8 @@ async function realMerge(t: TestContext, fixer: Fixer): Promise<{ target: Harnes
     startMerge,
     runAgent: async (recorder: Recorder, request: AgentRequest) => {
       if (request.name === 'implementer') {
-        await writeFile(join(request.cwd, 'a.txt'), 'branch\n');
-        await writeFile(join(other, 'a.txt'), 'base\n');
-        await writeFile(join(other, 'b.txt'), 'base\n');
+        await conflict.branch(request.cwd);
+        await conflict.base(other);
         await git(other, 'add', '-A');
         await git(other, 'commit', '-q', '-m', 'base');
         await git(other, 'push', '-q', 'origin', 'main');
@@ -205,3 +228,65 @@ test('a user whose base branch moves while the fixer resolves a conflict gets th
   assert.equal(await git(base, 'show', `${landed}:d.txt`), 'd.txt');
   assert.equal(await git(base, 'show', `${landed}:a.txt`), 'branch and base');
 });
+
+const MARKERLESS: Array<[string, Conflict, string]> = [
+  [
+    'whose base deletes a file that the branch changes',
+    {
+      start: (other) => writeFile(join(other, 'gone.txt'), 'start\n'),
+      branch: (worktree) => writeFile(join(worktree, 'gone.txt'), 'branch\n'),
+      base: (other) => rm(join(other, 'gone.txt')),
+    },
+    'gone.txt',
+  ],
+  [
+    'whose base and branch both change a binary file',
+    {
+      start: (other) => writeFile(join(other, 'img.bin'), Buffer.from([0, 1, 2])),
+      branch: (worktree) => writeFile(join(worktree, 'img.bin'), Buffer.from([0, 3, 4])),
+      base: (other) => writeFile(join(other, 'img.bin'), Buffer.from([0, 5, 6])),
+    },
+    'img.bin',
+  ],
+  [
+    'whose branch deletes a file that the base changes',
+    {
+      start: (other) => writeFile(join(other, 'kept.txt'), 'start\n'),
+      branch: (worktree) => rm(join(worktree, 'kept.txt')),
+      base: (other) => writeFile(join(other, 'kept.txt'), 'base\n'),
+    },
+    'kept.txt',
+  ],
+];
+
+const ISSUE_BRANCH = String(ISSUE.number);
+
+for (const [who, conflict, file] of MARKERLESS) {
+  test(`a user ${who} gets the merge undone, the issue handed over with no fixer run and nothing pushed`, async (t) => {
+    const { target, base } = await realMerge(
+      t,
+      (worktree) => git(worktree, 'commit', '-qam', 'merge'),
+      conflict,
+    );
+    const report = await target.run();
+    const before = await git(base, 'rev-parse', 'HEAD');
+    assert.equal(report.outcome, 'needs-human');
+    assert.equal(report.reason, 'merge conflict');
+    assert.deepEqual(roles(target), ['implementer', 'reviewer']);
+    assert.equal(await remoteMain(base), before);
+    const root = target.context.repo.root;
+    assert.equal(await findWorktree(target.context.repo, ISSUE_BRANCH), undefined);
+    assert.equal(
+      (await git(root, 'rev-list', '--parents', '-1', ISSUE_BRANCH)).split(' ').length,
+      2,
+    );
+    assert.equal(
+      await git(root, 'merge-base', '--is-ancestor', before, ISSUE_BRANCH).catch(() => 'not held'),
+      'not held',
+    );
+    assert.match(
+      target.comments.at(-1)!,
+      new RegExp(`no conflict marker[^]*${file.replace('.', '\\.')}`),
+    );
+  });
+}
