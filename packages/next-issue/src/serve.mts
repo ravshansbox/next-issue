@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { mkdir, rename, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { basename, dirname, join } from 'node:path';
@@ -71,6 +72,9 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   const server = createServer();
   const sockets = new WebSocketServer({ server });
   const sendQuestions = questionSender(options.questions);
+  // Taken outside any run, so a question read that an issue end starts does not take on
+  // the run's stop, command log, children or default timeout.
+  const outsideRuns = AsyncLocalStorage.snapshot();
   const busy = (): boolean => [...runs.values()].some(active);
 
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -108,7 +112,9 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       options.runRepo(
         root,
         args,
-        runControls(run, update, () => void sendQuestions(root, () => sockets.clients)),
+        runControls(run, update, () =>
+          outsideRuns(() => void sendQuestions(root, () => sockets.clients)),
+        ),
       ),
     )
       .then(
