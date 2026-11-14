@@ -364,3 +364,94 @@ test('a later reviewer gets the reply of the fixer in its prompt', async (t) => 
     /## Reply of the fixer\nThe test failed first: expected 2, got 1\./,
   );
 });
+
+async function reviewerCommit(worktree: string, checkout: string[]): Promise<void> {
+  if (checkout.length > 0) {
+    await git(worktree, 'checkout', '-q', ...checkout);
+  }
+  await writeFile(join(worktree, 'reviewer.txt'), 'reviewer\n');
+  await git(worktree, 'add', '-A');
+  await git(worktree, 'commit', '-qm', 'wip');
+}
+
+for (const failure of [
+  'The reviewer agent did not finish in 60000 ms.',
+  'The reviewer agent failed: overloaded',
+]) {
+  test(`a reviewer that commits on branch 7 and then ends with "${failure}" leaves branch 7 at the commit it held before the review`, async (t) => {
+    const repo = await gitRepo();
+    const target = await harness(t, { root: repo.root });
+    let before = '';
+    withGit(target, async (worktree) => {
+      before = await git(worktree, 'rev-parse', 'HEAD');
+      await reviewerCommit(worktree, []);
+      throw new Error(failure);
+    });
+    const report = await target.run();
+    assert.equal(report.outcome, 'error');
+    assert.equal(await git(repo.root, 'rev-parse', '7'), before);
+  });
+}
+
+test('a person whose reviewer timed out and whose branch then could not be put back sees the timeout as the hand-over reason', async (t) => {
+  const target = await harness(t);
+  const { ports } = target.context;
+  const fake = ports.runAgent;
+  let reviewed = false;
+  Object.assign(ports, {
+    runAgent: async (recorder: Recorder, request: AgentRequest) => {
+      if (request.name === 'reviewer') {
+        reviewed = true;
+        throw new Error('The reviewer agent did not finish in 60000 ms.');
+      }
+      return fake(recorder, request);
+    },
+    discardChanges: async () => {
+      if (reviewed) {
+        throw new Error('git checkout failed');
+      }
+      return false;
+    },
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'error');
+  assert.match(
+    target.issueNotes[0]!.body,
+    /^next-issue needs help: The run failed: The reviewer agent did not finish in 60000 ms\./,
+  );
+});
+
+for (const [name, checkout] of [
+  ['on branch 7', []],
+  ['on a detached HEAD', ['--detach']],
+  ['on another branch', ['-b', 'other']],
+] as const) {
+  test(`a user who resumes issue 7 after a stop now during a reviewer that committed ${name} gets a reviewer on branch 7 at the commit it held before, with no reviewer commit in the diff`, async (t) => {
+    const repo = await gitRepo();
+    const first = await harness(t, { root: repo.root, stopNowDuring: 'reviewer' });
+    let before = '';
+    withGit(first, async (worktree) => {
+      before = await git(worktree, 'rev-parse', 'HEAD');
+      await reviewerCommit(worktree, [...checkout]);
+    });
+    assert.equal((await first.run()).outcome, 'stopped');
+    const resumed = await harness(t, { root: repo.root });
+    const seen: { branch: string; head: string }[] = [];
+    withGit(resumed, async (worktree) => {
+      seen.push({
+        branch: await git(worktree, 'branch', '--show-current'),
+        head: await git(worktree, 'rev-parse', 'HEAD'),
+      });
+    });
+    Object.assign(resumed.context.ports, { squashOnto, pushToBase });
+    assert.equal((await resumed.run()).outcome, 'done');
+    assert.deepEqual(seen, [{ branch: '7', head: before }]);
+    const reviewer = resumed.prompts.find((entry) => entry.role === 'reviewer')!;
+    assert.equal(reviewer.prompt.includes('reviewer.txt'), false);
+    await git(repo.root, 'fetch', '-q', 'origin');
+    assert.equal(
+      await git(repo.root, 'cat-file', '-t', 'origin/main:reviewer.txt').catch(() => 'missing'),
+      'missing',
+    );
+  });
+}

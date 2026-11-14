@@ -1,5 +1,7 @@
 import { REVIEWING } from './agents.mts';
+import { runStopped } from './children.mts';
 import { budgetUse, spendBudget } from './budget.mts';
+import { message } from './errors.mts';
 import { fixRound, type Unfixed } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
 import { ROUND_CONTINUE, type Round, type Run, runRole, setStatus } from './job.mts';
@@ -80,6 +82,14 @@ function recordVerdict(job: Run, verdict: Verdict, open: Finding[]): void {
 async function runReviewer(job: Run, earlier: string[]): Promise<string> {
   const { context, issue, log, state, worktree, comments } = job;
   const { config, ports } = context;
+  const before = state.reviewing ?? (await ports.revision(worktree));
+  if (state.reviewing === undefined) {
+    state.reviewing = before;
+    await writeState(context.repo, state);
+  }
+  if (await ports.discardChanges(worktree, before, job.branch)) {
+    log.event('review.clean', { round: state.reviewRounds }, 'quiet');
+  }
   const full = await ports.diff(worktree, context.base, config.remote);
   const patch = capDiff(full, config.diffMaxChars);
   const fields = {
@@ -87,28 +97,43 @@ async function runReviewer(job: Run, earlier: string[]): Promise<string> {
     diffChars: full.length,
     cut: full.length > config.diffMaxChars,
   };
-  const before = await ports.revision(worktree);
-  if (await ports.discardChanges(worktree, before, job.branch)) {
-    log.event('review.clean', { round: state.reviewRounds }, 'quiet');
-  }
-  const review = await log.step('review', fields, () =>
-    runRole(
-      job,
-      'reviewer',
-      reviewPrompt(
-        issue,
-        comments,
-        patch,
-        earlier,
-        earlier.length === 0 ? state.implementerReply : state.fixerReply,
+  let review: { text: string };
+  try {
+    review = await log.step('review', fields, () =>
+      runRole(
+        job,
+        'reviewer',
+        reviewPrompt(
+          issue,
+          comments,
+          patch,
+          earlier,
+          earlier.length === 0 ? state.implementerReply : state.fixerReply,
+        ),
+        REVIEWING,
       ),
-      REVIEWING,
-    ),
-  );
-  if (await ports.discardChanges(worktree, before, job.branch)) {
-    log.event('review.discard', { round: state.reviewRounds }, 'quiet');
+    );
+  } catch (error) {
+    if (!runStopped()) {
+      await undoReview(job, before).catch((cleanup: unknown) => {
+        log.event('review.discard.error', { error: message(cleanup) }, 'quiet');
+      });
+    }
+    throw error;
+  }
+  if (!runStopped()) {
+    await undoReview(job, before);
   }
   return review.text;
+}
+
+async function undoReview(job: Run, before: string): Promise<void> {
+  const { context, log, state, worktree } = job;
+  if (await context.ports.discardChanges(worktree, before, job.branch)) {
+    log.event('review.discard', { round: state.reviewRounds }, 'quiet');
+  }
+  state.reviewing = undefined;
+  await writeState(context.repo, state);
 }
 
 async function unfixedRound(job: Run, fix: Unfixed): Promise<Round> {

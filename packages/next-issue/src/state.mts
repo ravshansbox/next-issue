@@ -23,6 +23,7 @@ export type IssueState = {
   pushing?: string;
   reverting?: string;
   rerun?: string;
+  reviewing?: string;
   reviewRounds: number;
   reviewLog: ReviewRound[];
   handedOver?: boolean;
@@ -104,6 +105,7 @@ function isState(value: unknown): value is IssueState {
     isOptional(value.pushing, 'string') &&
     isOptional(value.reverting, 'string') &&
     isOptional(value.rerun, 'string') &&
+    isOptional(value.reviewing, 'string') &&
     typeof value.reviewRounds === 'number' &&
     Array.isArray(value.reviewLog) &&
     value.reviewLog.every(isReviewRound) &&

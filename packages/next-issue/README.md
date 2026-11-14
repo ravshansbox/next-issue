@@ -96,7 +96,10 @@ the run handles one issue. For each issue:
    change that the reviewer left in the worktree, so no such change can reach a
    later commit. When the reviewer left another branch or a detached `HEAD`
    checked out, the harness checks out the issue branch again at its commit
-   from before the review.
+   from before the review. It does the same when the reviewer times out or
+   fails. The state file keeps that commit while the reviewer runs, so when
+   the run stops during the review, the resumed review first puts the issue
+   branch back at that commit, and the diff it reads holds no reviewer commit.
    The first reviewer also gets the reply of the implementer, and raises a
    finding when a behaviour change has no failing run of its test. A later
    reviewer gets the reply of the last review fixer instead, who quotes the
