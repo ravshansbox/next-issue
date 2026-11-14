@@ -1,4 +1,5 @@
 import type { Config } from './config.mts';
+import { refuseWhenStopped } from './children.mts';
 import { minutesToMs, secondsToMs } from './durations.mts';
 import { asError } from './errors.mts';
 import { type Clock, type Polling, pause, REAL_CLOCK } from './poll.mts';
@@ -43,6 +44,7 @@ export async function pollChecks(
   let shown: number | undefined;
   let failures = 0;
   for (;;) {
+    refuseWhenStopped();
     if (rest() === 0) {
       return 'timeout';
     }

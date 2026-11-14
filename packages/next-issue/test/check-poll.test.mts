@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { type CheckState, type ChecksProbe, pollChecks } from '../src/check-poll.mts';
+import { runChildren, stopRunChildren, withRunChildren } from '../src/children.mts';
+import { secondsToMs } from '../src/durations.mts';
 import { fakeClock } from './fake-clock.mts';
 
 const OPTIONS = { intervalSeconds: 10, graceMs: 60_000, timeoutMs: 300_000 };
@@ -68,6 +70,24 @@ test('the deadline stops the wait', async () => {
   };
   assert.equal(await pollChecks(target, OPTIONS, time), 'timeout');
   assert.equal(time.time, OPTIONS.timeoutMs);
+});
+
+test('a run stopped now whose deadline passes during the wait gets the stop and not a timeout', async () => {
+  const children = runChildren();
+  const target: ChecksProbe = {
+    lags: async () => true,
+    list: async () => 'some',
+    watch: async () => {
+      stopRunChildren(children);
+      return 'pending';
+    },
+    head: async () => '',
+  };
+  const options = { ...OPTIONS, timeoutMs: secondsToMs(OPTIONS.intervalSeconds) };
+  await assert.rejects(
+    withRunChildren(children, () => pollChecks(target, options, fakeClock())),
+    /The run stopped\./,
+  );
 });
 
 test('the watch gets only the time that is left', async () => {

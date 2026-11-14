@@ -328,3 +328,36 @@ test('a user whose landed commit has a passed push run and a failed issues run g
   assert.equal(target.labels.at(-1)!.label, 'status:done');
   assert.deepEqual(target.reruns, []);
 });
+
+test(
+  'a user who stops a run now while it waits for pending checks on main with a long check interval gets the issue stopped at once, with no hand-over and the state kept',
+  { timeout: 20_000 },
+  async (t) => {
+    const target = await harness(t, { config: { checkIntervalSeconds: 600 } });
+    const dir = await fakeRunsGh(
+      t,
+      [{ status: 'in_progress', conclusion: null, databaseId: 1 }],
+      [],
+      { sha: '2' },
+    );
+    target.context.ports.waitForBaseChecks = (repo, sha, options) => {
+      void stopAfterFirstRead(dir, target.stopNow);
+      return waitForBaseChecks(repo, sha, options);
+    };
+    const started = Date.now();
+    const report = await target.run();
+    assert.equal(report.outcome, 'stopped');
+    assert.ok(Date.now() - started < 10_000);
+    assert.ok(target.comments.every((comment) => !comment.includes('needs help')));
+    assert.equal((await target.state())?.handedOver, undefined);
+    assert.equal(target.labels.at(-1)?.label, 'status:in-review');
+  },
+);
+
+async function stopAfterFirstRead(dir: string, stop: () => void): Promise<void> {
+  while (!(await readFile(join(dir, 'status-reads'), 'utf8').catch(() => ''))) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  stop();
+}
