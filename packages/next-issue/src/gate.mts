@@ -55,12 +55,24 @@ async function rerunOnce(job: Run, sha: string, checks: CheckState): Promise<Che
   if (checks !== 'fail' || state.rerun === sha) {
     return checks;
   }
+  const before = state.rerun;
   state.rerun = sha;
   await writeState(context.repo, state);
+  let started = false;
   try {
-    const runs = await context.ports.rerunFailedBase(context.repo, sha);
+    const runs = await context.ports.rerunFailedBase(context.repo, sha, () => {
+      started = true;
+    });
     log.event('main-checks.rerun', { sha, runs });
   } catch (error) {
+    if (runStopped()) {
+      if (started) {
+        throw error;
+      }
+      state.rerun = before;
+      await writeState(context.repo, state);
+      throw error;
+    }
     log.event('main-checks.rerun-failed', { sha, error: asError(error).message });
     return checks;
   }

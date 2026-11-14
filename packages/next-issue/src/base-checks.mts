@@ -122,11 +122,16 @@ export function waitForBaseChecks(
   );
 }
 
-export async function rerunFailedBase(repo: Repo, sha: string): Promise<string[]> {
+export async function rerunFailedBase(
+  repo: Repo,
+  sha: string,
+  started: () => void = () => {},
+): Promise<string[]> {
   const failed = (await baseRuns(repo, sha)).filter(failedRun);
   for (const entry of failed) {
     await gh(repo, ['run', 'rerun', String(entry.databaseId), '--failed']);
   }
+  started();
   await waitForRestart(repo, sha, failed);
   return failed.map((entry) => String(entry.databaseId));
 }

@@ -233,3 +233,59 @@ test('a user who stops a run now while the hand-over answer of a resumed needs-h
   assert.equal(report.reviewRounds, saved.reviewRounds);
   assert.equal(report.ciFixes, 1);
 });
+
+test('a user who stops a run now while the failed jobs on main are rerun gets the issue stopped with the check fixes kept, and the next run reruns them before any fixer', async (t) => {
+  const first = await harness(t, { baseChecks: ['fail'] });
+  first.context.ports.rerunFailedBase = async (_repo, sha) => {
+    first.reruns.push(sha);
+    first.stopNow();
+    throw new Error('The run stopped.');
+  };
+  assert.equal((await first.run()).outcome, 'stopped');
+  assert.equal(
+    first.events.some((record) => record.kind === 'main-checks.rerun-failed'),
+    false,
+  );
+  const saved = (await first.state())!;
+  assert.equal(saved.ciFixes, 0);
+  assert.equal(saved.rerun, undefined);
+  assert.deepEqual(saved.landed, ['2']);
+  const target = await harness(t, {
+    saved,
+    issue: { ...ISSUE, labels: ['status:in-review'] },
+    baseMoved: true,
+    baseChecks: ['fail'],
+    rerunChecks: ['pass'],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(target.reruns, ['2']);
+  assert.deepEqual(roles(target), []);
+});
+
+test('a user who stops a run now while the harness waits for the rerun failed jobs on main to restart gets the issue stopped with the rerun kept, and the next run sends a new failure to the fixer with no second rerun', async (t) => {
+  const first = await harness(t, { baseChecks: ['fail'] });
+  first.context.ports.rerunFailedBase = async (_repo, sha, started) => {
+    first.reruns.push(sha);
+    started?.();
+    first.stopNow();
+    throw new Error('The run stopped.');
+  };
+  assert.equal((await first.run()).outcome, 'stopped');
+  assert.equal(
+    first.events.some((record) => record.kind === 'main-checks.rerun-failed'),
+    false,
+  );
+  const saved = (await first.state())!;
+  assert.equal(saved.ciFixes, 0);
+  assert.equal(saved.rerun, '2');
+  const target = await harness(t, {
+    saved,
+    issue: { ...ISSUE, labels: ['status:in-review'] },
+    baseMoved: true,
+    baseChecks: ['fail', 'pass'],
+  });
+  await target.run();
+  assert.deepEqual(target.reruns, []);
+  assert.deepEqual(roles(target), ['fixer']);
+});

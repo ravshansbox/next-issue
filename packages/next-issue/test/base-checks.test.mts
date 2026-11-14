@@ -250,8 +250,12 @@ test('rerunFailedBase reruns the failed jobs of the failed runs on the commit on
       { databaseId: 2, name: 'Docs', status: 'completed', conclusion: 'success', attempt: 1 },
     ],
   );
-  const runs = await rerunFailedBase({ owner: 'acme', name: 'tool', root: dir }, 'abc');
+  const sent: string[] = [];
+  const runs = await rerunFailedBase({ owner: 'acme', name: 'tool', root: dir }, 'abc', () => {
+    sent.push('started');
+  });
   assert.deepEqual(runs, ['1']);
+  assert.deepEqual(sent, ['started']);
   assert.equal(await readFile(join(dir, 'reruns'), 'utf8'), '1\n');
 });
 
