@@ -267,7 +267,7 @@ test('a user who stops a run now while the failed jobs on main are rerun gets th
 
 test('a user who stops a run now while the harness waits for the rerun failed jobs on main to restart gets the issue stopped with the rerun kept, and the next run sends a new failure to the fixer with no second rerun', async (t) => {
   const first = await harness(t, { baseChecks: ['fail'] });
-  first.context.ports.rerunFailedBase = async (_repo, sha, started) => {
+  first.context.ports.rerunFailedBase = async (_repo, sha, _branch, started) => {
     first.reruns.push(sha);
     started?.();
     first.stopNow();

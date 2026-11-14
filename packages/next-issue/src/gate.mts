@@ -44,7 +44,7 @@ async function waitForChecks(job: Run, sha: string, fields = {}): Promise<CheckS
   const { context, log } = job;
   const { repo, config, ports } = context;
   const checks = await log.step('main-checks', { sha, ...fields }, () =>
-    ports.waitForBaseChecks(repo, sha, checkWaiting(config, true)),
+    ports.waitForBaseChecks(repo, sha, context.base, checkWaiting(config, true)),
   );
   log.event('main-checks.state', { state: checks, ...fields });
   return checks;
@@ -60,7 +60,7 @@ async function rerunOnce(job: Run, sha: string, checks: CheckState): Promise<Che
   await writeState(context.repo, state);
   let started = false;
   try {
-    const runs = await context.ports.rerunFailedBase(context.repo, sha, () => {
+    const runs = await context.ports.rerunFailedBase(context.repo, sha, context.base, () => {
       started = true;
     });
     log.event('main-checks.rerun', { sha, runs });
@@ -98,7 +98,7 @@ async function failedChecksFix(job: Run, sha: string): Promise<Gate> {
   await writeState(repo, state);
   let logs: string;
   try {
-    logs = await ports.failedBaseLogs(repo, sha, config.logMaxChars);
+    logs = await ports.failedBaseLogs(repo, sha, base, config.logMaxChars);
   } catch (error) {
     return escalateError(
       job,

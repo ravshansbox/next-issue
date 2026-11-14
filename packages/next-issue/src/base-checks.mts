@@ -12,6 +12,7 @@ type BaseRun = {
   conclusion: string;
   attempt: number;
   event: string;
+  branch: string;
 };
 
 type Check = { name: string; status: string; conclusion: string; url: string };
@@ -41,14 +42,16 @@ function jsonLines<T>(raw: string): T[] {
     .map((line) => JSON.parse(line) as T);
 }
 
-async function baseRuns(repo: Repo, sha: string): Promise<BaseRun[]> {
+async function baseRuns(repo: Repo, sha: string, branch: string): Promise<BaseRun[]> {
   const runs = await ghApi(
     repo,
     `actions/runs?head_sha=${sha}&per_page=100`,
-    '.workflow_runs[] | {databaseId: .id, name, status, conclusion: (.conclusion // ""), attempt: .run_attempt, event} | @json',
+    '.workflow_runs[] | {databaseId: .id, name, status, conclusion: (.conclusion // ""), attempt: .run_attempt, event, branch: (.head_branch // "")} | @json',
     { paginate: true },
   );
-  return jsonLines<BaseRun>(runs).filter((entry) => entry.event === 'push');
+  return jsonLines<BaseRun>(runs).filter(
+    (entry) => entry.event === 'push' && entry.branch === branch,
+  );
 }
 
 async function externalChecks(repo: Repo, sha: string): Promise<Check[]> {
@@ -83,8 +86,11 @@ async function externalChecks(repo: Repo, sha: string): Promise<Check[]> {
   return [...checkRuns, ...commitStatuses];
 }
 
-async function baseChecks(repo: Repo, sha: string): Promise<Check[]> {
-  const [runs, external] = await Promise.all([baseRuns(repo, sha), externalChecks(repo, sha)]);
+async function baseChecks(repo: Repo, sha: string, branch: string): Promise<Check[]> {
+  const [runs, external] = await Promise.all([
+    baseRuns(repo, sha, branch),
+    externalChecks(repo, sha),
+  ]);
   return [...runs.map((entry) => ({ ...entry, url: '' })), ...external];
 }
 
@@ -105,6 +111,7 @@ function baseState(runs: Check[]): CheckState {
 export function waitForBaseChecks(
   repo: Repo,
   sha: string,
+  branch: string,
   options: PollOptions,
 ): Promise<CheckState> {
   let checks: Check[] = [];
@@ -113,7 +120,7 @@ export function waitForBaseChecks(
       head: async () => sha,
       lags: async () => true,
       list: async () => {
-        checks = await baseChecks(repo, sha);
+        checks = await baseChecks(repo, sha, branch);
         return checks.length === 0 ? 'none' : 'some';
       },
       watch: async () => baseState(checks),
@@ -125,20 +132,26 @@ export function waitForBaseChecks(
 export async function rerunFailedBase(
   repo: Repo,
   sha: string,
+  branch: string,
   started: () => void = () => {},
 ): Promise<string[]> {
-  const failed = (await baseRuns(repo, sha)).filter(failedRun);
+  const failed = (await baseRuns(repo, sha, branch)).filter(failedRun);
   for (const entry of failed) {
     await gh(repo, ['run', 'rerun', String(entry.databaseId), '--failed']);
   }
   started();
-  await waitForRestart(repo, sha, failed);
+  await waitForRestart(repo, sha, branch, failed);
   return failed.map((entry) => String(entry.databaseId));
 }
 
-async function waitForRestart(repo: Repo, sha: string, failed: BaseRun[]): Promise<void> {
+async function waitForRestart(
+  repo: Repo,
+  sha: string,
+  branch: string,
+  failed: BaseRun[],
+): Promise<void> {
   for (let attempt = 1; attempt <= RESTART_TRIES; attempt += 1) {
-    const runs = await baseRuns(repo, sha);
+    const runs = await baseRuns(repo, sha, branch);
     const restarted = failed.every((entry) =>
       runs.some((run) => run.databaseId === entry.databaseId && run.attempt > entry.attempt),
     );
@@ -149,8 +162,13 @@ async function waitForRestart(repo: Repo, sha: string, failed: BaseRun[]): Promi
   }
 }
 
-export async function failedBaseLogs(repo: Repo, sha: string, maxChars: number): Promise<string> {
-  const failed = (await baseRuns(repo, sha))
+export async function failedBaseLogs(
+  repo: Repo,
+  sha: string,
+  branch: string,
+  maxChars: number,
+): Promise<string> {
+  const failed = (await baseRuns(repo, sha, branch))
     .filter(failedRun)
     .map((entry) => ({ heading: `## ${entry.name}`, runId: String(entry.databaseId) }));
   const external = (await externalChecks(repo, sha)).filter(failedRun).map((entry) => ({
