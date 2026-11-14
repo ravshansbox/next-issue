@@ -24,15 +24,23 @@ export async function watchIssues(
 ): Promise<LoopResult> {
   const running = new Set<number>();
   const ended = new AbortController();
+  const claims = claimAlarm();
   const hunting =
     watch.hunter === undefined
       ? undefined
-      : huntIssues(watch.hunter, running, () => ended.signal.aborted || watch.stop(), ended.signal);
+      : huntIssues(
+          watch.hunter,
+          running,
+          claims,
+          () => ended.signal.aborted || watch.stop(),
+          ended.signal,
+        );
   try {
     return await watchPasses(args, {
       ...watch,
       process: async (issue) => {
         running.add(issue.number);
+        claims.ring();
         try {
           return await watch.process(issue);
         } finally {
@@ -46,15 +54,43 @@ export async function watchIssues(
   }
 }
 
+type ClaimAlarm = {
+  ring: () => void;
+  take: () => boolean;
+  signal: () => AbortSignal;
+};
+
+function claimAlarm(): ClaimAlarm {
+  let rung = false;
+  let controller = new AbortController();
+  return {
+    ring: () => {
+      rung = true;
+      controller.abort();
+    },
+    take: () => {
+      const was = rung;
+      rung = false;
+      return was;
+    },
+    signal: () => {
+      controller = new AbortController();
+      return controller.signal;
+    },
+  };
+}
+
 async function huntIssues(
   hunter: Hunter,
   running: Set<number>,
+  claims: ClaimAlarm,
   stopped: () => boolean,
   signal: AbortSignal,
 ): Promise<void> {
   let step = 0;
   while (!stopped()) {
     const ready = await hunter.ready().catch(() => undefined);
+    claims.take();
     const waiting = ready?.filter((issue) => !running.has(issue.number)).length;
     if (waiting !== undefined && waiting < hunter.cap) {
       if (await hunter.hunt()) {
@@ -62,8 +98,13 @@ async function huntIssues(
         continue;
       }
     }
-    await hunter.wait(backOffMinutes(step), signal);
-    step += 1;
+    if (claims.take() || stopped()) {
+      continue;
+    }
+    await hunter.wait(backOffMinutes(step), AbortSignal.any([signal, claims.signal()]));
+    if (!claims.take()) {
+      step += 1;
+    }
   }
 }
 

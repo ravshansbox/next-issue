@@ -287,3 +287,105 @@ test('a user whose watch ends while the hunter waits after a failed hunt sees th
   steps.push('watch end');
   assert.deepEqual(steps, ['hunt failed', 'wait 1', 'wait end', 'watch end']);
 });
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((done) => setTimeout(done, ms));
+}
+
+type WakeHunter = { steps: string[]; blocked: Promise<void>; hunted: Promise<void> };
+
+function wakeable(fake: FakeWatch, readyLists: number[][], blockFrom = 0): WakeHunter {
+  const steps: string[] = [];
+  const blocked = deferred();
+  const hunted = deferred();
+  const claimed = deferred();
+  const settled = deferred();
+  let checks = 0;
+  let waits = 0;
+  fake.hunter = {
+    cap: 1,
+    ready: async () => {
+      const numbers = readyLists[checks] ?? [100];
+      checks += 1;
+      steps.push(`ready ${numbers.length}`);
+      return numbers.map(issue);
+    },
+    hunt: async () => {
+      steps.push('hunt');
+      hunted.resolve();
+      await Promise.race([claimed.promise, sleep(50)]);
+      return false;
+    },
+    wait: async (minutes, signal) => {
+      steps.push(`wait ${minutes}`);
+      waits += 1;
+      if (waits <= blockFrom) {
+        return;
+      }
+      if (checks >= readyLists.length) {
+        settled.resolve();
+      }
+      blocked.resolve();
+      if (!signal.aborted) {
+        await new Promise((done) => signal.addEventListener('abort', done, { once: true }));
+      }
+      steps.push('wait over');
+    },
+  };
+  const process = fake.process;
+  fake.process = async (target) => {
+    claimed.resolve();
+    await Promise.race([settled.promise, sleep(200)]);
+    return process(target);
+  };
+  return { steps, blocked: blocked.promise, hunted: hunted.promise };
+}
+
+function claimAfter(fake: FakeWatch, moment: Promise<void>): void {
+  const wait = fake.wait;
+  fake.wait = async (minutes) => {
+    await moment;
+    return wait(minutes);
+  };
+}
+
+test('a user who watches with --hunt sees a claim end the hunter wait at once, and the hunter check the ready count again and hunt', async () => {
+  const fake = watcher([[], ['done']]);
+  const hunting = wakeable(fake, [[7], []]);
+  claimAfter(fake, hunting.blocked);
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(hunting.steps, [
+    'ready 1',
+    'wait 1',
+    'wait over',
+    'ready 0',
+    'hunt',
+    'wait 1',
+    'wait over',
+  ]);
+});
+
+test('a user who watches with --hunt sees a claim during a hunt skip the wait after that hunt, and the hunter check the ready count again', async () => {
+  const fake = watcher([[], ['done']]);
+  const hunting = wakeable(fake, [[], [7]]);
+  claimAfter(fake, hunting.hunted);
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(hunting.steps, ['ready 0', 'hunt', 'ready 1', 'wait 1', 'wait over']);
+});
+
+test('a user who watches with --hunt sees a claim wake the hunter, which waits again with the same back-off while huntCap issues stay ready', async () => {
+  const fake = watcher([[], ['done']]);
+  const hunting = wakeable(fake, [[7], [7], [7]], 1);
+  claimAfter(fake, hunting.blocked);
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(hunting.steps, [
+    'ready 1',
+    'wait 1',
+    'ready 1',
+    'wait 2',
+    'wait over',
+    'ready 1',
+    'wait 2',
+    'wait over',
+  ]);
+});
