@@ -556,7 +556,7 @@ test('a worker that cannot read its own start time gets an error and leaves no l
   await assert.rejects(
     lock(lockPath, 0, async () => undefined),
     {
-      message: 'next-issue: cannot read the start time of the worker process',
+      message: 'next-issue: cannot read the start time of this process',
     },
   );
   await assert.rejects(stat(lockPath), { code: 'ENOENT' });

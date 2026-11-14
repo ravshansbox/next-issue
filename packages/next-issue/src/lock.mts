@@ -46,7 +46,7 @@ async function holderOf(text: string): Promise<number | undefined> {
   return (await processStart(pid)) === started ? pid : undefined;
 }
 
-async function holder(lockPath: string): Promise<number | undefined> {
+export async function lockHolder(lockPath: string): Promise<number | undefined> {
   return holderOf(await readTextOrEmpty(lockPath));
 }
 
@@ -155,7 +155,7 @@ async function removeDeadDrafts(path: string): Promise<void> {
 }
 
 export async function stopWorker(lockPath: string): Promise<number | undefined> {
-  const pid = await holder(lockPath);
+  const pid = await lockHolder(lockPath);
   if (pid !== undefined) {
     process.kill(pid, 'SIGTERM');
   }
@@ -190,7 +190,7 @@ export async function lock(
 ): Promise<HeldLock | undefined> {
   const started = await readStart(process.pid);
   if (started === undefined) {
-    throw new Error('next-issue: cannot read the start time of the worker process');
+    throw new Error('next-issue: cannot read the start time of this process');
   }
   const text = `${process.pid} ${started}\n`;
   const deadline = Date.now() + waitMs;

@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
-import { access, appendFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  access,
+  appendFile,
+  mkdir,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { promisify } from 'node:util';
@@ -10,6 +19,7 @@ import { processStart } from '../src/lock.mts';
 import { runsDir, stateDir } from '../src/state.mts';
 import { workerPaths } from '../src/worker-paths.mts';
 import { tempDir } from './temp-dir.mts';
+import { connect } from './worker-harness.mts';
 
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
 
@@ -172,6 +182,94 @@ esac
   );
   assert.match(stderr, /Stopping now\./);
   assert.equal(stdout, '');
+});
+
+async function runWhileHeld(root: string, pid: number) {
+  await mkdir(stateDir(root), { recursive: true });
+  const lock = `${pid} ${await processStart(pid)}\n`;
+  const lockPath = join(stateDir(root), 'run.lock');
+  await writeFile(lockPath, lock);
+  const bin = await tempDir();
+  const called = join(bin, 'called');
+  await writeFile(join(bin, 'gh'), `#!/bin/sh\ntouch "${called}"\nexit 1\n`, { mode: 0o755 });
+  const error = await promisify(execFile)(process.execPath, [CLI, '--once'], {
+    cwd: root,
+    env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+  }).then(
+    () => undefined,
+    (failure: { code: number; stderr: string }) => failure,
+  );
+  assert.equal(error?.code, 1);
+  assert.equal(await exists(called), false);
+  assert.equal(await readFile(lockPath, 'utf8'), lock);
+  return error?.stderr ?? '';
+}
+
+test('a user who runs next-issue while another run is going in the repository sees an error that names it, exit code 1 and no issue read', async (t) => {
+  const root = await repository();
+  const other = spawn('sleep', ['30']);
+  t.after(() => other.kill('SIGKILL'));
+  assert.match(
+    await runWhileHeld(root, other.pid!),
+    new RegExp(`another next-issue run \\(process id ${other.pid}\\) is going in this repository`),
+  );
+});
+
+test('a user who runs next-issue while another run is going in the worker sees an error that names the worker', async (t) => {
+  const root = await repository();
+  const { child } = await serveWorker(root);
+  t.after(() => child.kill('SIGKILL'));
+  assert.match(
+    await runWhileHeld(root, child.pid!),
+    new RegExp(`the worker \\(process id ${child.pid}\\) has a run going in this repository`),
+  );
+});
+
+async function onceRun(root: string) {
+  return promisify(execFile)(process.execPath, [CLI, '--once'], { cwd: root }).then(
+    () => '',
+    (failure: { stderr: string }) => failure.stderr,
+  );
+}
+
+test('a user whose run ends finds no run.lock left in the repository', async () => {
+  const root = await repository();
+  assert.match(await onceRun(root), /No such remote 'origin'/);
+  assert.equal(await exists(join(stateDir(root), 'run.lock')), false);
+});
+
+test('a user who runs next-issue over a run.lock that a dead run left takes it over and leaves no run.lock', async () => {
+  const root = await repository();
+  const dead = spawn('true');
+  await new Promise((resolve) => dead.on('exit', resolve));
+  await mkdir(stateDir(root), { recursive: true });
+  await writeFile(join(stateDir(root), 'run.lock'), `${dead.pid} gone\n`);
+  const stderr = await onceRun(root);
+  assert.doesNotMatch(stderr, /is going in this repository/);
+  assert.match(stderr, /No such remote 'origin'/);
+  assert.equal(await exists(join(stateDir(root), 'run.lock')), false);
+});
+
+test('a user who starts a worker run while a command-line run is going sees the run fail with an error that names the other run', async (t) => {
+  const root = await realpath(await repository());
+  const other = spawn('sleep', ['30']);
+  t.after(() => other.kill('SIGKILL'));
+  await mkdir(stateDir(root), { recursive: true });
+  const lockPath = join(stateDir(root), 'run.lock');
+  const lock = `${other.pid} ${await processStart(other.pid!)}\n`;
+  await writeFile(lockPath, lock);
+  const { child } = await serveWorker(root);
+  t.after(() => child.kill('SIGKILL'));
+  const client = await connect(t, workerPaths(root).socketPath);
+  client.send({ type: 'start', root });
+  const ended = await client.next(
+    (value) => value.type === 'runs' && value.runs[root]?.status === 'failed',
+  );
+  assert.equal(
+    ended.type === 'runs' && ended.runs[root]!.error,
+    `another next-issue run (process id ${other.pid}) is going in this repository`,
+  );
+  assert.equal(await readFile(lockPath, 'utf8'), lock);
 });
 
 test('a user who stops the worker with SIGTERM sees it exit and remove its socket and lock files', async () => {

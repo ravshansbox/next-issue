@@ -1,3 +1,5 @@
+import { mkdir, rm } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { Args } from './args.mts';
 import { recordCommands } from './command-records.mts';
 import { type Config, loadConfig } from './config.mts';
@@ -11,15 +13,18 @@ import { defaultBranch } from './github.mts';
 import { hunter } from './hunt.mts';
 import type { Interrupts } from './interrupt.mts';
 import type { Context, IssueReport } from './job.mts';
+import { lock, lockHolder } from './lock.mts';
 import { exitCode, type Loop, type LoopResult, runIssues } from './loop.mts';
 import { type Fields, Recorder } from './observe.mts';
 import { pendingIssues } from './pending.mts';
 import { processIssue } from './pipeline.mts';
 import { PORTS } from './ports.mts';
 import { pruneRuns } from './prune-runs.mts';
+import { stateDir } from './state.mts';
 import { count, type RunSummary } from './summary.mts';
 import { packageVersion } from './version.mts';
 import { watchIssues } from './watch.mts';
+import { workerPaths } from './worker-paths.mts';
 
 export type RunControls = {
   interrupts: Interrupts;
@@ -27,7 +32,34 @@ export type RunControls = {
   onEvent?: (record: Fields) => void;
 };
 
-export async function runRepo(root: string, args: Args, controls: RunControls): Promise<number> {
+export function runRepo(root: string, args: Args, controls: RunControls): Promise<number> {
+  return withRunLock(root, () => runLoaded(root, args, controls));
+}
+
+async function withRunLock<T>(root: string, work: () => Promise<T>): Promise<T> {
+  await mkdir(stateDir(root), { recursive: true });
+  const path = join(stateDir(root), 'run.lock');
+  const held = await lock(path, 0);
+  if (held === undefined) {
+    throw new Error(await runningMessage(root, path));
+  }
+  try {
+    return await work();
+  } finally {
+    if (held.owns()) {
+      await rm(path, { force: true });
+    }
+  }
+}
+
+async function runningMessage(root: string, path: string): Promise<string> {
+  const pid = await lockHolder(path);
+  return pid !== undefined && pid === (await lockHolder(workerPaths(root).lockPath))
+    ? `the worker (process id ${pid}) has a run going in this repository`
+    : `another next-issue run (process id ${pid ?? 'unknown'}) is going in this repository`;
+}
+
+async function runLoaded(root: string, args: Args, controls: RunControls): Promise<number> {
   const config = await loadConfig(root);
   return withDefaultTimeout(minutesToMs(config.commandTimeoutMinutes), () =>
     runWithConfig(root, args, controls, config),
