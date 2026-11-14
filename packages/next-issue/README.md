@@ -132,7 +132,12 @@ the run handles one issue. For each issue:
    during the push, so a run stopped meanwhile, or the next run after that
    hand-over, checks the base on resume and waits for the checks of the
    commit when it landed. The harness then waits for the checks of the
-   pushed commit on the base branch. A repository
+   pushed commit on the base branch: its GitHub Actions workflow runs, its
+   commit statuses and the check runs of every other GitHub App, so checks
+   from another CI service count too. It leaves out the check runs of the
+   GitHub Actions app, since it judges GitHub Actions by its workflow runs. A
+   failed or errored commit status, or a check run that ends with
+   `failure`, `timed_out` or `action_required`, fails the checks. A repository
    that reports no check keeps asking for `checkGraceSeconds`. A pending state
    waits again, up to `checkTimeoutMinutes`. A read that fails is tried three
    times. When the checks pass, the harness closes the issue and sets
@@ -141,10 +146,12 @@ the run handles one issue. For each issue:
    and the state file go away. A fetch that fails or a fast-forward that is
    not safe leaves the local base branch as it is and writes a `base.behind`
    event, and the issue is still done. When the checks fail, the harness
-   reruns the failed jobs once with `gh run rerun <id> --failed`, records a
+   reruns the failed GitHub Actions jobs once with
+   `gh run rerun <id> --failed`, records a
    `main-checks.rerun` event, saves the rerun in the state file and waits
    again once the runs restart. When the rerun cannot start, or the checks
-   fail again, the fixer gets their logs from the check budget, and its fix
+   fail again, the fixer gets their logs from the check budget (for a check
+   from another CI service, only its name and link), and its fix
    lands the same way. When the fixer cannot fix them, its fix cannot land,
    an error stops the fix, or the budget runs out, the harness reverts every
    commit of the change on the base branch, pushes the revert and hands the
