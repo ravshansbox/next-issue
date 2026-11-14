@@ -425,7 +425,9 @@ Three levels of console output:
   and the tools of your extensions. The reviewer gets all of them except
   `edit` and `write`. The agents run with `GIT_OPTIONAL_LOCKS=0`, so a
   `git status` from an agent or an extension does not hold the index lock
-  while the harness commits.
+  while the harness commits. While an agent runs, `process.argv[1]` is the
+  pi CLI, so an extension that starts a child pi with `process.execPath` and
+  `process.argv[1]` (such as a `subagent` tool) runs pi, not next-issue.
 
 ## Configuration
 

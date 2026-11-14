@@ -8,7 +8,7 @@ import {
   fauxToolCall,
   type FauxResponseStep,
 } from '@earendil-works/pi-ai';
-import { ModelRuntime, SettingsManager } from '@earendil-works/pi-coding-agent';
+import { ModelRuntime, SettingsManager, VERSION } from '@earendil-works/pi-coding-agent';
 import { isOwnResource } from '../src/agent-session.mts';
 import { CODING, REVIEWING, runAgent, toolFields } from '../src/agents.mts';
 import { runChildren, stopRunChildren, withRunChildren } from '../src/children.mts';
@@ -129,6 +129,25 @@ test('a pi extension in an agent session runs git without optional locks', async
   const mark = await markExtension(request.cwd, 'String(process.env.GIT_OPTIONAL_LOCKS)');
   await runAgent(recorder, request);
   assert.equal(await readFile(mark, 'utf8'), '0');
+});
+
+test('an extension that relaunches the host through process.argv[1] gets a pi process', async () => {
+  const { recorder, request } = await fakePi([
+    fauxAssistantMessage([fauxToolCall('mark', {})], { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done'),
+  ]);
+  const mark = await markExtension(
+    request.cwd,
+    `(() => { const { spawnSync } = require('node:child_process'); const child = spawnSync(process.execPath, [process.argv[1], '--version'], { encoding: 'utf8' }); return child.stdout + child.stderr; })()`,
+  );
+  const script = process.argv[1];
+  process.argv[1] = join(import.meta.dirname, '..', 'src', 'cli.mts');
+  try {
+    await runAgent(recorder, request);
+  } finally {
+    process.argv[1] = script;
+  }
+  assert.equal((await readFile(mark, 'utf8')).trim(), VERSION);
 });
 
 test('a reviewer that calls the write tool leaves no file', async () => {

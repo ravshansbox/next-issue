@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   type AgentSession,
   type AgentSessionEvent,
@@ -50,11 +53,24 @@ export const CODING: Profile = {
   tools: ['+grep', '+find', '+ls'],
 };
 
+const PI_CLI = piCli();
+
+function piCli(): string {
+  const root = dirname(
+    dirname(fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))),
+  );
+  const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
+    bin: { pi: string };
+  };
+  return join(root, manifest.bin.pi);
+}
+
 export async function runAgent(recorder: Recorder, request: AgentRequest): Promise<AgentResult> {
   const log = recorder.scope({ role: request.name });
   const agentDir = request.runtime?.agentDir ?? getAgentDir();
   const started = Date.now();
   process.env.GIT_OPTIONAL_LOCKS = '0';
+  process.argv[1] = PI_CLI;
   log.event('agent.start', { model: request.model, timeoutMs: request.timeoutMs });
   const session = await openSession(recorder, log, request, agentDir);
 
