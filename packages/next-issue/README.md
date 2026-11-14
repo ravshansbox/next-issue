@@ -120,29 +120,29 @@ the run handles one issue. For each issue:
    reports conflicted files, the fixer gets the list from the check budget,
    `maxCiFixes`, removes the conflict markers, and the harness commits the
    merge. A merge that the fixer commits itself counts only when the branch
-   then holds the base and the listed files hold no conflict marker. With the
-   budget used up, or when the fixer leaves a conflict marker or the merge
-   unresolved, aborts the merge, or fails, the harness undoes the merge and
-   hands the issue to a person with the reason `merge conflict`. The
-   harness then pushes the commit to the base branch, without force. A push
-   that the remote refuses, for example because the base moved, starts the
-   rebase again, three times at most. When the push fails, the harness
-   fetches the base first, and treats the push as landed when the base holds
-   the commit, for example after a timeout. When that fetch fails too, the
-   harness hands the issue to a person with the reason `push unknown` and
-   halts, even when the hand-over fails. The state file holds the commit
-   during the push, so a run stopped meanwhile, or the next run after that
-   hand-over, checks the base on resume and waits for the checks of the
-   commit when it landed. The harness then waits for the checks of the
-   pushed commit on the base branch: its GitHub Actions workflow runs, its
-   commit statuses and the check runs of every other GitHub App, so checks
-   from another CI service count too. It leaves out the check runs of the
-   GitHub Actions app, since it judges GitHub Actions by its workflow runs. A
-   failed or errored commit status, or a check run that ends with
-   `failure`, `timed_out` or `action_required`, fails the checks. When any check
-   ends `cancelled`, for example because a later push cancelled the workflow
-   run, that check never finished, even when another check (such as a release
-   workflow) ends `success`: the harness
+   then holds the base commit that was merged and the listed files hold no
+   conflict marker. With the budget used up, or when the fixer leaves a
+   conflict marker or the merge unresolved, aborts the merge, or fails, the
+   harness undoes the merge and hands the issue to a person with the reason
+   `merge conflict`. The harness then pushes the commit to the base branch,
+   without force. A push that the remote refuses, for example because the
+   base moved, starts the rebase again, three times at most. When the push
+   fails, the harness fetches the base first, and treats the push as landed
+   when the base holds the commit, for example after a timeout. When that
+   fetch fails too, the harness hands the issue to a person with the reason
+   `push unknown` and halts, even when the hand-over fails. The state file
+   holds the commit during the push, so a run stopped meanwhile, or the
+   next run after that hand-over, checks the base on resume and waits for
+   the checks of the commit when it landed. The harness then waits for the
+   checks of the pushed commit on the base branch: its GitHub Actions
+   workflow runs, its commit statuses and the check runs of every other
+   GitHub App, so checks from another CI service count too. It leaves out
+   the check runs of the GitHub Actions app, since it judges GitHub Actions
+   by its workflow runs. A failed or errored commit status, or a check run
+   that ends with `failure`, `timed_out` or `action_required`, fails the
+   checks. When any check ends `cancelled`, for example because a later
+   push cancelled the workflow run, that check never finished, even when
+   another check (such as a release workflow) ends `success`: the harness
    hands the issue to a person with the reason `main checks cancelled` and
    halts, and the issue stays open. A repository
    that reports no check keeps asking for `checkGraceSeconds`. A pending state

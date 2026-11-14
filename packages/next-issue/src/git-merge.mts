@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { run, succeeded } from './exec.mts';
 import { readTextOrEmpty } from './files.mts';
 import { commitEverything } from './git-commit.mts';
-import { fetchBase, git, isAncestor, remoteRef, resetHard, succeeds } from './git.mts';
+import { fetchBase, git, isAncestor, resetHard, succeeds } from './git.mts';
 import { lines } from './text.mts';
 
 export type MergeStart = { target: string; files: string[] | undefined };
@@ -27,7 +27,7 @@ async function merging(cwd: string): Promise<boolean> {
 
 const CONFLICT_MARKER = /^(?:<{7}|>{7})(?: |$)/m;
 
-export type Merge = { before: string; base: string; remote: string; files: string[] };
+export type Merge = { before: string; target: string; files: string[] };
 
 export async function commitMerge(cwd: string, merge: Merge, message: string): Promise<boolean> {
   if (!(await merging(cwd))) {
@@ -42,7 +42,7 @@ export async function commitMerge(cwd: string, merge: Merge, message: string): P
 }
 
 async function refuseUnmerged(cwd: string, merge: Merge): Promise<void> {
-  const holdsBase = await isAncestor(cwd, remoteRef(merge.remote, merge.base), 'HEAD');
+  const holdsBase = await isAncestor(cwd, merge.target, 'HEAD');
   if (!holdsBase || (await hasConflictMarkers(cwd, merge.files))) {
     await resetHard(cwd, merge.before);
   }

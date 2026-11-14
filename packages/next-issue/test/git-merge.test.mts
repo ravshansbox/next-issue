@@ -8,8 +8,8 @@ import { isDirty, revision } from '../src/git.mts';
 import { addWorktree } from '../src/worktree.mts';
 import { clones, commit, git } from './clones.mts';
 
-function merge(before: string, files: string[]): Merge {
-  return { before, base: 'main', remote: 'origin', files };
+function merge(before: string, files: string[], target = 'origin/main'): Merge {
+  return { before, target, files };
 }
 
 async function diverged(): Promise<{ path: string; base: string }> {
@@ -64,6 +64,50 @@ test('commitMerge commits a conflict that the fixer resolved, and refuses a merg
   assert.equal(await commitMerge(path, merge(head, ['a.txt']), 'chore: merge'), true);
   assert.equal(await git(path, 'rev-parse', 'HEAD^1'), head);
   assert.equal(await readFile(join(path, 'a.txt'), 'utf8'), 'branch and base\n=======\n');
+});
+
+async function fixerCommits(path: string, text: string): Promise<void> {
+  await writeFile(join(path, 'a.txt'), text);
+  await git(path, 'commit', '-q', '-am', 'fixer merge');
+}
+
+async function baseMoves(path: string, base: string): Promise<void> {
+  await commit(base, 'c.txt');
+  await git(base, 'push', '-q', 'origin', 'main');
+  await git(path, 'fetch', '-q', 'origin');
+}
+
+test('commitMerge keeps a merge that the fixer committed after the remote base moved on', async () => {
+  const { path, base } = await diverged();
+  await writeFile(join(base, 'a.txt'), 'base\n');
+  await git(base, 'commit', '-q', '-am', 'base');
+  await git(base, 'push', '-q', 'origin', 'main');
+  const head = await revision(path);
+  const { target } = await startMerge(path, 'main', 'origin');
+  await fixerCommits(path, 'branch and base\n');
+  const merged = await revision(path);
+  await baseMoves(path, base);
+  assert.notEqual(await git(path, 'rev-parse', 'origin/main'), target);
+  assert.equal(await commitMerge(path, merge(head, ['a.txt'], target), 'chore: merge'), false);
+  assert.equal(await revision(path), merged);
+});
+
+test('commitMerge undoes a commit that the fixer committed without the merged base or with a conflict marker', async () => {
+  const { path, base } = await diverged();
+  await writeFile(join(base, 'a.txt'), 'base\n');
+  await git(base, 'commit', '-q', '-am', 'base');
+  await git(base, 'push', '-q', 'origin', 'main');
+  const head = await revision(path);
+  const { target } = await startMerge(path, 'main', 'origin');
+  await git(path, 'merge', '--abort');
+  await fixerCommits(path, 'branch and base\n');
+  assert.equal(await commitMerge(path, merge(head, ['a.txt'], target), 'chore: merge'), false);
+  assert.equal(await revision(path), head);
+  await startMerge(path, 'main', 'origin');
+  await fixerCommits(path, '<<<<<<< HEAD\nbranch\n=======\nbase\n>>>>>>> main\n');
+  assert.equal(await commitMerge(path, merge(head, ['a.txt'], target), 'chore: merge'), false);
+  assert.equal(await revision(path), head);
+  assert.equal(await isDirty(path), false);
 });
 
 test('startMerge reports a branch that already holds the base with no merge to commit', async () => {

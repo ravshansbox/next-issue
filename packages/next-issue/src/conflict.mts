@@ -1,5 +1,6 @@
 import { parseCommitSubject } from './agent-reply.mts';
 import { spendBudget } from './budget.mts';
+import type { Merge } from './git-merge.mts';
 import { commitWork, runFixer } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
 import { fallbackTitle, type Finished, type Run } from './job.mts';
@@ -14,7 +15,7 @@ export async function rebase(job: Run): Promise<Finished | undefined> {
   );
   if (files !== undefined) {
     log.event('rebase.conflicts', { files }, 'quiet');
-    const merged = await mergeBase(job, before, files);
+    const merged = await mergeBase(job, { before, target, files });
     if (merged !== undefined) {
       return merged;
     }
@@ -34,7 +35,8 @@ export async function rebase(job: Run): Promise<Finished | undefined> {
   return undefined;
 }
 
-async function mergeBase(job: Run, before: string, files: string[]): Promise<Finished | undefined> {
+async function mergeBase(job: Run, merge: Merge): Promise<Finished | undefined> {
+  const { before, files } = merge;
   const { context, worktree } = job;
   const { config, ports, base } = context;
   if (files.length > 0) {
@@ -49,7 +51,7 @@ async function mergeBase(job: Run, before: string, files: string[]): Promise<Fin
       return exhausted;
     }
   }
-  if (!(await resolve(job, before, files))) {
+  if (!(await resolve(job, merge))) {
     await ports.abortMerge(worktree, before);
     return escalateAndFinish(
       job,
@@ -65,14 +67,15 @@ function fixConflict(job: Run, files: string[]): Promise<string> {
   return runFixer(job, reason, files.join('\n'), [], 'conflict');
 }
 
-async function resolve(job: Run, before: string, files: string[]): Promise<boolean> {
+async function resolve(job: Run, merge: Merge): Promise<boolean> {
   const { context, worktree } = job;
+  const { before, files } = merge;
   const { config, ports } = context;
   try {
     const text = files.length > 0 ? await fixConflict(job, files) : '';
     const subject = parseCommitSubject(text, `chore: merge ${config.remote}/${context.base}`);
     return await commitWork(job, before, subject, 'fixer', (cwd, message) =>
-      ports.commitMerge(cwd, { before, base: context.base, remote: config.remote, files }, message),
+      ports.commitMerge(cwd, merge, message),
     );
   } catch (error) {
     await ports.abortMerge(worktree, before);
