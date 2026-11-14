@@ -14,7 +14,7 @@ import { huntPath } from './worktree.mts';
 
 export const HUNT_FILE = 'next-issue.hunt.md';
 
-const FILED = /^issue:\s*(\S+)\s*$/gm;
+const FILED = /^issue:[^\S\r\n]*(\S+)[^\S\r\n]*$/gm;
 
 export async function huntWorktree(repo: Repo, base: string, remote: string): Promise<string> {
   const path = huntPath(repo);

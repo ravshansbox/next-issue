@@ -124,6 +124,17 @@ test('a user whose hunt files nothing sees one hunt.issue event with none in the
   assert.deepEqual(urls, ['none']);
 });
 
+test('a user whose hunt reply has a bare issue: line with a url on the next line sees one hunt.issue event with none, so the watch backs off', async (t) => {
+  const target = await harness(t, {
+    hunterText: 'Duplicate exists, see\nissue:\nhttps://github.com/acme/tool/issues/12\n',
+  });
+  assert.equal(await hunt(target.context, 1), false);
+  const urls = target.events
+    .filter((record) => record.kind === 'hunt.issue')
+    .map((record) => record.url);
+  assert.deepEqual(urls, ['none']);
+});
+
 test('a user whose hunter fails sees a hunt.error event', async (t) => {
   const target = await harness(t, { fail: 'runAgent' });
   await assert.rejects(hunt(target.context, 1), /the port broke/);
