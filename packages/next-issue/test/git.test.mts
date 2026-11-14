@@ -12,6 +12,7 @@ import {
   latestSubject,
   parseRemote,
   push,
+  repoRoot,
   revision,
   setAside,
 } from '../src/git.mts';
@@ -25,6 +26,16 @@ test('parseRemote reads every remote form', () => {
   assert.deepEqual(parseRemote('ssh://git@github.com/acme/tool.git'), expected);
   assert.deepEqual(parseRemote('https://github.com/acme/tool.git'), expected);
   assert.deepEqual(parseRemote('http://github.com/acme/tool\n'), expected);
+});
+
+test('a user in a linked worktree of a bare repository gets the root of that worktree', async () => {
+  const { repo } = await clones();
+  const bare = `${repo.root}.bare.git`;
+  await git(repo.root, 'clone', '-q', '--bare', repo.root, bare);
+  const linked = join(bare, '..', 'linked');
+  await git(bare, 'worktree', 'add', '-q', linked);
+  await mkdir(join(linked, 'sub'));
+  assert.equal(await repoRoot(join(linked, 'sub')), await realpath(linked));
 });
 
 test('parseRemote refuses an unknown form', () => {

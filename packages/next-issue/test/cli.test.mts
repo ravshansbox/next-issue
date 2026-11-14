@@ -47,6 +47,17 @@ async function serveWorker(root: string) {
   return { child, exited, stderr: () => stderr };
 }
 
+async function linkedWorktree(root: string): Promise<string> {
+  await must(
+    'git',
+    ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'first'],
+    { cwd: root },
+  );
+  const linked = join(root, '.worktrees', '42');
+  await must('git', ['worktree', 'add', '-q', '-b', '42', linked], { cwd: root });
+  return linked;
+}
+
 async function initCommand(cwd: string) {
   return promisify(execFile)(process.execPath, [CLI, 'init'], { cwd });
 }
@@ -68,20 +79,15 @@ test('a user who runs init gets .next-issue/ and .worktrees/ once in info/exclud
   assert.equal(await exists(join(root, '.gitignore')), false);
 });
 
-test('a user who runs init in a linked worktree gets the entries in the shared info/exclude', async () => {
+test('a user who runs init in a linked worktree gets the entries in the shared info/exclude and the config in the main worktree', async () => {
   const root = await repository();
-  await must(
-    'git',
-    ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'first'],
-    { cwd: root },
-  );
-  const linked = join(await tempDir(), 'linked');
-  await must('git', ['worktree', 'add', '-q', linked], { cwd: root });
+  const linked = await linkedWorktree(root);
   await initCommand(linked);
   const exclude = await readFile(join(root, '.git/info/exclude'), 'utf8');
   assert.match(exclude, /^\.next-issue\/$/m);
   assert.match(exclude, /^\.worktrees\/$/m);
-  assert.equal(await exists(join(linked, '.next-issue/config.json')), true);
+  assert.equal(await exists(join(root, '.next-issue/config.json')), true);
+  assert.equal(await exists(join(linked, '.next-issue')), false);
 });
 
 test('a user who runs init sees .next-issue/ and .worktrees/ removed from .gitignore and other lines kept', async () => {
@@ -184,7 +190,7 @@ esac
   assert.equal(stdout, '');
 });
 
-async function runWhileHeld(root: string, pid: number) {
+async function runWhileHeld(root: string, pid: number, cwd = root) {
   await mkdir(stateDir(root), { recursive: true });
   const lock = `${pid} ${await processStart(pid)}\n`;
   const lockPath = join(stateDir(root), 'run.lock');
@@ -193,7 +199,7 @@ async function runWhileHeld(root: string, pid: number) {
   const called = join(bin, 'called');
   await writeFile(join(bin, 'gh'), `#!/bin/sh\ntouch "${called}"\nexit 1\n`, { mode: 0o755 });
   const error = await promisify(execFile)(process.execPath, [CLI, '--once'], {
-    cwd: root,
+    cwd,
     env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
   }).then(
     () => undefined,
@@ -223,6 +229,31 @@ test('a user who runs next-issue while another run is going in the worker sees a
     await runWhileHeld(root, child.pid!),
     new RegExp(`the worker \\(process id ${child.pid}\\) has a run going in this repository`),
   );
+});
+
+test('a user who runs next-issue in a linked worktree while another run is going in the main worktree sees the same error', async (t) => {
+  const root = await repository();
+  const linked = await linkedWorktree(root);
+  const other = spawn('sleep', ['30']);
+  t.after(() => other.kill('SIGKILL'));
+  assert.match(
+    await runWhileHeld(root, other.pid!, linked),
+    new RegExp(`another next-issue run \\(process id ${other.pid}\\) is going in this repository`),
+  );
+  assert.equal(await exists(join(linked, '.next-issue')), false);
+});
+
+test('a user who serves a linked worktree while the worker of the main worktree is going sees that another worker is running', async (t) => {
+  const root = await repository();
+  const linked = await linkedWorktree(root);
+  const { child } = await serveWorker(root);
+  t.after(() => child.kill('SIGKILL'));
+  const error = await promisify(execFile)(process.execPath, [CLI, 'serve'], { cwd: linked }).then(
+    () => undefined,
+    (failure: { code: number; stderr: string }) => failure,
+  );
+  assert.equal(error?.code, 1);
+  assert.equal(error?.stderr, 'next-issue: another worker is running\n');
 });
 
 async function onceRun(root: string) {

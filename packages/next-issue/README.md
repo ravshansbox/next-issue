@@ -39,6 +39,8 @@ writes the summary of the issues it handled and exits with code 1.
 
 Only one run goes at a time in a repository. A run holds `.next-issue/run.lock`, with its process id and the start time of that process, from its start to its end, and the worker takes the same lock for each run it starts. A run that starts while another run, from the worker or from the command line, is going claims no issue and fails at once with an error that names the other run and its process id (a command-line run exits with code 1, and a run started from the worker ends with status `failed` and the error text): `the worker (process id <n>) has a run going in this repository` or `another next-issue run (process id <n>) is going in this repository`. A lock whose process is gone, or started at another time, is stale and taken over, as with the worker lock.
 
+Every command uses the main worktree of the repository as its root, the first one that `git worktree list` shows, even when it runs in a linked worktree. So `.next-issue/`, with the config, the locks, the worker socket, the saved state and the notes, and `.worktrees/` are always in the main worktree, and a run or worker started from a linked worktree gets the same refusal as one started from the main worktree.
+
 A run handles up to `concurrency` issues at the same time, 1 by default. When an
 issue ends, the run fetches the open issues again and claims the oldest unseen
 one for the free slot. Each issue has its own worktree and branch. Step 3 below
@@ -369,7 +371,7 @@ To write the file with the defaults, run the `init` command in the repository:
 npx -y next-issue@latest init
 ```
 
-The command writes `.next-issue/config.json` in the repository and adds
+The command writes `.next-issue/config.json` in the main worktree and adds
 `.next-issue/` and `.worktrees/` to `info/exclude` in the git directory, which
 linked worktrees share. It removes those two lines from `.gitignore`, and
 deletes `.gitignore` when nothing else is left in it. It moves a

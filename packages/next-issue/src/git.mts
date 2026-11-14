@@ -25,7 +25,10 @@ export function parseRemote(url: string): { owner: string; name: string } {
 }
 
 export async function repoRoot(cwd: string): Promise<string> {
-  return git(cwd, ['rev-parse', '--show-toplevel']);
+  const top = await git(cwd, ['rev-parse', '--show-toplevel']);
+  const list = await git(cwd, ['worktree', 'list', '--porcelain']);
+  const [first = '', second = ''] = list.split('\n');
+  return first.startsWith('worktree ') && second !== 'bare' ? first.slice('worktree '.length) : top;
 }
 
 export async function detectRepo(cwd: string, remote: string): Promise<Repo> {
