@@ -85,13 +85,70 @@ test('openBlockers lists the open blockers and names those of another repository
     { number: 9, state: 'open', repository_url: 'https://api.github.com/repos/acme/other' },
   ]);
   await writeFile(join(dir, 'response.json'), response);
+  await writeFile(
+    join(dir, 'issue.json'),
+    JSON.stringify({ number: 7, repository_url: 'https://api.github.com/repos/acme/tool' }),
+  );
   const script = `#!/bin/sh
-[ "$1 $2 $3" = "api --paginate repos/acme/tool/issues/7/dependencies/blocked_by" ] || { echo "unexpected: $*" >&2; exit 1; }
-jq -r "$5" "${join(dir, 'response.json')}"
+case "$*" in
+  "api --paginate repos/acme/tool/issues/7/dependencies/blocked_by "*) jq -r "$5" "${join(dir, 'response.json')}" ;;
+  "api repos/acme/tool/issues/7 "*) jq -r "$4" "${join(dir, 'issue.json')}" ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
 `;
   await installGh(t, dir, script);
   assert.deepEqual(await openBlockers({ owner: 'acme', name: 'tool', root: dir }, 7), [
     '#3',
+    'acme/other#9',
+  ]);
+});
+
+test('openBlockers gives #<n> for a blocker of the same repository when the remote url differs in case', async (t) => {
+  const dir = await tempDir();
+  const response = JSON.stringify([
+    { number: 12, state: 'open', repository_url: 'https://api.github.com/repos/acme/tool' },
+    { number: 9, state: 'open', repository_url: 'https://api.github.com/repos/acme/other' },
+  ]);
+  await writeFile(join(dir, 'response.json'), response);
+  await writeFile(
+    join(dir, 'issue.json'),
+    JSON.stringify({ number: 7, repository_url: 'https://api.github.com/repos/acme/tool' }),
+  );
+  const script = `#!/bin/sh
+case "$*" in
+  "api --paginate repos/Acme/Tool/issues/7/dependencies/blocked_by "*) jq -r "$5" "${join(dir, 'response.json')}" ;;
+  "api repos/Acme/Tool/issues/7 "*) jq -r "$4" "${join(dir, 'issue.json')}" ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+`;
+  await installGh(t, dir, script);
+  assert.deepEqual(await openBlockers({ owner: 'Acme', name: 'Tool', root: dir }, 7), [
+    '#12',
+    'acme/other#9',
+  ]);
+});
+
+test('openBlockers gives #<n> for a blocker of the same repository when the remote url holds its old name', async (t) => {
+  const dir = await tempDir();
+  const response = JSON.stringify([
+    { number: 12, state: 'open', repository_url: 'https://api.github.com/repos/acme/tool' },
+    { number: 9, state: 'open', repository_url: 'https://api.github.com/repos/acme/other' },
+  ]);
+  await writeFile(join(dir, 'response.json'), response);
+  await writeFile(
+    join(dir, 'issue.json'),
+    JSON.stringify({ number: 7, repository_url: 'https://api.github.com/repos/acme/tool' }),
+  );
+  const script = `#!/bin/sh
+case "$*" in
+  "api --paginate repos/old/name/issues/7/dependencies/blocked_by "*) jq -r "$5" "${join(dir, 'response.json')}" ;;
+  "api repos/old/name/issues/7 "*) jq -r "$4" "${join(dir, 'issue.json')}" ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+`;
+  await installGh(t, dir, script);
+  assert.deepEqual(await openBlockers({ owner: 'old', name: 'name', root: dir }, 7), [
+    '#12',
     'acme/other#9',
   ]);
 });

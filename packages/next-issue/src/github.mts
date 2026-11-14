@@ -116,17 +116,24 @@ export async function canWrite(repo: Repo, login: string): Promise<boolean> {
   }
 }
 
+const REPOSITORY_SLUG = '(.repository_url | split("/") | .[-2:] | join("/"))';
+
 export async function openBlockers(repo: Repo, issue: number): Promise<string[]> {
-  const repoSlug = slug(repo);
   const raw = await ghApi(
     repo,
     `issues/${issue}/dependencies/blocked_by`,
-    '.[] | select(.state == "open") | (.repository_url | split("/") | .[-2:] | join("/")) + "#" + (.number | tostring)',
+    `.[] | select(.state == "open") | ${REPOSITORY_SLUG} + "#" + (.number | tostring)`,
     { paginate: true },
   );
-  return lines(raw).map((ref) =>
-    ref.startsWith(`${repoSlug}#`) ? ref.slice(repoSlug.length) : ref,
-  );
+  const refs = lines(raw);
+  const prefixes = [`${slug(repo)}#`.toLowerCase()];
+  if (refs.some((ref) => !ref.toLowerCase().startsWith(prefixes[0]))) {
+    prefixes.push(`${await ghApi(repo, `issues/${issue}`, REPOSITORY_SLUG)}#`.toLowerCase());
+  }
+  return refs.map((ref) => {
+    const prefix = prefixes.find((candidate) => ref.toLowerCase().startsWith(candidate));
+    return prefix === undefined ? ref : ref.slice(prefix.length - 1);
+  });
 }
 
 export async function reopenIssue(repo: Repo, issue: number): Promise<void> {
