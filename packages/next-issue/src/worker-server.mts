@@ -5,12 +5,38 @@ import type { ClientMessage } from './protocol.mts';
 import { send } from './questions.mts';
 import { type Run, runsMessage } from './worker-run.mts';
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isStringArray(value: unknown): boolean {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+function isClientMessage(value: unknown): value is ClientMessage {
+  if (!isRecord(value) || typeof value['type'] !== 'string') {
+    return false;
+  }
+  if (value['type'] === 'hello') {
+    return true;
+  }
+  if (typeof value['root'] !== 'string') {
+    return false;
+  }
+  if (value['type'] === 'questions') {
+    return value['id'] === undefined || typeof value['id'] === 'string';
+  }
+  return value['type'] !== 'start' || value['args'] === undefined || isStringArray(value['args']);
+}
+
 export function parseMessage(text: string): ClientMessage | undefined {
+  let value: unknown;
   try {
-    return JSON.parse(text) as ClientMessage;
+    value = JSON.parse(text);
   } catch {
     return undefined;
   }
+  return isClientMessage(value) ? value : undefined;
 }
 
 export function broadcast(sockets: WebSocketServer, runs: Map<string, Run>): void {

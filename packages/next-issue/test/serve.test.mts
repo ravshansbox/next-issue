@@ -245,6 +245,48 @@ test('a client that sends start, stop or questions for another repository gets a
   );
 });
 
+test('a client that sends a malformed message gets no reply, no run starts and the worker keeps answering', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  for (const value of [
+    null,
+    42,
+    [],
+    {},
+    { type: 5 },
+    { type: 'start' },
+    { type: 'start', root: 5 },
+    { type: 'start', root: '/repo', args: '--hunt' },
+    { type: 'start', root: '/repo', args: [1] },
+    { type: 'stop' },
+    { type: 'questions' },
+    { type: 'questions', root: '/repo', id: 5 },
+  ]) {
+    client.send(value as never);
+  }
+  client.send({ type: 'questions', root: '/repo', id: 'after' });
+  assert.deepEqual(
+    await client.next(
+      (value) => value.type === 'error' || (value.type === 'questions' && value.id !== undefined),
+    ),
+    { type: 'questions', root: '/repo', questions: [], id: 'after' },
+  );
+  assert.equal(fake.calls.length, 0);
+  const another = await connect(t, socketPath);
+  assert.deepEqual(await another.next(runsOf), { type: 'runs', runs: {} });
+});
+
+test('a client whose message the worker fails to handle gets an error and the worker keeps answering', async (t) => {
+  const { socketPath } = await worker(t, fakeRuns());
+  const client = await connect(t, socketPath);
+  client.send({ type: 'hello', version: 5 } as never);
+  const reply = await client.next((value) => value.type === 'error');
+  assert.equal(reply.type === 'error' && reply.root, '/repo');
+  const another = await connect(t, socketPath);
+  assert.deepEqual(await another.next(runsOf), { type: 'runs', runs: {} });
+});
+
 test('a second worker does not start while the first one holds the lock', async (t) => {
   const fake = fakeRuns();
   const { socketPath, lockPath } = await worker(t, fake);

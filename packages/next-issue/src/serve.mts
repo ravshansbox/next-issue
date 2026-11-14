@@ -146,8 +146,17 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     socket.on('close', closeWhenIdle);
     socket.on('message', (data) => {
       const value = parseMessage(String(data));
-      if (value !== undefined) {
+      if (value === undefined) {
+        return;
+      }
+      try {
         receive(socket, value);
+      } catch (error) {
+        send(socket, {
+          type: 'error',
+          root: value.type === 'hello' ? options.root : value.root,
+          message: message(error),
+        });
       }
     });
   });
