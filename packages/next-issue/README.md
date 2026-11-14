@@ -251,6 +251,11 @@ and comments the reason on the issue, when:
   network fails. A `gh issue comment` is
   tried once, so a lost reply never makes a duplicate.
 
+After a halt, a running issue that reaches the landing does not land on the
+broken base branch: it ends `stopped` with the reason `run halted` and keeps
+its state, branch and labels. The next run resumes it and lands it with no new
+review.
+
 The fixer sees the findings of all earlier rounds, not only the last one, with
 its own disputes next to them. From round two, the reviewer judges only the
 earlier findings and any regression.

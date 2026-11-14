@@ -1,6 +1,6 @@
 import { escalateAndFinish } from './handover.mts';
 import { ROUND_CONTINUE, type Round, type Run } from './job.mts';
-import { resumeLanding } from './land.mts';
+import { landApproved, resumeLanding } from './land.mts';
 import { reapplyMessage } from './revert.mts';
 import { writeState } from './state.mts';
 
@@ -20,9 +20,10 @@ export async function enterReview(job: Run): Promise<Round> {
   if (landed !== undefined) {
     return resumeLanding(job, landed);
   }
+  const approved = state.phase === 'approved';
   state.phase = 'review';
   await writeState(context.repo, state);
-  return ROUND_CONTINUE;
+  return approved ? landApproved(job) : ROUND_CONTINUE;
 }
 
 async function settlePush(job: Run): Promise<void> {

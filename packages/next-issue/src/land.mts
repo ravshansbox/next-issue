@@ -2,7 +2,7 @@ import { runStopped } from './children.mts';
 import { rebase } from './conflict.mts';
 import { checkGate, escalateError } from './gate.mts';
 import { PUSH_TRIES } from './git-land.mts';
-import { escalateAndFinish, finishDone } from './handover.mts';
+import { escalateAndFinish, finishDone, stop } from './handover.mts';
 import type { Finished, Run } from './job.mts';
 import { oneAtATime } from './lock.mts';
 import { revertFailedFix } from './revert.mts';
@@ -37,7 +37,14 @@ async function holdsUnlandedFix(job: Run, sha: string): Promise<boolean> {
 }
 
 function landing(job: Run, work: () => Promise<Finished>): Promise<Finished> {
-  return oneAtATime(`${job.context.repo.root}#land`, work);
+  return oneAtATime(`${job.context.repo.root}#land`, async () => {
+    if (!job.context.halted) {
+      return work();
+    }
+    job.state.phase = 'approved';
+    await writeState(job.context.repo, job.state);
+    return { done: true, report: stop(job, 'run halted') };
+  });
 }
 
 async function landLoop(job: Run): Promise<Finished> {

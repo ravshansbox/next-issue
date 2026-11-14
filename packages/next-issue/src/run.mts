@@ -160,6 +160,7 @@ async function startRun(
     base,
     reset: args.reset,
     stopAfterRound: interrupts.afterRound,
+    halted: false,
     recorder,
     ports: PORTS,
   };

@@ -457,6 +457,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     base: 'main',
     reset: plan.reset === true,
     stopAfterRound: () => pressed,
+    halted: false,
     recorder,
     ports,
   };

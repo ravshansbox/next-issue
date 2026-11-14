@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { processIssue } from '../src/pipeline.mts';
+import { readState } from '../src/state.mts';
 import { APPROVE, harness, ISSUE, roles } from './harness.mts';
 
 test('a user whose change is approved gets it pushed to the base branch as one commit, the issue closed and done', async (t) => {
@@ -702,6 +703,74 @@ test('a user with several issues gets the others implemented and reviewed while 
     reports.map((report) => report.outcome),
     ['done', 'done'],
   );
+});
+
+test('a user with concurrency 2 whose issue halts the run gets the other approved issue stopped before it lands, and landed without a new review by the next run', async (t) => {
+  const target = await harness(t, {
+    verdicts: [APPROVE, APPROVE],
+    config: { maxCiFixes: 0, maxReviewRounds: 1 },
+    baseChecks: ['fail'],
+    revertFails: true,
+  });
+  const ports = target.context.ports;
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let waiting: () => void = () => {};
+  const landingWaits = new Promise<void>((resolve) => {
+    waiting = resolve;
+  });
+  const waitForBaseChecks = ports.waitForBaseChecks;
+  ports.waitForBaseChecks = async (...args) => {
+    waiting();
+    await held;
+    return waitForBaseChecks(...args);
+  };
+  let reviewed: () => void = () => {};
+  const otherReviewed = new Promise<void>((resolve) => {
+    reviewed = resolve;
+  });
+  const runAgent = ports.runAgent;
+  let reviews = 0;
+  ports.runAgent = async (...args) => {
+    const result = await runAgent(...args);
+    if (args[1].name === 'reviewer') {
+      reviews += 1;
+      if (reviews === 2) {
+        reviewed();
+      }
+    }
+    return result;
+  };
+  const halting = processIssue(target.context, ISSUE);
+  await landingWaits;
+  const other = processIssue(target.context, { ...ISSUE, number: 8 });
+  await otherReviewed;
+  release();
+  const [first, second] = await Promise.all([halting, other]);
+  assert.equal(first.halt, true);
+  assert.equal(second.outcome, 'stopped');
+  assert.equal(second.reason, 'run halted');
+  assert.deepEqual(target.landed, ['2']);
+  assert.equal(target.baseMerges, 1);
+  assert.notEqual(await readState(target.context.repo, 8), undefined);
+  assert.equal(
+    target.labels.filter((entry) => entry.number === 8).at(-1)!.label,
+    'status:in-review',
+  );
+  assert.ok(
+    target.events.some(
+      (record) =>
+        record['kind'] === 'issue.end' &&
+        record['issue'] === 8 &&
+        record['reason'] === 'run halted',
+    ),
+  );
+  target.context.halted = false;
+  const resumed = await processIssue(target.context, { ...ISSUE, number: 8 });
+  assert.equal(resumed.outcome, 'done');
+  assert.equal(target.landed.length, 2);
 });
 
 test('a user whose change lands gets the local base moved to the landed commit', async (t) => {

@@ -16,6 +16,7 @@ export type Context = {
   base: string;
   reset: boolean;
   stopAfterRound: () => boolean;
+  halted: boolean;
   recorder: Recorder;
   ports: Ports;
 };

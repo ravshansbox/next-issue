@@ -55,9 +55,9 @@ async function updateLocalBase(job: Run): Promise<void> {
   }
 }
 
-export function stop(job: Run): IssueReport {
-  job.log.event('issue.stop', { phase: job.state.phase }, 'quiet');
-  return jobReport(job, 'stopped');
+export function stop(job: Run, reason?: string): IssueReport {
+  job.log.event('issue.stop', { phase: job.state.phase, reason }, 'quiet');
+  return jobReport(job, 'stopped', reason);
 }
 
 export function stopNow(
@@ -99,10 +99,11 @@ export async function finish(job: Run, outcome: Outcome, reason?: string): Promi
     await deleteBranches(context, log, branch);
     await dropState(repo, issue.number);
   }
-  return {
-    ...jobReport(job, outcome, reason),
-    ...(job.mainBroken && outcome !== 'done' ? { halt: true } : {}),
-  };
+  const halt = job.mainBroken && outcome !== 'done';
+  if (halt) {
+    context.halted = true;
+  }
+  return { ...jobReport(job, outcome, reason), ...(halt ? { halt: true } : {}) };
 }
 
 async function deleteBranches(context: Context, log: Recorder, branch: string): Promise<void> {

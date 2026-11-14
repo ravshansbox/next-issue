@@ -7,7 +7,7 @@ import { isRecord } from './records.mts';
 
 export const STATE_DIR = '.next-issue';
 
-type Phase = 'claimed' | 'implemented' | 'review';
+type Phase = 'claimed' | 'implemented' | 'review' | 'approved';
 
 export type IssueState = {
   issue: number;
@@ -69,7 +69,7 @@ function parseState(path: string, text: string): IssueState {
   return parsed;
 }
 
-const PHASES: readonly unknown[] = ['claimed', 'implemented', 'review'];
+const PHASES: readonly unknown[] = ['claimed', 'implemented', 'review', 'approved'];
 
 function isOptional(value: unknown, type: 'boolean' | 'number' | 'string'): boolean {
   return value === undefined || typeof value === type;
