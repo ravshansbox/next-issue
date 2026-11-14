@@ -11,7 +11,7 @@ export function parseUnrelated(text: string): string | undefined {
 
 export function parseResolved(text: string): string | undefined {
   const note = lastMatch(text, /^resolved:[^\S\r\n]*(.+)$/gim);
-  return note === '' ? undefined : note;
+  return note === undefined || PLACEHOLDERS.has(note.toLowerCase()) ? undefined : note;
 }
 
 export function parseCommitSubject(text: string, fallback: string): string {

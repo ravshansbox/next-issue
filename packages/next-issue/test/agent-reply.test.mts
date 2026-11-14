@@ -92,6 +92,12 @@ test('parseResolved reads the last marker line', () => {
   assert.equal(parseResolved('unrelated: wrong'), undefined);
 });
 
+test('parseResolved treats a placeholder value as no settlement', () => {
+  for (const value of ['none', 'None', 'NONE', 'n/a', 'N/A', '-', ' none ']) {
+    assert.equal(parseResolved(`fixed it\nresolved: ${value}`), undefined, value);
+  }
+});
+
 test('parseResolved gives undefined for a bare marker line followed by a commit line', () => {
   assert.equal(parseResolved('resolved:\ncommit: fix: guard the null body'), undefined);
   assert.equal(parseResolved('resolved:\n\nAdded the test.'), undefined);

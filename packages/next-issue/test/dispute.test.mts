@@ -87,6 +87,18 @@ test('a fixer that fixes the finding and writes a placeholder unrelated line kee
   assert.deepEqual(target.asides, []);
 });
 
+test('a fixer that fixes the finding and writes a placeholder resolved line keeps its fix', async (t) => {
+  const target = await harness(t, {
+    fixerWrites: true,
+    verdicts: [changes('The count is wrong.'), APPROVE],
+    fixerText: ['Fixed the count.\nresolved: none\ncommit: fix: correct the count'],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer', 'reviewer']);
+  assert.deepEqual(target.asides, []);
+});
+
 test('a finished issue gets the dispute branches of an earlier run deleted', async (t) => {
   const target = await harness(t, { disputes: ['7-dispute-3'] });
   const report = await target.run();
