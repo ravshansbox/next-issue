@@ -54,8 +54,7 @@ function change(
 }
 
 function addHandled(handled: Handled[], issue: number, outcome: unknown): Handled[] {
-  const repeated = handled.some((item) => item.issue === issue && item.outcome === outcome);
-  return !repeated && (outcome === 'done' || outcome === 'needs-human' || outcome === 'error')
+  return outcome === 'done' || outcome === 'needs-human' || outcome === 'error'
     ? [...handled, { issue, outcome }]
     : handled;
 }

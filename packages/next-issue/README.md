@@ -688,7 +688,8 @@ affect another. The worker:
   unknown argument with an `error` message;
 - sends every client the progress of every run when it connects and on every
   change: for each running issue the issue, the step, the tool count and the
-  last tool, and the handled issues;
+  last tool, and the handled issues (an issue handled in more than one pass
+  appears once for each);
 - sends every client a `questions` message for each repository: the open
   issues with the `needsHuman` label, each with its number, title, the reason
   of the hand-over, the url of the comment that holds it, the `owner/name`
