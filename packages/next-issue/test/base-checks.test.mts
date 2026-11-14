@@ -43,10 +43,10 @@ esac
 
 const BASE_WAIT = { intervalSeconds: 1, graceMs: 0, timeoutMs: 10_000 };
 
-test('waitForBaseChecks passes when every run on the commit ends without a failure, a cancelled one included', async (t) => {
+test('waitForBaseChecks passes when every run on the commit ends without a failure or a cancel', async (t) => {
   const dir = await fakeRunsGh(t, [
     { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'success' },
-    { databaseId: 2, name: 'Deploy', status: 'completed', conclusion: 'cancelled' },
+    { databaseId: 2, name: 'Deploy', status: 'completed', conclusion: 'success' },
     { databaseId: 3, name: 'Docs', status: 'completed', conclusion: 'skipped' },
   ]);
   assert.equal(
@@ -59,6 +59,17 @@ test('waitForBaseChecks reports cancelled when every run on the commit was cance
   const dir = await fakeRunsGh(t, [
     { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'cancelled' },
     { databaseId: 2, name: 'Docs', status: 'completed', conclusion: 'skipped' },
+  ]);
+  assert.equal(
+    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', BASE_WAIT),
+    'cancelled',
+  );
+});
+
+test('waitForBaseChecks reports cancelled when the CI run on the commit was cancelled and another workflow succeeded', async (t) => {
+  const dir = await fakeRunsGh(t, [
+    { databaseId: 1, name: 'ci', status: 'completed', conclusion: 'cancelled' },
+    { databaseId: 2, name: 'release', status: 'completed', conclusion: 'success' },
   ]);
   assert.equal(
     await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', BASE_WAIT),

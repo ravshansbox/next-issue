@@ -99,9 +99,7 @@ function baseState(runs: Check[]): CheckState {
   if (!runs.every((entry) => entry.status === 'completed')) {
     return 'pending';
   }
-  const cancelled = runs.some((entry) => entry.conclusion === 'cancelled');
-  const succeeded = runs.some((entry) => entry.conclusion === 'success');
-  return cancelled && !succeeded ? 'cancelled' : 'pass';
+  return runs.some((entry) => entry.conclusion === 'cancelled') ? 'cancelled' : 'pass';
 }
 
 export function waitForBaseChecks(
