@@ -33,9 +33,23 @@ test('pruneRuns drops the session folder of a run that is older than the limit',
   await mkdir(join(dir, 'old', 'sessions'), { recursive: true });
   await writeFile(join(dir, 'old', 'sessions', 'a.jsonl'), '{}\n');
   const when = new Date(Date.now() - 8 * DAY);
+  await utimes(join(dir, 'old', 'sessions', 'a.jsonl'), when, when);
+  await utimes(join(dir, 'old', 'sessions'), when, when);
   await utimes(join(dir, 'old'), when, when);
   assert.equal(await pruneRuns(root, 7), 1);
   assert.deepEqual(await readdir(dir), ['new.jsonl']);
+});
+
+test('pruneRuns keeps the session folder of a run whose sessions are newer than the limit', async () => {
+  const root = await withRuns({});
+  const dir = runsDir(root);
+  await mkdir(join(dir, 'long', 'sessions'), { recursive: true });
+  await writeFile(join(dir, 'long', 'sessions', 'a.jsonl'), '{}\n');
+  const when = new Date(Date.now() - 10 * DAY);
+  await utimes(join(dir, 'long', 'sessions'), when, when);
+  await utimes(join(dir, 'long'), when, when);
+  assert.equal(await pruneRuns(root, 7), 0);
+  assert.deepEqual(await readdir(join(dir, 'long', 'sessions')), ['a.jsonl']);
 });
 
 test('pruneRuns with a limit of zero keeps every run', async () => {

@@ -283,7 +283,9 @@ Every run has an id, `<timestamp>`, and writes these under `.next-issue/runs/`:
   part of the file name.
 
 At the start of a run, the harness deletes the files and folders under
-`.next-issue/runs/` that are older than `keepRunDays`. Set the field to `0` to keep them all.
+`.next-issue/runs/` that are older than `keepRunDays`. The age of a folder is
+the time since the last change to it or to anything inside it, so the sessions
+of a long run stay while it still writes them. Set the field to `0` to keep them all.
 
 A short text summary of the same data goes to standard output. Use `--json` to
 get the full summary object there instead, so the harness fits in a pipe. All

@@ -1,4 +1,4 @@
-import { rm, stat } from 'node:fs/promises';
+import { readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { daysToMs } from './durations.mts';
 import { listOrEmpty } from './files.mts';
@@ -22,8 +22,7 @@ export async function pruneRuns(root: string, keepDays: number): Promise<number>
 
 async function dropIfOlder(path: string, cutoff: number): Promise<boolean> {
   try {
-    const info = await stat(path);
-    if (info.mtimeMs >= cutoff) {
+    if ((await newestChange(path)) >= cutoff) {
       return false;
     }
     await rm(path, { force: true, recursive: true });
@@ -31,4 +30,16 @@ async function dropIfOlder(path: string, cutoff: number): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function newestChange(path: string): Promise<number> {
+  const info = await stat(path);
+  if (!info.isDirectory()) {
+    return info.mtimeMs;
+  }
+  let newest = info.mtimeMs;
+  for (const name of await readdir(path)) {
+    newest = Math.max(newest, await newestChange(join(path, name)));
+  }
+  return newest;
 }
