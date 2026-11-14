@@ -6,7 +6,7 @@ import { minutesToMs } from './durations.mts';
 import { readTextIfPresent } from './files.mts';
 import { slug } from './gh.mts';
 import { git, gitFetch, remoteRef, type Repo } from './git.mts';
-import type { Context } from './job.mts';
+import { type Context, withNotes } from './job.mts';
 import { oneAtATime } from './lock.mts';
 import { huntPrompt } from './prompts.mts';
 import { skipReason } from './skip.mts';
@@ -49,7 +49,11 @@ export async function hunt(context: Context, count: number): Promise<boolean> {
     const result = await ports.runAgent(recorder, {
       name: 'hunter',
       cwd,
-      prompt: huntPrompt(instructions, config.labels.ready, config.labels.hunt, count, slug(repo)),
+      prompt: await withNotes(
+        repo.root,
+        huntPrompt(instructions, config.labels.ready, config.labels.hunt, count, slug(repo)),
+        false,
+      ),
       profile: REVIEWING,
       timeoutMs: minutesToMs(config.agentTimeoutMinutes),
     });

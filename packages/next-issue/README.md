@@ -505,7 +505,8 @@ silent skip.
 Every agent prompt holds `.next-issue/notes.md` when it exists, so lessons
 such as test commands, tool quirks and deliberate behaviour carry over from one
 issue to the next. The implementer and the fixer may add a short note to it, and
-the prompt asks them to keep only what still holds. The reviewer only reads it.
+the prompt asks them to keep only what still holds. The reviewer and the hunter
+only read it.
 
 ## Retry an issue that waits for a person
 

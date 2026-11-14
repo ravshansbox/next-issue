@@ -65,6 +65,12 @@ export function gateRound(gate: Gate): Round | undefined {
   return gate.fixed ? ROUND_CONTINUE : undefined;
 }
 
+export async function withNotes(root: string, prompt: string, writable: boolean): Promise<string> {
+  const path = notesPath(root);
+  const notes = await readTextIfPresent(path);
+  return paragraphs([notesBlock(path, notes, writable), prompt]);
+}
+
 export async function runRole(
   job: Run,
   role: keyof Config['models'],
@@ -72,13 +78,11 @@ export async function runRole(
   profile: Profile,
 ): Promise<AgentResult> {
   const { config, ports, repo } = job.context;
-  const path = notesPath(repo.root);
-  const notes = await readTextIfPresent(path);
   const writable = role === 'implementer' || role === 'fixer';
   return ports.runAgent(job.log, {
     name: role,
     cwd: job.worktree,
-    prompt: paragraphs([notesBlock(path, notes, writable), prompt]),
+    prompt: await withNotes(repo.root, prompt, writable),
     profile,
     model: config.models[role],
     timeoutMs: minutesToMs(config.agentTimeoutMinutes),
