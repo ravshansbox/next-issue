@@ -505,6 +505,56 @@ test('a user whose checks on main fail and whose read of the failed runs then fa
   assert.equal((await target.state())?.landed, undefined);
 });
 
+function checkReadFails(target: Awaited<ReturnType<typeof harness>>, when: () => boolean) {
+  const ports = target.context.ports;
+  const waitForBaseChecks = ports.waitForBaseChecks;
+  ports.waitForBaseChecks = async (...args) => {
+    if (when()) {
+      throw new Error('gh: API rate limit exceeded');
+    }
+    return waitForBaseChecks(...args);
+  };
+}
+
+test('a user whose checks on main fail and whose read of the checks after the rerun then fails gets the change reverted, the issue handed over and the run halted', async (t) => {
+  const target = await harness(t, { baseChecks: ['fail'] });
+  checkReadFails(target, () => target.reruns.length > 0);
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'checks error');
+  assert.equal(report.halt, true);
+  assert.deepEqual(
+    target.reverts.map((entry) => entry.shas),
+    [['2']],
+  );
+  assert.match(
+    target.comments.at(-1)!,
+    /needs help: The read of the checks on main failed: gh: API rate limit exceeded\. The harness reverted the change on main\./,
+  );
+  assert.equal((await target.state())?.landed, undefined);
+});
+
+test('a user whose fix for main lands and whose read of the checks of the fix then fails gets every landed commit reverted, the issue handed over and the run halted', async (t) => {
+  const target = await harness(t, {
+    baseChecks: ['fail'],
+    fixerText: 'Done.\ncommit: fix: repair main',
+  });
+  checkReadFails(target, () => target.landed.length > 1);
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'checks error');
+  assert.equal(report.halt, true);
+  assert.deepEqual(
+    target.reverts.map((entry) => entry.shas),
+    [['2', '4']],
+  );
+  assert.match(
+    target.comments.at(-1)!,
+    /needs help: The read of the checks on main failed: gh: API rate limit exceeded\. The harness reverted the change on main\./,
+  );
+  assert.equal((await target.state())?.landed, undefined);
+});
+
 test('a user whose checks on main fail with no check fix left and whose revert fails with an error gets the issue handed over and the run halted', async (t) => {
   const target = await harness(t, { config: { maxCiFixes: 0 }, baseChecks: ['fail'] });
   target.context.ports.revertOnBase = async () => {

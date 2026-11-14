@@ -10,7 +10,15 @@ import { writeState } from './state.mts';
 
 export async function checkGate(job: Run, sha: string): Promise<Gate> {
   const { base } = job.context;
-  const checks = await rerunOnce(job, sha, await waitForChecks(job, sha));
+  let checks: CheckState;
+  try {
+    checks = await rerunOnce(job, sha, await waitForChecks(job, sha));
+  } catch (error) {
+    if (!job.mainBroken) {
+      throw error;
+    }
+    return escalateError(job, error, `The read of the checks on ${base} failed`, 'checks error');
+  }
   if (checks === 'pass' || checks === 'none') {
     return GATE_PASSED;
   }
@@ -49,7 +57,10 @@ async function rerunOnce(job: Run, sha: string, checks: CheckState): Promise<Che
     log.event('main-checks.rerun-failed', { sha, error: asError(error).message });
     return checks;
   }
-  return waitForChecks(job, sha, { rerun: true });
+  return waitForChecks(job, sha, { rerun: true }).catch((error: unknown) => {
+    job.mainBroken = true;
+    throw error;
+  });
 }
 
 async function failedChecksFix(job: Run, sha: string): Promise<Gate> {
