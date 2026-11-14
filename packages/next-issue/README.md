@@ -399,7 +399,7 @@ Three levels of console output:
   call names the host of the remote url (`--repo <host>/<owner>/<name>`,
   `gh api --hostname <host>`) when it is not `github.com`, so `gh` must be
   logged in to that host. For an ssh url the harness reads the real host of an
-  ssh alias with `ssh -G`. Other hosts, such as GitLab, are not supported.
+  ssh alias with `ssh -G`. The host `ssh.github.com` (GitHub's ssh over port 443) means `github.com`. Other hosts, such as GitLab, are not supported.
 - pi, logged in to a model provider. The agents use the model, the thinking
   level, the extensions and the skills from your pi settings, except the
   extension and the skills of `pi-next-issue`. The implementer and the fixer

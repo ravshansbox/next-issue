@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { loadConfig } from '../src/config.mts';
+import { parseRemote } from '../src/git.mts';
 import type { Comment, Issue } from '../src/github.mts';
 import { waitingQuestions } from '../src/hand-over-comments.mts';
 import { stateDir } from '../src/state.mts';
@@ -138,5 +139,22 @@ test('the worker names the host of a GitHub Enterprise remote in the repository 
   assert.deepEqual(
     questions.map((question) => question.repo),
     ['github.example.com/acme/tool'],
+  );
+});
+
+test('the worker gives owner and name alone as the repository of each waiting question of an ssh.github.com remote', async () => {
+  const root = await tempDir();
+  const repo = { ...parseRemote('git@ssh.github.com:acme/tool.git'), root };
+  const config = await loadConfig(root);
+  const questions = await waitingQuestions(repo, config, {
+    openIssues: async () => [issue(7, 'Seven')],
+    threadComments: async () => [
+      { author: 'bot', body: 'next-issue needs help: Stuck.', url: 'u1' },
+    ],
+    canWrite: async () => true,
+  });
+  assert.deepEqual(
+    questions.map((question) => question.repo),
+    ['acme/tool'],
   );
 });

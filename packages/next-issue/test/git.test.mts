@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { hostname, hostOf, repoArg } from '../src/gh.mts';
 import { commitAll } from '../src/git-commit.mts';
 import {
   detectRepo,
@@ -59,6 +60,38 @@ test('a user whose remote names an ssh host alias gets the real host of that ali
   });
   const detected = await detectRepo(repo.root, 'work');
   assert.equal(detected.host, 'github.example.com');
+});
+
+test('a user whose remote uses the ssh.github.com endpoint on port 443 gets gh calls on github.com', () => {
+  for (const url of [
+    'ssh://git@ssh.github.com:443/acme/tool.git',
+    'git@ssh.github.com:acme/tool.git',
+    'ssh://git@SSH.GitHub.com:443/acme/tool',
+  ]) {
+    const repo = { ...parseRemote(url), root: '/tmp' };
+    assert.equal(repoArg(repo), 'acme/tool', url);
+    assert.deepEqual(hostname(repo), [], url);
+    assert.equal(hostOf(repo), 'github.com', url);
+  }
+});
+
+test('a user whose ssh alias resolves to ssh.github.com gets gh calls on github.com', async (t) => {
+  const { repo } = await clones();
+  await git(repo.root, 'remote', 'add', 'work', 'git@gh-443:acme/tool.git');
+  const bin = await tempDir();
+  await writeFile(
+    join(bin, 'ssh'),
+    '#!/bin/sh\n[ "$1 $2" = "-G gh-443" ] || exit 1\necho "user git"\necho "hostname ssh.github.com"\necho "port 443"\n',
+    { mode: 0o755 },
+  );
+  const path = process.env.PATH;
+  process.env.PATH = `${bin}:${path}`;
+  t.after(() => {
+    process.env.PATH = path;
+  });
+  const detected = await detectRepo(repo.root, 'work');
+  assert.equal(repoArg(detected), 'acme/tool');
+  assert.deepEqual(hostname(detected), []);
 });
 
 test('a user in a linked worktree of a bare repository gets the root of that worktree', async () => {

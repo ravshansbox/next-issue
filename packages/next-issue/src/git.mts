@@ -15,6 +15,13 @@ const REMOTE_PATTERNS = [
   /^https?:\/\/(?:[^@/]+@)?(?<host>[^@/:]+)(?::\d+)?\/(?<owner>[^/]+)\/(?<name>[^/]+?)(?:\.git)?\/?$/,
 ];
 
+const GITHUB_SSH_HOST = 'ssh.github.com';
+
+function githubHost(host: string): string {
+  const lower = host.toLowerCase();
+  return lower === GITHUB_SSH_HOST ? 'github.com' : lower;
+}
+
 export type Remote = { host: string; owner: string; name: string };
 
 export function parseRemote(url: string): Remote {
@@ -22,7 +29,7 @@ export function parseRemote(url: string): Remote {
     const match = pattern.exec(url.trim());
     if (match?.groups) {
       return {
-        host: match.groups.host!.toLowerCase(),
+        host: githubHost(match.groups.host!),
         owner: match.groups.owner!,
         name: match.groups.name!,
       };
@@ -38,7 +45,7 @@ async function sshHost(url: string, host: string): Promise<string> {
   const result = await run('ssh', ['-G', host]).catch(() => undefined);
   const resolved = /^hostname[^\S\r\n]+(\S+)$/m.exec(result?.stdout ?? '')?.[1];
   return result !== undefined && succeeded(result) && resolved !== undefined
-    ? resolved.toLowerCase()
+    ? githubHost(resolved)
     : host;
 }
 

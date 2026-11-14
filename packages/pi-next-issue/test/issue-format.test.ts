@@ -137,6 +137,11 @@ test('an agent who creates an issue in a repository whose remote is on a GitHub 
   assert.match(skill, /ssh -G <host>/);
 });
 
+test('an agent who creates an issue in a repository whose remote host is ssh.github.com treats that host as github.com', async () => {
+  const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
+  assert.match(skill, /host `ssh\.github\.com` means `github\.com`/);
+});
+
 test('a user who reads the pi-next-issue README learns which repository the create-issue skill files in', async () => {
   const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
   assert.match(readme, /repository of the `remote` of `\.next-issue\/config\.json`/);

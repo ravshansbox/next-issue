@@ -4,7 +4,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { REVIEWING } from '../src/agents.mts';
-import { revision } from '../src/git.mts';
+import { parseRemote, revision } from '../src/git.mts';
 import { HUNT_FILE, hunt, hunter, huntWorktree } from '../src/hunt.mts';
 import { ISSUE_SECTIONS } from '../src/issue-format.mts';
 import { ensureLabel } from '../src/labels.mts';
@@ -174,6 +174,22 @@ test('a user whose remote is on a GitHub Enterprise host sees the hunter told to
     .filter((record) => record.kind === 'hunt.issue')
     .map((record) => record.url);
   assert.deepEqual(urls, ['https://github.example.com/acme/tool/issues/9']);
+});
+
+test('a user whose remote uses the ssh.github.com endpoint sees the hunter told to file on github.com, and a github.com issue counted', async (t) => {
+  const target = await harness(t, {
+    hunterText: 'Filed.\nissue: https://github.com/acme/tool/issues/3',
+  });
+  target.context.repo.host = parseRemote('ssh://git@ssh.github.com:443/acme/tool.git').host;
+  assert.equal(await hunter(target.context).hunt(1), true);
+  const prompt = target.prompts[0]!.prompt;
+  assert.match(prompt, /gh issue list --repo acme\/tool /);
+  assert.match(prompt, /gh issue create --repo acme\/tool /);
+  assert.doesNotMatch(prompt, /ssh\.github\.com/);
+  const urls = target.events
+    .filter((record) => record.kind === 'hunt.issue')
+    .map((record) => record.url);
+  assert.deepEqual(urls, ['https://github.com/acme/tool/issues/3']);
 });
 
 test('a user whose hunter reports an issue of another repository sees the hunt count it as nothing filed, so the watch backs off', async (t) => {
