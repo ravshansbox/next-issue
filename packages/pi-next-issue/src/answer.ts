@@ -57,6 +57,9 @@ async function reply(
       input: guidance,
     });
   }
+  if (choice === GIVE_UP) {
+    await ensureLabel(gh, root, question.repo, question.labels.skip);
+  }
   await gh(['issue', 'edit', issue, ...repo, ...labelsOf(question, choice)], { cwd: root });
 }
 
