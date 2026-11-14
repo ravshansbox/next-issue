@@ -74,6 +74,10 @@ the run handles one issue. For each issue:
    hook stops a commit, the agent that made the change gets the hook output,
    fixes it, and the harness commits again. A `commit:` line in the reply of
    the agent replaces the subject, so a hook that rejects the subject can pass.
+   The harness drops each GitHub closing keyword (`close`, `closes`, `closed`,
+   `fix`, `fixes`, `fixed`, `resolve`, `resolves`, `resolved`) that names an
+   issue from the subject, so a push to the base never closes an issue: the
+   issue closes only after its checks pass.
    The budget is `maxCommitFixes`. Any other git failure in the commit stops
    the run with an error. An implementer that makes no change hands the issue
    to a person, unless the branch is already ahead of the base, for example

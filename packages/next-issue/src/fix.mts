@@ -1,10 +1,15 @@
-import { parseCommitSubject, parseResolved, parseUnrelated } from './agent-reply.mts';
+import {
+  parseCommitSubject,
+  parseResolved,
+  parseUnrelated,
+  withoutClosingReferences,
+} from './agent-reply.mts';
 import { CODING } from './agents.mts';
 import { type BudgetUse, budgetUse } from './budget.mts';
 import { message } from './errors.mts';
 import { HookError } from './git-commit.mts';
 import { escalateAndFinish } from './handover.mts';
-import { type Finished, type Run, runRole } from './job.mts';
+import { fallbackTitle, type Finished, type Run, runRole } from './job.mts';
 import { type FixKind, fixPrompt, hookPrompt } from './prompts.mts';
 import { writeState } from './state.mts';
 import { keepTail } from './text.mts';
@@ -112,6 +117,7 @@ export async function commitWork(
   const { ports } = context;
   const commitChanges = commit ?? ports.commitAll;
   for (;;) {
+    subject = withoutClosingReferences(subject, fallbackTitle(issue));
     try {
       if (await commitChanges(worktree, `${subject}\n\nRefs #${issue.number}`)) {
         log.event('commit', { subject });

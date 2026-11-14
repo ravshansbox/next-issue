@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseCommitSubject, parseResolved, parseUnrelated } from '../src/agent-reply.mts';
+import {
+  parseCommitSubject,
+  parseResolved,
+  parseUnrelated,
+  withoutClosingReferences,
+} from '../src/agent-reply.mts';
 
 const FALLBACK = 'fix: fallback';
 
@@ -101,4 +106,30 @@ test('parseResolved treats a placeholder value as no settlement', () => {
 test('parseResolved gives undefined for a bare marker line followed by a commit line', () => {
   assert.equal(parseResolved('resolved:\ncommit: fix: guard the null body'), undefined);
   assert.equal(parseResolved('resolved:\n\nAdded the test.'), undefined);
+});
+
+test('withoutClosingReferences drops each closing keyword with its issue reference', () => {
+  assert.equal(withoutClosingReferences('fix: x (closes #7)', FALLBACK), 'fix: x');
+  assert.equal(withoutClosingReferences('fix: x, fixes #7 and resolves #8', FALLBACK), 'fix: x');
+  assert.equal(withoutClosingReferences('feat: y Closed: owner/repo#3', FALLBACK), 'feat: y');
+  assert.equal(
+    withoutClosingReferences('fix: z [resolve https://github.com/o/r/issues/4]', FALLBACK),
+    'fix: z',
+  );
+  assert.equal(
+    withoutClosingReferences('fix: #7 count the issues', FALLBACK),
+    'fix: count the issues',
+  );
+  assert.equal(withoutClosingReferences('closes #7', FALLBACK), FALLBACK);
+});
+
+test('withoutClosingReferences keeps a subject with no closing reference', () => {
+  assert.equal(
+    withoutClosingReferences('fix: resolve issue #7', FALLBACK),
+    'fix: resolve issue #7',
+  );
+  assert.equal(
+    withoutClosingReferences('fix: close the socket (refs #7)', FALLBACK),
+    'fix: close the socket (refs #7)',
+  );
 });
