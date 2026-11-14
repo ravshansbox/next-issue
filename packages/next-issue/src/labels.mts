@@ -1,5 +1,5 @@
 import { asError } from './errors.mts';
-import { gh, ghJson, ghOnce, type Kind, type Named, names, slug, viewJson } from './gh.mts';
+import { gh, ghJson, ghOnce, type Kind, type Named, names, repoArg, viewJson } from './gh.mts';
 import type { Repo } from './git.mts';
 
 const KNOWN_LABELS = new Map<string, Set<string>>();
@@ -40,7 +40,7 @@ export async function setLabel(
 export async function ensureLabel(repo: Repo, label: string): Promise<void> {
   const created = await createUnknownLabel(repo, label);
   if (created instanceof Error) {
-    KNOWN_LABELS.delete(slug(repo));
+    KNOWN_LABELS.delete(repoArg(repo));
     if (!(await knownLabels(repo)).has(label.toLowerCase())) {
       throw created;
     }
@@ -53,7 +53,7 @@ async function retryWithLabel(
   label: string,
   error: unknown,
 ): Promise<void> {
-  KNOWN_LABELS.delete(slug(repo));
+  KNOWN_LABELS.delete(repoArg(repo));
   const created = await createUnknownLabel(repo, label);
   if (created === 'known') {
     throw error;
@@ -65,7 +65,7 @@ async function retryWithLabel(
 }
 
 async function knownLabels(repo: Repo): Promise<Set<string>> {
-  const repoSlug = slug(repo);
+  const repoSlug = repoArg(repo);
   const cached = KNOWN_LABELS.get(repoSlug);
   if (cached !== undefined) {
     return cached;

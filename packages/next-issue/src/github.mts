@@ -4,10 +4,12 @@ import {
   ghApi,
   ghJson,
   ghOnce,
+  hostname,
   type Kind,
   type Named,
   names,
   repeatable,
+  repoArg,
   slug,
   viewJson,
 } from './gh.mts';
@@ -23,7 +25,7 @@ export type Issue = {
 };
 
 export async function defaultBranch(repo: Repo): Promise<string> {
-  const raw = await repeatable(repo, ['repo', 'view', slug(repo), '--json', 'defaultBranchRef']);
+  const raw = await repeatable(repo, ['repo', 'view', repoArg(repo), '--json', 'defaultBranchRef']);
   return JSON.parse(raw).defaultBranchRef.name as string;
 }
 
@@ -137,7 +139,7 @@ export async function openBlockers(repo: Repo, issue: number): Promise<string[]>
 }
 
 export async function repositorySlug(repo: Repo): Promise<string> {
-  return repeatable(repo, ['api', `repos/${slug(repo)}`, '--jq', '.full_name']);
+  return repeatable(repo, ['api', ...hostname(repo), `repos/${slug(repo)}`, '--jq', '.full_name']);
 }
 
 export async function reopenIssue(repo: Repo, issue: number): Promise<void> {

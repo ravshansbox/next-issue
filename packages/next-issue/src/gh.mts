@@ -8,8 +8,22 @@ const NETWORK_TRIES = 3;
 const NETWORK_FAULT =
   /unexpected EOF|connection reset|connection refused|i\/o timeout|TLS handshake timeout|HTTP 50[234]/i;
 
+export const GITHUB_HOST = 'github.com';
+
 export function slug(repo: Repo): string {
   return `${repo.owner}/${repo.name}`;
+}
+
+export function hostOf(repo: Repo): string {
+  return repo.host ?? GITHUB_HOST;
+}
+
+export function repoArg(repo: Repo): string {
+  return hostOf(repo) === GITHUB_HOST ? slug(repo) : `${hostOf(repo)}/${slug(repo)}`;
+}
+
+export function hostname(repo: Repo): string[] {
+  return hostOf(repo) === GITHUB_HOST ? [] : ['--hostname', hostOf(repo)];
 }
 
 export async function repeatable(repo: Repo, args: string[]): Promise<string> {
@@ -26,7 +40,7 @@ export async function repeatable(repo: Repo, args: string[]): Promise<string> {
 }
 
 function withRepo(repo: Repo, args: string[]): string[] {
-  return [...args, '--repo', slug(repo)];
+  return [...args, '--repo', repoArg(repo)];
 }
 
 export async function gh(repo: Repo, args: string[]): Promise<string> {
@@ -68,6 +82,7 @@ export async function ghApi(
 ): Promise<string> {
   return repeatable(repo, [
     'api',
+    ...hostname(repo),
     ...optionalFlag(paginate, '--paginate'),
     `repos/${slug(repo)}/${path}`,
     '--jq',

@@ -128,6 +128,15 @@ test('an agent who runs a gh command of the create-issue skill names the reposit
   assert.match(skill, /there is no config file or no `remote` field, `<remote>` is `origin`/);
 });
 
+test('an agent who creates an issue in a repository whose remote is on a GitHub Enterprise host names that host in <repo>', async () => {
+  const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
+  assert.match(
+    skill,
+    /host of the url is not `github\.com`, `<repo>` is `<host>\/<owner>\/<name>`/,
+  );
+  assert.match(skill, /ssh -G <host>/);
+});
+
 test('a user who reads the pi-next-issue README learns which repository the create-issue skill files in', async () => {
   const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
   assert.match(readme, /repository of the `remote` of `\.next-issue\/config\.json`/);

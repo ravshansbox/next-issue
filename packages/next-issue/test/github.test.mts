@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { setCommandObserver } from '../src/exec.mts';
 import {
+  closeIssue,
   commentOnIssue,
   defaultBranch,
   canWrite,
@@ -76,6 +77,33 @@ test('commentOnIssue posts once and fails when the network fails, so no comment 
     /unexpected EOF/,
   );
   assert.equal(await callsOf(dir, 'issue comment'), 1);
+});
+
+test('a user whose remote is on a GitHub Enterprise host sees every gh call name that host', async (t) => {
+  const dir = await tempDir();
+  const calls = join(dir, 'calls');
+  await writeFile(calls, '');
+  const script = `#!/bin/sh
+echo "$*" >> "${calls}"
+case "$1 $2" in
+  "repo view") echo '{"defaultBranchRef":{"name":"trunk"}}' ;;
+  "api --hostname") echo 'acme/tool' ;;
+  "issue close"|"issue reopen") ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+`;
+  await installGh(t, dir, script);
+  const repo = { host: 'github.example.com', owner: 'acme', name: 'tool', root: dir };
+  assert.equal(await defaultBranch(repo), 'trunk');
+  assert.equal(await repositorySlug(repo), 'acme/tool');
+  await closeIssue(repo, 4);
+  await reopenIssue(repo, 4);
+  assert.deepEqual((await readFile(calls, 'utf8')).trim().split('\n'), [
+    'repo view github.example.com/acme/tool --json defaultBranchRef',
+    'api --hostname github.example.com repos/acme/tool --jq .full_name',
+    'issue close 4 --reason completed --repo github.example.com/acme/tool',
+    'issue reopen 4 --repo github.example.com/acme/tool',
+  ]);
 });
 
 test('openBlockers lists the open blockers and names those of another repository', async (t) => {

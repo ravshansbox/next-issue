@@ -3,25 +3,43 @@ import { oneAtATime } from './lock.mts';
 import { lines } from './text.mts';
 
 export type Repo = {
+  host?: string;
   owner: string;
   name: string;
   root: string;
 };
 
 const REMOTE_PATTERNS = [
-  /^git@[^:]+:(?<owner>[^/]+)\/(?<name>[^/]+?)(?:\.git)?$/,
-  /^ssh:\/\/[^/]+\/(?<owner>[^/]+)\/(?<name>[^/]+?)(?:\.git)?$/,
-  /^https?:\/\/[^/]+\/(?<owner>[^/]+)\/(?<name>[^/]+?)(?:\.git)?$/,
+  /^(?:[^@/:]+@)?(?<host>[^@/:]+):(?<owner>[^/]+)\/(?<name>[^/]+?)(?:\.git)?\/?$/,
+  /^ssh:\/\/(?:[^@/]+@)?(?<host>[^@/:]+)(?::\d+)?\/(?<owner>[^/]+)\/(?<name>[^/]+?)(?:\.git)?\/?$/,
+  /^https?:\/\/(?:[^@/]+@)?(?<host>[^@/:]+)(?::\d+)?\/(?<owner>[^/]+)\/(?<name>[^/]+?)(?:\.git)?\/?$/,
 ];
 
-export function parseRemote(url: string): { owner: string; name: string } {
+export type Remote = { host: string; owner: string; name: string };
+
+export function parseRemote(url: string): Remote {
   for (const pattern of REMOTE_PATTERNS) {
     const match = pattern.exec(url.trim());
     if (match?.groups) {
-      return { owner: match.groups.owner!, name: match.groups.name! };
+      return {
+        host: match.groups.host!.toLowerCase(),
+        owner: match.groups.owner!,
+        name: match.groups.name!,
+      };
     }
   }
   throw new Error(`Cannot parse the git remote URL: ${url}`);
+}
+
+async function sshHost(url: string, host: string): Promise<string> {
+  if (host === 'github.com' || /^https?:/.test(url.trim())) {
+    return host;
+  }
+  const result = await run('ssh', ['-G', host]).catch(() => undefined);
+  const resolved = /^hostname[^\S\r\n]+(\S+)$/m.exec(result?.stdout ?? '')?.[1];
+  return result !== undefined && succeeded(result) && resolved !== undefined
+    ? resolved.toLowerCase()
+    : host;
 }
 
 export async function repoRoot(cwd: string): Promise<string> {
@@ -34,8 +52,8 @@ export async function repoRoot(cwd: string): Promise<string> {
 export async function detectRepo(cwd: string, remote: string): Promise<Repo> {
   const root = await repoRoot(cwd);
   const url = await git(cwd, ['remote', 'get-url', remote]);
-  const { owner, name } = parseRemote(url);
-  return { owner, name, root };
+  const { host, owner, name } = parseRemote(url);
+  return { host: await sshHost(url, host), owner, name, root };
 }
 
 export function remoteRef(remote: string, branch: string): string {

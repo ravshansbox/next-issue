@@ -4,7 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { REVIEWING } from './agents.mts';
 import { minutesToMs } from './durations.mts';
 import { readTextIfPresent } from './files.mts';
-import { slug } from './gh.mts';
+import { hostOf, repoArg, slug } from './gh.mts';
 import { git, gitFetch, remoteRef, type Repo } from './git.mts';
 import { type Context, withNotes } from './job.mts';
 import { oneAtATime } from './lock.mts';
@@ -31,13 +31,14 @@ export async function huntWorktree(repo: Repo, base: string, remote: string): Pr
   return path;
 }
 
-function issueSlug(url: string): string | undefined {
-  return /^https:\/\/github\.com\/([^/]+\/[^/]+)\/issues\/\d+\/?$/i.exec(url)?.[1]?.toLowerCase();
+function issueSlug(url: string, host: string): string | undefined {
+  const match = /^https:\/\/([^/]+)\/([^/]+\/[^/]+)\/issues\/\d+\/?$/i.exec(url);
+  return match?.[1]?.toLowerCase() === host ? match[2]!.toLowerCase() : undefined;
 }
 
 async function issuesOf(context: Context, urls: string[]): Promise<string[]> {
   const found = urls.flatMap((url) => {
-    const repository = issueSlug(url);
+    const repository = issueSlug(url, hostOf(context.repo));
     return repository === undefined ? [] : [{ url, repository }];
   });
   const slugs = [slug(context.repo).toLowerCase()];
@@ -65,7 +66,7 @@ export async function hunt(context: Context, count: number): Promise<boolean> {
       cwd,
       prompt: await withNotes(
         repo.root,
-        huntPrompt(instructions, config.labels.ready, config.labels.hunt, count, slug(repo)),
+        huntPrompt(instructions, config.labels.ready, config.labels.hunt, count, repoArg(repo)),
         false,
       ),
       profile: REVIEWING,

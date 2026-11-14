@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { commitAll } from '../src/git-commit.mts';
 import {
+  detectRepo,
   discardChanges,
   disputeBranches,
   isAncestor,
@@ -18,14 +19,46 @@ import {
 } from '../src/git.mts';
 import { addWorktree } from '../src/worktree.mts';
 import { clones, commit, git } from './clones.mts';
+import { tempDir } from './temp-dir.mts';
 
 test('parseRemote reads every remote form', () => {
-  const expected = { owner: 'acme', name: 'tool' };
+  const expected = { host: 'github.com', owner: 'acme', name: 'tool' };
   assert.deepEqual(parseRemote('git@github.com:acme/tool.git'), expected);
   assert.deepEqual(parseRemote('git@github.com:acme/tool'), expected);
   assert.deepEqual(parseRemote('ssh://git@github.com/acme/tool.git'), expected);
   assert.deepEqual(parseRemote('https://github.com/acme/tool.git'), expected);
   assert.deepEqual(parseRemote('http://github.com/acme/tool\n'), expected);
+});
+
+test('parseRemote keeps the host of a GitHub Enterprise remote in every form', () => {
+  const expected = { host: 'github.example.com', owner: 'acme', name: 'tool' };
+  assert.deepEqual(parseRemote('git@github.example.com:acme/tool.git'), expected);
+  assert.deepEqual(parseRemote('ssh://git@GitHub.Example.com:2222/acme/tool.git'), expected);
+  assert.deepEqual(parseRemote('https://user@github.example.com/acme/tool.git'), expected);
+  assert.deepEqual(parseRemote('https://github.example.com:8443/acme/tool'), expected);
+  assert.deepEqual(parseRemote('acme@acme.ghe.com:acme/tool.git'), {
+    host: 'acme.ghe.com',
+    owner: 'acme',
+    name: 'tool',
+  });
+});
+
+test('a user whose remote names an ssh host alias gets the real host of that alias', async (t) => {
+  const { repo } = await clones();
+  await git(repo.root, 'remote', 'add', 'work', 'git@github-work:acme/tool.git');
+  const bin = await tempDir();
+  await writeFile(
+    join(bin, 'ssh'),
+    '#!/bin/sh\n[ "$1 $2" = "-G github-work" ] || exit 1\necho "user git"\necho "hostname github.example.com"\n',
+    { mode: 0o755 },
+  );
+  const path = process.env.PATH;
+  process.env.PATH = `${bin}:${path}`;
+  t.after(() => {
+    process.env.PATH = path;
+  });
+  const detected = await detectRepo(repo.root, 'work');
+  assert.equal(detected.host, 'github.example.com');
 });
 
 test('a user in a linked worktree of a bare repository gets the root of that worktree', async () => {

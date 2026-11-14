@@ -1011,6 +1011,23 @@ test('a user who answers retry with guidance posts it on the issue, then takes t
   ]);
 });
 
+test('a user who answers a question of a GitHub Enterprise repository acts on that host', async () => {
+  const { path, calls, extension } = setup();
+  const enterprise = { ...question(4), repo: 'github.example.com/owner/name' };
+  await questionWorker(path, [[enterprise], []]);
+  const { pi, emit, command } = host('tui', '/repo', ['Retry with guidance', 'Use the cache']);
+  extension(pi as never);
+  await emit('session_start');
+  await command('answer');
+  assert.deepEqual(
+    calls.map((call) => call.args.slice(0, 5)),
+    [
+      ['issue', 'comment', '4', '--repo', 'github.example.com/owner/name'],
+      ['issue', 'edit', '4', '--repo', 'github.example.com/owner/name'],
+    ],
+  );
+});
+
 function labelledGh(repoLabels: string[], create: 'works' | 'fails' | 'raced' = 'works') {
   const issueLabels = new Set(['status:needs-human']);
   const gh = ({ args }: GhCall): string | undefined => {

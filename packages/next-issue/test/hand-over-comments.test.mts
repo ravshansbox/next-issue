@@ -123,3 +123,20 @@ test('the worker leaves out of the waiting questions an issue whose hand-over a 
     ],
   );
 });
+
+test('the worker names the host of a GitHub Enterprise remote in the repository of each waiting question', async () => {
+  const root = await tempDir();
+  const repo = { host: 'github.example.com', owner: 'acme', name: 'tool', root };
+  const config = await loadConfig(root);
+  const questions = await waitingQuestions(repo, config, {
+    openIssues: async () => [issue(7, 'Seven')],
+    threadComments: async () => [
+      { author: 'bot', body: 'next-issue needs help: Stuck.', url: 'u1' },
+    ],
+    canWrite: async () => true,
+  });
+  assert.deepEqual(
+    questions.map((question) => question.repo),
+    ['github.example.com/acme/tool'],
+  );
+});

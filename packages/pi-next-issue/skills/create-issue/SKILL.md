@@ -8,7 +8,7 @@ description: Turn a problem into a clear GitHub issue that the next-issue worker
 Turn the problem of the user into one GitHub issue, or a split of linked issues when the change is too big for one commit, in the format of `template.md`, next to this file.
 
 1. Understand the problem. Restate it in your own words.
-2. Find the repository, `<repo>`, that the worker reads. `<remote>` is the value of `remote` in `.next-issue/config.json` at the root of the repository. When there is no config file or no `remote` field, `<remote>` is `origin`. Run `git remote get-url <remote>` and take `<owner>/<name>` from the url, without `.git`. That is `<repo>`. Pass `--repo <repo>` to every `gh` command, since gh otherwise may pick another remote, such as `upstream`.
+2. Find the repository, `<repo>`, that the worker reads. `<remote>` is the value of `remote` in `.next-issue/config.json` at the root of the repository. When there is no config file or no `remote` field, `<remote>` is `origin`. Run `git remote get-url <remote>` and take `<owner>/<name>` from the url, without `.git`. That is `<repo>`. When the host of the url is not `github.com`, `<repo>` is `<host>/<owner>/<name>`, so gh acts on that host. For an ssh url, such as `git@<host>:<owner>/<name>.git`, run `ssh -G <host>` and take the host from its `hostname` line, since `<host>` may be an alias from the ssh config. Pass `--repo <repo>` to every `gh` command, since gh otherwise may pick another remote, such as `upstream`.
 
    Investigate the code when the problem touches it. Read the relevant files and note what you find, with file paths. Run `gh issue list --repo <repo>` and note each open issue that must be done first, including the issues you create in the same session.
 

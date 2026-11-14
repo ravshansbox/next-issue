@@ -6,7 +6,7 @@ A [pi](https://github.com/earendil-works/pi) extension that works through the op
 pi install npm:@ravshansbox/pi-next-issue
 ```
 
-It needs `git`, `npx` and an authenticated [`gh`](https://cli.github.com/). It works on macOS and Linux.
+It needs `git`, `npx` and an authenticated [`gh`](https://cli.github.com/). It works on macOS and Linux. The repository must be on GitHub: `github.com` or a GitHub Enterprise host, which `gh` must be logged in to. Pi passes that host to `gh` when it is not `github.com`. Other hosts, such as GitLab, are not supported.
 
 ## Use
 

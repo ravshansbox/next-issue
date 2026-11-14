@@ -160,6 +160,22 @@ test('a user whose remote points to a fork sees the hunter told to search and fi
   assert.doesNotMatch(prompt, /acme\/tool/);
 });
 
+test('a user whose remote is on a GitHub Enterprise host sees the hunter told to name that host, and only an issue of that host counted', async (t) => {
+  const target = await harness(t, {
+    hunterText:
+      'Filed.\nissue: https://github.example.com/acme/tool/issues/9\nissue: https://github.com/acme/tool/issues/3',
+  });
+  target.context.repo.host = 'github.example.com';
+  assert.equal(await hunter(target.context).hunt(2), true);
+  const prompt = target.prompts[0]!.prompt;
+  assert.match(prompt, /gh issue list --repo github\.example\.com\/acme\/tool /);
+  assert.match(prompt, /gh issue create --repo github\.example\.com\/acme\/tool /);
+  const urls = target.events
+    .filter((record) => record.kind === 'hunt.issue')
+    .map((record) => record.url);
+  assert.deepEqual(urls, ['https://github.example.com/acme/tool/issues/9']);
+});
+
 test('a user whose hunter reports an issue of another repository sees the hunt count it as nothing filed, so the watch backs off', async (t) => {
   const target = await harness(t, {
     hunterText:
