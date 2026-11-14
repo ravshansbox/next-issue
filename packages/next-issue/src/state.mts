@@ -9,6 +9,9 @@ export const STATE_DIR = '.next-issue';
 
 type Phase = 'claimed' | 'implemented' | 'review' | 'approved';
 
+/** A hand-over whose comment may not have reached GitHub: `since` is the time of the newest thread comment before it. */
+export type PendingHandOver = { reason: string; since?: string };
+
 export type IssueState = {
   issue: number;
   phase: Phase;
@@ -28,6 +31,7 @@ export type IssueState = {
   reviewRounds: number;
   reviewLog: ReviewRound[];
   handedOver?: boolean;
+  pendingHandOver?: PendingHandOver;
   closing?: boolean;
 };
 
@@ -91,6 +95,10 @@ function isReviewRound(value: unknown): value is ReviewRound {
   );
 }
 
+function isPending(value: unknown): value is PendingHandOver {
+  return isRecord(value) && typeof value.reason === 'string' && isOptional(value.since, 'string');
+}
+
 function isState(value: unknown): value is IssueState {
   return (
     isRecord(value) &&
@@ -113,6 +121,7 @@ function isState(value: unknown): value is IssueState {
     Array.isArray(value.reviewLog) &&
     value.reviewLog.every(isReviewRound) &&
     isOptional(value.handedOver, 'boolean') &&
+    (value.pendingHandOver === undefined || isPending(value.pendingHandOver)) &&
     isOptional(value.closing, 'boolean')
   );
 }
@@ -130,7 +139,7 @@ export function newState(issue: number, branch: string): IssueState {
 }
 
 export function resetState(state: IssueState): IssueState {
-  const { handedOver: _handedOver, ...rest } = state;
+  const { handedOver: _handedOver, pendingHandOver: _pending, ...rest } = state;
   const phase = rest.phase === 'approved' ? 'review' : rest.phase;
   return { ...rest, phase, ciFixes: 0, commitFixes: 0, reviewRounds: 0, reviewLog: [] };
 }

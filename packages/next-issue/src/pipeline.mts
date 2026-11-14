@@ -9,7 +9,14 @@ import type { Recorder } from './observe.mts';
 import { openJob } from './open-job.mts';
 import { reviewRound } from './review.mts';
 import { skipReport, unclaimedError } from './skip.mts';
-import { type IssueState, newState, readState, resetState } from './state.mts';
+import { hasLabel } from './labels.mts';
+import {
+  type IssueState,
+  type PendingHandOver,
+  newState,
+  readState,
+  resetState,
+} from './state.mts';
 import { setUp } from './worktree-setup.mts';
 
 export async function processIssue(
@@ -37,13 +44,22 @@ export async function processIssue(
   claimed();
   log.event('issue.start', { title: issue.title, createdAt: issue.createdAt }, 'quiet');
 
-  const state = startState(context, issue, saved);
+  const handedOver = wasHandedOver(context, issue, saved);
+  const state = startState(context, issue, saved, handedOver);
 
   let report: IssueReport;
   try {
     report = closing
       ? await finishClosing(context, issue, log, state, started)
-      : await work(context, issue, log, state, saved === undefined, saved?.handedOver === true);
+      : await work(
+          context,
+          issue,
+          log,
+          state,
+          saved === undefined,
+          handedOver,
+          saved?.pendingHandOver,
+        );
   } catch (error) {
     if (!runStopped()) {
       return claimedError(context, log, issue, state, error, started);
@@ -58,11 +74,27 @@ export async function processIssue(
   return report;
 }
 
-function startState(context: Context, issue: Issue, saved: IssueState | undefined): IssueState {
+/** A hand-over whose comment failed counts once the issue is claimed with its label still on, that is with an answer. */
+function wasHandedOver(context: Context, issue: Issue, saved: IssueState | undefined): boolean {
+  if (saved?.handedOver === true) {
+    return true;
+  }
+  return (
+    saved?.pendingHandOver !== undefined && hasLabel(issue.labels, context.config.labels.needsHuman)
+  );
+}
+
+function startState(
+  context: Context,
+  issue: Issue,
+  saved: IssueState | undefined,
+  handedOver: boolean,
+): IssueState {
   if (saved === undefined) {
     return newState(issue.number, branchName(issue.number));
   }
-  return context.reset || saved.handedOver === true ? resetState(saved) : saved;
+  const { pendingHandOver: _pending, ...rest } = saved;
+  return context.reset || handedOver ? resetState(saved) : rest;
 }
 
 async function work(
@@ -72,8 +104,9 @@ async function work(
   state: IssueState,
   start: boolean,
   handedOver: boolean,
+  pending: PendingHandOver | undefined,
 ): Promise<IssueReport> {
-  const job = await openJob(context, issue, log, state, start, handedOver);
+  const job = await openJob(context, issue, log, state, start, handedOver, pending);
   const setup = await setUp(job);
   if (setup.done) {
     return setup.report;

@@ -45,7 +45,7 @@ export async function skipReport(
 ): Promise<IssueReport | undefined> {
   let answered: boolean;
   try {
-    answered = await hasAnswer(context, issue);
+    answered = await hasAnswer(context, issue, saved);
   } catch (error) {
     return readError(log, issue, saved, error, started);
   }
@@ -70,11 +70,15 @@ export async function skipReport(
   return undefined;
 }
 
-async function hasAnswer(context: Context, issue: Issue): Promise<boolean> {
+async function hasAnswer(
+  context: Context,
+  issue: Issue,
+  saved: IssueState | undefined,
+): Promise<boolean> {
   if (!hasLabel(issue.labels, context.config.labels.needsHuman)) {
     return false;
   }
-  return (await handOverReply(context, issue.number)).length > 0;
+  return (await handOverReply(context, issue.number, saved?.pendingHandOver)).length > 0;
 }
 
 function readError(

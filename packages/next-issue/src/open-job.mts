@@ -3,7 +3,7 @@ import { handOverReply, writerComments } from './hand-over-comments.mts';
 import { type Context, type Run, setStatus } from './job.mts';
 import { oneAtATime } from './lock.mts';
 import type { Recorder } from './observe.mts';
-import { type IssueState, writeState } from './state.mts';
+import { type IssueState, type PendingHandOver, writeState } from './state.mts';
 
 export async function openJob(
   context: Context,
@@ -12,6 +12,7 @@ export async function openJob(
   state: IssueState,
   start: boolean,
   handedOver: boolean,
+  pending?: PendingHandOver,
 ): Promise<Run> {
   const started = Date.now();
   const { repo, config } = context;
@@ -24,7 +25,7 @@ export async function openJob(
 
   const comments = await log.step('comments', {}, () => writerComments(context, log, issue.number));
   const reply = handedOver
-    ? await log.step('reply', {}, () => handOverReply(context, issue.number))
+    ? await log.step('reply', {}, () => handOverReply(context, issue.number, pending))
     : [];
   const worktree = await openWorktree(context, issue, log, branch, start);
   return {

@@ -80,7 +80,7 @@ export async function viewIssue(repo: Repo, issue: number): Promise<Issue & { op
   return { ...toIssue(parsed), open: parsed.state === 'OPEN' };
 }
 
-export type Comment = { author: string; body: string; url?: string };
+export type Comment = { author: string; body: string; url?: string; createdAt?: string };
 
 export async function issueComments(repo: Repo, issue: number): Promise<Comment[]> {
   const parsed = await viewJson<{
@@ -93,18 +93,23 @@ export async function threadComments(repo: Repo, number: number): Promise<Commen
   const raw = await ghApi(
     repo,
     `issues/${number}/comments`,
-    '.[] | [.user.login, .body, .html_url] | @json',
+    '.[] | [.user.login, .body, .html_url, .created_at] | @json',
     { paginate: true },
   );
   return lines(raw).map((line) => parseComment(line, number));
 }
 
 function parseComment(line: string, number: number): Comment {
-  const [author, body, url] = parseJson(
+  const [author, body, url, createdAt] = parseJson(
     line,
     () => `gh gave a comment of #${number} that is not valid JSON: ${line}`,
-  ) as [string, string | null, string?];
-  return url === undefined ? { author, body: body ?? '' } : { author, body: body ?? '', url };
+  ) as [string, string | null, string?, string?];
+  return {
+    author,
+    body: body ?? '',
+    ...(url === undefined ? {} : { url }),
+    ...(createdAt === undefined ? {} : { createdAt }),
+  };
 }
 
 export async function canWrite(repo: Repo, login: string): Promise<boolean> {

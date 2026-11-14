@@ -109,7 +109,7 @@ export type Plan = {
   stopNowOnLabel?: string;
   disputes?: string[];
   earlier?: string;
-  thread?: Array<{ author: string; body: string }>;
+  thread?: Array<{ author: string; body: string; url?: string; createdAt?: string }>;
   writers?: string[];
   issueComments?: Array<{ author: string; body: string }>;
   accessFails?: boolean;

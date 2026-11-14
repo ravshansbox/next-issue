@@ -590,7 +590,10 @@ the mark and keeps the branch and the step that the last run reached, so the
 work carries on where it stopped. After a revert, the branch holds the change
 again on top of the revert, so the change goes back to the review. An issue
 that still has the label is not claimed, unless it has an answer to the
-hand-over: then the run claims it and takes the label off.
+hand-over: then the run claims it and takes the label off. When the label of a
+hand-over reaches GitHub but its comment does not, an answer to an earlier
+hand-over does not count: the issue waits, and the worker lists it, until a
+person takes the label off or a writer comments after that hand-over.
 
 To give guidance, answer the hand-over with a comment on the issue. When the run
 resumes the issue, it reads the comments posted after its last

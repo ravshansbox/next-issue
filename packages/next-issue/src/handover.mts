@@ -2,7 +2,7 @@ import { runStopped } from './children.mts';
 import { elapsedMs } from './durations.mts';
 import { message } from './errors.mts';
 import type { Issue } from './github.mts';
-import { HAND_OVER } from './hand-over-comments.mts';
+import { HAND_OVER, threadEnd } from './hand-over-comments.mts';
 import {
   type Context,
   type Finished,
@@ -202,13 +202,19 @@ async function handOver(
 ): Promise<void> {
   const { repo, ports, config } = context;
   log.event('hand-over', { reason }, 'quiet');
+  const { pendingHandOver: _pending, ...rest } = state;
   try {
+    const since = await threadEnd(context, issue);
+    await writeState(repo, {
+      ...rest,
+      pendingHandOver: { reason, ...(since === undefined ? {} : { since }) },
+    });
     await setStatus(context, issue, config.labels.needsHuman);
     await ports.commentOnIssue(repo, issue, handOverComment(reason));
   } catch (error) {
     throw new HandOverFailed(reason, error);
   }
-  await writeState(repo, { ...state, handedOver: true });
+  await writeState(repo, { ...rest, handedOver: true });
 }
 
 class HandOverFailed extends Error {

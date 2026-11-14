@@ -6,6 +6,7 @@ import type { Context } from './job.mts';
 import type { Recorder } from './observe.mts';
 import type { Ports } from './ports.mts';
 import type { Question } from './protocol.mts';
+import { type PendingHandOver, readState } from './state.mts';
 
 export const HAND_OVER = 'next-issue needs help:';
 
@@ -88,14 +89,40 @@ export async function waitingQuestions(
   return questions;
 }
 
-async function replyAfter(comments: Comment[], last: number, writer: Writer): Promise<string[]> {
-  if (last === -1) {
-    return [];
+function postedAfter(comment: Comment, since: string | undefined): boolean {
+  return since !== undefined && comment.createdAt !== undefined && comment.createdAt > since;
+}
+
+/** With a pending hand-over, only comments after it answer; without its time, none do. */
+function answerCandidates(
+  comments: Comment[],
+  last: number,
+  pending: PendingHandOver | undefined,
+): Comment[] {
+  if (pending !== undefined) {
+    return comments.filter((comment) => postedAfter(comment, pending.since));
   }
+  return last === -1 ? [] : comments.slice(last + 1);
+}
+
+async function replyAfter(
+  comments: Comment[],
+  last: number,
+  writer: Writer,
+  pending?: PendingHandOver,
+): Promise<string[]> {
   return writerQuotes(
-    comments.slice(last + 1).filter((comment) => !fromHarness(comment)),
+    answerCandidates(comments, last, pending).filter((comment) => !fromHarness(comment)),
     writer,
   );
+}
+
+async function pendingHandOver(repo: Repo, issue: number): Promise<PendingHandOver | undefined> {
+  try {
+    return (await readState(repo, issue))?.pendingHandOver;
+  } catch {
+    return undefined;
+  }
 }
 
 async function waitingQuestion(
@@ -106,14 +133,19 @@ async function waitingQuestion(
   issue: Issue,
 ): Promise<Question | undefined> {
   const { comments, last } = await handOverThread(repo, ports, writer, issue.number);
-  if ((await replyAfter(comments, last, writer)).length > 0) {
+  const pending = await pendingHandOver(repo, issue.number);
+  if ((await replyAfter(comments, last, writer, pending)).length > 0) {
     return undefined;
   }
-  const comment = comments[last];
+  const latest = comments[last];
+  const comment =
+    pending === undefined || (latest !== undefined && postedAfter(latest, pending.since))
+      ? latest
+      : undefined;
   return {
     issue: issue.number,
     title: issue.title,
-    reason: comment?.body.slice(HAND_OVER.length).trim() ?? '',
+    reason: comment?.body.slice(HAND_OVER.length).trim() ?? pending?.reason ?? '',
     url: comment?.url ?? '',
     repo: repoArg(repo),
     labels: { needsHuman: config.labels.needsHuman, skip: config.labels.skip },
@@ -134,9 +166,26 @@ export async function writerComments(
   );
 }
 
-export async function handOverReply(context: Context, issue: number): Promise<string[]> {
+export async function handOverReply(
+  context: Context,
+  issue: number,
+  pending?: PendingHandOver,
+): Promise<string[]> {
   const { repo, ports } = context;
   const writer = writers(repo, ports);
   const { comments, last } = await handOverThread(repo, ports, writer, issue);
-  return replyAfter(comments, last, writer);
+  return replyAfter(comments, last, writer, pending);
+}
+
+/** The time of the newest thread comment, `''` for an empty thread, `undefined` when the thread cannot be read. */
+export async function threadEnd(context: Context, issue: number): Promise<string | undefined> {
+  try {
+    const comments = await context.ports.threadComments(context.repo, issue);
+    return comments.reduce((end, comment) => {
+      const at = comment.createdAt ?? '';
+      return at > end ? at : end;
+    }, '');
+  } catch {
+    return undefined;
+  }
 }
