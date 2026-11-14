@@ -157,7 +157,11 @@ the run handles one issue. For each issue:
    even when another check (such as a release workflow) ends `success`:
    the harness hands the issue to a person with the reason
    `main checks cancelled` and halts, and the issue stays open. A repository
-   that reports no check keeps asking for `checkGraceSeconds`. A pending state
+   that reports no check keeps asking for `checkGraceSeconds`. When every
+   check passes, the harness keeps asking until `checkGraceSeconds` have gone
+   by since it first read the checks, since GitHub can add a check a few
+   seconds after the others; a check that shows up in that time counts, and
+   one that shows up later does not. A pending state
    waits again, up to `checkTimeoutMinutes`. A read that fails is tried three
    times. When the checks pass, the harness closes the issue and sets
    `status:done`, fetches the remote and fast-forwards the local base branch
@@ -457,7 +461,7 @@ because no pull request is opened.
 | `maxCommitFixes`        | `10`               | The budget for fixes of a commit that a git hook stopped, per issue                                                                  |
 | `maxReviewRounds`       | `5`                | The budget for review rounds per issue                                                                                               |
 | `checkIntervalSeconds`  | `15`               | The time between two check states, at most `2147483`                                                                                 |
-| `checkGraceSeconds`     | `60`               | The time to wait for the first check to show                                                                                         |
+| `checkGraceSeconds`     | `60`               | The time to wait for the first check to show, and for more checks after they all pass                                                |
 | `checkTimeoutMinutes`   | `60`               | The limit for one check wait, at most `35791`                                                                                        |
 | `agentTimeoutMinutes`   | `30`               | The limit for one agent call, at most `35791`                                                                                        |
 | `setupTimeoutMinutes`   | `15`               | The limit for the setup command, at most `35791`                                                                                     |

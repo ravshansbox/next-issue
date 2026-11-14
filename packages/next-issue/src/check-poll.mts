@@ -73,8 +73,8 @@ function settled(
   waitedMs: number,
   graceMs: number,
 ): CheckState | undefined {
-  if (state === 'none') {
-    return waitedMs >= graceMs ? 'none' : undefined;
+  if (state === 'none' || state === 'pass') {
+    return waitedMs >= graceMs ? state : undefined;
   }
   return state === 'behind' || state === 'pending' ? undefined : state;
 }

@@ -26,6 +26,21 @@ test('a build that passes gives pass', async () => {
   assert.equal(await pollChecks(probe(['some'], ['pass']), OPTIONS, fakeClock()), 'pass');
 });
 
+test('a passing build waits out the grace time before it gives pass', async () => {
+  const target = probe(['some'], ['pass']);
+  const time = fakeClock();
+  assert.equal(await pollChecks(target, OPTIONS, time), 'pass');
+  assert.equal(target.polls, 7);
+  assert.equal(time.time, 60_000);
+});
+
+test('a check that fails after the first checks passed gives fail', async () => {
+  const target = probe(['some'], ['pass', 'pass', 'fail']);
+  const time = fakeClock();
+  assert.equal(await pollChecks(target, OPTIONS, time), 'fail');
+  assert.equal(time.time, 20_000);
+});
+
 test('a build that fails gives fail', async () => {
   assert.equal(await pollChecks(probe(['some'], ['fail']), OPTIONS, fakeClock()), 'fail');
 });
@@ -33,7 +48,7 @@ test('a build that fails gives fail', async () => {
 test('a pending build waits and asks again', async () => {
   const target = probe(['some'], ['pending', 'pending', 'pass']);
   const time = fakeClock();
-  assert.equal(await pollChecks(target, OPTIONS, time), 'pass');
+  assert.equal(await pollChecks(target, { ...OPTIONS, graceMs: 0 }, time), 'pass');
   assert.equal(target.polls, 3);
   assert.equal(time.time, 20_000);
 });
@@ -42,8 +57,8 @@ test('a check that starts late is not read as no check', async () => {
   const target = probe(['none', 'none', 'some'], ['pass']);
   const time = fakeClock();
   assert.equal(await pollChecks(target, OPTIONS, time), 'pass');
-  assert.equal(target.polls, 3);
-  assert.equal(time.time, 20_000);
+  assert.equal(target.polls, 7);
+  assert.equal(time.time, 60_000);
 });
 
 test('no check after the grace time gives none', async () => {
@@ -119,7 +134,7 @@ test('the checks are read only when the pull request shows the pushed commit', a
     head: async () => heads.shift() ?? 'new',
   };
   const time = fakeClock();
-  assert.equal(await pollChecks(target, { ...OPTIONS, head: 'new' }, time), 'pass');
+  assert.equal(await pollChecks(target, { ...OPTIONS, graceMs: 0, head: 'new' }, time), 'pass');
   assert.equal(base.polls, 1);
   assert.equal(time.time, 20_000);
 });
@@ -208,7 +223,7 @@ test('a check read that fails once is tried again', async () => {
     watch: async () => 'pass',
   };
   const time = fakeClock();
-  assert.equal(await pollChecks(target, OPTIONS, time), 'pass');
+  assert.equal(await pollChecks(target, { ...OPTIONS, graceMs: 0 }, time), 'pass');
   assert.equal(time.time, 10_000);
 });
 
@@ -227,7 +242,7 @@ test('a check watch that fails once is tried again', async () => {
     },
   };
   const time = fakeClock();
-  assert.equal(await pollChecks(target, OPTIONS, time), 'pass');
+  assert.equal(await pollChecks(target, { ...OPTIONS, graceMs: 0 }, time), 'pass');
   assert.equal(time.time, 10_000);
 });
 

@@ -188,6 +188,25 @@ test('waitForBaseChecks waits for a pending commit status and fails when it then
   );
 });
 
+test('waitForBaseChecks fails when a failing commit status shows up after the first check has passed', async (t) => {
+  const dir = await fakeRunsGh(t, [], [], {
+    statuses: [
+      [{ name: 'app/lint', state: 'success', url: '' }],
+      [
+        { name: 'app/lint', state: 'success', url: '' },
+        { name: 'ci/jenkins', state: 'failure', url: 'https://ci.example/3' },
+      ],
+    ],
+  });
+  assert.equal(
+    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', {
+      ...BASE_WAIT,
+      graceMs: 1500,
+    }),
+    'fail',
+  );
+});
+
 test('waitForBaseChecks times out while a commit status stays pending', async (t) => {
   const dir = await fakeRunsGh(t, [], [], {
     statuses: [[{ name: 'ci/jenkins', state: 'pending', url: '' }]],
@@ -317,7 +336,7 @@ test('rerunFailedBase and failedBaseLogs leave out a failed run that an event ot
 });
 
 test('a user whose landed commit has a passed push run and a failed issues run gets the issue closed and done', async (t) => {
-  const target = await harness(t);
+  const target = await harness(t, { config: { checkGraceSeconds: 0 } });
   await fakeRunsGh(t, ISSUE_RUNS, ISSUE_RUNS, { sha: '2' });
   target.context.ports.waitForBaseChecks = waitForBaseChecks;
   target.context.ports.rerunFailedBase = rerunFailedBase;
@@ -327,6 +346,29 @@ test('a user whose landed commit has a passed push run and a failed issues run g
   assert.deepEqual(target.closed, [7]);
   assert.equal(target.labels.at(-1)!.label, 'status:done');
   assert.deepEqual(target.reruns, []);
+});
+
+test('a user whose landed commit gets a failing commit status after the first check has passed gets the issue handed to a person, not closed', async (t) => {
+  const target = await harness(t, {
+    config: { checkGraceSeconds: 3, checkIntervalSeconds: 1, maxCiFixes: 0 },
+  });
+  await fakeRunsGh(t, [], [], {
+    sha: '2',
+    statuses: [
+      [{ name: 'app/lint', state: 'success', url: '' }],
+      [
+        { name: 'app/lint', state: 'success', url: '' },
+        { name: 'ci/jenkins', state: 'failure', url: 'https://ci.example/3' },
+      ],
+    ],
+  });
+  target.context.ports.waitForBaseChecks = waitForBaseChecks;
+  target.context.ports.rerunFailedBase = rerunFailedBase;
+  target.context.ports.failedBaseLogs = failedBaseLogs;
+  const report = await target.run();
+  assert.equal(report.reason, 'check budget');
+  assert.deepEqual(target.closed, []);
+  assert.ok(target.labels.every((entry) => entry.label !== 'status:done'));
 });
 
 test(
