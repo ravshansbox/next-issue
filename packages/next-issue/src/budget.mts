@@ -17,10 +17,12 @@ export async function spendBudget(
   budget: Budget,
   note: string,
   reason: string,
+  beforeHandOver?: () => Promise<void>,
 ): Promise<Finished | undefined> {
   const { context, state } = job;
   const { round, limit } = budgetUse(job, budget);
   if (round >= limit) {
+    await beforeHandOver?.();
     return escalateAndFinish(job, note, reason);
   }
   state[budget] += 1;

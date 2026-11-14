@@ -161,6 +161,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
   const implementerTexts = [...(plan.implementerText ?? [])];
   let head = 0;
   let pressed = false;
+  let removed = false;
   const children = runChildren();
   const state: Harness = {
     context: undefined as unknown as Context,
@@ -255,7 +256,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     disputeBranches: async () => plan.disputes ?? [],
     ensureLabel: async () => undefined,
     failedBaseLogs: async () => 'the failed main logs',
-    findWorktree: async () => undefined,
+    findWorktree: async () => (removed ? undefined : join(root, 'worktree')),
     huntWorktree: async (_repo, base) => {
       state.hunts.push(base);
       return join(root, 'hunt');
@@ -301,7 +302,10 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       head += 1;
       return true;
     },
-    abortMerge: async (_worktree, target) => {
+    abortMerge: async (worktree, target) => {
+      if (removed) {
+        throw new Error(`spawn git ENOENT: ${worktree}`);
+      }
       state.mergeAborts.push(target);
       head = Number(target);
     },
@@ -311,7 +315,10 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
         state.forcedPushes += 1;
       }
     },
-    removeWorktree: async () => true,
+    removeWorktree: async () => {
+      removed = true;
+      return true;
+    },
     reopenIssue: async (_repo, number) => {
       state.reopened.push(number);
     },

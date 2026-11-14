@@ -42,9 +42,9 @@ async function mergeBase(job: Run, before: string, files: string[]): Promise<Fin
       'ciFixes',
       `The change conflicts with ${base}, and the limit of ${config.maxCiFixes} check fixes was reached.`,
       'merge conflict',
+      () => ports.abortMerge(worktree, before),
     );
     if (exhausted) {
-      await ports.abortMerge(worktree, before);
       return exhausted;
     }
   }

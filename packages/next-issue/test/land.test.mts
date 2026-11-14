@@ -116,13 +116,18 @@ test('a user whose fix for main conflicts with the base after the check budget i
     fixerText: 'Done.\ncommit: fix: repair main',
   });
   const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
   assert.equal(report.reason, 'merge conflict');
+  assert.equal(report.halt, true);
   assert.deepEqual(
     target.reverts.map((entry) => entry.shas),
     [['2']],
   );
+  assert.equal(target.head(), '5');
+  const handOvers = target.comments.filter((comment) => /needs help/.test(comment));
+  assert.equal(handOvers.length, 1);
   assert.match(
-    target.comments.at(-1)!,
+    handOvers[0]!,
     /limit of 1 check fixes was reached\. The harness reverted the change on main\./,
   );
 });
