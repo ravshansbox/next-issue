@@ -11,8 +11,14 @@ export async function squashOnto(
   if (await succeeds(cwd, ['diff', '--quiet', target])) {
     return false;
   }
+  const head = await revision(cwd);
   await git(cwd, ['reset', '--soft', target]);
-  await commitEverything(cwd, message);
+  try {
+    await commitEverything(cwd, message);
+  } catch (error) {
+    await git(cwd, ['reset', '--soft', head]);
+    throw error;
+  }
   return true;
 }
 

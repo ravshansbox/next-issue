@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
-import { readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { HookError } from '../src/git-commit.mts';
 import { pushToBase, revertOnBase, squashOnto } from '../src/git-land.mts';
 import { commitMerge, startMerge } from '../src/git-merge.mts';
 import { isLanded } from '../src/git.mts';
@@ -38,6 +39,23 @@ test('squashOnto makes no commit for a change that the base already holds', asyn
   const head = await git(path, 'rev-parse', 'HEAD');
   assert.equal(await squashOnto(path, 'main', 'origin', 'feat: nothing'), false);
   assert.equal(await git(path, 'rev-parse', 'HEAD'), head);
+});
+
+test('squashOnto that a pre-commit hook stops keeps the branch head, and a retry still squashes onto the base', async () => {
+  const { path } = await branch();
+  const head = await git(path, 'rev-parse', 'HEAD');
+  const hooks = join(path, '..', 'hooks');
+  await mkdir(hooks, { recursive: true });
+  await writeFile(join(hooks, 'pre-commit'), '#!/bin/sh\necho lint fails >&2\nexit 1\n');
+  await chmod(join(hooks, 'pre-commit'), 0o755);
+  await git(path, 'config', 'core.hooksPath', hooks);
+  await assert.rejects(squashOnto(path, 'main', 'origin', 'feat: add b and c'), HookError);
+  assert.equal(await git(path, 'rev-parse', 'HEAD'), head);
+  assert.equal(await isLanded(path, 'main', 'origin'), false);
+  await rm(join(hooks, 'pre-commit'));
+  assert.equal(await squashOnto(path, 'main', 'origin', 'feat: add b and c'), true);
+  assert.equal(await git(path, 'rev-parse', 'HEAD^'), await git(path, 'rev-parse', 'origin/main'));
+  assert.equal(await git(path, 'log', '-1', '--format=%s'), 'feat: add b and c');
 });
 
 test('pushToBase refuses a change that is behind the base', async () => {
