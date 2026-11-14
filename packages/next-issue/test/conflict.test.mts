@@ -3,6 +3,7 @@ import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import type { AgentRequest } from '../src/agents.mts';
+import type { Config } from '../src/config.mts';
 import { commitAll, HookError } from '../src/git-commit.mts';
 import { pushToBase, squashOnto } from '../src/git-land.mts';
 import { abortMerge, commitMerge, startMerge } from '../src/git-merge.mts';
@@ -55,12 +56,13 @@ test('a user whose fixer leaves the conflict unresolved gets the issue handed ov
   assert.match(target.comments.at(-1)!, /left the conflict with main unresolved/);
 });
 
-test('a user whose fixer fails while it resolves a conflict gets the merge undone', async (t) => {
+test('a user whose fixer fails while it resolves a conflict gets the merge undone and the check fix counted', async (t) => {
   const target = await harness(t, { merges: [['src/a.ts']], fixerThrows: true });
   const report = await target.run();
   assert.equal(report.outcome, 'error');
   assert.match(report.reason!, /the fixer timed out/);
   assert.deepEqual(target.mergeAborts, ['1']);
+  assert.equal((await target.state())?.ciFixes, 1);
 });
 
 test('a user whose merge of the base fails in a hook gets the hook output to the fixer and the change landed with its own subject', async (t) => {
@@ -137,6 +139,7 @@ async function realMerge(
   t: TestContext,
   fixer: Fixer,
   conflict: Conflict = TEXT_CONFLICT,
+  config: Partial<Config> = {},
 ): Promise<{ target: Harness; base: string }> {
   const { repo, other } = await clones();
   if (conflict.start !== undefined) {
@@ -149,7 +152,7 @@ async function realMerge(
   }
   await git(repo.root, 'config', 'user.name', 't');
   await git(repo.root, 'config', 'user.email', 't@t');
-  const target = await harness(t, { root: repo.root });
+  const target = await harness(t, { root: repo.root, config });
   const { ports } = target.context;
   const fake = ports.runAgent;
   Object.assign(ports, {
@@ -256,6 +259,40 @@ test('a user who stops now while the fixer resolves a conflict of an approved ch
   const report = await resumed.run();
   assert.equal(report.reason, undefined);
   assert.equal(report.outcome, 'done');
+  assert.deepEqual(roles(resumed), ['fixer']);
+  assert.equal(await git(base, 'show', `${await remoteMain(base)}:a.txt`), 'branch and base');
+});
+
+test('a user who stops now while the fixer resolves a conflict with the last check fix gets the check fix back, and the next run resolves the conflict and lands the change', async (t) => {
+  let stopped: Harness | undefined;
+  const config = { maxCiFixes: 1 };
+  const { target, base } = await realMerge(
+    t,
+    async () => {
+      stopped!.stopNow();
+      throw new Error('The run stopped.');
+    },
+    TEXT_CONFLICT,
+    config,
+  );
+  stopped = target;
+  assert.equal((await target.run()).outcome, 'stopped');
+  assert.equal((await target.state())?.ciFixes, 0);
+  const resumed = await harness(t, { root: target.context.repo.root, config });
+  const { ports } = resumed.context;
+  const fake = ports.runAgent;
+  Object.assign(ports, {
+    ...REAL_GIT,
+    runAgent: async (recorder: Recorder, request: AgentRequest) => {
+      await writeFile(join(request.cwd, 'a.txt'), 'branch and base\n');
+      await git(request.cwd, 'add', 'a.txt');
+      return fake(recorder, request);
+    },
+  });
+  const report = await resumed.run();
+  assert.equal(report.reason, undefined);
+  assert.equal(report.outcome, 'done');
+  assert.equal(report.ciFixes, 1);
   assert.deepEqual(roles(resumed), ['fixer']);
   assert.equal(await git(base, 'show', `${await remoteMain(base)}:a.txt`), 'branch and base');
 });

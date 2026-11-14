@@ -1,5 +1,6 @@
 import { parseCommitSubject } from './agent-reply.mts';
-import { spendBudget } from './budget.mts';
+import { refundBudget, spendBudget } from './budget.mts';
+import { runStopped } from './children.mts';
 import type { Merge } from './git-merge.mts';
 import { commitWork, runFixer } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
@@ -98,6 +99,9 @@ async function resolve(job: Run, merge: Merge): Promise<boolean> {
       ports.commitMerge(cwd, merge, message),
     );
   } catch (error) {
+    if (files.length > 0 && runStopped()) {
+      await refundBudget(job, 'ciFixes');
+    }
     await ports.abortMerge(worktree, before);
     throw error;
   }
