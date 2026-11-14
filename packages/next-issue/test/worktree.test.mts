@@ -4,6 +4,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { branchName, isDirty, revision } from '../src/git.mts';
+import { huntWorktree } from '../src/hunt.mts';
 import { addWorktree, fastForwardBase, findWorktree, removeWorktree } from '../src/worktree.mts';
 import { clones, commit, git } from './clones.mts';
 
@@ -120,6 +121,19 @@ test('a user who resumes issue 3 while .worktrees/3 is left detached gets branch
   assert.equal(path, first);
   assert.equal(await git(path, 'branch', '--show-current'), '3');
   assert.equal(await revision(path), kept);
+});
+
+test('a user who resumes issue 3 while the hunt worktree holds branch 3 gets the work in .worktrees/3', async () => {
+  const { repo } = await clones();
+  const hunt = await huntWorktree(repo, 'main', 'origin');
+  await git(hunt, 'checkout', '-q', '-b', '3');
+  const kept = await commit(hunt, 'kept.txt');
+  assert.equal(await findWorktree(repo, '3'), undefined);
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  assert.equal(path, join(repo.root, '.worktrees', '3'));
+  assert.equal(await git(path, 'branch', '--show-current'), '3');
+  assert.equal(await revision(path), kept);
+  assert.equal(await git(hunt, 'branch', '--show-current'), '');
 });
 
 test('a user whose issue ends gets the worktree that holds its branch removed', async () => {

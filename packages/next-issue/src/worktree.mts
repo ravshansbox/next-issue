@@ -1,3 +1,4 @@
+import { realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   currentBranch,
@@ -18,6 +19,10 @@ type Worktree = {
 
 export const WORKTREE_DIR = '.worktrees';
 
+export function huntPath(repo: Repo): string {
+  return join(repo.root, WORKTREE_DIR, 'hunt');
+}
+
 function worktreePath(repo: Repo, issue: number): string {
   return join(repo.root, WORKTREE_DIR, String(issue));
 }
@@ -34,6 +39,7 @@ export async function addWorktree(
   const remoteBase = remoteRef(remote, base);
   const baseUpdated = await fastForwardBase(repo, base, remote);
   await git(repo.root, ['worktree', 'prune']);
+  await releaseFromHunt(repo, branch);
   const pushed = await hasBranch(repo, upstream, '--remotes');
   const existing = await findWorktree(repo, branch);
   const path = existing ?? worktreePath(repo, issue);
@@ -86,6 +92,23 @@ async function updateBase(repo: Repo, base: string, remote: string): Promise<boo
 }
 
 export async function findWorktree(repo: Repo, branch: string): Promise<string | undefined> {
+  const path = await holder(repo, branch);
+  return path !== undefined && (await isHunt(repo, path)) ? undefined : path;
+}
+
+async function releaseFromHunt(repo: Repo, branch: string): Promise<void> {
+  const path = await holder(repo, branch);
+  if (path !== undefined && (await isHunt(repo, path))) {
+    await git(path, ['checkout', '--detach']);
+  }
+}
+
+async function isHunt(repo: Repo, path: string): Promise<boolean> {
+  const real = (target: string) => realpath(target).catch(() => target);
+  return (await real(path)) === (await real(huntPath(repo)));
+}
+
+async function holder(repo: Repo, branch: string): Promise<string | undefined> {
   const list = await git(repo.root, ['worktree', 'list', '--porcelain']);
   const entry = list
     .split('\n\n')

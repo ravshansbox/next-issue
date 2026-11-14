@@ -148,6 +148,28 @@ test('a user who hunts again gets the hunt worktree reset to the new remote base
   assert.equal(existsSync(join(path, 'stray.txt')), false);
 });
 
+test('a user whose hunter left a branch checked out gets the next hunt on a detached HEAD at the remote base, with the branch kept', async () => {
+  const { repo, other } = await clones();
+  const path = await huntWorktree(repo, 'main', 'origin');
+  await git(path, 'checkout', '-q', '-b', '3');
+  const kept = await commit(path, 'kept.txt');
+  const pushed = await commit(other, 'b.txt');
+  await git(other, 'push', '-q', 'origin', 'main');
+  assert.equal(await huntWorktree(repo, 'main', 'origin'), path);
+  assert.equal(await revision(path), pushed);
+  assert.equal(await git(path, 'branch', '--show-current'), '');
+  assert.equal(await git(repo.root, 'rev-parse', '3'), kept);
+});
+
+test('a user whose hunter left a detached HEAD at another commit gets the next hunt at the remote base', async () => {
+  const { repo } = await clones();
+  const path = await huntWorktree(repo, 'main', 'origin');
+  const base = await revision(path);
+  await commit(path, 'other.txt');
+  assert.equal(await huntWorktree(repo, 'main', 'origin'), path);
+  assert.equal(await revision(path), base);
+});
+
 test('a user who hunts sees the hunter count only issues that the watch can claim', async (t) => {
   const open = [7, 8, 9, 10].map((number) => ({ ...ISSUE, number }));
   open[2]!.labels = ['status:todo', 'status:in-progress'];
