@@ -176,7 +176,11 @@ the run handles one issue. For each issue:
    times. When the checks pass, the harness marks the state file as closing,
    sets `status:done` and closes the issue. When a run stops or dies before
    the close, the next run sees the mark, sets `status:done` and closes the
-   issue, with no new push, revert or hand-over. A label or close that fails
+   issue, with no new push, revert or hand-over. When a run stops or dies
+   after the close, before the state file goes away, the next run finds the
+   closed issue through its state file and removes the worktree, the local
+   branches and the state file, with no new push, revert, label, close or
+   hand-over. A label or close that fails
    for another reason hands the issue over, and it then waits for a person
    like any other hand-over. Then the harness fetches the remote and
    fast-forwards the local base branch to the landed commit when that is

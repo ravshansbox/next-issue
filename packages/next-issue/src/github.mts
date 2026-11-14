@@ -22,6 +22,7 @@ export type Issue = {
   body: string;
   createdAt: string;
   labels: string[];
+  closed?: boolean;
 };
 
 export async function defaultBranch(repo: Repo): Promise<string> {

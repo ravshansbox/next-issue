@@ -40,6 +40,9 @@ async function savedIssue(
     if (saved === 'broken' || open) {
       return { open, issue };
     }
+    if (saved?.closing === true && saved.handedOver !== true) {
+      return { open, issue: { ...issue, closed: true } };
+    }
     return { open };
   } catch (error) {
     context.recorder

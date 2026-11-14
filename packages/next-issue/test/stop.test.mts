@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
+import { pendingIssues } from '../src/pending.mts';
+import { processIssue } from '../src/pipeline.mts';
 import { applyEvent, startProgress } from '../src/progress.mts';
 import type { IssueState } from '../src/state.mts';
 import { APPROVE, changes, harness, ISSUE, type Plan, roles } from './harness.mts';
@@ -302,6 +304,42 @@ test('a user who stops a run now after GitHub applied the done label, before the
   assert.equal(await target.state(), undefined);
   assert.deepEqual(target.deleted, ['7']);
   assert.equal(await target.context.ports.findWorktree(target.context.repo, '7'), undefined);
+  assert.deepEqual(roles(target), []);
+  assert.equal(target.pushes, 0);
+  assert.deepEqual(target.landed, []);
+  assert.deepEqual(target.reverts, []);
+  assert.deepEqual(target.comments, []);
+});
+
+test('a user who stops a run now after the issue is closed, before its state file goes away, gets the next run to remove its state, worktree and branches with no new push, label, close or hand-over', async (t) => {
+  const first = await harness(t, { disputes: ['7-dispute'] });
+  first.context.ports.disputeBranches = async () => {
+    first.stopNow();
+    throw new Error('The run stopped.');
+  };
+  assert.equal((await first.run()).outcome, 'stopped');
+  assert.deepEqual(first.closed, [7]);
+  const saved = await first.state();
+  assert.equal(saved?.closing, true);
+  const closedIssue = { ...ISSUE, labels: ['status:done'] };
+  const target = await harness(t, {
+    saved,
+    open: [],
+    closed: [closedIssue],
+    disputes: ['7-dispute'],
+  });
+  const issues = await pendingIssues(target.context);
+  assert.deepEqual(
+    issues.map((entry) => entry.number),
+    [7],
+  );
+  const report = await processIssue(target.context, issues[0]!);
+  assert.equal(report.outcome, 'done');
+  assert.equal(await target.state(), undefined);
+  assert.deepEqual(target.deleted, ['7', '7-dispute']);
+  assert.equal(await target.context.ports.findWorktree(target.context.repo, '7'), undefined);
+  assert.deepEqual(target.closed, []);
+  assert.deepEqual(target.labels, []);
   assert.deepEqual(roles(target), []);
   assert.equal(target.pushes, 0);
   assert.deepEqual(target.landed, []);
