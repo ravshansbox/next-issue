@@ -10,8 +10,14 @@ async function labelsOf(repo: Repo, kind: Kind, number: number): Promise<string[
 }
 
 export function labelArgs(add: string, remove: string[], current: string[]): string[] {
-  const stale = remove.filter((item) => item !== add && current.includes(item));
+  const stale = current.filter(
+    (label) => hasLabel(remove, label) && label.toLowerCase() !== add.toLowerCase(),
+  );
   return ['--add-label', add, ...stale.flatMap((name) => ['--remove-label', name])];
+}
+
+export function hasLabel(labels: string[], name: string): boolean {
+  return labels.some((label) => label.toLowerCase() === name.toLowerCase());
 }
 
 export async function setLabel(

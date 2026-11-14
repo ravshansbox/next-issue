@@ -22,6 +22,15 @@ test('labelArgs removes only a label that is present', () => {
   ]);
 });
 
+test('labelArgs removes a present label held in another case, by its own name', () => {
+  assert.deepEqual(labelArgs('status:in-review', MANAGED, ['Status:Todo']), [
+    '--add-label',
+    'status:in-review',
+    '--remove-label',
+    'Status:Todo',
+  ]);
+});
+
 test('labelArgs never removes the label it adds', () => {
   assert.deepEqual(labelArgs('status:done', MANAGED, ['status:done', 'status:in-review']), [
     '--add-label',

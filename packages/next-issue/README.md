@@ -467,6 +467,9 @@ issues apart from your own and filter them.
 An empty `labels.ready` turns the ready requirement off. The harness then
 claims every open issue that no other label holds back.
 
+The harness compares the labels on an issue with the configured names without
+case, as GitHub does, so `Status:Todo` counts as `status:todo`.
+
 The log gives the reason for a skipped issue as `stop-label`, `not-ready`,
 `in-flight` or `blocked`, the last one with the open blockers.
 

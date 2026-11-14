@@ -392,3 +392,12 @@ test('a user whose hunt label create fails for another reason sees the hunt fail
   const error = target.events.find((record) => record.kind === 'hunt.error');
   assert.match(String(error?.error), /permission denied/);
 });
+
+test('a user whose issues hold the ready label in another case sees the hunter count them as ready', async (t) => {
+  const open = [7, 8].map((number) => ({ ...ISSUE, number, labels: ['Status:Todo'] }));
+  const target = await harness(t, { open, config: { huntCap: 2 } });
+  assert.deepEqual(
+    (await hunter(target.context).ready(new Set(), new Set())).map((issue) => issue.number),
+    [7, 8],
+  );
+});

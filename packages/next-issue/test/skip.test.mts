@@ -70,3 +70,24 @@ test('a needs-human issue whose comments cannot be read gives the error outcome 
   assert.deepEqual(target.labels, []);
   assert.deepEqual(roles(target), []);
 });
+
+test('a user whose issue holds the ready label in another case sees it claimed and handled', async (t) => {
+  const target = await harness(t, { issue: { ...ISSUE, labels: ['Status:Todo'] } });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+});
+
+test('a user whose issue holds a stop or in-flight label in another case sees it skipped', async (t) => {
+  for (const label of [
+    'Status:Done',
+    'Status:Blocked',
+    'Status:Needs-Human',
+    'Status:In-Progress',
+    'Status:In-Review',
+  ]) {
+    const target = await harness(t, { issue: { ...ISSUE, labels: ['status:todo', label] } });
+    const report = await target.run();
+    assert.equal(report.outcome, 'skipped', label);
+    assert.deepEqual(roles(target), [], label);
+  }
+});

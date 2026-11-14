@@ -4,6 +4,7 @@ import { message } from './errors.mts';
 import type { Issue } from './github.mts';
 import { handOverReply } from './hand-over-comments.mts';
 import type { Context, IssueReport } from './job.mts';
+import { hasLabel } from './labels.mts';
 import type { Recorder } from './observe.mts';
 import type { IssueState } from './state.mts';
 
@@ -15,19 +16,19 @@ export function skipReason(
   resuming: boolean,
   answered = false,
 ): Skip | undefined {
-  const labels = new Set(issue.labels);
+  const has = (name: string) => hasLabel(issue.labels, name);
   const names = config.labels;
-  const waiting = labels.has(names.needsHuman) && !answered;
-  if (labels.has(names.done) || waiting || labels.has(names.skip)) {
+  const waiting = has(names.needsHuman) && !answered;
+  if (has(names.done) || waiting || has(names.skip)) {
     return 'stop-label';
   }
   if (resuming) {
     return undefined;
   }
-  if (names.ready.length > 0 && !labels.has(names.ready)) {
+  if (names.ready.length > 0 && !has(names.ready)) {
     return 'not-ready';
   }
-  if (labels.has(names.inProgress) || labels.has(names.inReview)) {
+  if (has(names.inProgress) || has(names.inReview)) {
     return 'in-flight';
   }
   return undefined;
@@ -68,7 +69,7 @@ export async function skipReport(
 }
 
 async function hasAnswer(context: Context, issue: Issue): Promise<boolean> {
-  if (!issue.labels.includes(context.config.labels.needsHuman)) {
+  if (!hasLabel(issue.labels, context.config.labels.needsHuman)) {
     return false;
   }
   return (await handOverReply(context, issue.number)).length > 0;

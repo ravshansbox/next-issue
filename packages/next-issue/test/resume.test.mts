@@ -190,6 +190,18 @@ test('a person with write access who answers a handed-over issue gets the issue 
   assert.ok(target.removable[0]!.includes('status:needs-human'));
 });
 
+test('a person with write access who answers a handed-over issue whose needs-human label is in another case gets the issue claimed again', async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: ['Status:Needs-Human'] },
+    saved: HANDED_OVER,
+    thread: [HAND_OVER_NOTE, { author: 'owner', body: 'Ready, take it.' }],
+    writers: ['owner', 'bot'],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(roles(target), ['reviewer']);
+});
+
 test('a handed-over issue whose only later comments come from the harness or a user without write access is not claimed', async (t) => {
   const target = await harness(t, {
     issue: NEEDS_HUMAN,
