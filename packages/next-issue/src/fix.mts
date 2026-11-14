@@ -6,6 +6,7 @@ import {
 } from './agent-reply.mts';
 import { CODING } from './agents.mts';
 import { type BudgetUse, budgetUse } from './budget.mts';
+import { runStopped } from './children.mts';
 import { message } from './errors.mts';
 import { HookError } from './git-commit.mts';
 import { escalateAndFinish } from './handover.mts';
@@ -142,7 +143,7 @@ async function hookFix(
   const { context, issue, log, state, comments } = job;
   const { repo, config } = context;
   const used = state.commitFixes ?? 0;
-  if (!(error instanceof HookError) || used >= config.maxCommitFixes) {
+  if (!(error instanceof HookError) || runStopped() || used >= config.maxCommitFixes) {
     throw error;
   }
   state.commitFixes = used + 1;

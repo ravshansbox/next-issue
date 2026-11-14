@@ -1,3 +1,4 @@
+import { evenWhenStopped } from './children.mts';
 import {
   fetchBase,
   git,
@@ -26,7 +27,7 @@ export async function squashOnto(
   try {
     await commitEverything(cwd, message);
   } catch (error) {
-    await git(cwd, ['reset', '--soft', head]);
+    await evenWhenStopped(() => git(cwd, ['reset', '--soft', head]));
     throw error;
   }
   return true;

@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
-import { writeFile } from 'node:fs/promises';
+import { access, chmod, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { AgentRequest } from '../src/agents.mts';
 import { commitAll } from '../src/git-commit.mts';
+import { pushToBase, squashOnto } from '../src/git-land.mts';
 import {
   diff,
   discardChanges,
@@ -18,6 +19,7 @@ import type { Verdict } from '../src/verdict.mts';
 import { addWorktree, findWorktree, removeWorktree } from '../src/worktree.mts';
 import { clones, git } from './clones.mts';
 import { APPROVE, changes, type Harness, harness, ISSUE, SAVED } from './harness.mts';
+import { tempDir } from './temp-dir.mts';
 
 async function gitRepo(): Promise<Repo> {
   const { repo } = await clones();
@@ -128,6 +130,57 @@ test('a user who stops and resumes issue 7 after a reviewer detached HEAD still 
   const worktree = (await findWorktree(repo, '7'))!;
   assert.equal(await git(worktree, 'branch', '--show-current'), '7');
   await git(worktree, 'cat-file', '-e', 'HEAD:fixer.txt');
+});
+
+function squashStoppedInHook(target: Harness, root: string): { head: () => string } {
+  let head = '';
+  target.context.ports.squashOnto = async (worktree, base, remote, message) => {
+    head = await revision(worktree);
+    const hook = join(root, 'pre-commit');
+    const started = join(root, 'hook-started');
+    await writeFile(hook, `#!/bin/sh\ntouch '${started}'\nsleep 30\n`);
+    await chmod(hook, 0o755);
+    await git(worktree, 'config', 'core.hooksPath', root);
+    const squash = squashOnto(worktree, base, remote, message);
+    let settled = false;
+    void squash.then(
+      () => (settled = true),
+      () => (settled = true),
+    );
+    while (
+      !settled &&
+      !(await access(started).then(
+        () => true,
+        () => false,
+      ))
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    target.stopNow();
+    return squash;
+  };
+  return { head: () => head };
+}
+
+test('a user who stops now during the squash hook keeps the change on branch 7, and the resumed reviewer sees it and it lands', async (t) => {
+  const repo = await gitRepo();
+  const hooks = await tempDir();
+  const first = await harness(t, { root: repo.root });
+  withGit(first, async () => undefined);
+  const squash = squashStoppedInHook(first, hooks);
+  assert.equal((await first.run()).outcome, 'stopped');
+  const worktree = (await findWorktree(repo, '7'))!;
+  assert.equal(await git(repo.root, 'rev-parse', '7'), squash.head());
+  assert.equal(await git(worktree, 'status', '--porcelain'), '');
+  await git(worktree, 'config', '--unset', 'core.hooksPath');
+  const resumed = await harness(t, { root: repo.root });
+  withGit(resumed, async () => undefined);
+  Object.assign(resumed.context.ports, { squashOnto, pushToBase });
+  assert.equal((await resumed.run()).outcome, 'done');
+  const reviewer = resumed.prompts.find((entry) => entry.role === 'reviewer')!;
+  assert.match(reviewer.prompt, /\+\+\+ b\/implementer\.txt/);
+  await git(repo.root, 'fetch', '-q', 'origin');
+  await git(repo.root, 'cat-file', '-e', 'origin/main:implementer.txt');
 });
 
 test('a diff that is too long is cut before the reviewer reads it', async (t) => {

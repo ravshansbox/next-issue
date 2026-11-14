@@ -39,6 +39,10 @@ export function runStopped(): boolean {
   return current.getStore()?.stopped === true;
 }
 
+export function evenWhenStopped<T>(body: () => Promise<T>): Promise<T> {
+  return current.run(runChildren(), body);
+}
+
 export function refuseWhenStopped(): void {
   if (runStopped()) {
     throw new Error('The run stopped.');
