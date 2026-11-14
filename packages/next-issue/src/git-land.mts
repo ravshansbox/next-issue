@@ -1,24 +1,10 @@
 import { evenWhenStopped } from './children.mts';
-import {
-  fetchBase,
-  git,
-  isOnBase,
-  oneFetchAtATime,
-  remoteRef,
-  revision,
-  succeeds,
-} from './git.mts';
+import { fetchBase, git, isOnBase, oneFetchAtATime, revision, succeeds } from './git.mts';
 import { commitEverything } from './git-commit.mts';
 
 export const PUSH_TRIES = 3;
 
-export async function squashOnto(
-  cwd: string,
-  base: string,
-  remote: string,
-  message: string,
-): Promise<boolean> {
-  const target = remoteRef(remote, base);
+export async function squashOnto(cwd: string, target: string, message: string): Promise<boolean> {
   if (await succeeds(cwd, ['diff', '--quiet', target])) {
     return false;
   }

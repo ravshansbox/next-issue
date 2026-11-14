@@ -9,7 +9,7 @@ export async function rebase(job: Run): Promise<Finished | undefined> {
   const { config, ports, base } = context;
   const title = state.title ?? fallbackTitle(issue);
   const before = await ports.revision(worktree);
-  const files = await log.step('rebase', { base }, () =>
+  const { target, files } = await log.step('rebase', { base }, () =>
     ports.startMerge(worktree, base, config.remote),
   );
   if (files !== undefined) {
@@ -22,7 +22,7 @@ export async function rebase(job: Run): Promise<Finished | undefined> {
   }
   const merged = await ports.revision(worktree);
   const squashed = await commitWork(job, merged, title, 'fixer', (cwd, message) =>
-    ports.squashOnto(cwd, base, config.remote, message),
+    ports.squashOnto(cwd, target, message),
   );
   if (!squashed) {
     return escalateAndFinish(

@@ -132,16 +132,16 @@ test('a user who stops and resumes issue 7 after a reviewer detached HEAD still 
   await git(worktree, 'cat-file', '-e', 'HEAD:fixer.txt');
 });
 
-function squashStoppedInHook(target: Harness, root: string): { head: () => string } {
+function squashStoppedInHook(stopped: Harness, root: string): { head: () => string } {
   let head = '';
-  target.context.ports.squashOnto = async (worktree, base, remote, message) => {
+  stopped.context.ports.squashOnto = async (worktree, target, message) => {
     head = await revision(worktree);
     const hook = join(root, 'pre-commit');
     const started = join(root, 'hook-started');
     await writeFile(hook, `#!/bin/sh\ntouch '${started}'\nsleep 30\n`);
     await chmod(hook, 0o755);
     await git(worktree, 'config', 'core.hooksPath', root);
-    const squash = squashOnto(worktree, base, remote, message);
+    const squash = squashOnto(worktree, target, message);
     let settled = false;
     void squash.then(
       () => (settled = true),
@@ -156,7 +156,7 @@ function squashStoppedInHook(target: Harness, root: string): { head: () => strin
     ) {
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
-    target.stopNow();
+    stopped.stopNow();
     return squash;
   };
   return { head: () => head };

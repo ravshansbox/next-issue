@@ -27,7 +27,8 @@ test('startMerge merges a base that git can merge cleanly and commitMerge commit
   await commit(base, 'b.txt');
   await git(base, 'push', '-q', 'origin', 'main');
   const head = await revision(path);
-  assert.deepEqual(await startMerge(path, 'main', 'origin'), []);
+  const started = await startMerge(path, 'main', 'origin');
+  assert.deepEqual(started, { target: await git(path, 'rev-parse', 'origin/main'), files: [] });
   assert.equal(await commitMerge(path, merge(head, []), 'chore: merge origin/main'), true);
   assert.equal(await git(path, 'log', '-1', '--format=%s'), 'chore: merge origin/main');
   assert.equal(await git(path, 'rev-parse', 'HEAD^1'), head);
@@ -41,7 +42,7 @@ test('startMerge lists the conflicted files, and commitMerge refuses them while 
   await git(base, 'commit', '-q', '-am', 'base');
   await git(base, 'push', '-q', 'origin', 'main');
   const head = await revision(path);
-  assert.deepEqual(await startMerge(path, 'main', 'origin'), ['a.txt']);
+  assert.deepEqual((await startMerge(path, 'main', 'origin')).files, ['a.txt']);
   assert.equal(await commitMerge(path, merge(head, ['a.txt']), 'chore: merge'), false);
   await abortMerge(path, head);
   assert.equal(await revision(path), head);
@@ -72,7 +73,7 @@ test('startMerge reports a branch that already holds the base with no merge to c
   await startMerge(path, 'main', 'origin');
   assert.equal(await commitMerge(path, merge(await revision(path), []), 'chore: merge'), true);
   const head = await revision(path);
-  assert.equal(await startMerge(path, 'main', 'origin'), undefined);
+  assert.equal((await startMerge(path, 'main', 'origin')).files, undefined);
   assert.equal(await revision(path), head);
 });
 

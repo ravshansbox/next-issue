@@ -280,11 +280,11 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     issueComments: async () => plan.issueComments ?? [],
     openBlockers: async () => plan.blockers ?? [],
     openIssues: async () => [...(plan.open ?? [])],
-    startMerge: async () => {
+    startMerge: async (_worktree, base, remote) => {
       state.baseMerges += 1;
-      return merges.shift();
+      return { target: `${remote}/${base}`, files: merges.shift() };
     },
-    squashOnto: async (_worktree, _base, _remote, commitMessage) => {
+    squashOnto: async (_worktree, _target, commitMessage) => {
       state.messages.push(commitMessage);
       head += 1;
       return true;

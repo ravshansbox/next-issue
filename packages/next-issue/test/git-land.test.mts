@@ -24,10 +24,10 @@ test('squashOnto makes one commit on top of the base, and pushToBase lands it th
   await commit(other, 'd.txt');
   await git(other, 'push', '-q', 'origin', 'main');
   const before = await git(path, 'rev-parse', 'HEAD');
-  assert.deepEqual(await startMerge(path, 'main', 'origin'), []);
+  assert.deepEqual((await startMerge(path, 'main', 'origin')).files, []);
   const merge = { before, base: 'main', remote: 'origin', files: [] };
   assert.equal(await commitMerge(path, merge, 'chore: merge'), true);
-  assert.equal(await squashOnto(path, 'main', 'origin', 'feat: add b and c'), true);
+  assert.equal(await squashOnto(path, 'origin/main', 'feat: add b and c'), true);
   assert.equal(await git(path, 'rev-parse', 'HEAD^'), await git(path, 'rev-parse', 'origin/main'));
   assert.equal(await git(path, 'log', '-1', '--format=%s'), 'feat: add b and c');
   assert.equal(await pushToBase(path, 'origin', 'main'), true);
@@ -39,7 +39,7 @@ test('squashOnto makes no commit for a change that the base already holds', asyn
   const { path } = await branch();
   await git(path, 'reset', '-q', '--hard', 'origin/main');
   const head = await git(path, 'rev-parse', 'HEAD');
-  assert.equal(await squashOnto(path, 'main', 'origin', 'feat: nothing'), false);
+  assert.equal(await squashOnto(path, 'origin/main', 'feat: nothing'), false);
   assert.equal(await git(path, 'rev-parse', 'HEAD'), head);
 });
 
@@ -51,11 +51,11 @@ test('squashOnto that a pre-commit hook stops keeps the branch head, and a retry
   await writeFile(join(hooks, 'pre-commit'), '#!/bin/sh\necho lint fails >&2\nexit 1\n');
   await chmod(join(hooks, 'pre-commit'), 0o755);
   await git(path, 'config', 'core.hooksPath', hooks);
-  await assert.rejects(squashOnto(path, 'main', 'origin', 'feat: add b and c'), HookError);
+  await assert.rejects(squashOnto(path, 'origin/main', 'feat: add b and c'), HookError);
   assert.equal(await git(path, 'rev-parse', 'HEAD'), head);
   assert.equal(await isLanded(path, 'main', 'origin'), false);
   await rm(join(hooks, 'pre-commit'));
-  assert.equal(await squashOnto(path, 'main', 'origin', 'feat: add b and c'), true);
+  assert.equal(await squashOnto(path, 'origin/main', 'feat: add b and c'), true);
   assert.equal(await git(path, 'rev-parse', 'HEAD^'), await git(path, 'rev-parse', 'origin/main'));
   assert.equal(await git(path, 'log', '-1', '--format=%s'), 'feat: add b and c');
 });
@@ -69,7 +69,7 @@ test('pushToBase refuses a change that is behind the base', async () => {
 
 test('revertOnBase pushes a revert to the base and leaves the change on the branch on top of it', async () => {
   const { path, other } = await branch();
-  await squashOnto(path, 'main', 'origin', 'feat: add b and c');
+  await squashOnto(path, 'origin/main', 'feat: add b and c');
   await pushToBase(path, 'origin', 'main');
   const landed = await git(path, 'rev-parse', 'HEAD');
   const saved: string[] = [];
@@ -96,7 +96,7 @@ test('revertOnBase pushes a revert to the base and leaves the change on the bran
 
 test('revertOnBase that cannot push puts the branch back as it was', async () => {
   const { path, other } = await branch();
-  await squashOnto(path, 'main', 'origin', 'feat: add b and c');
+  await squashOnto(path, 'origin/main', 'feat: add b and c');
   await pushToBase(path, 'origin', 'main');
   const landed = await git(path, 'rev-parse', 'HEAD');
   await writeFile(join(path, 'stray.txt'), 'x\n');
@@ -120,7 +120,7 @@ test('revertOnBase that cannot push puts the branch back as it was', async () =>
 
 async function landed(): Promise<{ path: string; other: string; sha: string }> {
   const { path, other } = await branch();
-  await squashOnto(path, 'main', 'origin', 'feat: add b and c');
+  await squashOnto(path, 'origin/main', 'feat: add b and c');
   await pushToBase(path, 'origin', 'main');
   const sha = await git(path, 'rev-parse', 'HEAD');
   await git(other, 'pull', '-q', 'origin', 'main');

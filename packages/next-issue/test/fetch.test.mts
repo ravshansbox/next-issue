@@ -49,7 +49,7 @@ test('the harness lands issue 3 while it sets up the worktree of issue 4, and bo
     startMerge(path, 'main', 'origin'),
     addWorktree(repo, 4, '4', 'main', 'origin', false),
   ]);
-  assert.deepEqual(merged, []);
+  assert.deepEqual(merged.files, []);
   assert.equal(await git(added.path, 'log', '-1', '--format=%s'), 'c.txt');
 });
 

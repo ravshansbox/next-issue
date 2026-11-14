@@ -9,7 +9,7 @@ import { abortMerge, commitMerge, startMerge } from '../src/git-merge.mts';
 import { diff, discardChanges, isDirty, latestSubject, revision, setAside } from '../src/git.mts';
 import type { Recorder } from '../src/observe.mts';
 import { addWorktree, findWorktree, removeWorktree } from '../src/worktree.mts';
-import { clones, git } from './clones.mts';
+import { clones, commit, git } from './clones.mts';
 import { type Harness, harness, ISSUE, roles } from './harness.mts';
 
 test('a user whose base branch moved without a conflict gets the base merged with no agent and no check fix spent', async (t) => {
@@ -186,4 +186,22 @@ test('a user whose fixer commits a clean merge of the base gets the change lande
   assert.equal(await git(base, 'rev-parse', `${landed}^`), before);
   assert.equal(await git(base, 'show', `${landed}:a.txt`), 'branch and base');
   assert.equal(await git(base, 'show', `${landed}:b.txt`), 'base');
+});
+
+test('a user whose base branch moves while the fixer resolves a conflict gets the change landed on top of the moved base with its changes kept', async (t) => {
+  const { target, base } = await realMerge(t, async (worktree) => {
+    await writeFile(join(worktree, 'a.txt'), 'branch and base\n');
+    await git(worktree, 'add', 'a.txt');
+    await commit(base, 'd.txt');
+    await git(base, 'push', '-q', 'origin', 'main');
+    await git(worktree, 'fetch', '-q', 'origin');
+  });
+  const report = await target.run();
+  const moved = await git(base, 'rev-parse', 'HEAD');
+  assert.equal(report.reason, undefined);
+  assert.equal(report.outcome, 'done');
+  const landed = await remoteMain(base);
+  assert.equal(await git(base, 'rev-parse', `${landed}^`), moved);
+  assert.equal(await git(base, 'show', `${landed}:d.txt`), 'd.txt');
+  assert.equal(await git(base, 'show', `${landed}:a.txt`), 'branch and base');
 });
