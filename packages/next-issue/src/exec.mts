@@ -38,6 +38,12 @@ const defaultTimeout = new AsyncLocalStorage<number>();
 
 const STDERR_TAIL = 200_000;
 
+let shownCommands = 0;
+
+export function showingCommands(): boolean {
+  return shownCommands > 0;
+}
+
 export function setCommandObserver(next: (record: CommandRecord) => void): void {
   observer = next;
 }
@@ -114,9 +120,17 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
     const output = collect(child, options);
     const timer = deadline(limit, () => killTree(child));
     let done = false;
+    let shown = options.show === true;
+    if (shown) {
+      shownCommands += 1;
+    }
     const release = (): void => {
       timer.clear();
       unwatch();
+      if (shown) {
+        shown = false;
+        shownCommands -= 1;
+      }
     };
     const settle = (code: number | null): void => {
       release();

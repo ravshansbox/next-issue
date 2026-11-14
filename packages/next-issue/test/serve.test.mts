@@ -1,9 +1,18 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { statSync } from 'node:fs';
+import { closeSync, openSync, statSync } from 'node:fs';
 import fsPromises from 'node:fs/promises';
-import { readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  appendFile,
+  mkdir,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { syncBuiltinESMExports } from 'node:module';
 import { createConnection, Server } from 'node:net';
 import { dirname, join } from 'node:path';
@@ -864,4 +873,45 @@ test('a client starts a run in one repository while the worker of another reposi
   assert.equal(other.calls.length, 1);
   busy.finish();
   other.finish();
+});
+
+test('a worker that runs a long time keeps only the newest whole lines of worker.log', async (t) => {
+  const root = await tempDir();
+  const logPath = join(root, '.next-issue', 'worker.log');
+  await mkdir(dirname(logPath), { recursive: true });
+  const line = `${'x'.repeat(99)}\n`;
+  const old = `old ${line}`.repeat(110_000);
+  await writeFile(logPath, old);
+  const log = openSync(logPath, 'a');
+  const child = spawn(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `import { serve } from ${JSON.stringify(SERVE)}; await serve(${JSON.stringify(root)}, 50);`,
+    ],
+    { stdio: ['ignore', log, log] },
+  );
+  closeSync(log);
+  t.after(() => child.kill('SIGKILL'));
+  const trimmed = async (first: string, last: string): Promise<string> => {
+    const deadline = Date.now() + 10_000;
+    let text = '';
+    while (Date.now() < deadline) {
+      text = await readFile(logPath, 'utf8');
+      if (text.startsWith(first) && text.includes(last) && text.length <= 5 * 1024 * 1024 + 200) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return text;
+  };
+  const first = await trimmed('old ', 'listening');
+  assert.ok(first.length <= 5 * 1024 * 1024 + 200, `worker.log holds ${first.length} bytes`);
+  assert.match(first, /^old x+\n/);
+  await appendFile(logPath, `new ${line}`.repeat(110_000));
+  const second = await trimmed('new ', `new ${line}`);
+  assert.ok(second.length <= 5 * 1024 * 1024);
+  assert.match(second, /^new x+\n/);
+  assert.ok(second.endsWith(`new ${line}`));
 });

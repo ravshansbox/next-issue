@@ -11,6 +11,7 @@ import { type ClientMessage, isNewer, type Progress } from './protocol.mts';
 import { type ListQuestions, listQuestions, questionSender, send } from './questions.mts';
 import { runRepo, type RunControls } from './run.mts';
 import { packageVersion } from './version.mts';
+import { keepLogTrimmed, LOG_CHECK_MS } from './worker-log.mts';
 import { checkSocketPath, workerPaths } from './worker-paths.mts';
 import {
   active,
@@ -179,8 +180,9 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   return { closed, close, release: () => removeOwned(owned) };
 }
 
-export async function serve(root: string): Promise<number> {
-  const paths = workerPaths(root);
+export async function serve(root: string, logCheckMs = LOG_CHECK_MS): Promise<number> {
+  const { logPath, ...paths } = workerPaths(root);
+  const stopTrimming = keepLogTrimmed(logPath, logCheckMs);
   const worker = await startWorker({
     root,
     ...paths,
@@ -189,6 +191,7 @@ export async function serve(root: string): Promise<number> {
     questions: listQuestions,
   });
   if (worker === undefined) {
+    stopTrimming();
     process.stderr.write('next-issue: another worker is running\n');
     return 1;
   }
@@ -204,5 +207,6 @@ export async function serve(root: string): Promise<number> {
   process.on('SIGINT', onInterrupt);
   process.stderr.write(`next-issue: worker listening on ${paths.socketPath}\n`);
   await worker.closed;
+  stopTrimming();
   return 0;
 }

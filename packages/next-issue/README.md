@@ -723,7 +723,12 @@ affect another. The worker:
 - closes once no run is going when a client with a newer version connects, so
   that the client can start the newer worker;
 - stops every agent and command and exits on `SIGTERM` or `SIGINT`, and
-  removes its socket and lock files.
+  removes its socket and lock files;
+- keeps `.next-issue/worker.log`, where the extension writes the output of
+  the worker, within 10 MiB: when it starts and once a minute while it runs,
+  it cuts a log of more than 10 MiB to its newest 5 MiB, from the start of a
+  line. It skips the cut while a command that writes to the log runs. The
+  run logs under `.next-issue/runs/` hold the same events.
 
 Stop the worker of a repository with `next-issue stop` in that repository.
 Workers of other repositories carry on. This sends `SIGTERM` to the process in

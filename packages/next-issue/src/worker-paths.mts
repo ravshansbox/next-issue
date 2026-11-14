@@ -1,11 +1,16 @@
 import { join } from 'node:path';
 import { stateDir } from './state.mts';
 
-export function workerPaths(root: string): { socketPath: string; lockPath: string } {
+export function workerPaths(root: string): {
+  socketPath: string;
+  lockPath: string;
+  logPath: string;
+} {
   const dir = stateDir(root);
   return {
     socketPath: join(dir, 'worker.sock'),
     lockPath: join(dir, 'worker.lock'),
+    logPath: join(dir, 'worker.log'),
   };
 }
 
