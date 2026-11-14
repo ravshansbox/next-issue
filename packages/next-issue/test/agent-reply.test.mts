@@ -69,6 +69,14 @@ test('parseUnrelated gives undefined without the marker', () => {
   assert.equal(parseUnrelated(''), undefined);
 });
 
+test('parseUnrelated gives undefined for a bare marker line followed by a commit line', () => {
+  assert.equal(
+    parseUnrelated('Fixed the test.\nunrelated:\ncommit: fix: guard the null body'),
+    undefined,
+  );
+  assert.equal(parseUnrelated('unrelated:   \n\ncommit: fix: guard'), undefined);
+});
+
 test('parseUnrelated treats a placeholder value as no dispute', () => {
   for (const value of ['none', 'None', 'NONE', 'n/a', 'N/A', '-', ' none ']) {
     assert.equal(parseUnrelated(`fixed it\nunrelated: ${value}`), undefined, value);
@@ -82,4 +90,9 @@ test('parseResolved reads the last marker line', () => {
   );
   assert.equal(parseResolved('resolved:   '), undefined);
   assert.equal(parseResolved('unrelated: wrong'), undefined);
+});
+
+test('parseResolved gives undefined for a bare marker line followed by a commit line', () => {
+  assert.equal(parseResolved('resolved:\ncommit: fix: guard the null body'), undefined);
+  assert.equal(parseResolved('resolved:\n\nAdded the test.'), undefined);
 });
