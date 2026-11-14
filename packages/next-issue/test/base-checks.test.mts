@@ -4,24 +4,29 @@ import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { failedBaseLogs, rerunFailedBase, waitForBaseChecks } from '../src/base-checks.mts';
 import { installGh } from './fake-gh.mts';
+import { harness } from './harness.mts';
 import { tempDir } from './temp-dir.mts';
 
-type External = { checkRuns?: unknown[]; statuses?: unknown[][] };
+type External = { checkRuns?: unknown[]; statuses?: unknown[][]; sha?: string };
 
 function jsonLines(items: unknown[]): string {
   return items.map((item) => `${JSON.stringify(item)}\n`).join('');
+}
+
+function pushRuns(runs: unknown[]): unknown[] {
+  return runs.map((entry) => ({ event: 'push', ...(entry as object) }));
 }
 
 async function fakeRunsGh(
   t: TestContext,
   runs: unknown[],
   rerunRuns: unknown[] = runs,
-  { checkRuns = [], statuses = [[]] }: External = {},
+  { checkRuns = [], statuses = [[]], sha = 'abc' }: External = {},
 ): Promise<string> {
   const dir = await tempDir();
   await writeFile(join(dir, 'check-runs'), jsonLines(checkRuns));
-  await writeFile(join(dir, 'runs'), jsonLines(runs));
-  await writeFile(join(dir, 'rerun-runs'), jsonLines(rerunRuns));
+  await writeFile(join(dir, 'runs'), jsonLines(pushRuns(runs)));
+  await writeFile(join(dir, 'rerun-runs'), jsonLines(pushRuns(rerunRuns)));
   for (const [index, reply] of statuses.entries()) {
     await writeFile(join(dir, `status.${index}`), jsonLines(reply));
   }
@@ -29,9 +34,9 @@ async function fakeRunsGh(
   const script = `#!/bin/sh
 d="$(dirname "$0")"
 case "$*" in
-  "api --paginate repos/acme/tool/actions/runs?head_sha=abc&per_page=100 --jq "*) if [ -f "$d/reruns" ]; then cat "$d/rerun-runs"; else cat "$d/runs"; fi; exit 0 ;;
-  "api --paginate repos/acme/tool/commits/abc/check-runs?per_page=100 --jq "*) cat "$d/check-runs"; exit 0 ;;
-  "api --paginate repos/acme/tool/commits/abc/status?per_page=100 --jq "*) n=$(cat "$d/status-reads" 2>/dev/null || echo 0); echo $((n + 1)) > "$d/status-reads"; f="$d/status.$n"; [ -f "$f" ] || f="$d/status.last"; cat "$f"; exit 0 ;;
+  "api --paginate repos/acme/tool/actions/runs?head_sha=${sha}&per_page=100 --jq "*) if [ -f "$d/reruns" ]; then cat "$d/rerun-runs"; else cat "$d/runs"; fi; exit 0 ;;
+  "api --paginate repos/acme/tool/commits/${sha}/check-runs?per_page=100 --jq "*) cat "$d/check-runs"; exit 0 ;;
+  "api --paginate repos/acme/tool/commits/${sha}/status?per_page=100 --jq "*) n=$(cat "$d/status-reads" 2>/dev/null || echo 0); echo $((n + 1)) > "$d/status-reads"; f="$d/status.$n"; [ -f "$f" ] || f="$d/status.last"; cat "$f"; exit 0 ;;
 esac
 case "$1 $2" in
   "run view") echo "boom in $3" ;;
@@ -266,4 +271,60 @@ test('failedBaseLogs names the failed checks from other CI services with their l
   assert.match(report, /## build\nhttps:\/\/ci\.example\/1/);
   assert.match(report, /## ci\/jenkins\nhttps:\/\/ci\.example\/2/);
   assert.doesNotMatch(report, /lint/);
+});
+
+const ISSUE_RUNS = [
+  { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'success', attempt: 1 },
+  {
+    databaseId: 2,
+    name: 'Triage',
+    status: 'completed',
+    conclusion: 'failure',
+    attempt: 1,
+    event: 'issues',
+  },
+  {
+    databaseId: 3,
+    name: 'Label sync',
+    status: 'completed',
+    conclusion: 'cancelled',
+    attempt: 1,
+    event: 'label',
+  },
+  {
+    databaseId: 4,
+    name: 'Comment bot',
+    status: 'in_progress',
+    conclusion: '',
+    attempt: 1,
+    event: 'issue_comment',
+  },
+];
+
+test('waitForBaseChecks passes when the push run of the commit passes, whatever the runs that other events started on it do', async (t) => {
+  const dir = await fakeRunsGh(t, ISSUE_RUNS);
+  assert.equal(
+    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', BASE_WAIT),
+    'pass',
+  );
+});
+
+test('rerunFailedBase and failedBaseLogs leave out a failed run that an event other than push started on the commit', async (t) => {
+  const dir = await fakeRunsGh(t, ISSUE_RUNS);
+  const repo = { owner: 'acme', name: 'tool', root: dir };
+  assert.equal(await failedBaseLogs(repo, 'abc', 1000), '');
+  assert.deepEqual(await rerunFailedBase(repo, 'abc'), []);
+});
+
+test('a user whose landed commit has a passed push run and a failed issues run gets the issue closed and done', async (t) => {
+  const target = await harness(t);
+  await fakeRunsGh(t, ISSUE_RUNS, ISSUE_RUNS, { sha: '2' });
+  target.context.ports.waitForBaseChecks = waitForBaseChecks;
+  target.context.ports.rerunFailedBase = rerunFailedBase;
+  target.context.ports.failedBaseLogs = failedBaseLogs;
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(target.closed, [7]);
+  assert.equal(target.labels.at(-1)!.label, 'status:done');
+  assert.deepEqual(target.reruns, []);
 });

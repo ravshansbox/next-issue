@@ -11,6 +11,7 @@ type BaseRun = {
   status: string;
   conclusion: string;
   attempt: number;
+  event: string;
 };
 
 type Check = { name: string; status: string; conclusion: string; url: string };
@@ -44,10 +45,10 @@ async function baseRuns(repo: Repo, sha: string): Promise<BaseRun[]> {
   const runs = await ghApi(
     repo,
     `actions/runs?head_sha=${sha}&per_page=100`,
-    '.workflow_runs[] | {databaseId: .id, name, status, conclusion: (.conclusion // ""), attempt: .run_attempt} | @json',
+    '.workflow_runs[] | {databaseId: .id, name, status, conclusion: (.conclusion // ""), attempt: .run_attempt, event} | @json',
     { paginate: true },
   );
-  return jsonLines<BaseRun>(runs);
+  return jsonLines<BaseRun>(runs).filter((entry) => entry.event === 'push');
 }
 
 async function externalChecks(repo: Repo, sha: string): Promise<Check[]> {

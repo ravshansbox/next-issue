@@ -134,17 +134,20 @@ the run handles one issue. For each issue:
    holds the commit during the push, so a run stopped meanwhile, or the
    next run after that hand-over, checks the base on resume and waits for
    the checks of the commit when it landed. The harness then waits for the
-   checks of the pushed commit on the base branch: its GitHub Actions
-   workflow runs, its commit statuses and the check runs of every other
-   GitHub App, so checks from another CI service count too. It leaves out
-   the check runs of the GitHub Actions app, since it judges GitHub Actions
-   by its workflow runs. A failed or errored commit status, or a check run
-   that ends with `failure`, `timed_out` or `action_required`, fails the
-   checks. When any check ends `cancelled`, for example because a later
-   push cancelled the workflow run, that check never finished, even when
-   another check (such as a release workflow) ends `success`: the harness
-   hands the issue to a person with the reason `main checks cancelled` and
-   halts, and the issue stays open. A repository
+   checks of the pushed commit on the base branch: the GitHub Actions
+   workflow runs that a `push` event started on it, its commit statuses
+   and the check runs of every other GitHub App, so checks from another CI
+   service count too. It leaves out the check runs of the GitHub Actions
+   app, since it judges GitHub Actions by its workflow runs. It leaves out
+   workflow runs that any other event (such as `issues`, `issue_comment` or
+   `schedule`) started, since GitHub gives such a run the tip of the
+   default branch as its commit. A failed or errored commit status, or a
+   check run that ends with `failure`, `timed_out` or `action_required`,
+   fails the checks. When any check ends `cancelled`, for example because
+   a later push cancelled the workflow run, that check never finished,
+   even when another check (such as a release workflow) ends `success`:
+   the harness hands the issue to a person with the reason
+   `main checks cancelled` and halts, and the issue stays open. A repository
    that reports no check keeps asking for `checkGraceSeconds`. A pending state
    waits again, up to `checkTimeoutMinutes`. A read that fails is tried three
    times. When the checks pass, the harness closes the issue and sets
