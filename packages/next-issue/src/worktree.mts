@@ -40,6 +40,7 @@ export async function addWorktree(
   const baseUpdated = await fastForwardBase(repo, base, remote);
   await git(repo.root, ['worktree', 'prune']);
   await releaseFromHunt(repo, branch);
+  await refuseMainWorktree(repo, branch);
   const pushed = await hasBranch(repo, upstream, '--remotes');
   const existing = await findWorktree(repo, branch);
   const path = existing ?? worktreePath(repo, issue);
@@ -92,14 +93,26 @@ async function updateBase(repo: Repo, base: string, remote: string): Promise<boo
 }
 
 export async function findWorktree(repo: Repo, branch: string): Promise<string | undefined> {
-  const path = await holder(repo, branch);
-  return path !== undefined && (await isHunt(repo, path)) ? undefined : path;
+  const found = await holder(repo, branch);
+  if (found === undefined || found.main || (await isHunt(repo, found.path))) {
+    return undefined;
+  }
+  return found.path;
+}
+
+async function refuseMainWorktree(repo: Repo, branch: string): Promise<void> {
+  const found = await holder(repo, branch);
+  if (found?.main) {
+    throw new Error(
+      `the main worktree at ${found.path} has branch ${branch} checked out, so the issue cannot have its own worktree; check out another branch there and try again`,
+    );
+  }
 }
 
 async function releaseFromHunt(repo: Repo, branch: string): Promise<void> {
-  const path = await holder(repo, branch);
-  if (path !== undefined && (await isHunt(repo, path))) {
-    await git(path, ['checkout', '--detach']);
+  const found = await holder(repo, branch);
+  if (found !== undefined && !found.main && (await isHunt(repo, found.path))) {
+    await git(found.path, ['checkout', '--detach']);
   }
 }
 
@@ -108,13 +121,17 @@ async function isHunt(repo: Repo, path: string): Promise<boolean> {
   return (await real(path)) === (await real(huntPath(repo)));
 }
 
-async function holder(repo: Repo, branch: string): Promise<string | undefined> {
+async function holder(
+  repo: Repo,
+  branch: string,
+): Promise<{ path: string; main: boolean } | undefined> {
   const list = await git(repo.root, ['worktree', 'list', '--porcelain']);
-  const entry = list
-    .split('\n\n')
-    .map((block) => block.split('\n'))
-    .find((lines) => lines.includes(`branch refs/heads/${branch}`));
-  return entry?.find((line) => line.startsWith('worktree '))?.slice('worktree '.length);
+  const blocks = list.split('\n\n').map((block) => block.split('\n'));
+  const index = blocks.findIndex((lines) => lines.includes(`branch refs/heads/${branch}`));
+  const path = blocks[index]
+    ?.find((line) => line.startsWith('worktree '))
+    ?.slice('worktree '.length);
+  return path === undefined ? undefined : { path, main: index === 0 };
 }
 
 export async function removeWorktree(repo: Repo, path: string): Promise<boolean> {

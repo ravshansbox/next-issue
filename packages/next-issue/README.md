@@ -64,7 +64,10 @@ the run handles one issue. For each issue:
    no commits of its own starts again from the remote base. An issue with no
    saved state does not reuse a local `<n>` branch: it resets that branch,
    and any worktree that holds it, to the remote branch, or to the remote
-   base when there is none. A fast-forward of the base that is not safe
+   base when there is none. The main worktree of the repository is never
+   used, reset or cleaned: when it has the branch of the issue checked out,
+   the issue fails and is handed over, and the reason asks you to check out
+   another branch there. A fast-forward of the base that is not safe
    leaves the local base branch as it is and writes a `base.behind` event. A
    new branch then starts from the remote base.
 4. Let the implementer agent do the work, then commit it. For a behaviour

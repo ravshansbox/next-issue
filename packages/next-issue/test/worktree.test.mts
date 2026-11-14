@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { branchName, isDirty, revision } from '../src/git.mts';
@@ -134,6 +134,35 @@ test('a user who resumes issue 3 while the hunt worktree holds branch 3 gets the
   assert.equal(await git(path, 'branch', '--show-current'), '3');
   assert.equal(await revision(path), kept);
   assert.equal(await git(hunt, 'branch', '--show-current'), '');
+});
+
+test('a user whose main worktree holds branch 3 with changes keeps them when issue 3 starts', async () => {
+  const { repo } = await clones();
+  await git(repo.root, 'checkout', '-q', '-b', '3');
+  const head = await commit(repo.root, 'mine.txt');
+  await writeFile(join(repo.root, 'mine.txt'), 'edited\n');
+  await writeFile(join(repo.root, 'untracked.txt'), 'untracked\n');
+  await assert.rejects(addWorktree(repo, 3, '3', 'main', 'origin', true), /main worktree/);
+  assert.equal(await git(repo.root, 'branch', '--show-current'), '3');
+  assert.equal(await revision(repo.root), head);
+  assert.equal(await readFile(join(repo.root, 'mine.txt'), 'utf8'), 'edited\n');
+  assert.equal(existsSync(join(repo.root, 'untracked.txt')), true);
+  assert.equal(existsSync(join(repo.root, '.worktrees', '3')), false);
+});
+
+test('a user whose main worktree holds branch 3 never gets it as the worktree of a resumed issue 3', async () => {
+  const { repo } = await clones();
+  await git(repo.root, 'checkout', '-q', '-b', '3');
+  await writeFile(join(repo.root, 'untracked.txt'), 'untracked\n');
+  await assert.rejects(addWorktree(repo, 3, '3', 'main', 'origin', false), /main worktree/);
+  assert.equal(await git(repo.root, 'branch', '--show-current'), '3');
+  assert.equal(existsSync(join(repo.root, 'untracked.txt')), true);
+});
+
+test('a user whose issue ends while the main worktree holds its branch keeps the main worktree', async () => {
+  const { repo } = await clones();
+  await git(repo.root, 'checkout', '-q', '-b', '3');
+  assert.equal(await findWorktree(repo, '3'), undefined);
 });
 
 test('a user whose issue ends gets the worktree that holds its branch removed', async () => {
