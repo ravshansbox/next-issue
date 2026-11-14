@@ -107,7 +107,7 @@ export function reviewPrompt(
     `## Reply of the ${role}\n${reply ?? '(no reply)'}`,
     '## Rules',
     'Read files and run commands to prove what you say: the tests, the type check or the linter.',
-    'The worktree is ready to use. Do not change a file. Do not write with git or gh.',
+    'The worktree is ready to use. Do not change a file. Do not write with git or gh, and do not check out another commit or branch.',
     'The harness discards each change that you make, so a change is only lost work.',
     reviewScope(earlier),
     'Mark a finding blocking only for a wrong result, a missing part of the issue, a regression or a broken convention.',

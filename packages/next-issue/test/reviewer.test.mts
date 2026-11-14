@@ -1,7 +1,55 @@
 import assert from 'node:assert/strict';
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { test } from 'node:test';
+import type { AgentRequest } from '../src/agents.mts';
+import { commitAll } from '../src/git-commit.mts';
+import {
+  diff,
+  discardChanges,
+  isDirty,
+  latestSubject,
+  type Repo,
+  revision,
+  setAside,
+} from '../src/git.mts';
+import type { Recorder } from '../src/observe.mts';
 import type { Verdict } from '../src/verdict.mts';
-import { APPROVE, changes, harness, ISSUE, SAVED } from './harness.mts';
+import { addWorktree, findWorktree, removeWorktree } from '../src/worktree.mts';
+import { clones, git } from './clones.mts';
+import { APPROVE, changes, type Harness, harness, ISSUE, SAVED } from './harness.mts';
+
+async function gitRepo(): Promise<Repo> {
+  const { repo } = await clones();
+  await git(repo.root, 'config', 'user.name', 't');
+  await git(repo.root, 'config', 'user.email', 't@t');
+  return repo;
+}
+
+function withGit(target: Harness, reviewer: (worktree: string) => Promise<unknown>): void {
+  const { ports } = target.context;
+  const fake = ports.runAgent;
+  Object.assign(ports, {
+    addWorktree,
+    commitAll,
+    diff,
+    discardChanges,
+    findWorktree,
+    isDirty,
+    latestSubject,
+    removeWorktree,
+    revision,
+    setAside,
+    runAgent: async (recorder: Recorder, request: AgentRequest) => {
+      if (request.name === 'reviewer') {
+        await reviewer(request.cwd);
+      } else {
+        await writeFile(join(request.cwd, `${request.name}.txt`), `${request.name}\n`);
+      }
+      return fake(recorder, request);
+    },
+  });
+}
 
 test('a reviewer without a verdict hands the issue to a person', async (t) => {
   const target = await harness(t, { verdicts: [] });
@@ -44,6 +92,42 @@ test('a change that the reviewer leaves never reaches a commit', async (t) => {
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.equal(target.discards, 2);
+});
+
+test('a reviewer that checks out another branch leaves that branch where it was and gets branch 7 put back, so the fixer commit moves branch 7', async (t) => {
+  const repo = await gitRepo();
+  await git(repo.root, 'branch', 'other', 'origin/main');
+  const other = await git(repo.root, 'rev-parse', 'other');
+  const target = await harness(t, {
+    root: repo.root,
+    pressDuring: 'reviewer',
+    verdicts: [changes('The count is wrong.')],
+  });
+  withGit(target, (worktree) => git(worktree, 'checkout', '-q', 'other'));
+  assert.equal((await target.run()).outcome, 'stopped');
+  const worktree = (await findWorktree(repo, '7'))!;
+  assert.equal(await git(repo.root, 'rev-parse', 'other'), other);
+  assert.equal(await git(worktree, 'branch', '--show-current'), '7');
+  assert.equal(await git(repo.root, 'rev-parse', '7'), await revision(worktree));
+  await git(repo.root, 'cat-file', '-e', '7:fixer.txt');
+  assert.ok(target.events.some((record) => record.kind === 'review.discard'));
+});
+
+test('a user who stops and resumes issue 7 after a reviewer detached HEAD still has the fixer commit on branch 7', async (t) => {
+  const repo = await gitRepo();
+  const first = await harness(t, {
+    root: repo.root,
+    pressDuring: 'reviewer',
+    verdicts: [changes('The count is wrong.')],
+  });
+  withGit(first, (worktree) => git(worktree, 'checkout', '-q', '--detach', 'HEAD~1'));
+  assert.equal((await first.run()).outcome, 'stopped');
+  const resumed = await harness(t, { root: repo.root, stopNowDuring: 'reviewer' });
+  withGit(resumed, async () => undefined);
+  assert.equal((await resumed.run()).outcome, 'stopped');
+  const worktree = (await findWorktree(repo, '7'))!;
+  assert.equal(await git(worktree, 'branch', '--show-current'), '7');
+  await git(worktree, 'cat-file', '-e', 'HEAD:fixer.txt');
 });
 
 test('a diff that is too long is cut before the reviewer reads it', async (t) => {

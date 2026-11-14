@@ -111,6 +111,7 @@ export type Plan = {
   issueComments?: Array<{ author: string; body: string }>;
   accessFails?: boolean;
   hunterText?: string;
+  root?: string;
 };
 
 export type Harness = {
@@ -150,7 +151,7 @@ export type Harness = {
 
 export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness> {
   t.mock.method(process.stderr, 'write', () => true);
-  const root = await tempDir();
+  const root = plan.root ?? (await tempDir());
   const repo = { owner: 'acme', name: 'tool', root };
   const config = { ...(await loadConfig(root)), ...plan.config };
   const issue = plan.issue ?? ISSUE;

@@ -82,7 +82,10 @@ the run handles one issue. For each issue:
 5. Let the reviewer agent judge the diff, at most `diffMaxChars` of it. The
    reviewer reads files and runs commands in the worktree, so it can prove a
    finding with the tests or the type check. The harness then throws away every
-   change that the reviewer left, so no such change can reach a later commit.
+   change that the reviewer left in the worktree, so no such change can reach a
+   later commit. When the reviewer left another branch or a detached `HEAD`
+   checked out, the harness checks out the issue branch again at its commit
+   from before the review.
    The first reviewer also gets the reply of the implementer, and raises a
    finding when a behaviour change has no failing run of its test. A later
    reviewer gets the reply of the last review fixer instead, who quotes the
@@ -248,8 +251,9 @@ in a process group of their own, so a press reaches only the harness.
 The harness runs all git and `gh` commands itself. The commit holds all the
 changes in the worktree, so a setup command that writes a file that git does
 not ignore puts that file in the commit. The reviewer is the one agent whose
-changes never get that far: the harness discards them, and undoes any commit
-that the reviewer made, before it reads the verdict.
+changes never get that far: the harness discards them, undoes any commit
+that the reviewer made on the issue branch and checks that branch out again,
+before it reads the verdict.
 
 ## Safety
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { commitAll } from '../src/git-commit.mts';
@@ -162,4 +162,43 @@ test('discardChanges keeps an ignored file and reports a clean worktree', async 
   await writeFile(join(path, 'deps', 'pkg.txt'), 'installed\n');
   assert.equal(await discardChanges(path, await revision(path)), false);
   assert.equal(existsSync(join(path, 'deps', 'pkg.txt')), true);
+});
+
+test('a reviewer that leaves the worktree on a detached HEAD gets branch 3 put back, so a later fixer commit moves branch 3', async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  const before = await commit(path, 'implementer.txt');
+  await git(path, 'checkout', '-q', '--detach', 'origin/main');
+  assert.equal(await discardChanges(path, before, '3'), true);
+  assert.equal(await git(path, 'branch', '--show-current'), '3');
+  assert.equal(await revision(path), before);
+  const fixed = await commit(path, 'fixer.txt');
+  assert.equal(await git(path, 'rev-parse', '3'), fixed);
+});
+
+test('a reviewer that checks out another local branch leaves that branch where it was and gets branch 3 put back', async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  const before = await commit(path, 'implementer.txt');
+  await git(path, 'branch', 'other', 'origin/main');
+  const other = await git(path, 'rev-parse', 'other');
+  await git(path, 'checkout', '-q', 'other');
+  assert.equal(await discardChanges(path, before, '3'), true);
+  assert.equal(await git(path, 'rev-parse', 'other'), other);
+  assert.equal(await git(path, 'branch', '--show-current'), '3');
+  assert.equal(await revision(path), before);
+});
+
+test('a fixer commit made after a reviewer detached HEAD is still on branch 3 when the issue resumes', async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  const before = await commit(path, 'implementer.txt');
+  await git(path, 'checkout', '-q', 'HEAD~1');
+  await discardChanges(path, before, '3');
+  const fixed = await commit(path, 'fixer.txt');
+  const { path: resumed } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  assert.equal(await realpath(resumed), await realpath(path));
+  assert.equal(await git(resumed, 'branch', '--show-current'), '3');
+  assert.equal(await revision(resumed), fixed);
+  assert.equal(existsSync(join(resumed, 'fixer.txt')), true);
 });

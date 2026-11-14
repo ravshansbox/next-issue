@@ -52,9 +52,17 @@ export async function diff(cwd: string, base: string, remote: string): Promise<s
   return git(cwd, ['diff', `${remoteRef(remote, base)}...HEAD`]);
 }
 
-export async function discardChanges(cwd: string, target: string): Promise<boolean> {
-  if (!(await isDirty(cwd)) && (await revision(cwd)) === target) {
+export async function discardChanges(
+  cwd: string,
+  target: string,
+  branch?: string,
+): Promise<boolean> {
+  const moved = branch !== undefined && (await currentBranch(cwd)) !== branch;
+  if (!moved && !(await isDirty(cwd)) && (await revision(cwd)) === target) {
     return false;
+  }
+  if (moved) {
+    await git(cwd, ['checkout', '--force', '-B', branch, target]);
   }
   await resetHard(cwd, target);
   return true;

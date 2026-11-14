@@ -99,7 +99,7 @@ async function runReviewer(job: Run, earlier: string[]): Promise<string> {
       REVIEWING,
     ),
   );
-  if (await ports.discardChanges(worktree, before)) {
+  if (await ports.discardChanges(worktree, before, job.branch)) {
     log.event('review.discard', { round: state.reviewRounds }, 'quiet');
   }
   return review.text;
