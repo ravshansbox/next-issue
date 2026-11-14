@@ -1,8 +1,10 @@
 import type { Config } from './config.mts';
+import { runStopped } from './children.mts';
 import { elapsedMs } from './durations.mts';
 import { message } from './errors.mts';
 import type { Issue } from './github.mts';
 import { handOverReply } from './hand-over-comments.mts';
+import { stopNow } from './handover.mts';
 import type { Context, IssueReport } from './job.mts';
 import { hasLabel } from './labels.mts';
 import type { Recorder } from './observe.mts';
@@ -45,7 +47,7 @@ export async function skipReport(
   try {
     answered = await hasAnswer(context, issue);
   } catch (error) {
-    return unclaimedError(log, issue, error, started);
+    return readError(log, issue, saved, error, started);
   }
   const skip = skipReason(issue, context.config, saved !== undefined, answered);
   if (skip !== undefined) {
@@ -59,7 +61,7 @@ export async function skipReport(
   try {
     blockers = await context.ports.openBlockers(context.repo, issue.number);
   } catch (error) {
-    return unclaimedError(log, issue, error, started);
+    return readError(log, issue, saved, error, started);
   }
   if (blockers.length > 0) {
     log.event('issue.skip', { title: issue.title, reason: 'blocked', blockers });
@@ -73,6 +75,23 @@ async function hasAnswer(context: Context, issue: Issue): Promise<boolean> {
     return false;
   }
   return (await handOverReply(context, issue.number)).length > 0;
+}
+
+function readError(
+  log: Recorder,
+  issue: Issue,
+  saved: IssueState | undefined,
+  error: unknown,
+  started: number,
+): IssueReport {
+  if (!runStopped()) {
+    return unclaimedError(log, issue, error, started);
+  }
+  if (saved !== undefined) {
+    return stopNow(log, issue, saved, started);
+  }
+  log.event('issue.stop', {}, 'quiet');
+  return { ...skipped(issue), outcome: 'stopped', ms: elapsedMs(started) };
 }
 
 export function unclaimedError(

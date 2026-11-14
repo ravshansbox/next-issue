@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
+import { applyEvent, startProgress } from '../src/progress.mts';
 import type { IssueState } from '../src/state.mts';
 import { APPROVE, changes, harness, ISSUE, type Plan, roles } from './harness.mts';
 
@@ -181,4 +182,54 @@ test('a user whose approved change is handed over during its landing gets it rev
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.deepEqual(roles(target), ['reviewer']);
+});
+
+async function stopDuringRead(t: TestContext, plan: Plan, read: 'openBlockers' | 'threadComments') {
+  const target = await harness(t, plan);
+  target.context.ports[read] = async () => {
+    target.stopNow();
+    throw new Error('gh issue view failed with code 130');
+  };
+  const report = await target.run();
+  const kinds = target.events.map((record) => record.kind);
+  const progress = target.events.reduce(applyEvent, startProgress());
+  return { report, kinds, progress };
+}
+
+test('a user who stops a run now while the blockers of a new issue are read gets that issue ended as stopped, not failed', async (t) => {
+  const { report, kinds, progress } = await stopDuringRead(t, {}, 'openBlockers');
+  assert.equal(report.outcome, 'stopped');
+  assert.ok(kinds.includes('issue.stop'));
+  assert.ok(!kinds.includes('issue.error'));
+  assert.ok(!progress.handled.some((item) => item.outcome === 'error'));
+});
+
+test('a user who stops a run now while the hand-over answer of a needs-human issue is read gets that issue ended as stopped, not failed', async (t) => {
+  const issue = { ...ISSUE, labels: ['status:needs-human'] };
+  const { report, kinds, progress } = await stopDuringRead(t, { issue }, 'threadComments');
+  assert.equal(report.outcome, 'stopped');
+  assert.ok(kinds.includes('issue.stop'));
+  assert.ok(!kinds.includes('issue.error'));
+  assert.ok(!progress.handled.some((item) => item.outcome === 'error'));
+});
+
+test('a user whose blockers read fails with no stop gets that issue ended as failed', async (t) => {
+  const target = await harness(t);
+  target.context.ports.openBlockers = async () => {
+    throw new Error('gh: HTTP 500');
+  };
+  const report = await target.run();
+  assert.equal(report.outcome, 'error');
+  assert.ok(target.events.some((record) => record.kind === 'issue.error'));
+});
+
+test('a user who stops a run now while the hand-over answer of a resumed needs-human issue is read gets its saved review rounds and check fixes in the report', async (t) => {
+  const first = await harness(t, { pressDuring: 'reviewer', verdicts: [changes('Rename it.')] });
+  assert.equal((await first.run()).outcome, 'stopped');
+  const saved = { ...(await first.state())!, ciFixes: 1 };
+  const issue = { ...ISSUE, labels: ['status:needs-human'] };
+  const { report } = await stopDuringRead(t, { saved, issue }, 'threadComments');
+  assert.equal(report.outcome, 'stopped');
+  assert.equal(report.reviewRounds, saved.reviewRounds);
+  assert.equal(report.ciFixes, 1);
 });
