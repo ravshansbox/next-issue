@@ -8,6 +8,7 @@ import {
   text,
   whole,
 } from './config-fields.mts';
+import { MAX_TIMER_MS } from './durations.mts';
 import { hasCode, message, parseJson } from './errors.mts';
 import { readTextIfPresent, unlessMissing, writeJson } from './files.mts';
 
@@ -80,19 +81,22 @@ function defaults(): Config {
 
 const FIELDS: string[] = [...Object.keys(DEFAULTS), 'setupCommand'];
 
-const WHOLE_FIELDS: Array<[keyof Config, number]> = [
+const MAX_MINUTES = Math.floor(MAX_TIMER_MS / 60_000);
+const MAX_SECONDS = Math.floor(MAX_TIMER_MS / 1000);
+
+const WHOLE_FIELDS: Array<[keyof Config, number, number?]> = [
   ['issueLimit', 1],
   ['concurrency', 1],
   ['huntCap', 1],
   ['maxCiFixes', 0],
   ['maxCommitFixes', 0],
   ['maxReviewRounds', 1],
-  ['checkIntervalSeconds', 1],
+  ['checkIntervalSeconds', 1, MAX_SECONDS],
   ['checkGraceSeconds', 0],
-  ['checkTimeoutMinutes', 1],
-  ['agentTimeoutMinutes', 1],
-  ['setupTimeoutMinutes', 1],
-  ['commandTimeoutMinutes', 1],
+  ['checkTimeoutMinutes', 1, MAX_MINUTES],
+  ['agentTimeoutMinutes', 1, MAX_MINUTES],
+  ['setupTimeoutMinutes', 1, MAX_MINUTES],
+  ['commandTimeoutMinutes', 1, MAX_MINUTES],
   ['logMaxChars', 1],
   ['diffMaxChars', 1],
   ['keepRunDays', 0],
@@ -184,9 +188,9 @@ function parseConfig(value: unknown): Config {
   if (file.remote !== undefined) {
     config.remote = text(file.remote, 'remote', false);
   }
-  for (const [field, least] of WHOLE_FIELDS) {
+  for (const [field, least, most] of WHOLE_FIELDS) {
     if (file[field] !== undefined) {
-      (config[field] as number) = whole(file[field], field, least);
+      (config[field] as number) = whole(file[field], field, least, most);
     }
   }
   if (file.setupCommand !== undefined) {

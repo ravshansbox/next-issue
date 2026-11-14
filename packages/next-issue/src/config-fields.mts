@@ -20,11 +20,20 @@ export function rejectUnknown(
   }
 }
 
-export function whole(value: unknown, field: string, least: number): number {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value < least) {
-    throw new Error(`${CONFIG_FILE}: ${field} must be a whole number of ${least} or more.`);
+export function whole(value: unknown, field: string, least: number, most?: number): number {
+  if (
+    typeof value !== 'number' ||
+    !Number.isInteger(value) ||
+    value < least ||
+    (most !== undefined && value > most)
+  ) {
+    throw new Error(`${CONFIG_FILE}: ${field} must be a whole number ${range(least, most)}.`);
   }
   return value;
+}
+
+function range(least: number, most: number | undefined): string {
+  return most === undefined ? `of ${least} or more` : `from ${least} to ${most}`;
 }
 
 export function text(value: unknown, field: string, allowEmpty: boolean): string {

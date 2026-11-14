@@ -1,3 +1,9 @@
+export const MAX_TIMER_MS = 2_147_483_647;
+
+export function timerMs(ms: number): number {
+  return Math.min(ms, MAX_TIMER_MS);
+}
+
 export function minutesToMs(minutes: number): number {
   return minutes * 60_000;
 }
@@ -23,7 +29,7 @@ export function deadline(ms: number | undefined, onExpire: () => void): Deadline
       : setTimeout(() => {
           timedOut = true;
           onExpire();
-        }, ms);
+        }, timerMs(ms));
   return { timedOut: () => timedOut, clear: () => clearTimeout(timer) };
 }
 
@@ -44,7 +50,7 @@ export function wakeableSleep(sleeper: Sleeper, ms: number, stopped: boolean): P
       sleeper.wake = undefined;
       resolve(slept);
     };
-    const timer = setTimeout(() => settle(true), ms);
+    const timer = setTimeout(() => settle(true), timerMs(ms));
     sleeper.wake = () => settle(false);
   });
 }

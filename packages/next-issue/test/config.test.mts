@@ -72,6 +72,38 @@ test('a config file that cannot be read stops the run', async () => {
   await assert.rejects(loadConfig(dir), /\.next-issue\/config\.json cannot be read: .*EISDIR/);
 });
 
+test('a user who sets a timeout above what a timer can hold gets an error that names the field and its maximum', async () => {
+  await assert.rejects(
+    parse({ agentTimeoutMinutes: 35792 }),
+    /agentTimeoutMinutes must be a whole number from 1 to 35791/,
+  );
+  await assert.rejects(
+    parse({ setupTimeoutMinutes: 35792 }),
+    /setupTimeoutMinutes must be a whole number from 1 to 35791/,
+  );
+  await assert.rejects(
+    parse({ commandTimeoutMinutes: 35792 }),
+    /commandTimeoutMinutes must be a whole number from 1 to 35791/,
+  );
+  await assert.rejects(
+    parse({ checkTimeoutMinutes: 35792 }),
+    /checkTimeoutMinutes must be a whole number from 1 to 35791/,
+  );
+  await assert.rejects(
+    parse({ checkIntervalSeconds: 2147484 }),
+    /checkIntervalSeconds must be a whole number from 1 to 2147483/,
+  );
+  const config = await parse({
+    agentTimeoutMinutes: 35791,
+    setupTimeoutMinutes: 35791,
+    commandTimeoutMinutes: 35791,
+    checkTimeoutMinutes: 35791,
+    checkIntervalSeconds: 2147483,
+  });
+  assert.equal(config.agentTimeoutMinutes, 35791);
+  assert.equal(config.checkIntervalSeconds, 2147483);
+});
+
 test('a field of the wrong type stops the run', async () => {
   await assert.rejects(
     parse({ maxCiFixes: '3' }),
@@ -79,7 +111,7 @@ test('a field of the wrong type stops the run', async () => {
   );
   await assert.rejects(
     parse({ checkIntervalSeconds: 0 }),
-    /checkIntervalSeconds must be a whole number of 1/,
+    /checkIntervalSeconds must be a whole number from 1/,
   );
   await assert.rejects(
     parse({ maxReviewRounds: 1.5 }),
@@ -90,7 +122,7 @@ test('a field of the wrong type stops the run', async () => {
   await assert.rejects(parse({ diffMaxChars: 0 }), /diffMaxChars must be a whole number of 1/);
   await assert.rejects(
     parse({ setupTimeoutMinutes: 0 }),
-    /setupTimeoutMinutes must be a whole number of 1/,
+    /setupTimeoutMinutes must be a whole number from 1/,
   );
   await assert.rejects(parse({ remote: '' }), /remote must be text that is not empty/);
   await assert.rejects(parse({ setupCommand: 12 }), /setupCommand must be text that is not empty/);
