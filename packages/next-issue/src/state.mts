@@ -20,6 +20,7 @@ export type IssueState = {
   commitFixes?: number;
   landed?: string[];
   pushing?: string;
+  reverting?: string;
   rerun?: string;
   reviewRounds: number;
   reviewLog: ReviewRound[];
@@ -99,6 +100,7 @@ function isState(value: unknown): value is IssueState {
     isOptional(value.commitFixes, 'number') &&
     (value.landed === undefined || isLanded(value.landed)) &&
     isOptional(value.pushing, 'string') &&
+    isOptional(value.reverting, 'string') &&
     isOptional(value.rerun, 'string') &&
     typeof value.reviewRounds === 'number' &&
     Array.isArray(value.reviewLog) &&

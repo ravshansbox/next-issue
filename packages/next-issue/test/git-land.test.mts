@@ -70,6 +70,7 @@ test('revertOnBase pushes a revert to the base and leaves the change on the bran
   await squashOnto(path, 'main', 'origin', 'feat: add b and c');
   await pushToBase(path, 'origin', 'main');
   const landed = await git(path, 'rev-parse', 'HEAD');
+  const saved: string[] = [];
   const pushed = await revertOnBase(path, {
     base: 'main',
     remote: 'origin',
@@ -77,10 +78,14 @@ test('revertOnBase pushes a revert to the base and leaves the change on the bran
     shas: [landed],
     message: 'revert: issue #3',
     reapply: 'feat: add b and c',
+    pushing: async (sha) => {
+      saved.push(sha);
+    },
   });
   assert.equal(pushed, true);
   await git(other, 'pull', '-q', 'origin', 'main');
   assert.equal(await git(other, 'log', '-1', '--format=%s'), 'revert: issue #3');
+  assert.deepEqual(saved, [await git(other, 'rev-parse', 'HEAD')]);
   await assert.rejects(readFile(join(other, 'b.txt')));
   assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');
   assert.equal(await git(path, 'rev-parse', 'HEAD^'), await git(other, 'rev-parse', 'HEAD'));
@@ -104,6 +109,7 @@ test('revertOnBase that cannot push puts the branch back as it was', async () =>
     shas: [landed],
     message: 'revert: issue #3',
     reapply: 'feat: add b and c',
+    pushing: async () => {},
   });
   assert.equal(pushed, false);
   assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');
@@ -127,6 +133,7 @@ function revertOf(sha: string): Revert {
     shas: [sha],
     message: 'revert: issue #3',
     reapply: 'feat: add b and c',
+    pushing: async () => {},
   };
 }
 

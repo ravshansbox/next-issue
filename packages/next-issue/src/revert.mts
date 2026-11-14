@@ -39,9 +39,15 @@ export async function revert(job: Run): Promise<string> {
       shas,
       message: `revert: issue #${issue.number}\n\nRefs #${issue.number}`,
       reapply: `${state.title ?? `fix: resolve issue #${issue.number}`}\n\nRefs #${issue.number}`,
+      pushing: async (sha) => {
+        state.reverting = sha;
+        await writeState(repo, state);
+      },
     }),
   );
+  state.reverting = undefined;
   if (!pushed) {
+    await writeState(repo, state);
     return ` The revert of the change on ${base} failed, so the landed commits stay on ${base}.`;
   }
   state.landed = undefined;

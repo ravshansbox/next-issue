@@ -43,6 +43,7 @@ export type Revert = {
   shas: string[];
   message: string;
   reapply: string;
+  pushing: (sha: string) => Promise<void>;
 };
 
 export async function revertOnBase(cwd: string, revert: Revert): Promise<boolean> {
@@ -60,7 +61,7 @@ export async function revertOnBase(cwd: string, revert: Revert): Promise<boolean
 }
 
 async function pushRevert(cwd: string, revert: Revert): Promise<boolean> {
-  const { base, remote, branch, shas, message, reapply } = revert;
+  const { base, remote, branch, shas, message, reapply, pushing } = revert;
   for (let attempt = 1; attempt <= PUSH_TRIES; attempt += 1) {
     const target = await fetchBase(cwd, base, remote);
     await git(cwd, ['checkout', '--force', '--detach', target]);
@@ -70,6 +71,7 @@ async function pushRevert(cwd: string, revert: Revert): Promise<boolean> {
     }
     await git(cwd, ['commit', '--no-verify', '-m', message]);
     const reverted = await revision(cwd);
+    await pushing(reverted);
     if ((await pushToBase(cwd, remote, base)) || (await isOnBase(cwd, base, remote, reverted))) {
       await git(cwd, ['revert', '--no-commit', reverted]);
       await git(cwd, ['commit', '--no-verify', '-m', reapply]);

@@ -71,6 +71,67 @@ test('a user whose push to the base branch reports a failure and whose fetch of 
   assert.deepEqual(target.baseWaits, ['2']);
 });
 
+test('a user who stops the run after the revert of main reaches the base and then resumes gets the issue handed over with the revert reported and no second revert', async (t) => {
+  const first = await harness(t, {
+    config: { maxCiFixes: 0 },
+    baseChecks: ['fail'],
+    revertLandsAndStops: true,
+  });
+  assert.equal((await first.run()).outcome, 'stopped');
+  const saved = await first.state();
+  const target = await harness(t, {
+    saved,
+    issue: { ...ISSUE, labels: [] },
+    config: { maxCiFixes: 0 },
+    baseChecks: ['fail'],
+    revertFails: true,
+  });
+  target.context.ports.isOnBase = async (_worktree, _base, _remote, sha) =>
+    sha === saved?.reverting;
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.halt, true);
+  assert.deepEqual(target.baseWaits, []);
+  assert.deepEqual(target.reverts, []);
+  assert.match(
+    target.comments.at(-1)!,
+    /needs help: The run stopped during the revert of the change on main\. The harness reverted the change on main\.$/,
+  );
+  const state = await target.state();
+  assert.equal(state?.landed, undefined);
+  assert.equal(state?.reverting, undefined);
+});
+
+test('a user who stops the run before the revert of main reaches the base and then resumes gets the change reverted again and the run halted', async (t) => {
+  const first = await harness(t, {
+    config: { maxCiFixes: 0 },
+    baseChecks: ['fail'],
+    revertLandsAndStops: true,
+  });
+  assert.equal((await first.run()).outcome, 'stopped');
+  const saved = await first.state();
+  const target = await harness(t, {
+    saved,
+    issue: { ...ISSUE, labels: [] },
+    config: { maxCiFixes: 0 },
+    baseChecks: ['fail'],
+    baseMoved: true,
+  });
+  target.context.ports.isOnBase = async (_worktree, _base, _remote, sha) =>
+    target.landed.includes(sha);
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'check budget');
+  assert.equal(report.halt, true);
+  assert.deepEqual(
+    target.reverts.map((entry) => entry.shas),
+    [['2']],
+  );
+  const state = await target.state();
+  assert.equal(state?.landed, undefined);
+  assert.equal(state?.reverting, undefined);
+});
+
 test('a user whose push to the base branch reports a failure, whose fetch of the base fails and whose hand-over fails gets the run halted with both reasons', async (t) => {
   const target = await harness(t, { pushLandsAndFails: true, baseFetchFails: true });
   commentFails(target);

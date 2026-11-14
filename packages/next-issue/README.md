@@ -138,7 +138,11 @@ the run handles one issue. For each issue:
    push that the remote refuses, for example because the base moved, makes
    the revert again on the new base, three times at most. A failed revert
    push that the base holds after a fetch counts as landed, and a fetch that
-   fails leaves the revert reported as failed. A resume
+   fails leaves the revert reported as failed. The state file holds the
+   revert commit during the push, so a run stopped meanwhile checks the base
+   on resume. When the base holds the revert, the harness drops the landed
+   commits from the state, waits for no checks, does not revert again, hands
+   the issue to a person with the reason `revert stopped` and halts. A resume
    that stopped while the checks of a landed commit ran waits for them
    again, even when more commits landed on the base since, and a fix that
    was committed but not landed lands first. A problem that the reviewer

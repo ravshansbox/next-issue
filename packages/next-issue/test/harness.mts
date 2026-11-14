@@ -94,6 +94,7 @@ export type Plan = {
   baseFetchFails?: boolean;
   baseMoved?: boolean;
   revertFails?: boolean;
+  revertLandsAndStops?: boolean;
   fixerThrows?: boolean;
   open?: Issue[];
   closed?: Issue[];
@@ -308,6 +309,12 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       state.reverts.push({ shas: revert.shas, message: revert.message });
       if (plan.revertFails === true) {
         return false;
+      }
+      if (plan.revertLandsAndStops === true) {
+        await revert.pushing(String(head + 1));
+        state.landed.push(String(head + 1));
+        stopRunChildren(children);
+        refuseWhenStopped();
       }
       head += 2;
       return true;
