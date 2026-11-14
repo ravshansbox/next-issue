@@ -41,8 +41,11 @@ async function holderOf(text: string): Promise<number | undefined> {
   const [first = '', ...rest] = text.trim().split(' ');
   const pid = Number(first);
   const started = rest.join(' ');
-  if (!(pid > 0) || started === '') {
+  if (!(pid > 0)) {
     return undefined;
+  }
+  if (started === '') {
+    return isAlive(pid) ? pid : undefined;
   }
   return (await processStart(pid)) === started ? pid : undefined;
 }

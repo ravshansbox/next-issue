@@ -296,6 +296,15 @@ test('a user who runs next-issue in a linked worktree while another run is going
   assert.equal(await exists(join(linked, '.next-issue')), false);
 });
 
+test('a user who runs next-issue while worker.lock holds only the process id of a live process sees that another run is going', async (t) => {
+  const root = await repository();
+  const other = spawn('sleep', ['30']);
+  t.after(() => other.kill('SIGKILL'));
+  await mkdir(stateDir(root), { recursive: true });
+  await writeFile(workerPaths(root).lockPath, `${other.pid}\n`);
+  assert.match(await refusedRun(root), RUNNING(other.pid));
+});
+
 test('a user who serves a linked worktree while the worker of the main worktree is going sees that another worker is running', async (t) => {
   const root = await repository();
   const linked = await linkedWorktree(root);
@@ -403,6 +412,20 @@ test('a user who runs stop sees the worker of this repository exit and remove it
   assert.deepEqual(await readdir(stateDir(root)), []);
 });
 
+test('a user who runs stop while worker.lock holds only the process id of a live worker sees that worker exit', async (t) => {
+  const root = await repository();
+  const { child, exited } = await serveWorker(root);
+  t.after(() => child.kill('SIGKILL'));
+  const { lockPath } = workerPaths(root);
+  await rm(lockPath);
+  await writeFile(lockPath, `${child.pid}\n`);
+  assert.equal(
+    await stopCommand(root),
+    `next-issue: stopped the worker with process id ${child.pid}\n`,
+  );
+  assert.equal(await exited, 'SIGTERM');
+});
+
 test('a user who runs stop in one repository leaves the worker of another repository going', async (t) => {
   const first = await repository();
   const second = await repository();
@@ -432,10 +455,8 @@ test('a user who runs stop while the lock holds the id of a live process that is
   const other = spawn('sleep', ['30']);
   t.after(() => other.kill('SIGKILL'));
   await mkdir(stateDir(root));
-  for (const lock of [`${other.pid}\n`, `${other.pid} Thu Jan  1 00:00:00 1970\n`]) {
-    await writeFile(workerPaths(root).lockPath, lock);
-    assert.equal(await stopCommand(root), 'next-issue: no worker is running\n');
-  }
+  await writeFile(workerPaths(root).lockPath, `${other.pid} Thu Jan  1 00:00:00 1970\n`);
+  assert.equal(await stopCommand(root), 'next-issue: no worker is running\n');
   await new Promise((resolve) => setTimeout(resolve, 100));
   assert.equal(other.signalCode, null);
   assert.equal(other.exitCode, null);

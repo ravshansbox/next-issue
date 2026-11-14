@@ -619,7 +619,8 @@ affect another. The worker:
   lock is stale, and is taken over, when no process has that id or the process
   with that id started at another time, for example because the system gave
   the id of a worker that was killed or lost in a reboot to another process.
-  A lock without a start time, from an older version, is stale too. A worker
+  A lock without a start time, from an older version, is held while a process
+  with that id is alive, and stale otherwise. A worker
   that cannot read its own start time exits with an error and takes no lock.
   When several workers start at once, one takes the lock and the others exit
   with `another worker is running`. A worker that stops removes the lock file
