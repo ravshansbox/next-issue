@@ -7,11 +7,11 @@ const MARKERS: Array<[string, string]> = [
   ['yarn.lock', 'yarn install --frozen-lockfile'],
   ['bun.lock', 'bun install --frozen-lockfile'],
   ['bun.lockb', 'bun install --frozen-lockfile'],
-  ['Cargo.lock', 'cargo fetch'],
+  ['Cargo.lock', 'cargo fetch --locked'],
   ['go.sum', 'go mod download'],
-  ['uv.lock', 'uv sync'],
+  ['uv.lock', 'uv sync --locked'],
   ['poetry.lock', 'poetry install'],
-  ['Gemfile.lock', 'bundle install'],
+  ['Gemfile.lock', 'BUNDLE_FROZEN=true bundle install'],
 ];
 
 function exists(path: string): Promise<boolean> {

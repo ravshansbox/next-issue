@@ -464,17 +464,18 @@ and runs the install command that goes with it:
 | `package-lock.json`     | `npm ci`                                                                             |
 | `yarn.lock`             | `yarn install --frozen-lockfile`, or `yarn install --immutable` with a `.yarnrc.yml` |
 | `bun.lock`, `bun.lockb` | `bun install --frozen-lockfile`                                                      |
-| `Cargo.lock`            | `cargo fetch`                                                                        |
+| `Cargo.lock`            | `cargo fetch --locked`                                                               |
 | `go.sum`                | `go mod download`                                                                    |
-| `uv.lock`               | `uv sync`                                                                            |
+| `uv.lock`               | `uv sync --locked`                                                                   |
 | `poetry.lock`           | `poetry install`                                                                     |
-| `Gemfile.lock`          | `bundle install`                                                                     |
+| `Gemfile.lock`          | `BUNDLE_FROZEN=true bundle install`                                                  |
 
 The first match in that order wins. A project with no lock file in the list
 runs no setup, and a `setupCommand` in the config file always wins. Thus the
 agents find a worktree with its dependencies in place, and the reviewer can run
 the tests. Each command holds to the lock file, so a lock file that does not
-match the manifest stops the issue rather than changing the lock file.
+match the manifest stops the issue rather than changing the lock file. The
+exception is `go mod download`, which can add missing sums to `go.sum`.
 
 A `setupCommand` that fails, or that does not finish in `setupTimeoutMinutes`,
 hands the issue to a person. The wait for the checks has its own limit, so
