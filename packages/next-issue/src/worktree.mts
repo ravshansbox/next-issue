@@ -3,7 +3,9 @@ import {
   currentBranch,
   discardChanges,
   git,
+  gitFetch,
   isAncestor,
+  oneFetchAtATime,
   remoteRef,
   type Repo,
   succeeds,
@@ -70,7 +72,7 @@ async function hasBranch(repo: Repo, name: string, ...flags: string[]): Promise<
 }
 
 export async function fastForwardBase(repo: Repo, base: string, remote: string): Promise<boolean> {
-  await git(repo.root, ['fetch', remote]);
+  await gitFetch(repo.root, [remote]);
   return updateBase(repo, base, remote);
 }
 
@@ -80,7 +82,7 @@ async function updateBase(repo: Repo, base: string, remote: string): Promise<boo
     (await currentBranch(repo.root)) === base
       ? ['merge', '--ff-only', remoteBase]
       : ['fetch', '.', `${remoteBase}:${base}`];
-  return succeeds(repo.root, args);
+  return oneFetchAtATime(() => succeeds(repo.root, args));
 }
 
 export async function findWorktree(repo: Repo, branch: string): Promise<string | undefined> {

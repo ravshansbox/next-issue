@@ -1,4 +1,4 @@
-import { fetchBase, git, remoteRef, revision, succeeds } from './git.mts';
+import { fetchBase, git, oneFetchAtATime, remoteRef, revision, succeeds } from './git.mts';
 import { commitEverything } from './git-commit.mts';
 
 export const PUSH_TRIES = 3;
@@ -25,7 +25,7 @@ export async function squashOnto(
 }
 
 export async function pushToBase(cwd: string, remote: string, base: string): Promise<boolean> {
-  return succeeds(cwd, ['push', remote, `HEAD:refs/heads/${base}`]);
+  return oneFetchAtATime(() => succeeds(cwd, ['push', remote, `HEAD:refs/heads/${base}`]));
 }
 
 export type Revert = {
