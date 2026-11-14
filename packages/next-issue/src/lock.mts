@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 import { link, open, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { createConnection } from 'node:net';
 import { basename, dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
@@ -154,12 +155,32 @@ async function removeDeadDrafts(path: string): Promise<void> {
   }
 }
 
-export async function stopWorker(lockPath: string): Promise<number | undefined> {
-  const pid = await lockHolder(lockPath);
-  if (pid !== undefined) {
-    process.kill(pid, 'SIGTERM');
+function listening(socketPath: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = createConnection(socketPath);
+    socket.once('connect', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once('error', () => resolve(false));
+  });
+}
+
+type StopResult = { stopped: 'worker' | 'none' | 'run'; pid?: number };
+
+export async function stopWorker(paths: {
+  lockPath: string;
+  socketPath: string;
+}): Promise<StopResult> {
+  const pid = await lockHolder(paths.lockPath);
+  if (pid === undefined) {
+    return { stopped: 'none' };
   }
-  return pid;
+  if (!(await listening(paths.socketPath))) {
+    return { stopped: 'run', pid };
+  }
+  process.kill(pid, 'SIGTERM');
+  return { stopped: 'worker', pid };
 }
 
 export type HeldLock = {

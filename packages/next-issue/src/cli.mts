@@ -9,7 +9,7 @@ import { ensureExcluded, excludeFile, removeIgnored } from './ignore.mts';
 import { listenForInterrupts } from './interrupt.mts';
 import { stopWorker } from './lock.mts';
 import { followLog, newestRunLog } from './logs.mts';
-import { runRepo } from './run.mts';
+import { runLocked } from './run.mts';
 import { serve } from './serve.mts';
 import { STATE_DIR } from './state.mts';
 import { formatSummary } from './summary.mts';
@@ -47,21 +47,23 @@ async function main(): Promise<number> {
 
 function run(root: string, args: Args): Promise<number> {
   const interrupts = listenForInterrupts((text) => void write(process.stderr, `${text}\n`));
-  return runRepo(root, args, {
+  return runLocked(root, args, {
     interrupts,
     print: (summary) =>
       write(process.stdout, args.json ? prettyJson(summary) : formatSummary(summary)),
   });
 }
 
+const STOPPED = {
+  none: () => 'next-issue: no worker is running\n',
+  run: (pid?: number) =>
+    `next-issue: no worker is running; a command-line run (process id ${pid}) is going, press Ctrl-C there to stop it\n`,
+  worker: (pid?: number) => `next-issue: stopped the worker with process id ${pid}\n`,
+};
+
 async function stop(root: string): Promise<number> {
-  const pid = await stopWorker(workerPaths(root).lockPath);
-  await write(
-    process.stdout,
-    pid === undefined
-      ? 'next-issue: no worker is running\n'
-      : `next-issue: stopped the worker with process id ${pid}\n`,
-  );
+  const { stopped, pid } = await stopWorker(workerPaths(root));
+  await write(process.stdout, STOPPED[stopped](pid));
   return 0;
 }
 

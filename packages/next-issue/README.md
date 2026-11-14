@@ -37,7 +37,7 @@ not tried again in that run. The run ends when no unseen issue is left. When
 the fetch fails, the run claims no new issue, ends once the running issues end,
 writes the summary of the issues it handled and exits with code 1.
 
-Only one run goes at a time in a repository. A run holds `.next-issue/run.lock`, with its process id and the start time of that process, from its start to its end, and the worker takes the same lock for each run it starts. A run that starts while another run, from the worker or from the command line, is going claims no issue and fails at once with an error that names the other run and its process id (a command-line run exits with code 1, and a run started from the worker ends with status `failed` and the error text): `the worker (process id <n>) has a run going in this repository` or `another next-issue run (process id <n>) is going in this repository`. A lock whose process is gone, or started at another time, is stale and taken over, as with the worker lock.
+Only one worker or command-line run goes at a time in a repository. Both hold one lock, `.next-issue/worker.lock`, with the process id and the start time of that process: the worker for its whole life, and a command-line run from its start to its end. A run that the worker starts takes no lock of its own, since the worker runs at most one run at a time. A command-line run that starts while any worker is alive, busy or idle, or while another command-line run is going, claims no issue and exits with code 1 and the error `another next-issue worker or run (process id <n>) is going in this repository`. Run `next-issue stop` first to stop the worker. A lock whose process is gone, or started at another time, is stale and taken over.
 
 Every command uses the main worktree of the repository as its root, the first one that `git worktree list` shows, even when it runs in a linked worktree. So `.next-issue/`, with the config, the locks, the worker socket, the saved state and the notes, and `.worktrees/` are always in the main worktree, and a run or worker started from a linked worktree gets the same refusal as one started from the main worktree.
 
@@ -613,7 +613,9 @@ affect another. The worker:
   When the path of the socket file is too long for the system, about 103
   bytes on macOS and 107 on Linux, it exits with an error that says so;
 - holds `.next-issue/worker.lock` in the repository, with its process id and
-  the start time of that process, so only one worker runs per repository. A
+  the start time of that process, so only one worker or command-line run goes
+  per repository. A worker that starts while a command-line run holds the lock
+  exits with `another worker is running`. A
   lock is stale, and is taken over, when no process has that id or the process
   with that id started at another time, for example because the system gave
   the id of a worker that was killed or lost in a reboot to another process.
@@ -671,9 +673,12 @@ affect another. The worker:
 
 Stop the worker of a repository with `next-issue stop` in that repository.
 Workers of other repositories carry on. This sends `SIGTERM` to the process in
-the lock file when the lock is not stale, so the worker stops at once and a
-run that is going resumes from its saved state next time. When no worker is
-running, the command says so and exits with 0.
+the lock file when the lock is not stale and the worker socket file takes a
+connection, so the worker stops at once and a run that is going resumes from
+its saved state next time. When no worker is running, the command says so and
+exits with 0. When a command-line run holds the lock, the command sends no
+signal, says `no worker is running; a command-line run (process id <n>) is
+going, press Ctrl-C there to stop it` and exits with 0.
 
 Versions before one worker per repository ran one worker for the machine,
 with `next-issue.sock`, `next-issue.lock` and `next-issue.roots.json` in
