@@ -24,19 +24,46 @@ test('a user who installs pi-next-issue gets the create-issue skill', async () =
   assert.deepEqual(manifest.pi.skills, ['./skills']);
   assert.ok(manifest.files.includes('skills'));
   assert.match(skill, /^---\nname: create-issue\n/);
-  assert.match(skill, /gh issue create .*--body-file .*--label status:todo/);
+  assert.match(skill, /gh issue create .*--body-file .*--label "<ready>"/);
 });
 
-test('an agent who creates an issue in a repository without the status:todo label creates the label first', async () => {
+test('an agent who creates an issue reads the ready label from labels.ready in .next-issue/config.json', async () => {
   const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
-  assert.match(skill, /gh label create status:todo[\s\S]*gh issue create/);
+  assert.match(skill, /`labels\.ready` in `\.next-issue\/config\.json`/);
+  assert.doesNotMatch(skill, /--label status:todo|gh label (list|create)[^\n]*status:todo/);
 });
 
-test('an agent who creates an issue with the create-issue skill adds no label other than status:todo', async () => {
+test('an agent who finds no labels.ready, or no config file, uses status:todo as the ready label', async () => {
+  const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
+  assert.match(
+    skill,
+    /When `labels\.ready` is not set, or there is no config file, `<ready>` is `status:todo`/,
+  );
+});
+
+test('an agent who finds labels.ready empty creates the issue with no label', async () => {
+  const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
+  assert.match(skill, /When `labels\.ready` is empty \(`""`\), add no label/);
+  assert.match(skill, /gh issue create --title "<title>" --body-file <file>\n/);
+});
+
+test('an agent who creates an issue in a repository without the ready label creates the label first', async () => {
+  const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
+  assert.match(skill, /gh label create "<ready>"[\s\S]*gh issue create/);
+});
+
+test('an agent who creates an issue with the create-issue skill adds no label other than the ready label', async () => {
   const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
   const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
-  assert.match(skill, /Add no label other than `status:todo`/);
+  assert.match(skill, /Add no label other than `<ready>`/);
   assert.match(readme, /and no other label/);
+});
+
+test('a user who reads the pi-next-issue README learns that the create-issue skill adds the labels.ready label', async () => {
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
+  assert.match(readme, /`labels\.ready` label of `\.next-issue\/config\.json`/);
+  assert.match(readme, /`status:todo` when `labels\.ready` is not set/);
+  assert.match(readme, /empty `labels\.ready`/);
 });
 
 test('a user who asks pi for a change in a repository with .next-issue/config.json gets the create-issue skill', async () => {

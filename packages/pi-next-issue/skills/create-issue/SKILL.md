@@ -12,17 +12,25 @@ Turn the problem of the user into one GitHub issue, or a split of linked issues 
 3. Judge whether the change fits one atomic commit that leaves the trunk green. When it does not, propose a split into issues that each land alone and keep the trunk green, in the order they land, and note which issues of the split each one depends on.
 4. Ask numbered questions about anything that is unclear: the scope, the expected behaviour, the acceptance criteria. When you propose a split, ask the user to confirm the split with the other questions. Label options with letters and recommend one. Ask again until no question is open.
 5. Write the body from `template.md` into a temporary file. Keep every heading of the template and its order. Leave `Open questions` empty.
-6. Create the `status:todo` label when the repository does not have it, so the worker can claim the issue:
+6. Find the ready label, `<ready>`: the value of `labels.ready` in `.next-issue/config.json` at the root of the repository. The worker claims only issues with that label. When `labels.ready` is not set, or there is no config file, `<ready>` is `status:todo`.
+
+   Create the `<ready>` label when the repository does not have it:
 
    ```bash
-   gh label list --search status:todo
-   gh label create status:todo
+   gh label list --search "<ready>"
+   gh label create "<ready>"
    ```
 
-   Then create the issue without showing the body first. Add no label other than `status:todo`:
+   Then create the issue without showing the body first. Add no label other than `<ready>`:
 
    ```bash
-   gh issue create --title "<title>" --body-file <file> --label status:todo
+   gh issue create --title "<title>" --body-file <file> --label "<ready>"
+   ```
+
+   When `labels.ready` is empty (`""`), add no label, since the worker then claims every open issue. Skip the label commands and run:
+
+   ```bash
+   gh issue create --title "<title>" --body-file <file>
    ```
 
 7. Link each blocker:
