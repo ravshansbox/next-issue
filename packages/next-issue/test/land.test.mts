@@ -579,6 +579,18 @@ test('a user whose checks on main do not finish in time gets the issue handed ov
   assert.equal(report.halt, true);
 });
 
+test('a user whose checks on main are all cancelled before they finish gets the issue handed over, not closed, and the run halted', async (t) => {
+  const target = await harness(t, { baseChecks: ['cancelled'] });
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'main checks cancelled');
+  assert.equal(report.halt, true);
+  assert.match(
+    target.comments.at(-1)!,
+    /needs help: The checks on main were cancelled before they finished./,
+  );
+});
+
 test('a user whose checks on main do not finish in time and whose hand-over fails gets the run halted with both reasons', async (t) => {
   const target = await harness(t, { baseChecks: ['timeout'] });
   commentFails(target);

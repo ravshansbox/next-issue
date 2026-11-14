@@ -55,6 +55,17 @@ test('waitForBaseChecks passes when every run on the commit ends without a failu
   );
 });
 
+test('waitForBaseChecks reports cancelled when every run on the commit was cancelled before it finished', async (t) => {
+  const dir = await fakeRunsGh(t, [
+    { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'cancelled' },
+    { databaseId: 2, name: 'Docs', status: 'completed', conclusion: 'skipped' },
+  ]);
+  assert.equal(
+    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', BASE_WAIT),
+    'cancelled',
+  );
+});
+
 test('waitForBaseChecks fails as soon as one run on the commit fails', async (t) => {
   const dir = await fakeRunsGh(t, [
     { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'failure' },

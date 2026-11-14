@@ -23,6 +23,13 @@ export async function checkGate(job: Run, sha: string): Promise<Gate> {
     return GATE_PASSED;
   }
   job.mainBroken = true;
+  if (checks === 'cancelled') {
+    return escalateAndFinish(
+      job,
+      `The checks on ${base} were cancelled before they finished.`,
+      'main checks cancelled',
+    );
+  }
   if (checks !== 'fail') {
     return escalateAndFinish(
       job,
