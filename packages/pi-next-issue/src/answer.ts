@@ -21,22 +21,40 @@ function answeredOf(question: Question, choice: string): string {
   return `next-issue: #${question.issue} ${choice === GIVE_UP ? 'given up' : 'will be retried'}`;
 }
 
-function labelsOf(question: Question, choice: string): string[] {
+function labelsOf(question: Question, choice: string, skip: string): string[] {
   const remove = ['--remove-label', question.labels.needsHuman];
-  return choice === GIVE_UP ? [...remove, '--add-label', question.labels.skip] : remove;
+  return choice === GIVE_UP ? [...remove, '--add-label', skip] : remove;
 }
 
-async function ensureLabel(gh: Gh, root: string, repo: string, label: string): Promise<void> {
+async function existingLabel(
+  gh: Gh,
+  root: string,
+  repo: string,
+  label: string,
+): Promise<string | undefined> {
+  const listed = await gh(['label', 'list', '--repo', repo, '--limit', '1000', '--json', 'name'], {
+    cwd: root,
+  });
+  return (JSON.parse(listed) as Array<{ name: string }>)
+    .map((item) => item.name)
+    .find((name) => name.toLowerCase() === label.toLowerCase());
+}
+
+async function ensureLabel(gh: Gh, root: string, repo: string, label: string): Promise<string> {
   try {
-    const listed = await gh(
-      ['label', 'list', '--repo', repo, '--limit', '1000', '--json', 'name'],
-      {
-        cwd: root,
-      },
-    );
-    const names = (JSON.parse(listed) as Array<{ name: string }>).map((item) => item.name);
-    if (!names.includes(label)) {
+    const existing = await existingLabel(gh, root, repo, label);
+    if (existing !== undefined) {
+      return existing;
+    }
+    try {
       await gh(['label', 'create', label, '--repo', repo], { cwd: root });
+      return label;
+    } catch (error) {
+      const created = await existingLabel(gh, root, repo, label);
+      if (created === undefined) {
+        throw error;
+      }
+      return created;
     }
   } catch (error) {
     throw new Error(`cannot create the label ${label}: ${errorText(error)}`, { cause: error });
@@ -57,10 +75,11 @@ async function reply(
       input: guidance,
     });
   }
-  if (choice === GIVE_UP) {
-    await ensureLabel(gh, root, question.repo, question.labels.skip);
-  }
-  await gh(['issue', 'edit', issue, ...repo, ...labelsOf(question, choice)], { cwd: root });
+  const skip =
+    choice === GIVE_UP
+      ? await ensureLabel(gh, root, question.repo, question.labels.skip)
+      : question.labels.skip;
+  await gh(['issue', 'edit', issue, ...repo, ...labelsOf(question, choice, skip)], { cwd: root });
 }
 
 async function ask(ui: ExtensionContext['ui'], question: Question): Promise<Answer | undefined> {

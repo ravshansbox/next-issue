@@ -32,7 +32,7 @@ Run `/next-issue answer` to go through the waiting questions one at a time. Each
 
 - **Retry**: takes the `needsHuman` label off the issue, so the next run resumes it.
 - **Retry with guidance**: asks for text, posts it as a comment on the issue, where the worker reads it, then takes the `needsHuman` label off.
-- **Give up**: takes the `needsHuman` label off the issue and adds the `skip` label. Pi creates the `skip` label first when the repository does not have it. When it cannot create the label, it shows an error that names the label and leaves the issue labels as they were.
+- **Give up**: takes the `needsHuman` label off the issue and adds the `skip` label. Pi compares label names without case, as GitHub does, so it uses a `Status:Blocked` the repository already has. Pi creates the `skip` label first when the repository does not have it. When it cannot create the label, it shows an error that names the label and leaves the issue labels as they were.
 
 Press Escape, or leave the guidance empty, to stop. Pi reads the list again before each question, so it skips a question answered elsewhere in the meantime. The worker sends the repository and the label names with each question, from `.next-issue/config.json` and its `remote`. Pi uses `gh` for the comment and the labels.
 

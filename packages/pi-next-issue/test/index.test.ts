@@ -1011,7 +1011,7 @@ test('a user who answers retry with guidance posts it on the issue, then takes t
   ]);
 });
 
-function labelledGh(repoLabels: string[], createFails = false) {
+function labelledGh(repoLabels: string[], create: 'works' | 'fails' | 'raced' = 'works') {
   const issueLabels = new Set(['status:needs-human']);
   const gh = ({ args }: GhCall): string | undefined => {
     const [noun, verb] = args;
@@ -1019,10 +1019,17 @@ function labelledGh(repoLabels: string[], createFails = false) {
       return JSON.stringify(repoLabels.map((name) => ({ name })));
     }
     if (noun === 'label' && verb === 'create') {
-      if (createFails) {
+      const name = args[2] ?? '';
+      if (create === 'raced') {
+        repoLabels.push(name);
+      }
+      if (repoLabels.some((label) => label.toLowerCase() === name.toLowerCase())) {
+        throw new Error(`label with name "${name}" already exists`);
+      }
+      if (create === 'fails') {
         throw new Error('gh label create failed: HTTP 403');
       }
-      repoLabels.push(args[2] ?? '');
+      repoLabels.push(name);
       return undefined;
     }
     if (noun === 'issue' && verb === 'edit') {
@@ -1067,8 +1074,33 @@ test('a user who gives up in a repository with the skip label does not create it
   assert.equal(calls.filter((call) => call.args[1] === 'create').length, 0);
 });
 
+test('a user who gives up in a repository with the skip label in another case adds that label without creating it', async () => {
+  const fake = labelledGh(['Status:Blocked']);
+  const { path, calls, extension } = setup({ gh: fake.gh });
+  await questionWorker(path, [[question(4)], []]);
+  const { pi, emit, command, notes } = host('tui', '/repo', ['Give up']);
+  extension(pi as never);
+  await emit('session_start');
+  await command('answer');
+  assert.deepEqual([...fake.issueLabels], ['Status:Blocked']);
+  assert.equal(calls.filter((call) => call.args[1] === 'create').length, 0);
+  assert.ok(notes.includes('next-issue: #4 given up'), notes.join('\n'));
+});
+
+test('a user who gives up while the skip label is created elsewhere sees the issue given up', async () => {
+  const fake = labelledGh([], 'raced');
+  const { path, extension } = setup({ gh: fake.gh });
+  await questionWorker(path, [[question(4)], []]);
+  const { pi, emit, command, notes } = host('tui', '/repo', ['Give up']);
+  extension(pi as never);
+  await emit('session_start');
+  await command('answer');
+  assert.deepEqual([...fake.issueLabels], ['status:blocked']);
+  assert.ok(notes.includes('next-issue: #4 given up'), notes.join('\n'));
+});
+
 test('a user who gives up when the skip label cannot be created sees an error that names it, and the issue keeps its labels', async () => {
-  const fake = labelledGh([], true);
+  const fake = labelledGh([], 'fails');
   const { path, extension } = setup({ gh: fake.gh });
   await questionWorker(path, [[question(4)], []]);
   const { pi, emit, command, notes } = host('tui', '/repo', ['Give up']);
