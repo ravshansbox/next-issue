@@ -29,11 +29,11 @@ export function endStatus(run: Run): Progress['status'] {
 }
 
 export function startRefusal(run: Run | undefined, restart: boolean): string | undefined {
-  if (active(run)) {
-    return 'a run is going in this repository already';
-  }
   if (restart) {
     return 'the worker is restarting, try again soon';
+  }
+  if (active(run)) {
+    return 'a run is going in this repository already';
   }
   return undefined;
 }

@@ -124,6 +124,12 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
         restart = true;
         closeWhenIdle();
       }
+    } else if (value.root !== options.root) {
+      send(socket, {
+        type: 'error',
+        root: value.root,
+        message: `the worker serves ${options.root} only`,
+      });
     } else if (value.type === 'start') {
       start(socket, value.root, value.args ?? []);
     } else if (value.type === 'stop') {

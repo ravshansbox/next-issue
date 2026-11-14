@@ -214,6 +214,37 @@ test('a client that stops a run with an unknown point gets an error and the run 
   assert.equal(fake.controls().interrupts.afterIssue(), false);
 });
 
+test('a client that sends start, stop or questions for another repository gets an error and no run starts or stops', async (t) => {
+  const asked: string[] = [];
+  const questions: typeof noQuestions = async (root) => {
+    asked.push(root);
+    return [];
+  };
+  const fake = fakeRuns();
+  const { socketPath } = await worker(t, fake, '2.0.0', questions);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo' });
+  await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
+  for (const value of [
+    { type: 'start', root: '/repo/' },
+    { type: 'stop', root: '/other', after: 'now' },
+    { type: 'questions', root: '/other' },
+  ] as const) {
+    client.send(value);
+    assert.deepEqual(await client.next((reply) => reply.type === 'error'), {
+      type: 'error',
+      root: value.root,
+      message: 'the worker serves /repo only',
+    });
+  }
+  assert.equal(fake.calls.length, 1);
+  assert.equal(fake.controls().interrupts.afterIssue(), false);
+  assert.deepEqual(
+    asked.filter((root) => root !== '/repo'),
+    [],
+  );
+});
+
 test('a second worker does not start while the first one holds the lock', async (t) => {
   const fake = fakeRuns();
   const { socketPath, lockPath } = await worker(t, fake);
@@ -292,10 +323,10 @@ test('a worker that meets a newer client closes once no run is going', async (t)
   client.send({ type: 'start', root: '/repo' });
   await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
   client.send({ type: 'hello', version: '2.1.0' });
-  client.send({ type: 'start', root: '/other' });
+  client.send({ type: 'start', root: '/repo' });
   assert.deepEqual(await client.next((value) => value.type === 'error'), {
     type: 'error',
-    root: '/other',
+    root: '/repo',
     message: 'the worker is restarting, try again soon',
   });
   fake.finish();

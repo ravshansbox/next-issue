@@ -547,6 +547,9 @@ affect another. The worker:
 - holds `.next-issue/worker.lock` in the repository, with its process id, so
   only one worker runs per repository. A lock whose process is no longer alive
   is taken over;
+- refuses a `start`, `stop` or `questions` message whose `root` is not
+  the exact path of its repository with an `error` message, and starts or
+  stops nothing;
 - runs at most one run at a time. A client starts it with
   `{ "type": "start", "root": "<path>", "args": [...] }`. Each run is like
   `next-issue` with those args, or with none when `args` is left out. It takes
