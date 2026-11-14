@@ -82,7 +82,12 @@ export async function runFixer(
 ): Promise<string> {
   const { issue, log } = job;
   const result = await log.step('fix', { reason, cause: kind, ...fixBudget(job, kind) }, () =>
-    runRole(job, 'fixer', fixPrompt(issue, reason, detail, earlier, kind, job.reply), CODING),
+    runRole(
+      job,
+      'fixer',
+      fixPrompt(issue, job.comments, reason, detail, earlier, kind, job.reply),
+      CODING,
+    ),
   );
   return result.text;
 }

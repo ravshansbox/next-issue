@@ -17,12 +17,20 @@ test('capDiff cuts a diff that is too long and says so', () => {
 test('each fixer kind is offered the unrelated exit for its own cause', () => {
   const checks = fixPrompt(
     ISSUE,
+    [],
     'The continuous integration checks failed.',
     'the logs',
     [],
     'checks',
   );
-  const review = fixPrompt(ISSUE, 'The reviewer requested changes.', 'the findings', [], 'review');
+  const review = fixPrompt(
+    ISSUE,
+    [],
+    'The reviewer requested changes.',
+    'the findings',
+    [],
+    'review',
+  );
   assert.match(checks, /unrelated: <one sentence on what fails/);
   assert.match(review, /unrelated: <one sentence on why the findings are wrong/);
 });
@@ -30,12 +38,20 @@ test('each fixer kind is offered the unrelated exit for its own cause', () => {
 test('each fixer kind is told to write no unrelated line after it fixes the cause', () => {
   const checks = fixPrompt(
     ISSUE,
+    [],
     'The continuous integration checks failed.',
     'the logs',
     [],
     'checks',
   );
-  const review = fixPrompt(ISSUE, 'The reviewer requested changes.', 'the findings', [], 'review');
+  const review = fixPrompt(
+    ISSUE,
+    [],
+    'The reviewer requested changes.',
+    'the findings',
+    [],
+    'review',
+  );
   assert.match(checks, /If you fix the cause, write no `unrelated` line\./);
   assert.match(review, /If you fix the findings, write no `unrelated` line\./);
 });
@@ -43,6 +59,7 @@ test('each fixer kind is told to write no unrelated line after it fixes the caus
 test('the conflict fixer is told to remove the conflict markers and leave the merge to the harness', () => {
   const conflict = fixPrompt(
     ISSUE,
+    [],
     'The pull request conflicts with its base.',
     'a.txt',
     [],
@@ -54,14 +71,28 @@ test('the conflict fixer is told to remove the conflict markers and leave the me
 });
 
 test('the review fixer is told to dispute only when every finding is wrong', () => {
-  const review = fixPrompt(ISSUE, 'The reviewer requested changes.', 'the findings', [], 'review');
+  const review = fixPrompt(
+    ISSUE,
+    [],
+    'The reviewer requested changes.',
+    'the findings',
+    [],
+    'review',
+  );
   assert.match(review, /If every finding is wrong, change nothing/);
   assert.match(review, /If only some of the findings are wrong, fix the correct ones/);
 });
 
 test('the review fixer is told to end with a resolved line when every finding is settled with no code change', () => {
-  const review = fixPrompt(ISSUE, 'The reviewer requested changes.', 'the findings', [], 'review');
-  const checks = fixPrompt(ISSUE, 'The checks failed.', 'the logs', [], 'checks');
+  const review = fixPrompt(
+    ISSUE,
+    [],
+    'The reviewer requested changes.',
+    'the findings',
+    [],
+    'review',
+  );
+  const checks = fixPrompt(ISSUE, [], 'The checks failed.', 'the logs', [], 'checks');
   assert.match(review, /resolved: <how the findings were settled>/);
   assert.doesNotMatch(checks, /resolved:/);
 });
@@ -80,7 +111,7 @@ test('a later reviewer is told that a settled note answers every finding of its 
 test('the implementer and the fixer get the answer of a person to the hand-over under its own heading', () => {
   const reply = ['@owner: ready, take it'];
   const implement = implementPrompt(ISSUE, [], reply);
-  const fix = fixPrompt(ISSUE, 'The reviewer requested changes.', 'x', [], 'review', reply);
+  const fix = fixPrompt(ISSUE, [], 'The reviewer requested changes.', 'x', [], 'review', reply);
   for (const prompt of [implement, fix]) {
     assert.match(prompt, /## Answer of a person to the hand-over\n[\s\S]*@owner: ready, take it/);
   }
@@ -135,7 +166,18 @@ test('a later reviewer gets the reply of the fixer and no new demand for a faili
   assert.doesNotMatch(prompt, /Raise a finding when a behaviour change has no failing run/);
 });
 
+test('every fixer kind gets the issue body and the writer comments', () => {
+  const comments = ['@owner: Use the flag name --quiet.'];
+  for (const kind of ['review', 'checks', 'conflict'] as const) {
+    const prompt = fixPrompt(ISSUE, comments, 'The reason.', 'the detail', [], kind);
+    assert.match(prompt, new RegExp(`# Issue #${ISSUE.number}: ${ISSUE.title}\n\n${ISSUE.body}`));
+    assert.match(prompt, /## Comments\n@owner: Use the flag name --quiet\./);
+  }
+  const empty = fixPrompt({ ...ISSUE, body: '' }, [], 'The reason.', 'x', [], 'checks');
+  assert.match(empty, /\(no description\)/);
+});
+
 test('the review fixer is told to quote the failing output of a test for a behaviour change', () => {
-  const review = fixPrompt(ISSUE, 'The reviewer requested changes.', 'x', [], 'review');
+  const review = fixPrompt(ISSUE, [], 'The reviewer requested changes.', 'x', [], 'review');
   assert.match(review, /quote its failing output in your final message/);
 });

@@ -162,6 +162,7 @@ function earlierBlock(earlier: string[]): string {
 
 export function fixPrompt(
   issue: Issue,
+  comments: string[],
   reason: string,
   detail: string,
   earlier: string[],
@@ -169,7 +170,8 @@ export function fixPrompt(
   reply: string[] = [],
 ): string {
   return paragraphs([
-    `You are the fixer. Correct the work for issue #${issue.number}: ${issue.title}.`,
+    'You are the fixer. Correct the work for the issue below.',
+    issueBlock(issue, comments),
     `## Reason\n${reason}`,
     `## Detail\n${detail}`,
     earlierBlock(earlier),

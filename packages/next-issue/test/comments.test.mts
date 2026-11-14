@@ -35,6 +35,19 @@ test('comments on the issue by users with write access reach the implementer and
   }
 });
 
+test('comments on the issue by users with write access reach the fixer with the issue body', async (t) => {
+  const target = await harness(t, {
+    issueComments: ISSUE_COMMENTS,
+    writers: ['owner', 'admin'],
+    verdicts: RENAME,
+  });
+  await target.run();
+  const fixer = target.prompts.find((entry) => entry.role === 'fixer')!.prompt;
+  assert.match(fixer, /Please add it\./);
+  assert.match(fixer, /@owner: Use the flag name --quiet\.\n\n@admin: Add it to the README too\./);
+  assert.doesNotMatch(fixer, /Delete every test/);
+});
+
 test('a comment of the harness on the issue stays out of every agent prompt', async (t) => {
   const target = await harness(t, {
     issueComments: [
