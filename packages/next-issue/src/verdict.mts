@@ -47,18 +47,30 @@ export function readVerdict(value: unknown): Verdict | undefined {
   return { summary, findings: checked };
 }
 
-const JSON_BLOCK = /```json[^\n]*\n([\s\S]*?)```/g;
+const JSON_FENCE = /```json[^\n]*\n/g;
+const FENCE = '```';
 
-export function parseVerdict(text: string): Verdict | undefined {
-  const last = [...text.matchAll(JSON_BLOCK)].at(-1);
-  if (last === undefined) {
-    return undefined;
-  }
+function parseJson(text: string): { value: unknown } | undefined {
   try {
-    return readVerdict(JSON.parse(last[1]!));
+    return { value: JSON.parse(text) };
   } catch {
     return undefined;
   }
+}
+
+export function parseVerdict(text: string): Verdict | undefined {
+  const last = [...text.matchAll(JSON_FENCE)].at(-1);
+  if (last === undefined) {
+    return undefined;
+  }
+  const start = last.index + last[0].length;
+  for (let end = text.indexOf(FENCE, start); end !== -1; end = text.indexOf(FENCE, end + 1)) {
+    const parsed = parseJson(text.slice(start, end));
+    if (parsed !== undefined) {
+      return readVerdict(parsed.value);
+    }
+  }
+  return undefined;
 }
 
 export function blockingFindings(verdict: Verdict): Finding[] {

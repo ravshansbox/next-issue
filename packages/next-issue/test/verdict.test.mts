@@ -29,6 +29,22 @@ test('parseVerdict reads the last json block of the reviewer text', () => {
   assert.deepEqual(parseVerdict(text), BLOCKING);
 });
 
+test('parseVerdict reads a verdict whose strings hold three backticks', () => {
+  const verdict: Verdict = {
+    summary: 'Quote ```x``` here.',
+    findings: [{ severity: 'blocking', detail: 'Add a test:\n```ts\nassert(x)\n```' }],
+  };
+  const text = [
+    '```json\n{"summary": "example", "findings": []}\n```',
+    '```json',
+    JSON.stringify(verdict, null, 2),
+    '```',
+    'Done.',
+  ].join('\n');
+  assert.deepEqual(parseVerdict(text), verdict);
+  assert.deepEqual(parseVerdict(`\`\`\`json\n${JSON.stringify(verdict)}\n\`\`\``), verdict);
+});
+
 test('parseVerdict gives undefined without a valid json block', () => {
   assert.equal(parseVerdict('Looks good to me.'), undefined);
   assert.equal(parseVerdict('```json\n{"summary": \n```'), undefined);

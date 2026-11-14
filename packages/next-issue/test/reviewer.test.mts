@@ -72,6 +72,17 @@ test('a reviewer that says request_changes with no finding still approves', asyn
   assert.match(target.comments[0]!, /Review: approved/);
 });
 
+test('a reviewer whose finding quotes a code block gets its verdict posted on the issue and the change landed', async (t) => {
+  const detail = 'Add a test:\n```ts\nassert(x)\n```';
+  const target = await harness(t, {
+    verdicts: [{ summary: 'One fix.', findings: [{ severity: 'minor', detail }] }, APPROVE],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.match(target.comments[0]!, /Review: changes requested/);
+  assert.ok(target.comments[0]!.includes(detail));
+});
+
 test('a verdict of the wrong shape counts as no verdict', async (t) => {
   const target = await harness(t, {
     verdicts: [{ summary: 'x' } as unknown as Verdict],
