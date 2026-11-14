@@ -77,6 +77,50 @@ test('a user who stops a run now during the second review gets the issue stopped
   assert.deepEqual(stopped.comments, []);
 });
 
+test('a user who stops a run now during the setup command gets the issue stopped with no hand-over, and the next run keeps the review rounds, fix counts and findings', async (t) => {
+  const first = await harness(t, { pressDuring: 'reviewer', verdicts: [changes('Rename it.')] });
+  assert.equal((await first.run()).outcome, 'stopped');
+  const before = { ...(await first.state())!, ciFixes: 1, commitFixes: 1 };
+  const stopped = await harness(t, {
+    saved: before,
+    issue: { ...ISSUE, labels: ['status:in-review'] },
+    config: { setupCommand: 'npm ci' },
+    stopNowDuringSetup: true,
+  });
+  const report = await stopped.run();
+  assert.equal(report.outcome, 'stopped');
+  assert.notEqual(report.reason, 'setup failed');
+  const kept = (await stopped.state())!;
+  assert.equal(kept.handedOver, undefined);
+  assert.equal(kept.reviewRounds, before.reviewRounds);
+  assert.equal(kept.ciFixes, 1);
+  assert.equal(kept.commitFixes, 1);
+  assert.deepEqual(kept.reviewLog, before.reviewLog);
+  assert.equal(
+    stopped.events.some(
+      (record) =>
+        record.kind === 'setup.fail' ||
+        record.kind === 'hand-over' ||
+        record.reason === 'setup failed',
+    ),
+    false,
+  );
+  assert.deepEqual(stopped.comments, []);
+  const next = await harness(t, {
+    saved: kept,
+    issue: { ...ISSUE, labels: ['status:in-review'] },
+    config: { setupCommand: 'npm ci' },
+    pressDuring: 'reviewer',
+    verdicts: [changes('Rename it again.')],
+  });
+  assert.equal((await next.run()).outcome, 'stopped');
+  const resumed = (await next.state())!;
+  assert.equal(resumed.reviewRounds, before.reviewRounds + 1);
+  assert.equal(resumed.ciFixes, 1);
+  assert.equal(resumed.commitFixes, 1);
+  assert.deepEqual(resumed.reviewLog.slice(0, before.reviewLog.length), before.reviewLog);
+});
+
 test('a user who stops a run now while a new issue is claimed, after GitHub applied the in-progress label, gets the next run to resume that issue', async (t) => {
   const first = await harness(t, { stopNowOnLabel: 'status:in-progress' });
   assert.equal((await first.run()).outcome, 'stopped');

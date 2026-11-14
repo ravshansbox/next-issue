@@ -1,3 +1,4 @@
+import { refuseWhenStopped } from './children.mts';
 import { minutesToMs } from './durations.mts';
 import { succeeded } from './exec.mts';
 import { escalateAndFinish } from './handover.mts';
@@ -17,6 +18,7 @@ export async function setUp(job: Run): Promise<Round> {
     { cmd: setupCommand, found: config.setupCommand === undefined },
     () => ports.runSetup(setupCommand, worktree, minutesToMs(config.setupTimeoutMinutes)),
   );
+  refuseWhenStopped();
   if (succeeded(setup)) {
     return ROUND_CONTINUE;
   }

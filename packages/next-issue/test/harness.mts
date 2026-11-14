@@ -104,6 +104,7 @@ export type Plan = {
   rerunFails?: boolean;
   pressDuring?: string;
   stopNowDuring?: string;
+  stopNowDuringSetup?: boolean;
   stopNowOnLabel?: string;
   disputes?: string[];
   earlier?: string;
@@ -410,6 +411,10 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     },
     runSetup: async (command) => {
       state.setups.push(command);
+      if (plan.stopNowDuringSetup === true) {
+        stopRunChildren(children);
+        return { code: 130, stderr: '', timedOut: false };
+      }
       return { code: plan.setupCode ?? 0, stderr: '', timedOut: plan.setupTimedOut };
     },
     setAside: async (_worktree, target, branch) => {
@@ -417,6 +422,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       head = Number(target);
     },
     setLabel: async (_repo, kind, number, label, remove) => {
+      refuseWhenStopped();
       state.labels.push({ kind, number, label });
       state.removable.push(remove);
       if (label === plan.stopNowOnLabel) {
