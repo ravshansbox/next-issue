@@ -71,6 +71,31 @@ test('a user whose push to the base branch reports a failure and whose fetch of 
   assert.deepEqual(target.baseWaits, ['2']);
 });
 
+test('a user whose push to the base branch reports a failure, whose fetch of the base fails and whose hand-over fails gets the run halted with both reasons', async (t) => {
+  const target = await harness(t, { pushLandsAndFails: true, baseFetchFails: true });
+  commentFails(target);
+  const report = await target.run();
+  assert.equal(report.outcome, 'error');
+  assert.equal(report.reason, 'push unknown; the hand-over failed: gh: could not resolve host');
+  assert.equal(report.halt, true);
+  assert.deepEqual(
+    target.events
+      .filter((record) => record.kind === 'hand-over.error')
+      .map((record) => [record.reason, record.error]),
+    [['push unknown', 'gh: could not resolve host']],
+  );
+});
+
+function commentFails(target: Awaited<ReturnType<typeof harness>>) {
+  const commentOnIssue = target.context.ports.commentOnIssue;
+  target.context.ports.commentOnIssue = async (repo, issue, body) => {
+    if (body.includes('needs help:')) {
+      throw new Error('gh: could not resolve host');
+    }
+    return commentOnIssue(repo, issue, body);
+  };
+}
+
 test('a user whose push to the base branch keeps failing gets the issue handed over', async (t) => {
   const target = await harness(t, { pushRejects: 3 });
   const report = await target.run();
@@ -441,6 +466,31 @@ test('a user whose checks on main do not finish in time gets the issue handed ov
   assert.equal(report.outcome, 'needs-human');
   assert.equal(report.reason, 'main checks timeout');
   assert.equal(report.halt, true);
+});
+
+test('a user whose checks on main do not finish in time and whose hand-over fails gets the run halted with both reasons', async (t) => {
+  const target = await harness(t, { baseChecks: ['timeout'] });
+  commentFails(target);
+  const report = await target.run();
+  assert.equal(report.outcome, 'error');
+  assert.equal(
+    report.reason,
+    'main checks timeout; the hand-over failed: gh: could not resolve host',
+  );
+  assert.equal(report.halt, true);
+});
+
+test('a user whose checks on main fail with no check fix left and whose hand-over fails gets the run halted with both reasons', async (t) => {
+  const target = await harness(t, { config: { maxCiFixes: 0 }, baseChecks: ['fail'] });
+  commentFails(target);
+  const report = await target.run();
+  assert.equal(report.outcome, 'error');
+  assert.equal(report.reason, 'check budget; the hand-over failed: gh: could not resolve host');
+  assert.equal(report.halt, true);
+  assert.deepEqual(
+    target.reverts.map((entry) => entry.shas),
+    [['2']],
+  );
 });
 
 test('a user who asks to stop after the round while main is watched gets the watch finished first', async (t) => {

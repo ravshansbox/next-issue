@@ -1,3 +1,4 @@
+import { runStopped } from './children.mts';
 import { elapsedMs } from './durations.mts';
 import { message } from './errors.mts';
 import type { Issue } from './github.mts';
@@ -18,7 +19,19 @@ import { dropState, type IssueState, writeState } from './state.mts';
 
 export async function escalateAndFinish(job: Run, note: string, reason: string): Promise<Finished> {
   const reverted = await revertFailedFix(job);
-  await handOver(job.context, job.log, job.issue.number, job.state, `${note}${reverted}`);
+  try {
+    await handOver(job.context, job.log, job.issue.number, job.state, `${note}${reverted}`);
+  } catch (error) {
+    if (!job.mainBroken || runStopped()) {
+      throw error;
+    }
+    const failure = message(error);
+    job.log.event('hand-over.error', { reason, error: failure }, 'quiet');
+    return {
+      done: true,
+      report: await finish(job, 'error', `${reason}; the hand-over failed: ${failure}`),
+    };
+  }
   return { done: true, report: await finish(job, 'needs-human', reason) };
 }
 

@@ -114,10 +114,11 @@ the run handles one issue. For each issue:
    fetches the base first, and treats the push as landed when the base holds
    the commit, for example after a timeout. When that fetch fails too, the
    harness hands the issue to a person with the reason `push unknown` and
-   halts. The state file holds the commit during the push, so a run stopped
-   meanwhile, or the next run after that hand-over, checks the base on resume
-   and waits for the checks of the commit when it landed. The harness then
-   waits for the checks of the pushed commit on the base branch. A repository
+   halts, even when the hand-over fails. The state file holds the commit
+   during the push, so a run stopped meanwhile, or the next run after that
+   hand-over, checks the base on resume and waits for the checks of the
+   commit when it landed. The harness then waits for the checks of the
+   pushed commit on the base branch. A repository
    that reports no check keeps asking for `checkGraceSeconds`. A pending state
    waits again, up to `checkTimeoutMinutes`. A read that fails is tried three
    times. When the checks pass, the harness closes the issue and sets
@@ -195,7 +196,8 @@ and comments the reason on the issue, when:
 - the checks on the base branch fail and the fixer cannot fix them, an error
   stops the fix, or they do not finish in time. The base branch is then
   broken, so the run claims no new issue and ends once the running issues
-  end;
+  end. It halts this way even when the hand-over fails; the issue then ends
+  in error with both the reason and the hand-over error;
 - an agent does not finish in `agentTimeoutMinutes`;
 - the setup command fails, or does not finish in `setupTimeoutMinutes`;
 - a step of the run fails with an error. A `gh` call that is safe to repeat,
