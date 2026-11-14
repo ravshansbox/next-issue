@@ -1,6 +1,6 @@
 import { writeSync } from 'node:fs';
 import { type FileHandle, open } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { type Sleeper, wakeableSleep } from './durations.mts';
 import { hasCode } from './errors.mts';
@@ -99,19 +99,22 @@ function listenForStop(stop: () => void): () => void {
 }
 
 export async function followLog(
-  file: string,
+  root: string,
+  start: string,
   options: { json: boolean; tail?: number },
   print: (text: string) => Promise<void>,
 ): Promise<number> {
-  const handle = await open(file, 'r');
+  let file = start;
+  let handle = await open(file, 'r');
   const control = stopper();
   const unlisten = listenForStop(control.stop);
-  const decoder = new StringDecoder('utf8');
+  let decoder = new StringDecoder('utf8');
   let position = 0;
   let rest = '';
   let first = true;
   try {
     while (!control.stopped) {
+      const newest = await newestRunLog(root);
       const chunk = await readChunk(handle, position, decoder);
       position += chunk.bytesRead;
       rest += chunk.text;
@@ -127,6 +130,19 @@ export async function followLog(
       }
       if (control.stopped) {
         break;
+      }
+      if (newest !== undefined && newest > file) {
+        const next = await open(newest, 'r');
+        await handle.close();
+        handle = next;
+        file = newest;
+        decoder = new StringDecoder('utf8');
+        position = 0;
+        rest = '';
+        if (!options.json) {
+          await print(`— new run: ${basename(file)} —\n`);
+        }
+        continue;
       }
       await control.pause();
     }

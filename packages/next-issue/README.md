@@ -290,7 +290,7 @@ jq -r 'select(.kind=="usage") | [.issue,.role,.turns,.total] | @tsv' \
 then prints new events as the run adds them, until `Ctrl-C`. In a terminal it
 starts with the last events that fit the screen; in a pipe it starts with all
 of them. It stops when the reader of the pipe closes it; on Linux it notices
-this only at the next event. With `--json` it prints the raw JSON lines. This also shows a run of
+this only at the next event. When the worker restarts and starts a new run log, `logs` prints the rest of the old one, then a line `— new run: <file name> —`, then every event of the new one. With `--json` it prints the raw JSON lines and no such line. This also shows a run of
 the worker, whose progress goes to no terminal.
 
 Three levels of console output:

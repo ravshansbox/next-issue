@@ -72,7 +72,7 @@ async function logs(root: string, json: boolean): Promise<number> {
     return 1;
   }
   const tail = process.stdout.isTTY ? Math.max(1, (process.stdout.rows || 24) - 1) : undefined;
-  return followLog(file, { json, tail }, (text) => write(process.stdout, text));
+  return followLog(root, file, { json, tail }, (text) => write(process.stdout, text));
 }
 
 async function init(root: string, force: boolean): Promise<number> {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
 import { access, appendFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
@@ -297,6 +297,43 @@ test('a user who pipes logs --json sees the raw JSON lines, then new ones', asyn
   assert.equal(read(), `${event(1)}\n${event(2)}\n`);
 });
 
+const NEW_RUN = '2026-01-03T00-00-00-000Z.jsonl';
+
+async function restart(file: string, lines: string[]): Promise<void> {
+  await appendFile(file, `${event(2)}\n`);
+  await writeFile(join(dirname(file), NEW_RUN), lines.map((line) => `${line}\n`).join(''));
+}
+
+test('a user who pipes logs sees the rest of the old run log, a new run marker, then the new run log when the worker restarts', async (t) => {
+  const { root, file } = await runLog([event(1)]);
+  const { child, read, exited } = followLogs(root, []);
+  t.after(() => child.kill('SIGKILL'));
+  await until(read, /step1\.end/);
+  await restart(file, [event(3)]);
+  await until(read, /step3\.end/);
+  child.kill('SIGINT');
+  assert.equal(await exited, 0);
+  assert.deepEqual(
+    read()
+      .trimEnd()
+      .split('\n')
+      .map((line) => line.replace(/^\S+ #/, '#')),
+    ['#7 step1.end ms=1', '#7 step2.end ms=2', `— new run: ${NEW_RUN} —`, '#7 step3.end ms=3'],
+  );
+});
+
+test('a user who pipes logs --json sees only raw JSON lines of the old and new run logs when the worker restarts', async (t) => {
+  const { root, file } = await runLog([event(1)]);
+  const { child, read, exited } = followLogs(root, ['--json']);
+  t.after(() => child.kill('SIGKILL'));
+  await until(read, /step1\.end/);
+  await restart(file, [event(3)]);
+  await until(read, /step3\.end/);
+  child.kill('SIGINT');
+  assert.equal(await exited, 0);
+  assert.equal(read(), `${event(1)}\n${event(2)}\n${event(3)}\n`);
+});
+
 test('a user who pipes logs --json sees multi-byte characters intact across a long line', async (t) => {
   const long = JSON.stringify({
     ts: '2026-01-02T03:04:05.000Z',
@@ -410,6 +447,32 @@ for (const json of [false, true]) {
     assert.match(read(), /exit=0/);
   });
 }
+
+test('a user who runs logs in a terminal sees every event of the new run log from its first when the worker restarts', async (t) => {
+  const { root, file } = await runLog([event(1)]);
+  const command = `stty rows 4 cols 300; trap : INT; "${process.execPath}" "${CLI}" logs; echo "exit=$?"`;
+  const child = spawn('sh', await inTerminal(command), { cwd: root });
+  t.after(() => child.kill('SIGKILL'));
+  let output = '';
+  child.stdout.on('data', (chunk) => (output += chunk));
+  const read = () => output.replace(/\r/g, '');
+  await until(read, /step1\.end/);
+  await restart(
+    file,
+    Array.from({ length: 10 }, (_, index) => event(index + 3)),
+  );
+  await until(read, /step12\.end/);
+  child.stdin.write('\x03');
+  await until(read, /exit=\d+/);
+  assert.deepEqual(
+    read()
+      .split('\n')
+      .filter((line) => line.includes('step'))
+      .map((line) => /step\d+/.exec(line)![0]),
+    Array.from({ length: 12 }, (_, index) => `step${index + 1}`),
+  );
+  assert.match(read(), /exit=0/);
+});
 
 test('a user who runs --help sees the logs command', async () => {
   const { stdout } = await promisify(execFile)(process.execPath, [CLI, '--help']);
