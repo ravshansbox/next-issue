@@ -12,6 +12,7 @@ import { ModelRuntime, SettingsManager } from '@earendil-works/pi-coding-agent';
 import { isOwnResource } from '../src/agent-session.mts';
 import { CODING, REVIEWING, runAgent, toolFields } from '../src/agents.mts';
 import { Recorder } from '../src/observe.mts';
+import { logRecords } from './log-records.mts';
 import { tempDir } from './temp-dir.mts';
 
 async function fakePi(responses: FauxResponseStep[], tokensPerSecond?: number) {
@@ -162,6 +163,19 @@ test('the harness gets the last text, the tool calls and the model of a pi agent
   assert.equal(result.turns, 2);
   assert.equal(result.model, request.model);
   assert.ok(result.usage.total > 0);
+});
+
+test('the harness records a usage event without a cost for a pi agent', async () => {
+  const { recorder, request } = await fakePi([fauxAssistantMessage('done')]);
+  const result = await runAgent(recorder, request);
+  const usage = (await logRecords(recorder)).find((record) => record.kind === 'usage')!;
+  assert.equal(usage.role, request.name);
+  assert.equal(usage.turns, 1);
+  assert.equal(usage.toolCalls, 0);
+  assert.equal(usage.model, request.model);
+  assert.equal(usage.session, result.sessionId);
+  assert.ok(Number(usage.total) > 0);
+  assert.equal('costUsd' in usage, false);
 });
 
 test('the harness saves the session of a pi agent next to the run log', async () => {

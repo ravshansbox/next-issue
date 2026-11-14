@@ -38,7 +38,6 @@ export type AgentResult = {
   turns: number;
   toolCalls: number;
   ms: number;
-  costUsd: number;
   model?: string;
   sessionId?: string;
 };
@@ -106,7 +105,6 @@ function sessionResult(
     toolCalls: stats.toolCalls,
     model: name,
     session: stats.sessionId,
-    costUsd: stats.cost,
   });
   return {
     text: (session.getLastAssistantText() ?? '').trim(),
@@ -114,7 +112,6 @@ function sessionResult(
     turns: stats.assistantMessages,
     toolCalls: stats.toolCalls,
     ms,
-    costUsd: stats.cost,
     model: name,
     sessionId: stats.sessionId,
   };

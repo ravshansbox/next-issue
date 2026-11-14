@@ -55,7 +55,6 @@ export function result(text: string): AgentResult {
     turns: 1,
     toolCalls: 0,
     ms: 1,
-    costUsd: 0,
   };
 }
 

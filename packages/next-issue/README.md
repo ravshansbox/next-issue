@@ -278,7 +278,7 @@ Recorded for each step: `claim`, `comments`, `reply`, `worktree`, `setup`,
 `.start`, `.end` or `.error` event and a duration in `ms`. Every `git` and `gh`
 command is recorded with its exit code and duration. A `tool` event holds the
 tool name, and for a `bash` tool the command too. Each agent call adds a `usage`
-event with the tokens, the cost estimate in dollars, the turn count, the
+event with the tokens, the turn count, the
 tool-call count, the model and the session id.
 
 ```bash
