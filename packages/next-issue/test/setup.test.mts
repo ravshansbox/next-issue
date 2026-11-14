@@ -39,6 +39,17 @@ test('a yarn project with .yarnrc.yml gets the immutable flag', async () => {
   );
 });
 
+test('a project with .yarnrc.yml and no yarn.lock gives no command', async () => {
+  assert.equal(await detectSetupCommand(await project('.yarnrc.yml')), undefined);
+});
+
+test('a project with .yarnrc.yml and bun.lock gets the bun command', async () => {
+  assert.equal(
+    await detectSetupCommand(await project('.yarnrc.yml', 'bun.lock')),
+    'bun install --frozen-lockfile',
+  );
+});
+
 test('pnpm wins when more than one lock file is present', async () => {
   assert.equal(
     await detectSetupCommand(await project('package-lock.json', 'pnpm-lock.yaml')),

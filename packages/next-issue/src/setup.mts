@@ -4,7 +4,6 @@ import { join } from 'node:path';
 const MARKERS: Array<[string, string]> = [
   ['pnpm-lock.yaml', 'pnpm install --frozen-lockfile'],
   ['package-lock.json', 'npm ci'],
-  ['.yarnrc.yml', 'yarn install --immutable'],
   ['yarn.lock', 'yarn install --frozen-lockfile'],
   ['bun.lock', 'bun install --frozen-lockfile'],
   ['bun.lockb', 'bun install --frozen-lockfile'],
@@ -15,15 +14,22 @@ const MARKERS: Array<[string, string]> = [
   ['Gemfile.lock', 'bundle install'],
 ];
 
+function exists(path: string): Promise<boolean> {
+  return access(path).then(
+    () => true,
+    () => false,
+  );
+}
+
 export async function detectSetupCommand(root: string): Promise<string | undefined> {
   for (const [file, command] of MARKERS) {
-    const found = await access(join(root, file)).then(
-      () => true,
-      () => false,
-    );
-    if (found) {
-      return command;
+    if (!(await exists(join(root, file)))) {
+      continue;
     }
+    if (file === 'yarn.lock' && (await exists(join(root, '.yarnrc.yml')))) {
+      return 'yarn install --immutable';
+    }
+    return command;
   }
   return undefined;
 }
