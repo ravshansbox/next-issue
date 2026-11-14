@@ -188,9 +188,9 @@ test('a user who watches with --hunt sees the running issues left out of the rea
   const { promise: started, resolve } = deferred();
   const hunting = hunter(fake, [[1]]);
   const ready = fake.hunter!.ready;
-  fake.hunter!.ready = async () => {
+  fake.hunter!.ready = async (running) => {
     await started;
-    return ready();
+    return ready(running);
   };
   const process = fake.process;
   fake.process = async (target) => {
@@ -201,6 +201,27 @@ test('a user who watches with --hunt sees the running issues left out of the rea
   await watchIssues(ARGS, fake);
   assert.deepEqual(hunting.steps, ['hunt', 'wait 1']);
   assert.deepEqual(hunting.counts, [1]);
+});
+
+test('a user who watches with --hunt sees the hunter told which issues run, so it can count the issues they block', async () => {
+  const fake = watcher([['done']]);
+  const { promise: started, resolve } = deferred();
+  const hunting = hunter(fake, [[]]);
+  const ready = fake.hunter!.ready;
+  const seen: number[][] = [];
+  fake.hunter!.ready = async (running) => {
+    await started;
+    seen.push([...running]);
+    return ready(running);
+  };
+  const process = fake.process;
+  fake.process = async (target) => {
+    resolve();
+    await hunting.idle;
+    return process(target);
+  };
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(seen[0], [1]);
 });
 
 test('a user who watches with --hunt sees each hunt asked to file up to huntCap less the ready issues that are not running', async () => {

@@ -59,14 +59,20 @@ export function hunter(context: Context): Hunter & { busy: () => boolean } {
   let hunting = false;
   return {
     cap: config.huntCap,
-    ready: async () => {
+    ready: async (running) => {
       const open = (await ports.openIssues(repo, config.issueLimit, labels)).filter(
         (issue) => skipReason(issue, config, false) === undefined,
       );
+      const claimable = new Set(open.map((issue) => issue.number));
       const blockers = await Promise.all(
         open.map((issue) => ports.openBlockers(repo, issue.number)),
       );
-      return open.filter((_issue, index) => blockers[index]!.length === 0);
+      return open.filter((_issue, index) =>
+        blockers[index]!.every((blocker) => {
+          const number = Number(/^#(\d+)$/.exec(blocker)?.[1]);
+          return running.has(number) || claimable.has(number);
+        }),
+      );
     },
     hunt: async (count) => {
       hunting = true;

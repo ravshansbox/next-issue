@@ -164,10 +164,44 @@ test('a user who hunts sees the hunter count only issues that the watch can clai
   const watched = hunter(target.context);
   assert.equal(watched.cap, 3);
   assert.deepEqual(
-    (await watched.ready()).map((issue) => issue.number),
+    (await watched.ready(new Set())).map((issue) => issue.number),
     [7],
   );
   assert.deepEqual(asked, [['status:todo']]);
+});
+
+test('a user who hunts sees the hunter count an issue blocked only by running or claimable issues of the same repository, and not one with a blocker that cannot move', async (t) => {
+  const labelled = (number: number, labels: string[]) => ({ ...ISSUE, number, labels });
+  const open = [
+    labelled(7, ['status:todo']),
+    labelled(8, ['status:todo']),
+    labelled(9, ['status:todo']),
+    labelled(10, ['status:todo']),
+    labelled(11, ['status:todo']),
+    labelled(12, ['status:todo']),
+    labelled(13, ['status:todo']),
+    labelled(14, ['status:todo']),
+    labelled(20, ['status:todo', 'status:in-progress']),
+    labelled(21, ['status:todo', 'status:needs-human']),
+    labelled(22, ['status:todo', 'status:blocked']),
+    labelled(23, ['status:todo', 'status:done']),
+  ];
+  const blockers: Record<number, string[]> = {
+    7: ['#20'],
+    8: ['#9', '#20'],
+    10: ['#21'],
+    11: ['#22'],
+    12: ['#23'],
+    13: ['#30'],
+    14: ['acme/other#9'],
+    9: [],
+  };
+  const target = await harness(t, { open });
+  target.context.ports.openBlockers = async (_repo, number) => blockers[number] ?? ['#9', '#30'];
+  assert.deepEqual(
+    (await hunter(target.context).ready(new Set([20]))).map((issue) => issue.number),
+    [7, 8, 9],
+  );
 });
 
 test('a user who hunts sees each back-off wait of the hunter in the run log', async (t) => {
