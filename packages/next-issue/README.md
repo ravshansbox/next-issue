@@ -88,8 +88,11 @@ the run handles one issue. For each issue:
    The budget is `maxCommitFixes`. Any other git failure in the commit stops
    the run with an error. An implementer that makes no change hands the issue
    to a person, unless the branch is already ahead of the base, for example
-   after the state file was lost: the run then carries on with the commits on
-   the branch, and the newest of them gives the subject of the landed commit.
+   when an issue resumes from saved state in phase `claimed`, or when the remote
+   holds branch `<n>`: the run then carries on with the commits on the branch,
+   and the newest of them gives the subject of the landed commit. A lost state
+   file does not count, since an issue with no saved state resets its local
+   branch (step 3).
 5. Let the reviewer agent judge the diff, at most `diffMaxChars` of it. The
    reviewer reads files and runs commands in the worktree, so it can prove a
    finding with the tests or the type check. The harness then throws away every

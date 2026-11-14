@@ -79,8 +79,12 @@ test('a user whose implementer made no change and gave no reply sees only the no
   );
 });
 
-test('an implementer that changes nothing on a branch already ahead of the base gets the change landed with the subject of the earlier commit', async (t) => {
-  const target = await harness(t, { commits: [false], earlier: 'fix: earlier work' });
+test('a user who resumes a claimed issue whose branch is already ahead of the base gets the earlier commit landed with its subject when the implementer changes nothing', async (t) => {
+  const target = await harness(t, {
+    saved: { ...SAVED, phase: 'claimed' },
+    commits: [false],
+    earlier: 'fix: earlier work',
+  });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.match(target.messages.at(-1)!, /^fix: earlier work\n/);
