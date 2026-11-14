@@ -15,7 +15,7 @@ import { oneAtATime } from './lock.mts';
 import type { Fields, Recorder } from './observe.mts';
 import { revertFailedFix } from './revert.mts';
 import { logIssueError } from './skip.mts';
-import { dropState, type IssueState, writeState } from './state.mts';
+import { dropState, type IssueState, type PendingHandOver, writeState } from './state.mts';
 import { fitComment } from './text.mts';
 
 export async function escalateAndFinish(job: Run, note: string, reason: string): Promise<Finished> {
@@ -199,29 +199,35 @@ async function handOver(
   issue: number,
   state: IssueState,
   reason: string,
+  earlier?: PendingHandOver,
 ): Promise<void> {
   const { repo, ports, config } = context;
   log.event('hand-over', { reason }, 'quiet');
   const { pendingHandOver: _pending, ...rest } = state;
+  let pending: PendingHandOver | undefined = earlier;
   try {
-    const since = await threadEnd(context, issue);
-    const pending = { reason, ...(since === undefined ? {} : { since }) };
+    // A retry keeps the thread time and the labelled mark of its earlier try.
+    const since = earlier?.since ?? (await threadEnd(context, issue));
+    pending = { ...earlier, reason, ...(since === undefined ? {} : { since }) };
     await writeState(repo, { ...rest, pendingHandOver: pending });
     await setStatus(context, issue, config.labels.needsHuman);
-    await writeState(repo, { ...rest, pendingHandOver: { ...pending, labelled: true } });
+    pending = { ...pending, labelled: true };
+    await writeState(repo, { ...rest, pendingHandOver: pending });
     await ports.commentOnIssue(repo, issue, handOverComment(reason));
   } catch (error) {
-    throw new HandOverFailed(reason, error);
+    throw new HandOverFailed(reason, error, pending);
   }
   await writeState(repo, { ...rest, handedOver: true });
 }
 
 class HandOverFailed extends Error {
   readonly reason: string;
+  readonly pending: PendingHandOver | undefined;
 
-  constructor(reason: string, cause: unknown) {
+  constructor(reason: string, cause: unknown, pending: PendingHandOver | undefined) {
     super(message(cause), { cause });
     this.reason = reason;
+    this.pending = pending;
   }
 }
 
@@ -245,7 +251,8 @@ export async function claimedError(
 ): Promise<IssueReport> {
   const { reason } = logIssueError(log, error, started);
   try {
-    await handOver(context, log, issue.number, state, handOverReason(error, reason));
+    const earlier = error instanceof HandOverFailed ? error.pending : undefined;
+    await handOver(context, log, issue.number, state, handOverReason(error, reason), earlier);
   } catch (failure) {
     log.event('hand-over.error', { error: message(failure) }, 'quiet');
   }
