@@ -38,10 +38,35 @@ export async function escalateAndFinish(job: Run, note: string, reason: string):
 
 export async function finishDone(job: Run): Promise<Finished> {
   const { context, issue } = job;
+  job.state.closing = true;
+  await writeState(context.repo, job.state);
   await setStatus(context, issue.number, context.config.labels.done);
   await context.ports.closeIssue(context.repo, issue.number);
   await updateLocalBase(job);
   return { done: true, report: await finish(job, 'done') };
+}
+
+export async function finishClosing(
+  context: Context,
+  issue: Issue,
+  log: Recorder,
+  state: IssueState,
+  started: number,
+): Promise<IssueReport> {
+  const job: Run = {
+    context,
+    issue,
+    log,
+    state,
+    branch: state.branch,
+    worktree: '',
+    comments: [],
+    reply: [],
+    started,
+    mainBroken: false,
+    repairing: false,
+  };
+  return (await finishDone(job)).report;
 }
 
 async function updateLocalBase(job: Run): Promise<void> {

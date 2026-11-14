@@ -2,7 +2,7 @@ import { enterReview } from './enter-review.mts';
 import { branchName } from './git.mts';
 import type { Issue } from './github.mts';
 import { runStopped } from './children.mts';
-import { claimedError, stop, stopNow } from './handover.mts';
+import { claimedError, finishClosing, stop, stopNow } from './handover.mts';
 import { implement } from './implement.mts';
 import type { Context, IssueReport, Run } from './job.mts';
 import type { Recorder } from './observe.mts';
@@ -26,7 +26,8 @@ export async function processIssue(
   } catch (error) {
     return unclaimedError(log, issue, error, started);
   }
-  const skip = await skipReport(context, log, issue, saved, started);
+  const closing = saved?.closing === true && saved.handedOver !== true;
+  const skip = closing ? undefined : await skipReport(context, log, issue, saved, started);
   if (skip !== undefined) {
     return skip;
   }
@@ -37,14 +38,9 @@ export async function processIssue(
 
   let report: IssueReport;
   try {
-    report = await work(
-      context,
-      issue,
-      log,
-      state,
-      saved === undefined,
-      saved?.handedOver === true,
-    );
+    report = closing
+      ? await finishClosing(context, issue, log, state, started)
+      : await work(context, issue, log, state, saved === undefined, saved?.handedOver === true);
   } catch (error) {
     if (!runStopped()) {
       return claimedError(context, log, issue, state, error, started);

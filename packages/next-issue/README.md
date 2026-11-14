@@ -53,7 +53,9 @@ the run handles one issue. For each issue:
    `status:in-progress` or `status:in-review` label. A `status:done`,
    `status:needs-human` or `status:blocked` label always stops the claim, a
    resume too, except a `status:needs-human` issue with an answer to its
-   hand-over. An issue that GitHub lists as blocked by an open issue waits,
+   hand-over, and except an issue whose finish a stop cut short and that
+   was not handed over (see step 7 below). An issue that GitHub lists as
+   blocked by an open issue waits,
    because its blocker closes only when the change of the blocker lands.
    An issue with saved state under `.next-issue/` resumes instead, whatever its
    other labels and blockers.
@@ -171,10 +173,15 @@ the run handles one issue. For each issue:
    seconds after the others; a check that shows up in that time counts, and
    one that shows up later does not. A pending state
    waits again, up to `checkTimeoutMinutes`. A read that fails is tried three
-   times. When the checks pass, the harness closes the issue and sets
-   `status:done`, fetches the remote and fast-forwards the local base branch
-   to the landed commit when that is safe, and the worktree, the local branch
-   and the state file go away. A fetch that fails or a fast-forward that is
+   times. When the checks pass, the harness marks the state file as closing,
+   sets `status:done` and closes the issue. When a run stops or dies before
+   the close, the next run sees the mark, sets `status:done` and closes the
+   issue, with no new push, revert or hand-over. A label or close that fails
+   for another reason hands the issue over, and it then waits for a person
+   like any other hand-over. Then the harness fetches the remote and
+   fast-forwards the local base branch to the landed commit when that is
+   safe, and the worktree, the local branch and the state file go away. A
+   fetch that fails or a fast-forward that is
    not safe leaves the local base branch as it is and writes a `base.behind`
    event, and the issue is still done. When the checks fail, the harness
    reruns the failed GitHub Actions jobs once with

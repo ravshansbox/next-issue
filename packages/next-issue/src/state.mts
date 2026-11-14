@@ -28,6 +28,7 @@ export type IssueState = {
   reviewRounds: number;
   reviewLog: ReviewRound[];
   handedOver?: boolean;
+  closing?: boolean;
 };
 
 export type ReviewRound = {
@@ -111,7 +112,8 @@ function isState(value: unknown): value is IssueState {
     typeof value.reviewRounds === 'number' &&
     Array.isArray(value.reviewLog) &&
     value.reviewLog.every(isReviewRound) &&
-    isOptional(value.handedOver, 'boolean')
+    isOptional(value.handedOver, 'boolean') &&
+    isOptional(value.closing, 'boolean')
   );
 }
 

@@ -289,3 +289,41 @@ test('a user who stops a run now while the harness waits for the rerun failed jo
   assert.deepEqual(target.reruns, []);
   assert.deepEqual(roles(target), ['fixer']);
 });
+
+test('a user who stops a run now after GitHub applied the done label, before the close, gets the next run to close the issue and remove its state, worktree and branch with no new push or hand-over', async (t) => {
+  const first = await harness(t, { stopNowOnLabel: 'status:done' });
+  assert.equal((await first.run()).outcome, 'stopped');
+  assert.deepEqual(first.closed, []);
+  const saved = await first.state();
+  const target = await harness(t, { saved, issue: { ...ISSUE, labels: ['status:done'] } });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(target.closed, [7]);
+  assert.equal(await target.state(), undefined);
+  assert.deepEqual(target.deleted, ['7']);
+  assert.equal(await target.context.ports.findWorktree(target.context.repo, '7'), undefined);
+  assert.deepEqual(roles(target), []);
+  assert.equal(target.pushes, 0);
+  assert.deepEqual(target.landed, []);
+  assert.deepEqual(target.reverts, []);
+  assert.deepEqual(target.comments, []);
+});
+
+test('a user whose issue was handed over after a failed close gets the next run to leave it waiting for a person, with no new close or hand-over', async (t) => {
+  const first = await harness(t);
+  first.context.ports.closeIssue = async () => {
+    throw new Error('gh: HTTP 502');
+  };
+  assert.equal((await first.run()).outcome, 'error');
+  const saved = await first.state();
+  assert.equal(saved?.handedOver, true);
+  const target = await harness(t, {
+    saved,
+    issue: { ...ISSUE, labels: ['status:done', 'status:needs-human'] },
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'skipped');
+  assert.deepEqual(target.closed, []);
+  assert.deepEqual(target.labels, []);
+  assert.deepEqual(target.comments, []);
+});
