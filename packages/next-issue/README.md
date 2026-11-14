@@ -329,7 +329,8 @@ Press `Ctrl-C` to stop the run step by step:
    commit reached the base branch, the next run drops those edits and any
    unfinished merge of the base branch, then lands the change with no new
    review round. A hand-over of the issue cancels that approval, so the
-   issue resumes in review.
+   issue resumes in review. A revert of the landed change cancels it too,
+   even when the hand-over after it does not finish.
 
 Signals that arrive within 100 ms of the last counted one count as one press,
 because `npx` and `npm exec` pass on a press as a second signal.

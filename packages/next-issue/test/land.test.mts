@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { processIssue } from '../src/pipeline.mts';
-import { readState } from '../src/state.mts';
+import { readState, type IssueState } from '../src/state.mts';
 import { APPROVE, harness, ISSUE, roles } from './harness.mts';
 
 test('a user whose change is approved gets it pushed to the base branch as one commit, the issue closed and done', async (t) => {
@@ -794,4 +794,82 @@ test('a user whose local base cannot fast-forward after landing gets the issue d
   assert.equal(report.outcome, 'done');
   assert.equal(target.localBase, undefined);
   assert.equal(target.context.recorder.summary().counts['base.behind'], 1);
+});
+
+async function resumeAfterRevert(
+  t: Parameters<typeof harness>[0],
+  saved: IssueState | undefined,
+  labels: string[],
+) {
+  const target = await harness(t, {
+    saved,
+    issue: { ...ISSUE, labels },
+  });
+  const rolesAtPush: string[][] = [];
+  const pushToBase = target.context.ports.pushToBase;
+  target.context.ports.pushToBase = async (...args) => {
+    rolesAtPush.push(roles(target));
+    return pushToBase(...args);
+  };
+  const report = await target.run();
+  return { report, rolesAtPush };
+}
+
+test('a user who stops a run now during the hand-over after a revert of main gets the reverted change reviewed by the next run before any new push', async (t) => {
+  const first = await harness(t, {
+    config: { maxCiFixes: 0 },
+    baseChecks: ['fail'],
+    stopNowOnLabel: 'status:needs-human',
+  });
+  assert.equal((await first.run()).outcome, 'stopped');
+  assert.deepEqual(
+    first.reverts.map((entry) => entry.shas),
+    [['2']],
+  );
+  const { report, rolesAtPush } = await resumeAfterRevert(t, await first.state(), []);
+  assert.equal(report.outcome, 'done');
+  assert.ok(rolesAtPush.length > 0);
+  assert.ok(rolesAtPush[0]!.includes('reviewer'));
+});
+
+test('a user whose hand-over fails after a revert of main gets the reverted change reviewed by the next run before any new push', async (t) => {
+  const first = await harness(t, {
+    config: { maxCiFixes: 0 },
+    baseChecks: ['fail'],
+  });
+  commentFails(first);
+  assert.equal((await first.run()).outcome, 'error');
+  const { report, rolesAtPush } = await resumeAfterRevert(t, await first.state(), [
+    'status:in-review',
+  ]);
+  assert.equal(report.outcome, 'done');
+  assert.ok(rolesAtPush.length > 0);
+  assert.ok(rolesAtPush[0]!.includes('reviewer'));
+});
+
+test('a user whose hand-over fails after a resumed stopped revert of main gets the reverted change reviewed by the next run before any new push', async (t) => {
+  const first = await harness(t, {
+    config: { maxCiFixes: 0 },
+    baseChecks: ['fail'],
+    revertLandsAndStops: true,
+  });
+  assert.equal((await first.run()).outcome, 'stopped');
+  const saved = await first.state();
+  const second = await harness(t, {
+    saved,
+    issue: { ...ISSUE, labels: [] },
+    config: { maxCiFixes: 0 },
+    baseChecks: ['fail'],
+  });
+  second.context.ports.isOnBase = async (_worktree, _base, _remote, sha) =>
+    sha === saved?.reverting;
+  commentFails(second);
+  assert.equal((await second.run()).outcome, 'error');
+  assert.deepEqual(second.landed, []);
+  const { report, rolesAtPush } = await resumeAfterRevert(t, await second.state(), [
+    'status:in-review',
+  ]);
+  assert.equal(report.outcome, 'done');
+  assert.ok(rolesAtPush.length > 0);
+  assert.ok(rolesAtPush[0]!.includes('reviewer'));
 });

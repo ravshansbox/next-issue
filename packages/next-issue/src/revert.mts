@@ -36,6 +36,9 @@ export function restoreChange(state: IssueState): void {
   state.landed = undefined;
   state.title = state.changeTitle ?? state.title;
   state.changeTitle = undefined;
+  if (state.phase === 'approved') {
+    state.phase = 'review';
+  }
 }
 
 export async function revert(job: Run): Promise<string> {
