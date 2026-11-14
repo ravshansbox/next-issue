@@ -2,7 +2,7 @@ import { runAgent } from './agents.mts';
 import { failedBaseLogs, rerunFailedBase, waitForBaseChecks } from './base-checks.mts';
 import { run } from './exec.mts';
 import { commitAll } from './git-commit.mts';
-import { pushToBase, revertOnBase, squashOnto } from './git-land.mts';
+import { pushToBase, reapplyRevert, revertOnBase, squashOnto } from './git-land.mts';
 import { abortMerge, commitMerge, startMerge } from './git-merge.mts';
 import {
   deleteBranch,
@@ -67,6 +67,7 @@ export const PORTS = {
   openIssues,
   push,
   pushToBase,
+  reapplyRevert,
   removeWorktree,
   reopenIssue,
   rerunFailedBase,

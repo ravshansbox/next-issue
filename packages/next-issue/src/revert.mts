@@ -27,6 +27,11 @@ export function sentence(text: string): string {
   return text.endsWith('.') ? text : `${text}.`;
 }
 
+export function reapplyMessage(job: Run): string {
+  const { number } = job.issue;
+  return `${job.state.title ?? `fix: resolve issue #${number}`}\n\nRefs #${number}`;
+}
+
 export async function revert(job: Run): Promise<string> {
   const { context, issue, log, state, branch, worktree } = job;
   const { repo, config, ports, base } = context;
@@ -38,7 +43,7 @@ export async function revert(job: Run): Promise<string> {
       branch,
       shas,
       message: `revert: issue #${issue.number}\n\nRefs #${issue.number}`,
-      reapply: `${state.title ?? `fix: resolve issue #${issue.number}`}\n\nRefs #${issue.number}`,
+      reapply: reapplyMessage(job),
       pushing: async (sha) => {
         state.reverting = sha;
         await writeState(repo, state);

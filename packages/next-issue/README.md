@@ -166,7 +166,9 @@ the run handles one issue. For each issue:
    push that the base holds after a fetch counts as landed, and a fetch that
    fails leaves the revert reported as failed. The state file holds the
    revert commit during the push, so a run stopped meanwhile checks the base
-   on resume. When the base holds the revert, the harness drops the landed
+   on resume. When the base holds the revert, the harness puts the change
+   back on the branch on top of the revert, as after a revert that
+   completes (an unlanded fix commit is dropped), drops the landed
    commits from the state, waits for no checks, does not revert again, hands
    the issue to a person with the reason `revert stopped` and halts. A resume
    that stopped while the checks of a landed commit ran waits for them

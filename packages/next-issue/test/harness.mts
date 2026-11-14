@@ -308,6 +308,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       }
       return state.landed.includes(sha) || plan.baseMoved === true;
     },
+    reapplyRevert: async () => false,
     revertOnBase: async (_worktree, revert) => {
       state.reverts.push({ shas: revert.shas, message: revert.message });
       if (plan.revertFails === true) {

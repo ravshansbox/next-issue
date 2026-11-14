@@ -1,6 +1,7 @@
 import { escalateAndFinish } from './handover.mts';
 import { ROUND_CONTINUE, type Round, type Run } from './job.mts';
 import { resumeLanding } from './land.mts';
+import { reapplyMessage } from './revert.mts';
 import { writeState } from './state.mts';
 
 export async function enterReview(job: Run): Promise<Round> {
@@ -39,7 +40,7 @@ async function settlePush(job: Run): Promise<void> {
 }
 
 async function settleRevert(job: Run): Promise<boolean> {
-  const { context, state, worktree } = job;
+  const { context, state, worktree, branch } = job;
   const { repo, config, ports, base } = context;
   const sha = state.reverting;
   if (sha === undefined) {
@@ -47,6 +48,13 @@ async function settleRevert(job: Run): Promise<boolean> {
   }
   const reverted = await ports.isOnBase(worktree, base, config.remote, sha);
   if (reverted) {
+    await ports.reapplyRevert(worktree, {
+      base,
+      remote: config.remote,
+      branch,
+      reverted: sha,
+      reapply: reapplyMessage(job),
+    });
     state.landed = undefined;
   }
   state.reverting = undefined;

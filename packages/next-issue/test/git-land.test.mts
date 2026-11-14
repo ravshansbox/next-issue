@@ -3,7 +3,13 @@ import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { HookError } from '../src/git-commit.mts';
-import { pushToBase, type Revert, revertOnBase, squashOnto } from '../src/git-land.mts';
+import {
+  pushToBase,
+  reapplyRevert,
+  type Revert,
+  revertOnBase,
+  squashOnto,
+} from '../src/git-land.mts';
 import { commitMerge, startMerge } from '../src/git-merge.mts';
 import { isLanded, isOnBase } from '../src/git.mts';
 import { addWorktree } from '../src/worktree.mts';
@@ -92,6 +98,31 @@ test('revertOnBase pushes a revert to the base and leaves the change on the bran
   assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');
   assert.equal(await git(path, 'rev-parse', 'HEAD^'), await git(other, 'rev-parse', 'HEAD'));
   assert.equal(await readFile(join(path, 'b.txt'), 'utf8'), 'b.txt\n');
+});
+
+test('reapplyRevert puts the change back on a branch that the base reset, and leaves a branch that already holds it', async () => {
+  const { path } = await branch();
+  await squashOnto(path, 'origin/main', 'feat: add b and c');
+  await pushToBase(path, 'origin', 'main');
+  await git(path, 'checkout', '-q', '--detach');
+  await git(path, 'revert', '--no-edit', 'HEAD');
+  await pushToBase(path, 'origin', 'main');
+  const reverted = await git(path, 'rev-parse', 'HEAD');
+  await git(path, 'checkout', '-q', '-B', '3', reverted);
+  const reapply = {
+    base: 'main',
+    remote: 'origin',
+    branch: '3',
+    reverted,
+    reapply: 'feat: add b and c',
+  };
+  assert.equal(await reapplyRevert(path, reapply), true);
+  assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');
+  assert.equal(await git(path, 'rev-parse', 'HEAD^'), reverted);
+  assert.equal(await readFile(join(path, 'b.txt'), 'utf8'), 'b.txt\n');
+  const head = await git(path, 'rev-parse', 'HEAD');
+  assert.equal(await reapplyRevert(path, reapply), false);
+  assert.equal(await git(path, 'rev-parse', 'HEAD'), head);
 });
 
 test('revertOnBase that cannot push puts the branch back as it was', async () => {

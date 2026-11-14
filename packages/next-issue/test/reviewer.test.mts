@@ -4,11 +4,12 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import type { AgentRequest } from '../src/agents.mts';
 import { commitAll } from '../src/git-commit.mts';
-import { pushToBase, squashOnto } from '../src/git-land.mts';
+import { pushToBase, reapplyRevert, revertOnBase, squashOnto } from '../src/git-land.mts';
 import {
   diff,
   discardChanges,
   isDirty,
+  isOnBase,
   latestSubject,
   type Repo,
   revision,
@@ -178,6 +179,63 @@ test('a user who stops now during the squash hook keeps the change on branch 7, 
   Object.assign(resumed.context.ports, { squashOnto, pushToBase });
   assert.equal((await resumed.run()).outcome, 'done');
   const reviewer = resumed.prompts.find((entry) => entry.role === 'reviewer')!;
+  assert.match(reviewer.prompt, /\+\+\+ b\/implementer\.txt/);
+  await git(repo.root, 'fetch', '-q', 'origin');
+  await git(repo.root, 'cat-file', '-e', 'origin/main:implementer.txt');
+});
+
+test('a user who stops the run after the revert push lands and then resumes gets the change on branch 7 on top of the revert, and a retry lands it again', async (t) => {
+  const repo = await gitRepo();
+  const failing = { config: { maxCiFixes: 0 }, baseChecks: ['fail' as const] };
+  const first = await harness(t, { root: repo.root, ...failing });
+  withGit(first, async () => undefined);
+  const hooks = await tempDir();
+  const started = join(hooks, 'revert-pushed');
+  await writeFile(
+    join(hooks, 'pre-push'),
+    `#!/bin/sh\nread ref sha remote_ref remote_sha\ncase "$(git log -1 --format=%s "$sha")" in revert:*) git push -q --no-verify origin "$sha:$remote_ref" && touch '${started}' && sleep 30;; esac\nexit 0\n`,
+  );
+  await chmod(join(hooks, 'pre-push'), 0o755);
+  await git(repo.root, 'config', 'core.hooksPath', hooks);
+  Object.assign(first.context.ports, { isOnBase, revertOnBase, squashOnto, pushToBase });
+  const running = first.run();
+  while (
+    !(await access(started).then(
+      () => true,
+      () => false,
+    ))
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  first.stopNow();
+  assert.equal((await running).outcome, 'stopped');
+  await git(repo.root, 'config', '--unset', 'core.hooksPath');
+  const resumed = await harness(t, {
+    root: repo.root,
+    issue: { ...ISSUE, labels: [] },
+    ...failing,
+  });
+  withGit(resumed, async () => undefined);
+  Object.assign(resumed.context.ports, {
+    isOnBase,
+    reapplyRevert,
+    revertOnBase,
+    squashOnto,
+    pushToBase,
+  });
+  assert.equal((await resumed.run()).reason, 'revert stopped');
+  await git(repo.root, 'fetch', '-q', 'origin');
+  assert.equal(await git(repo.root, 'log', '-1', '--format=%s', 'origin/main'), 'revert: issue #7');
+  assert.equal(
+    await git(repo.root, 'rev-parse', '7^'),
+    await git(repo.root, 'rev-parse', 'origin/main'),
+  );
+  await git(repo.root, 'cat-file', '-e', '7:implementer.txt');
+  const retried = await harness(t, { root: repo.root, issue: { ...ISSUE, labels: [] } });
+  withGit(retried, async () => undefined);
+  Object.assign(retried.context.ports, { isOnBase, squashOnto, pushToBase });
+  assert.equal((await retried.run()).outcome, 'done');
+  const reviewer = retried.prompts.find((entry) => entry.role === 'reviewer')!;
   assert.match(reviewer.prompt, /\+\+\+ b\/implementer\.txt/);
   await git(repo.root, 'fetch', '-q', 'origin');
   await git(repo.root, 'cat-file', '-e', 'origin/main:implementer.txt');

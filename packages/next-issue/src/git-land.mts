@@ -1,5 +1,14 @@
 import { evenWhenStopped } from './children.mts';
-import { fetchBase, git, isOnBase, oneFetchAtATime, revision, succeeds } from './git.mts';
+import {
+  fetchBase,
+  git,
+  isAncestor,
+  isLanded,
+  isOnBase,
+  oneFetchAtATime,
+  revision,
+  succeeds,
+} from './git.mts';
 import { commitEverything } from './git-commit.mts';
 
 export const PUSH_TRIES = 3;
@@ -47,6 +56,32 @@ export async function revertOnBase(cwd: string, revert: Revert): Promise<boolean
   }
 }
 
+export type Reapply = Pick<Revert, 'base' | 'remote' | 'branch' | 'reapply'> & {
+  reverted: string;
+};
+
+export async function reapplyRevert(cwd: string, reapply: Reapply): Promise<boolean> {
+  const { base, remote, branch, reverted } = reapply;
+  if ((await isAncestor(cwd, reverted, 'HEAD')) && !(await isLanded(cwd, base, remote))) {
+    return false;
+  }
+  await git(cwd, ['checkout', '--force', '--detach', reverted]);
+  await git(cwd, ['clean', '-fd']);
+  await commitReapply(cwd, reverted, reapply.reapply, branch);
+  return true;
+}
+
+async function commitReapply(
+  cwd: string,
+  reverted: string,
+  message: string,
+  branch: string,
+): Promise<void> {
+  await git(cwd, ['revert', '--no-commit', reverted]);
+  await git(cwd, ['commit', '--no-verify', '-m', message]);
+  await git(cwd, ['checkout', '-B', branch]);
+}
+
 async function pushRevert(cwd: string, revert: Revert): Promise<boolean> {
   const { base, remote, branch, shas, message, reapply, pushing } = revert;
   for (let attempt = 1; attempt <= PUSH_TRIES; attempt += 1) {
@@ -60,9 +95,7 @@ async function pushRevert(cwd: string, revert: Revert): Promise<boolean> {
     const reverted = await revision(cwd);
     await pushing(reverted);
     if ((await pushToBase(cwd, remote, base)) || (await isOnBase(cwd, base, remote, reverted))) {
-      await git(cwd, ['revert', '--no-commit', reverted]);
-      await git(cwd, ['commit', '--no-verify', '-m', reapply]);
-      await git(cwd, ['checkout', '-B', branch]);
+      await commitReapply(cwd, reverted, reapply, branch);
       return true;
     }
   }
