@@ -124,7 +124,7 @@ function hunter(
   fake: FakeWatch,
   readyLists: number[][],
   cap = 1,
-  failures: boolean[] = [],
+  results: Array<'filed' | 'failed' | 'none'> = [],
 ): FakeHunter {
   const steps: string[] = [];
   const { promise: idle, resolve } = deferred();
@@ -142,9 +142,9 @@ function hunter(
       return numbers.map(issue);
     },
     hunt: async () => {
-      const failed = failures.shift() ?? false;
-      steps.push(failed ? 'hunt failed' : 'hunt');
-      return !failed;
+      const outcome = results.shift() ?? 'filed';
+      steps.push(outcome === 'filed' ? 'hunt' : `hunt ${outcome}`);
+      return outcome === 'filed';
     },
     wait: async (minutes, signal) => {
       steps.push(`wait ${minutes}`);
@@ -230,7 +230,7 @@ test('a user who presses Ctrl-C during a hunt sees the watch stop after that hun
 
 test('a user who watches with --hunt sees the hunter wait with the back-off after each failed hunt, and back at 1 minute after a hunt that succeeds', async () => {
   const fake = watcher([['done']]);
-  const hunting = hunter(fake, [[], [], [], []], 1, [true, true, false, true]);
+  const hunting = hunter(fake, [[], [], [], []], 1, ['failed', 'failed', 'filed', 'failed']);
   holdIssues(fake, hunting.idle);
   await watchIssues(ARGS, fake);
   assert.deepEqual(hunting.steps, [
@@ -240,6 +240,25 @@ test('a user who watches with --hunt sees the hunter wait with the back-off afte
     'wait 2',
     'hunt',
     'hunt failed',
+    'wait 1',
+    'wait 2',
+  ]);
+});
+
+test('a user who watches with --hunt sees the hunter wait with the back-off after each hunt that files nothing, and back at 1 minute after a hunt that files an issue', async () => {
+  const fake = watcher([['done']]);
+  const hunting = hunter(fake, [[], [], [], [], []], 1, ['none', 'none', 'none', 'filed', 'none']);
+  holdIssues(fake, hunting.idle);
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(hunting.steps, [
+    'hunt none',
+    'wait 1',
+    'hunt none',
+    'wait 2',
+    'hunt none',
+    'wait 3',
+    'hunt',
+    'hunt none',
     'wait 1',
     'wait 2',
   ]);

@@ -159,7 +159,19 @@ test('a user whose hunt fails sees the hunter report the failure so the watch ba
   assert.equal(await hunter(target.context).hunt(), false);
 });
 
-test('a user whose hunt succeeds sees the hunter report the success', async (t) => {
-  const target = await harness(t);
+test('a user whose hunt files an issue sees the hunter report the success', async (t) => {
+  const target = await harness(t, {
+    hunterText: 'Found it.\nissue: https://github.com/acme/tool/issues/9',
+  });
   assert.equal(await hunter(target.context).hunt(), true);
+});
+
+test('a user whose hunt replies issue: none sees the hunter report it so the watch backs off', async (t) => {
+  const target = await harness(t, { hunterText: 'Nothing found.\nissue: none' });
+  assert.equal(await hunter(target.context).hunt(), false);
+});
+
+test('a user whose hunt reply has no issue line sees the hunter report it so the watch backs off', async (t) => {
+  const target = await harness(t, { hunterText: 'Nothing found.' });
+  assert.equal(await hunter(target.context).hunt(), false);
 });

@@ -29,9 +29,9 @@ export async function huntWorktree(repo: Repo, base: string, remote: string): Pr
   return path;
 }
 
-export async function hunt(context: Context): Promise<void> {
+export async function hunt(context: Context): Promise<boolean> {
   const { repo, config, base, recorder, ports } = context;
-  await recorder.step('hunt', {}, async () => {
+  return recorder.step('hunt', {}, async () => {
     const cwd = await oneAtATime(repo.root, () => ports.huntWorktree(repo, base, config.remote));
     await ports.ensureLabel(repo, config.labels.hunt);
     const instructions = await readTextIfPresent(join(repo.root, HUNT_FILE));
@@ -42,7 +42,9 @@ export async function hunt(context: Context): Promise<void> {
       profile: REVIEWING,
       timeoutMs: minutesToMs(config.agentTimeoutMinutes),
     });
-    recorder.event('hunt.issue', { url: FILED.exec(result.text)?.[1] ?? 'none' }, 'quiet');
+    const url = FILED.exec(result.text)?.[1] ?? 'none';
+    recorder.event('hunt.issue', { url }, 'quiet');
+    return /^https?:\/\//.test(url);
   });
 }
 
@@ -65,8 +67,7 @@ export function hunter(context: Context): Hunter & { busy: () => boolean } {
     hunt: async () => {
       hunting = true;
       try {
-        await hunt(context);
-        return true;
+        return await hunt(context);
       } catch {
         return false;
       } finally {
