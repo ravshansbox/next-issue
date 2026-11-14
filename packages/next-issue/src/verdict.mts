@@ -59,15 +59,32 @@ function parseJson(text: string): { value: unknown } | undefined {
 }
 
 export function parseVerdict(text: string): Verdict | undefined {
-  const last = [...text.matchAll(JSON_FENCE)].at(-1);
+  const fences = [...text.matchAll(JSON_FENCE)];
+  const last = fences.at(-1);
   if (last === undefined) {
     return undefined;
   }
-  const start = last.index + last[0].length;
+  for (const fence of fences.toReversed()) {
+    const block = readBlock(text, fence.index + fence[0].length);
+    if (block === undefined) {
+      continue;
+    }
+    if (block.end < last.index) {
+      return undefined;
+    }
+    const verdict = readVerdict(block.value);
+    if (verdict !== undefined) {
+      return verdict;
+    }
+  }
+  return undefined;
+}
+
+function readBlock(text: string, start: number): { value: unknown; end: number } | undefined {
   for (let end = text.indexOf(FENCE, start); end !== -1; end = text.indexOf(FENCE, end + 1)) {
     const parsed = parseJson(text.slice(start, end));
     if (parsed !== undefined) {
-      return readVerdict(parsed.value);
+      return { value: parsed.value, end };
     }
   }
   return undefined;

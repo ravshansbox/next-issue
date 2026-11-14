@@ -45,6 +45,28 @@ test('parseVerdict reads a verdict whose strings hold three backticks', () => {
   assert.deepEqual(parseVerdict(`\`\`\`json\n${JSON.stringify(verdict)}\n\`\`\``), verdict);
 });
 
+test('parseVerdict reads a verdict whose strings quote a fenced json block', () => {
+  const verdict: Verdict = {
+    summary: 'Quote ```json\n{}\n``` here.',
+    findings: [{ severity: 'blocking', detail: 'Add to config:\n```json\n{"a": 1}\n```' }],
+  };
+  const text = ['```json', JSON.stringify(verdict, null, 2), '```', 'Done.'].join('\n');
+  assert.deepEqual(parseVerdict(text), verdict);
+  assert.deepEqual(parseVerdict(`\`\`\`json\n${JSON.stringify(verdict)}\n\`\`\``), verdict);
+});
+
+test('parseVerdict gives undefined when the last json block is invalid after a valid one', () => {
+  const valid = JSON.stringify({ summary: 'ok', findings: [] });
+  assert.equal(
+    parseVerdict(`\`\`\`json\n${valid}\n\`\`\`\n\`\`\`json\n{"summary": \n\`\`\``),
+    undefined,
+  );
+  assert.equal(
+    parseVerdict(`\`\`\`json\n${valid}\n\`\`\`\n\`\`\`json\n{"a": 1}\n\`\`\``),
+    undefined,
+  );
+});
+
 test('parseVerdict gives undefined without a valid json block', () => {
   assert.equal(parseVerdict('Looks good to me.'), undefined);
   assert.equal(parseVerdict('```json\n{"summary": \n```'), undefined);
