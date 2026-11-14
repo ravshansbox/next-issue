@@ -17,6 +17,8 @@ export function parseResolved(text: string): string | undefined {
 const CLOSING_REFERENCE =
   /(\s*[,;]?\s*(?:and\s+)?)\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?)(\s*:\s*|\s+)(?:[\w.-]+\/[\w.-]+#\d+|#\d+|https?:\/\/\S+\/(?:issues|pull)\/\d+)/gi;
 
+const BARE_TYPE = /^\w+(?:\([^)]*\))?!?$/;
+
 export function withoutClosingReferences(subject: string, fallback: string): string {
   const cleaned = subject
     .replace(
@@ -28,7 +30,8 @@ export function withoutClosingReferences(subject: string, fallback: string): str
     .replace(/\s+/g, ' ')
     .replace(/[\s,;:]+$/, '')
     .trim();
-  return cleaned || fallback;
+  const onlyType = subject.search(CLOSING_REFERENCE) !== -1 && BARE_TYPE.test(cleaned);
+  return cleaned && !onlyType ? cleaned : fallback;
 }
 
 export function parseCommitSubject(text: string, fallback: string): string {

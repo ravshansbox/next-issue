@@ -131,6 +131,14 @@ test('withoutClosingReferences drops each closing keyword with its issue referen
   assert.equal(withoutClosingReferences('closes #7', FALLBACK), FALLBACK);
 });
 
+test('withoutClosingReferences gives the fallback when only the commit type is left', () => {
+  assert.equal(withoutClosingReferences('fix: resolve #12', FALLBACK), FALLBACK);
+  assert.equal(withoutClosingReferences('feat(api): closes #7', FALLBACK), FALLBACK);
+  assert.equal(withoutClosingReferences('fix: fix #7', FALLBACK), FALLBACK);
+  assert.equal(withoutClosingReferences('fix: #7', FALLBACK), FALLBACK);
+  assert.equal(withoutClosingReferences('fix!: closes #7', FALLBACK), FALLBACK);
+});
+
 test('withoutClosingReferences keeps a subject with no closing reference', () => {
   assert.equal(
     withoutClosingReferences('fix: resolve issue #7', FALLBACK),
