@@ -105,7 +105,9 @@ the run handles one issue. For each issue:
    summary and one entry per finding, each rated `blocking` or `minor`. A
    reply without a valid block hands the issue to a person. The findings are the only ground
    truth. The reviewer gives no approve or reject field, because such a field
-   can contradict the findings. The harness puts the result on the issue.
+   can contradict the findings. The harness puts the result on the issue. A
+   result longer than a GitHub comment (65536 characters) is cut to fit, with a
+   last line that says so.
 6. An open finding is any finding, blocking or minor, while a review round is
    left. In the last round, only a blocking finding stays open: a minor finding
    there goes on the issue but starts no fix, because a fix in the last
@@ -254,6 +256,8 @@ Each agent that writes to the issue names itself in the first line of the
 comment: `### Review: approved`, `### Review: changes requested`,
 `### Fixer: no change` and `### Fixer: settled with no change`. The account is
 the same for all of them, so the heading, not the author, tells them apart.
+A comment longer than 65536 characters is cut to fit, with a last line that
+says so.
 The agents get no comment that starts with one of these headings or with
 `next-issue needs help:`, so a comment of an agent never returns to a
 prompt: the dispute of the fixer reaches the reviewer through the state file.

@@ -16,6 +16,7 @@ import type { Fields, Recorder } from './observe.mts';
 import { revertFailedFix } from './revert.mts';
 import { logIssueError } from './skip.mts';
 import { dropState, type IssueState, writeState } from './state.mts';
+import { fitComment } from './text.mts';
 
 export async function escalateAndFinish(job: Run, note: string, reason: string): Promise<Finished> {
   const reverted = await revertFailedFix(job);
@@ -154,17 +155,10 @@ async function handOver(
   await ports.commentOnIssue(repo, issue, handOverComment(reason));
 }
 
-const COMMENT_LIMIT = 65536;
 const CUT = '\n\nThe reason was too long for a GitHub comment and was cut.';
 
 function handOverComment(reason: string): string {
-  const comment = `${HAND_OVER} ${reason}`;
-  if (comment.length <= COMMENT_LIMIT) {
-    return comment;
-  }
-  const end = COMMENT_LIMIT - CUT.length;
-  const splitsPair = /[\uD800-\uDBFF]/.test(comment.charAt(end - 1));
-  return `${comment.slice(0, splitsPair ? end - 1 : end)}${CUT}`;
+  return fitComment(`${HAND_OVER} ${reason}`, CUT);
 }
 
 export async function claimedError(

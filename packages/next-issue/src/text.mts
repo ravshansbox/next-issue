@@ -17,3 +17,14 @@ export function truncate(text: string, max: number, ellipsis: string): string {
 export function keepTail(text: string, limit: number | undefined): string {
   return limit !== undefined && text.length > limit ? text.slice(-limit) : text;
 }
+
+const COMMENT_LIMIT = 65536;
+
+export function fitComment(comment: string, cut: string): string {
+  if (comment.length <= COMMENT_LIMIT) {
+    return comment;
+  }
+  const end = COMMENT_LIMIT - cut.length;
+  const splitsPair = /[\uD800-\uDBFF]/.test(comment.charAt(end - 1));
+  return `${comment.slice(0, splitsPair ? end - 1 : end)}${cut}`;
+}
