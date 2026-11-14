@@ -164,7 +164,7 @@ test('a user who hunts sees the hunter count only issues that the watch can clai
   const watched = hunter(target.context);
   assert.equal(watched.cap, 3);
   assert.deepEqual(
-    (await watched.ready(new Set())).map((issue) => issue.number),
+    (await watched.ready(new Set(), new Set())).map((issue) => issue.number),
     [7],
   );
   assert.deepEqual(asked, [['status:todo']]);
@@ -199,8 +199,18 @@ test('a user who hunts sees the hunter count an issue blocked only by running or
   const target = await harness(t, { open });
   target.context.ports.openBlockers = async (_repo, number) => blockers[number] ?? ['#9', '#30'];
   assert.deepEqual(
-    (await hunter(target.context).ready(new Set([20]))).map((issue) => issue.number),
+    (await hunter(target.context).ready(new Set([20]), new Set())).map((issue) => issue.number),
     [7, 8, 9],
+  );
+});
+
+test('a user who hunts sees the hunter leave out an issue that failed earlier in the run, and an issue blocked only by it', async (t) => {
+  const open = [7, 8, 9].map((number) => ({ ...ISSUE, number }));
+  const target = await harness(t, { open });
+  target.context.ports.openBlockers = async (_repo, number) => (number === 8 ? ['#7'] : []);
+  assert.deepEqual(
+    (await hunter(target.context).ready(new Set(), new Set([7]))).map((issue) => issue.number),
+    [9],
   );
 });
 

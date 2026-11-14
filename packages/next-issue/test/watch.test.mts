@@ -193,9 +193,9 @@ test('a user who watches with --hunt sees the running issues left out of the rea
   const { promise: started, resolve } = deferred();
   const hunting = hunter(fake, [[1]]);
   const ready = fake.hunter!.ready;
-  fake.hunter!.ready = async (running) => {
+  fake.hunter!.ready = async (running, failed) => {
     await started;
-    return ready(running);
+    return ready(running, failed);
   };
   const process = fake.process;
   fake.process = async (target) => {
@@ -214,16 +214,37 @@ test('a user who watches with --hunt sees the hunter told which issues run, so i
   const hunting = hunter(fake, [[]]);
   const ready = fake.hunter!.ready;
   const seen: number[][] = [];
-  fake.hunter!.ready = async (running) => {
+  fake.hunter!.ready = async (running, failed) => {
     await started;
     seen.push([...running]);
-    return ready(running);
+    return ready(running, failed);
   };
   const process = fake.process;
   fake.process = async (target) => {
     resolve();
     await hunting.idle;
     return process(target);
+  };
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(seen[0], [1]);
+});
+
+test('a user who watches with --hunt sees the hunter told which issues failed earlier in the run, so it leaves them out of the count', async () => {
+  const fake = watcher([['error'], []]);
+  const { promise: failedPass, resolve } = deferred();
+  const hunting = hunter(fake, [[]]);
+  const ready = fake.hunter!.ready;
+  const seen: number[][] = [];
+  fake.hunter!.ready = async (running, failed) => {
+    await failedPass;
+    seen.push([...failed]);
+    return ready(running, failed);
+  };
+  const wait = fake.wait;
+  fake.wait = async (minutes) => {
+    resolve();
+    await hunting.idle;
+    return wait(minutes);
   };
   await watchIssues(ARGS, fake);
   assert.deepEqual(seen[0], [1]);

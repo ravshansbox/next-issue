@@ -59,9 +59,9 @@ export function hunter(context: Context): Hunter & { busy: () => boolean } {
   let hunting = false;
   return {
     cap: config.huntCap,
-    ready: async (running) => {
+    ready: async (running, failed) => {
       const open = (await ports.openIssues(repo, config.issueLimit, labels)).filter(
-        (issue) => skipReason(issue, config, false) === undefined,
+        (issue) => !failed.has(issue.number) && skipReason(issue, config, false) === undefined,
       );
       const claimable = new Set(open.map((issue) => issue.number));
       const blockers = await Promise.all(

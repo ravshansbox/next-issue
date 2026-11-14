@@ -5,7 +5,7 @@ import { handled, type Loop, type LoopResult, runIssues } from './loop.mts';
 
 export type Hunter = {
   cap: number;
-  ready: (running: ReadonlySet<number>) => Promise<Issue[]>;
+  ready: (running: ReadonlySet<number>, failed: ReadonlySet<number>) => Promise<Issue[]>;
   hunt: (count: number) => Promise<boolean>;
   wait: (minutes: number, signal: AbortSignal) => Promise<void>;
 };
@@ -23,6 +23,7 @@ export async function watchIssues(
   watch: Watch,
 ): Promise<LoopResult> {
   const running = new Set<number>();
+  const failed = new Set<number>();
   const ended = new AbortController();
   const claims = claimAlarm();
   const hunting =
@@ -31,12 +32,13 @@ export async function watchIssues(
       : huntIssues(
           watch.hunter,
           running,
+          failed,
           claims,
           () => ended.signal.aborted || watch.stop(),
           ended.signal,
         );
   try {
-    return await watchPasses(args, {
+    return await watchPasses(args, failed, {
       ...watch,
       process: async (issue) => {
         running.add(issue.number);
@@ -82,13 +84,14 @@ function claimAlarm(): ClaimAlarm {
 async function huntIssues(
   hunter: Hunter,
   running: Set<number>,
+  failed: ReadonlySet<number>,
   claims: ClaimAlarm,
   stopped: () => boolean,
   signal: AbortSignal,
 ): Promise<void> {
   let step = 0;
   while (!stopped()) {
-    const ready = await hunter.ready(running).catch(() => undefined);
+    const ready = await hunter.ready(running, failed).catch(() => undefined);
     claims.take();
     const waiting = ready?.filter((issue) => !running.has(issue.number)).length;
     if (waiting !== undefined && waiting < hunter.cap) {
@@ -107,10 +110,13 @@ async function huntIssues(
   }
 }
 
-async function watchPasses(args: Pick<Args, 'max' | 'once'>, watch: Watch): Promise<LoopResult> {
+async function watchPasses(
+  args: Pick<Args, 'max' | 'once'>,
+  failed: Set<number>,
+  watch: Watch,
+): Promise<LoopResult> {
   const limit = args.once ? 1 : args.max;
   const reports: IssueReport[] = [];
-  const failed = new Set<number>();
   let step = 0;
   for (;;) {
     const pass = await runIssues(
