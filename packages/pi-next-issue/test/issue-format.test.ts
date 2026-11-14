@@ -24,7 +24,7 @@ test('a user who installs pi-next-issue gets the create-issue skill', async () =
   assert.deepEqual(manifest.pi.skills, ['./skills']);
   assert.ok(manifest.files.includes('skills'));
   assert.match(skill, /^---\nname: create-issue\n/);
-  assert.match(skill, /gh issue create .*--body-file .*--label "<ready>"/);
+  assert.match(skill, /gh issue create --repo <repo> .*--body-file .*--label "<ready>"/);
 });
 
 test('an agent who creates an issue reads the ready label from labels.ready in .next-issue/config.json', async () => {
@@ -44,12 +44,12 @@ test('an agent who finds no labels.ready, or no config file, uses status:todo as
 test('an agent who finds labels.ready empty creates the issue with no label', async () => {
   const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
   assert.match(skill, /When `labels\.ready` is empty \(`""`\), add no label/);
-  assert.match(skill, /gh issue create --title "<title>" --body-file <file>\n/);
+  assert.match(skill, /gh issue create --repo <repo> --title "<title>" --body-file <file>\n/);
 });
 
 test('an agent who creates an issue in a repository without the ready label creates the label first', async () => {
   const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
-  assert.match(skill, /gh label create "<ready>"[\s\S]*gh issue create/);
+  assert.match(skill, /gh label create --repo <repo> "<ready>"[\s\S]*gh issue create/);
 });
 
 test('an agent who creates an issue with the create-issue skill adds no label other than the ready label', async () => {
@@ -76,7 +76,7 @@ test('a user who asks pi for a change in a repository with .next-issue/config.js
 test('an agent who creates an issue with the create-issue skill links it to the open issues it depends on', async () => {
   const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
   assert.match(skill, /gh issue list/);
-  assert.match(skill, /gh issue edit <number> --add-blocked-by <blocker>/);
+  assert.match(skill, /gh issue edit --repo <repo> <number> --add-blocked-by <blocker>/);
 });
 
 test('an agent who finds a change too big for one atomic commit proposes a split of linked issues for the user to confirm', async () => {
@@ -94,6 +94,23 @@ test('a user who reads the pi-next-issue README learns that the create-issue ski
 
 test('a user who asks the create-issue skill to change a created issue gets the issue edited on GitHub', async () => {
   const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
-  assert.match(skill, /gh issue edit <number> --body-file <file>/);
-  assert.match(skill, /gh issue edit <number> --title "<title>"/);
+  assert.match(skill, /gh issue edit --repo <repo> <number> --body-file <file>/);
+  assert.match(skill, /gh issue edit --repo <repo> <number> --title "<title>"/);
+});
+
+test('an agent who runs a gh command of the create-issue skill names the repository of the configured remote', async () => {
+  const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
+  const commands = [...skill.matchAll(/`(gh [^`]+)`|^ *(gh .+)$/gm)].map(
+    (match) => match[1] ?? match[2] ?? '',
+  );
+  assert.ok(commands.length >= 7);
+  for (const command of commands) assert.match(command, /--repo <repo>/, command);
+  assert.match(skill, /`remote` in `\.next-issue\/config\.json`/);
+  assert.match(skill, /git remote get-url <remote>/);
+  assert.match(skill, /there is no config file or no `remote` field, `<remote>` is `origin`/);
+});
+
+test('a user who reads the pi-next-issue README learns which repository the create-issue skill files in', async () => {
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
+  assert.match(readme, /repository of the `remote` of `\.next-issue\/config\.json`/);
 });

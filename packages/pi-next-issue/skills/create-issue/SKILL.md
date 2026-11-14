@@ -8,7 +8,10 @@ description: Turn a problem into a clear GitHub issue that the next-issue worker
 Turn the problem of the user into one GitHub issue, or a split of linked issues when the change is too big for one commit, in the format of `template.md`, next to this file.
 
 1. Understand the problem. Restate it in your own words.
-2. Investigate the code when the problem touches it. Read the relevant files and note what you find, with file paths. Run `gh issue list` and note each open issue that must be done first, including the issues you create in the same session.
+2. Find the repository, `<repo>`, that the worker reads. `<remote>` is the value of `remote` in `.next-issue/config.json` at the root of the repository. When there is no config file or no `remote` field, `<remote>` is `origin`. Run `git remote get-url <remote>` and take `<owner>/<name>` from the url, without `.git`. That is `<repo>`. Pass `--repo <repo>` to every `gh` command, since gh otherwise may pick another remote, such as `upstream`.
+
+   Investigate the code when the problem touches it. Read the relevant files and note what you find, with file paths. Run `gh issue list --repo <repo>` and note each open issue that must be done first, including the issues you create in the same session.
+
 3. Judge whether the change fits one atomic commit that leaves the trunk green. When it does not, propose a split into issues that each land alone and keep the trunk green, in the order they land, and note which issues of the split each one depends on.
 4. Ask numbered questions about anything that is unclear: the scope, the expected behaviour, the acceptance criteria. When you propose a split, ask the user to confirm the split with the other questions. Label options with letters and recommend one. Ask again until no question is open.
 5. Write the body from `template.md` into a temporary file. Keep every heading of the template and its order. Leave `Open questions` empty.
@@ -17,26 +20,26 @@ Turn the problem of the user into one GitHub issue, or a split of linked issues 
    Create the `<ready>` label when the repository does not have it:
 
    ```bash
-   gh label list --search "<ready>"
-   gh label create "<ready>"
+   gh label list --repo <repo> --search "<ready>"
+   gh label create --repo <repo> "<ready>"
    ```
 
    Then create the issue without showing the body first. Add no label other than `<ready>`:
 
    ```bash
-   gh issue create --title "<title>" --body-file <file> --label "<ready>"
+   gh issue create --repo <repo> --title "<title>" --body-file <file> --label "<ready>"
    ```
 
    When `labels.ready` is empty (`""`), add no label, since the worker then claims every open issue. Skip the label commands and run:
 
    ```bash
-   gh issue create --title "<title>" --body-file <file>
+   gh issue create --repo <repo> --title "<title>" --body-file <file>
    ```
 
 7. Link each blocker:
 
    ```bash
-   gh issue edit <number> --add-blocked-by <blocker>
+   gh issue edit --repo <repo> <number> --add-blocked-by <blocker>
    ```
 
    For a confirmed split, repeat steps 5 to 7 for each issue of the split, in order. Link each one to the issues of the split it depends on.
@@ -45,13 +48,13 @@ Turn the problem of the user into one GitHub issue, or a split of linked issues 
 9. When the user picks c, make the change on GitHub and ask again. Write the new body into the temporary file and run:
 
    ```bash
-   gh issue edit <number> --body-file <file>
+   gh issue edit --repo <repo> <number> --body-file <file>
    ```
 
    To change the title, run:
 
    ```bash
-   gh issue edit <number> --title "<title>"
+   gh issue edit --repo <repo> <number> --title "<title>"
    ```
 
 10. Only when the user picks a, call the `next_issue_start` tool, and tell the user what it reports.

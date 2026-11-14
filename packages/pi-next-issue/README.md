@@ -48,6 +48,8 @@ The package ships the `create-issue` skill. Ask pi to write an issue, ask for a 
 6. gives you the issue url and asks once whether to start a run, leave it or change it, and changes it with `gh issue edit --body-file` or `--title` until you start a run or leave it;
 7. calls `next_issue_start` when you asked for a run.
 
+Pi files the issue, the ready label and the blocker links in the repository of the `remote` of `.next-issue/config.json`, or of `origin` when there is no config file or no `remote` field, as the worker does. It passes `--repo` to every `gh` command, so another remote, such as the `upstream` of a fork, never gets the issue.
+
 The issue gets the ready label when it is created, so a run that is already going may claim it before you review it.
 
 Pi does not implement the issue in that session. The worker does the work. The body holds the sections of the [issue format](../next-issue/README.md#issue-format).
