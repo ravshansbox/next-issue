@@ -24,7 +24,7 @@ export async function revert(job: Run): Promise<string> {
     }),
   );
   if (!pushed) {
-    return ` The revert of the change on ${base} failed.`;
+    return ` The revert of the change on ${base} failed, so the landed commits stay on ${base}.`;
   }
   state.landed = undefined;
   await writeState(repo, state);

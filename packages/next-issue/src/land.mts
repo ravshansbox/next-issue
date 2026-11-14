@@ -1,6 +1,6 @@
 import { runStopped } from './children.mts';
 import { rebase } from './conflict.mts';
-import { checkGate } from './gate.mts';
+import { checkGate, escalateError } from './gate.mts';
 import { PUSH_TRIES } from './git-land.mts';
 import { escalateAndFinish, finishDone } from './handover.mts';
 import type { Finished, Run } from './job.mts';
@@ -43,8 +43,17 @@ function landing(job: Run, work: () => Promise<Finished>): Promise<Finished> {
 async function landLoop(job: Run): Promise<Finished> {
   for (;;) {
     const pushed = await pushChange(job).catch(async (error: unknown) => {
-      await revertFailedFix(job);
-      throw error;
+      if (!job.repairing || runStopped()) {
+        await revertFailedFix(job);
+        throw error;
+      }
+      job.repairing = false;
+      return escalateError(
+        job,
+        error,
+        `The landing of the fix for the checks on ${job.context.base} failed`,
+        'fix landing error',
+      );
     });
     if (typeof pushed !== 'string') {
       return pushed;

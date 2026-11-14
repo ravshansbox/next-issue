@@ -208,25 +208,65 @@ test('a user whose fix for main cannot be pushed gets the change reverted', asyn
   );
 });
 
-test('a user whose landing of the fix for main fails with an error gets the change reverted', async (t) => {
+async function fixLandingFails(t: Parameters<typeof harness>[0], options = {}) {
   const target = await harness(t, {
     baseChecks: ['fail'],
     fixerText: 'Done.\ncommit: fix: repair main',
+    ...options,
   });
   const ports = target.context.ports;
   const startMerge = ports.startMerge;
   ports.startMerge = async (...args) => {
     if (target.landed.length > 0) {
-      throw new Error('git: fetch failed');
+      throw new Error('git: merge failed');
     }
     return startMerge(...args);
   };
+  return target;
+}
+
+test('a user whose landing of the fix for main fails with an error gets the change reverted, the issue handed over and the run halted', async (t) => {
+  const target = await fixLandingFails(t);
   const report = await target.run();
-  assert.equal(report.outcome, 'error');
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'fix landing error');
+  assert.equal(report.halt, true);
   assert.deepEqual(
     target.reverts.map((entry) => entry.shas),
     [['2']],
   );
+  assert.match(
+    target.comments.at(-1)!,
+    /needs help: The landing of the fix for the checks on main failed: git: merge failed\. The harness reverted the change on main\./,
+  );
+  assert.equal((await target.state())?.landed, undefined);
+});
+
+test('a user whose landing of the fix for main fails with an error and whose revert fails gets the landed commits kept, the issue handed over and the run halted', async (t) => {
+  const target = await fixLandingFails(t, { revertFails: true });
+  const report = await target.run();
+  assert.equal(report.reason, 'fix landing error');
+  assert.equal(report.halt, true);
+  assert.match(
+    target.comments.at(-1)!,
+    /failed: git: merge failed\. The revert of the change on main failed, so the landed commits stay on main\./,
+  );
+  assert.deepEqual((await target.state())?.landed, ['2']);
+});
+
+test('a user whose landing of the fix for main fails with an error and whose revert throws gets the original error handed over and the run halted', async (t) => {
+  const target = await fixLandingFails(t);
+  target.context.ports.revertOnBase = async () => {
+    throw new Error('git: fetch failed');
+  };
+  const report = await target.run();
+  assert.equal(report.reason, 'fix landing error');
+  assert.equal(report.halt, true);
+  assert.match(
+    target.comments.at(-1)!,
+    /failed: git: merge failed\. The revert of the change on main failed: git: fetch failed\. The landed commits stay on main\./,
+  );
+  assert.deepEqual((await target.state())?.landed, ['2']);
 });
 
 test('a user whose fixer for the failed checks on main fails with an error gets the change reverted, the issue handed over and the run halted', async (t) => {
