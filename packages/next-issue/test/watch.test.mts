@@ -428,18 +428,82 @@ test('a user who watches with --hunt sees a claim wake the hunter, which waits a
   ]);
 });
 
-test('a user who watches with --hunt sees a pass that skips an issue during a hunt not wake the hunter, which waits with the back-off', async () => {
-  const fake = watcher([[], ['skipped']]);
-  const hunting = wakeable(fake, [[], [], []], 1);
-  claimAfter(fake, hunting.hunted);
+test('a user who watches with --hunt sees passes that each skip an issue during a hunt not wake the hunter, which waits 1, 2, 3, 5, 10, 10 minutes', async () => {
+  const fake = watcher(Array.from({ length: 6 }, () => ['skipped']));
+  let hunting = deferred();
+  let skipped = deferred();
+  let waited = deferred();
+  const steps: string[] = [];
+  fake.hunter = {
+    cap: 1,
+    ready: async () => [],
+    hunt: async () => {
+      steps.push('hunt');
+      const seen = skipped;
+      hunting.resolve();
+      await Promise.race([seen.promise, sleep(50)]);
+      return false;
+    },
+    wait: async (minutes, signal) => {
+      steps.push(`wait ${minutes}`);
+      waited.resolve();
+      if (steps.length >= 12 && !signal.aborted) {
+        await new Promise((done) => signal.addEventListener('abort', done, { once: true }));
+      }
+    },
+  };
+  const process = fake.process;
+  fake.process = async (target, claimed) => {
+    await hunting.promise;
+    hunting = deferred();
+    const processed = await process(target, claimed);
+    skipped.resolve();
+    skipped = deferred();
+    return processed;
+  };
+  const wait = fake.wait;
+  fake.wait = async (minutes) => {
+    await Promise.race([waited.promise, sleep(50)]);
+    waited = deferred();
+    return wait(minutes);
+  };
   await watchIssues(ARGS, fake);
-  assert.deepEqual(hunting.steps, [
-    'ready 0',
-    'hunt',
-    'wait 1',
-    'ready 0',
-    'hunt',
-    'wait 2',
-    'wait over',
-  ]);
+  assert.deepEqual(
+    steps,
+    [1, 2, 3, 5, 10, 10].flatMap((minutes) => ['hunt', `wait ${minutes}`]),
+  );
+});
+
+test('a user who watches with --hunt sees passes that each skip an issue during a hunter wait not wake the hunter, which waits 1, 2, 3, 5, 10, 10 minutes', async () => {
+  const fake = watcher(Array.from({ length: 6 }, () => ['skipped']));
+  const waits: number[] = [];
+  let hunterWaiting = deferred();
+  let skipped = deferred();
+  fake.hunter = {
+    cap: 1,
+    ready: async () => [],
+    hunt: async () => false,
+    wait: async (minutes, signal) => {
+      waits.push(minutes);
+      hunterWaiting.resolve();
+      const aborted = new Promise((done) => signal.addEventListener('abort', done, { once: true }));
+      await Promise.race([skipped.promise, aborted]);
+    },
+  };
+  const process = fake.process;
+  fake.process = async (target, claimed) => {
+    await hunterWaiting.promise;
+    hunterWaiting = deferred();
+    const processed = await process(target, claimed);
+    skipped.resolve();
+    skipped = deferred();
+    return processed;
+  };
+  const wait = fake.wait;
+  fake.wait = async (minutes) => {
+    await hunterWaiting.promise;
+    return wait(minutes);
+  };
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(waits, [1, 2, 3, 5, 10, 10, 10]);
 });
