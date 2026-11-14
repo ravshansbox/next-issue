@@ -13,7 +13,7 @@ test('the check budget hands the issue to a person', async (t) => {
     target.comments.at(-1)!,
     /needs help: The checks on main failed and the limit of 1 check fixes/,
   );
-  assert.equal((await target.state())?.phase, 'review');
+  assert.equal((await target.state())?.phase, 'approved');
 });
 
 test('a check budget of zero stops before the first fix', async (t) => {

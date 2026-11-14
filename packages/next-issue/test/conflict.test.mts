@@ -115,6 +115,24 @@ const TEXT_CONFLICT: Conflict = {
   },
 };
 
+const REAL_GIT = {
+  abortMerge,
+  addWorktree,
+  commitAll,
+  commitMerge,
+  diff,
+  discardChanges,
+  findWorktree,
+  isDirty,
+  latestSubject,
+  pushToBase,
+  removeWorktree,
+  revision,
+  setAside,
+  squashOnto,
+  startMerge,
+};
+
 async function realMerge(
   t: TestContext,
   fixer: Fixer,
@@ -135,21 +153,7 @@ async function realMerge(
   const { ports } = target.context;
   const fake = ports.runAgent;
   Object.assign(ports, {
-    abortMerge,
-    addWorktree,
-    commitAll,
-    commitMerge,
-    diff,
-    discardChanges,
-    findWorktree,
-    isDirty,
-    latestSubject,
-    pushToBase,
-    removeWorktree,
-    revision,
-    setAside,
-    squashOnto,
-    startMerge,
+    ...REAL_GIT,
     runAgent: async (recorder: Recorder, request: AgentRequest) => {
       if (request.name === 'implementer') {
         await conflict.branch(request.cwd);
@@ -227,6 +231,33 @@ test('a user whose base branch moves while the fixer resolves a conflict gets th
   assert.equal(await git(base, 'rev-parse', `${landed}^`), moved);
   assert.equal(await git(base, 'show', `${landed}:d.txt`), 'd.txt');
   assert.equal(await git(base, 'show', `${landed}:a.txt`), 'branch and base');
+});
+
+test('a user who stops now while the fixer resolves a conflict of an approved change gets it landed by the next run with no new review', async (t) => {
+  let stopped: Harness | undefined;
+  const { target, base } = await realMerge(t, async (worktree) => {
+    await writeFile(join(worktree, 'a.txt'), 'branch and base\n');
+    await git(worktree, 'add', 'a.txt');
+    stopped!.stopNow();
+    throw new Error('The run stopped.');
+  });
+  stopped = target;
+  assert.equal((await target.run()).outcome, 'stopped');
+  const resumed = await harness(t, { root: target.context.repo.root });
+  const { ports } = resumed.context;
+  const fake = ports.runAgent;
+  Object.assign(ports, {
+    ...REAL_GIT,
+    runAgent: async (recorder: Recorder, request: AgentRequest) => {
+      await writeFile(join(request.cwd, 'a.txt'), 'branch and base\n');
+      return fake(recorder, request);
+    },
+  });
+  const report = await resumed.run();
+  assert.equal(report.reason, undefined);
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(roles(resumed), ['fixer']);
+  assert.equal(await git(base, 'show', `${await remoteMain(base)}:a.txt`), 'branch and base');
 });
 
 const MARKERLESS: Array<[string, Conflict, string]> = [

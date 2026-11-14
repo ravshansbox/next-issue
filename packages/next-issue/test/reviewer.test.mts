@@ -19,7 +19,7 @@ import type { Recorder } from '../src/observe.mts';
 import type { Verdict } from '../src/verdict.mts';
 import { addWorktree, findWorktree, removeWorktree } from '../src/worktree.mts';
 import { clones, git } from './clones.mts';
-import { APPROVE, changes, type Harness, harness, ISSUE, SAVED } from './harness.mts';
+import { APPROVE, changes, type Harness, harness, ISSUE, roles, SAVED } from './harness.mts';
 import { tempDir } from './temp-dir.mts';
 
 async function gitRepo(): Promise<Repo> {
@@ -212,7 +212,7 @@ function squashStoppedInHook(stopped: Harness, root: string): { head: () => stri
   return { head: () => head };
 }
 
-test('a user who stops now during the squash hook keeps the change on branch 7, and the resumed reviewer sees it and it lands', async (t) => {
+test('a user who stops now during the squash hook keeps the change on branch 7, and the resumed run lands it with no new review', async (t) => {
   const repo = await gitRepo();
   const hooks = await tempDir();
   const first = await harness(t, { root: repo.root });
@@ -227,8 +227,7 @@ test('a user who stops now during the squash hook keeps the change on branch 7, 
   withGit(resumed, async () => undefined);
   Object.assign(resumed.context.ports, { squashOnto, pushToBase });
   assert.equal((await resumed.run()).outcome, 'done');
-  const reviewer = resumed.prompts.find((entry) => entry.role === 'reviewer')!;
-  assert.match(reviewer.prompt, /\+\+\+ b\/implementer\.txt/);
+  assert.deepEqual(roles(resumed), []);
   await git(repo.root, 'fetch', '-q', 'origin');
   await git(repo.root, 'cat-file', '-e', 'origin/main:implementer.txt');
 });

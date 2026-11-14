@@ -181,6 +181,24 @@ test('discardChanges undoes a commit that the reviewer made', async () => {
   assert.equal(await readFile(join(path, 'a.txt'), 'utf8'), 'a.txt\n');
 });
 
+test('discardChanges ends a merge whose resolution matches HEAD, so a later merge can start', async () => {
+  const { repo, other } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  await git(path, 'config', 'user.name', 't');
+  await git(path, 'config', 'user.email', 't@t');
+  await writeFile(join(path, 'a.txt'), 'branch\n');
+  await git(path, 'commit', '-q', '-am', 'branch');
+  await writeFile(join(other, 'a.txt'), 'base\n');
+  await git(other, 'commit', '-q', '-am', 'base');
+  await git(other, 'push', '-q', 'origin', 'main');
+  await git(path, 'fetch', '-q', 'origin');
+  await git(path, 'merge', '--no-ff', '--no-commit', 'origin/main').catch(() => undefined);
+  await git(path, 'checkout', 'HEAD', '--', 'a.txt');
+  const head = await revision(path);
+  assert.equal(await discardChanges(path, head, '3'), true);
+  await assert.rejects(git(path, 'rev-parse', '--quiet', '--verify', 'MERGE_HEAD'));
+});
+
 test('setAside moves a commit of the fixer to another branch and leaves nothing for a later commit to sweep up', async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);

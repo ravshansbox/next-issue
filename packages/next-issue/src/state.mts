@@ -127,7 +127,8 @@ export function newState(issue: number, branch: string): IssueState {
 
 export function resetState(state: IssueState): IssueState {
   const { handedOver: _handedOver, ...rest } = state;
-  return { ...rest, ciFixes: 0, commitFixes: 0, reviewRounds: 0, reviewLog: [] };
+  const phase = rest.phase === 'approved' ? 'review' : rest.phase;
+  return { ...rest, phase, ciFixes: 0, commitFixes: 0, reviewRounds: 0, reviewLog: [] };
 }
 
 export async function writeState(repo: Repo, state: IssueState): Promise<void> {

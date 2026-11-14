@@ -20,10 +20,14 @@ export async function enterReview(job: Run): Promise<Round> {
   if (landed !== undefined) {
     return resumeLanding(job, landed);
   }
-  const approved = state.phase === 'approved';
+  if (state.phase === 'approved') {
+    const { ports } = context;
+    await ports.discardChanges(job.worktree, await ports.revision(job.worktree), job.branch);
+    return landApproved(job);
+  }
   state.phase = 'review';
   await writeState(context.repo, state);
-  return approved ? landApproved(job) : ROUND_CONTINUE;
+  return ROUND_CONTINUE;
 }
 
 async function settlePush(job: Run): Promise<void> {

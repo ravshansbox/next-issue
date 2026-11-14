@@ -46,6 +46,8 @@ export async function reviewRound(job: Run): Promise<Round> {
   await ports.commentOnIssue(repo, issue.number, fitComment(formatVerdict(verdict, open), CUT));
 
   if (open.length === 0) {
+    state.phase = 'approved';
+    await writeState(repo, state);
     return landApproved(job);
   }
   return changesRequestedRound(job, open, earlier);

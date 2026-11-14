@@ -86,7 +86,12 @@ export async function discardChanges(
   branch?: string,
 ): Promise<boolean> {
   const moved = branch !== undefined && (await currentBranch(cwd)) !== branch;
-  if (!moved && !(await isDirty(cwd)) && (await revision(cwd)) === target) {
+  if (
+    !moved &&
+    !(await isDirty(cwd)) &&
+    !(await succeeds(cwd, ['rev-parse', '--quiet', '--verify', 'MERGE_HEAD'])) &&
+    (await revision(cwd)) === target
+  ) {
     return false;
   }
   if (moved) {

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { APPROVE, changes, harness, ISSUE, roles } from './harness.mts';
+import type { TestContext } from 'node:test';
+import type { IssueState } from '../src/state.mts';
+import { APPROVE, changes, harness, ISSUE, type Plan, roles } from './harness.mts';
 
 test('a user who asks to stop during the implementation gets the run stopped before the push, with the state kept', async (t) => {
   const target = await harness(t, { pressDuring: 'implementer' });
@@ -130,4 +132,53 @@ test('a user who stops a run now while a new issue is claimed, after GitHub appl
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.deepEqual(target.closed, [7]);
+});
+
+async function stopDuringLanding(t: TestContext, plan: Plan): Promise<IssueState> {
+  const first = await harness(t, plan);
+  const ports = first.context.ports;
+  ports.startMerge = async () => {
+    first.stopNow();
+    throw new Error('The run stopped.');
+  };
+  assert.equal((await first.run()).outcome, 'stopped');
+  assert.deepEqual(first.landed, []);
+  return (await first.state())!;
+}
+
+test('a user who stops a run now while a change approved in the last review round lands gets it landed by the next run with no review budget hand-over', async (t) => {
+  const config = { maxReviewRounds: 1 };
+  const saved = await stopDuringLanding(t, { config });
+  const issue = { ...ISSUE, labels: ['status:in-review'] };
+  const target = await harness(t, { saved, issue, config });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.notEqual(report.reason, 'review budget');
+  assert.deepEqual(roles(target), []);
+  assert.equal(target.landed.length, 1);
+  assert.deepEqual(target.closed, [7]);
+});
+
+test('a user who stops a run now while a change approved in an earlier review round lands gets it landed by the next run with no new review', async (t) => {
+  const saved = await stopDuringLanding(t, {});
+  const issue = { ...ISSUE, labels: ['status:in-review'] };
+  const target = await harness(t, { saved, issue });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(roles(target), []);
+  assert.equal(
+    target.comments.some((body) => body.startsWith('### Review:')),
+    false,
+  );
+  assert.equal(target.landed.length, 1);
+});
+
+test('a user whose approved change is handed over during its landing gets it reviewed again when the issue resumes', async (t) => {
+  const first = await harness(t, { pushRejects: 3 });
+  assert.equal((await first.run()).outcome, 'needs-human');
+  const saved = (await first.state())!;
+  const target = await harness(t, { saved, issue: { ...ISSUE, labels: [] } });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(roles(target), ['reviewer']);
 });

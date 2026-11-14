@@ -68,7 +68,7 @@ test('a step that throws gives the error outcome and hands the issue over', asyn
   assert.equal(report.outcome, 'error');
   assert.match(report.reason!, /the port broke/);
   assert.equal(target.labels.at(-1)?.label, 'status:needs-human');
-  assert.equal((await target.state())?.phase, 'review');
+  assert.equal((await target.state())?.phase, 'approved');
 });
 
 test('a new issue asks for its worktree to start from the base branch', async (t) => {
