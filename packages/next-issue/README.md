@@ -199,7 +199,10 @@ the run handles one issue. For each issue:
    the issue to a person with the reason `revert stopped` and halts. A resume
    that stopped while the checks of a landed commit ran waits for them
    again, even when more commits landed on the base since, and a fix that
-   was committed but not landed lands first. A problem that the reviewer
+   was committed but not landed lands first. Before that, the resume drops
+   any change left in the worktree, including a merge of the base that a
+   stopped fix landing left in progress, so the fix merges the current
+   base again from the start. A problem that the reviewer
    leaves out of the findings thus gets an approval: only the findings count.
 8. With an open finding, run the fixer agent and go to step 5 again. The
    budget is `maxReviewRounds`. A fixer that holds every finding to be wrong

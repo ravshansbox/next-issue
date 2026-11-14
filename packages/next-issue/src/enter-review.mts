@@ -18,12 +18,14 @@ export async function enterReview(job: Run): Promise<Round> {
   }
   await settleSquash(job);
   const landed = state.landed?.at(-1);
+  if (landed !== undefined || state.phase === 'approved') {
+    const { ports } = context;
+    await ports.discardChanges(job.worktree, await ports.revision(job.worktree), job.branch);
+  }
   if (landed !== undefined) {
     return resumeLanding(job, landed);
   }
   if (state.phase === 'approved') {
-    const { ports } = context;
-    await ports.discardChanges(job.worktree, await ports.revision(job.worktree), job.branch);
     return landApproved(job);
   }
   state.phase = 'review';
