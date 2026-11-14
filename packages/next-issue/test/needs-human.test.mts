@@ -35,7 +35,39 @@ test('a user whose implementer gave a reply too long for a GitHub comment sees i
   const body = target.issueNotes[0]!.body;
   assert.ok(body.length <= 65536);
   assert.match(body, /^next-issue needs help: The implementer produced no change\.\n\nxxx/);
-  assert.match(body, /\n\nThe reply was too long for a GitHub comment and was cut\.$/);
+  assert.match(body, /\n\nThe reason was too long for a GitHub comment and was cut\.$/);
+});
+
+test('a user whose implementer gave a long reply of emoji sees it cut between whole characters', async (t) => {
+  const target = await harness(t, { commits: [false], implementerText: ['😀'.repeat(40000)] });
+  await target.run();
+  const body = target.issueNotes[0]!.body;
+  assert.ok(body.length <= 65536);
+  assert.doesNotMatch(body, /\p{Cs}/u);
+});
+
+test('a writer who answers a hand-over after a run error with stderr longer than a GitHub comment sees the reason cut to fit and gets the issue claimed again', async (t) => {
+  const failed = await harness(t, {
+    commits: [new Error(`git hook run pre-commit failed with code 1: ${'e'.repeat(200000)}`)],
+  });
+  const report = await failed.run();
+  assert.equal(report.outcome, 'error');
+  const body = failed.issueNotes[0]!.body;
+  assert.ok(body.length <= 65536);
+  assert.match(body, /^next-issue needs help: The run failed: git hook run pre-commit failed/);
+  assert.match(body, /\n\nThe reason was too long for a GitHub comment and was cut\.$/);
+  const answered = await harness(t, {
+    issue: { ...ISSUE, labels: ['status:needs-human'] },
+    saved: await failed.state(),
+    thread: [
+      { author: 'bot', body },
+      { author: 'owner', body: 'Fixed the hook, take it.' },
+    ],
+    writers: ['owner', 'bot'],
+  });
+  const resumed = await answered.run();
+  assert.equal(resumed.outcome, 'done');
+  assert.ok(answered.removable[0]!.includes('status:needs-human'));
 });
 
 test('a user whose implementer made no change and gave no reply sees only the note', async (t) => {

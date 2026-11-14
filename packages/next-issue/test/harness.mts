@@ -231,6 +231,9 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       state.closed.push(number);
     },
     commentOnIssue: async (_repo, number, body) => {
+      if (body.length > 65536) {
+        throw new Error('gh: HTTP 422: body is too long (maximum is 65536 characters)');
+      }
       state.issueNotes.push({ number, body });
       state.comments.push(body);
     },

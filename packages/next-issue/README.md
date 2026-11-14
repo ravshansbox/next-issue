@@ -454,7 +454,9 @@ the prompt asks them to keep only what still holds. The reviewer only reads it.
 
 When the implementer makes no change, the hand-over comment holds its full
 reply after the note, so its reasons and questions can be answered on the issue.
-A reply too long for a GitHub comment is cut to fit, with a line that says so.
+Every hand-over comment is cut to fit a GitHub comment, whatever the reason, so a
+long reply or a long run error does not lose it. A cut comment ends with a line
+that says so.
 
 A hand-over marks the state file as handed over. To give the issue another try,
 take the `status:needs-human` label off, or answer the hand-over. The next run

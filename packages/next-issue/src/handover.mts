@@ -138,7 +138,20 @@ async function handOver(
   log.event('hand-over', { reason }, 'quiet');
   await writeState(repo, { ...state, handedOver: true });
   await setStatus(context, issue, config.labels.needsHuman);
-  await ports.commentOnIssue(repo, issue, `${HAND_OVER} ${reason}`);
+  await ports.commentOnIssue(repo, issue, handOverComment(reason));
+}
+
+const COMMENT_LIMIT = 65536;
+const CUT = '\n\nThe reason was too long for a GitHub comment and was cut.';
+
+function handOverComment(reason: string): string {
+  const comment = `${HAND_OVER} ${reason}`;
+  if (comment.length <= COMMENT_LIMIT) {
+    return comment;
+  }
+  const end = COMMENT_LIMIT - CUT.length;
+  const splitsPair = /[\uD800-\uDBFF]/.test(comment.charAt(end - 1));
+  return `${comment.slice(0, splitsPair ? end - 1 : end)}${CUT}`;
 }
 
 export async function claimedError(
