@@ -5,7 +5,7 @@ import { pendingIssues } from '../src/pending.mts';
 import { processIssue } from '../src/pipeline.mts';
 import { applyEvent, startProgress } from '../src/progress.mts';
 import type { IssueState } from '../src/state.mts';
-import { APPROVE, changes, harness, ISSUE, type Plan, roles } from './harness.mts';
+import { APPROVE, changes, harness, ISSUE, minor, type Plan, roles } from './harness.mts';
 
 test('a user who asks to stop during the implementation gets the run stopped before the push, with the state kept', async (t) => {
   const target = await harness(t, { pressDuring: 'implementer' });
@@ -72,7 +72,7 @@ test('a user who stops a run now during the second review gets the issue stopped
   assert.equal((await stopped.run()).outcome, 'stopped');
   const kept = (await stopped.state())!;
   assert.equal(kept.handedOver, undefined);
-  assert.equal(kept.reviewRounds, before.reviewRounds + 1);
+  assert.equal(kept.reviewRounds, before.reviewRounds);
   assert.equal(kept.ciFixes, 1);
   assert.deepEqual(kept.reviewLog, before.reviewLog);
   assert.equal(
@@ -80,6 +80,50 @@ test('a user who stops a run now during the second review gets the issue stopped
     false,
   );
   assert.deepEqual(stopped.comments, []);
+});
+
+test('a user who stops a run now during the reviewer of the last review round gets the round given back, and the next run reviews the change in that round with the last-round rule', async (t) => {
+  const config = { maxReviewRounds: 1 };
+  const first = await harness(t, { config, stopNowDuring: 'reviewer' });
+  assert.equal((await first.run()).outcome, 'stopped');
+  const saved = (await first.state())!;
+  assert.equal(saved.reviewRounds, 0);
+  const target = await harness(t, {
+    saved,
+    issue: { ...ISSUE, labels: ['status:in-review'] },
+    config,
+    verdicts: [minor('The name is long.')],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.notEqual(report.reason, 'review budget');
+  assert.deepEqual(roles(target), ['reviewer']);
+  assert.equal(
+    target.comments.some((body) => body.includes('review rounds was reached')),
+    false,
+  );
+  assert.deepEqual(target.closed, [7]);
+});
+
+test('a user who stops a run now while the fixer of the failed checks on main runs gets the check fix given back, and the next run fixes them with no revert or hand-over', async (t) => {
+  const config = { maxCiFixes: 1 };
+  const first = await harness(t, { config, baseChecks: ['fail'], stopNowDuring: 'fixer' });
+  assert.equal((await first.run()).outcome, 'stopped');
+  const saved = (await first.state())!;
+  assert.equal(saved.ciFixes, 0);
+  const target = await harness(t, {
+    saved,
+    issue: { ...ISSUE, labels: ['status:in-review'] },
+    config,
+    baseMoved: true,
+    baseChecks: ['fail', 'pass'],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.notEqual(report.reason, 'check budget');
+  assert.deepEqual(roles(target), ['fixer']);
+  assert.equal((await target.state())?.handedOver, undefined);
+  assert.deepEqual(target.closed, [7]);
 });
 
 test('a user who stops a run now during the setup command gets the issue stopped with no hand-over, and the next run keeps the review rounds, fix counts and findings', async (t) => {

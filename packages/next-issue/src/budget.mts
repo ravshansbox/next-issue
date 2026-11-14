@@ -29,3 +29,9 @@ export async function spendBudget(
   await writeState(context.repo, state);
   return undefined;
 }
+
+export async function refundBudget(job: Run, budget: Budget): Promise<void> {
+  const { context, state } = job;
+  state[budget] = Math.max(0, state[budget] - 1);
+  await writeState(context.repo, state);
+}

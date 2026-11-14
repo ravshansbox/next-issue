@@ -323,7 +323,9 @@ Press `Ctrl-C` to stop the run step by step:
    starts, so the reviewer sees only the commits of the branch. Files that
    git ignores, such as build output, stay. When it
    resumes before the first commit, the implementer runs again and the
-   commit holds them.
+   commit holds them. A review round or a check fix whose reviewer or
+   fixer this press kills does not count, so the next run runs that step
+   again with the same budget.
 
    When the reviewer approved the change and the run stopped before its
    commit reached the base branch, the next run drops those edits and any

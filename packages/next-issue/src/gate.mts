@@ -1,4 +1,4 @@
-import { budgetUse } from './budget.mts';
+import { budgetUse, refundBudget } from './budget.mts';
 import { type CheckState, checkWaiting } from './check-poll.mts';
 import { runStopped } from './children.mts';
 import { asError, message } from './errors.mts';
@@ -100,6 +100,7 @@ async function failedChecksFix(job: Run, sha: string): Promise<Gate> {
   try {
     logs = await ports.failedBaseLogs(repo, sha, base, config.logMaxChars);
   } catch (error) {
+    await refundStopped(job);
     return escalateError(
       job,
       error,
@@ -118,6 +119,7 @@ async function failedChecksFix(job: Run, sha: string): Promise<Gate> {
       'checks',
     );
   } catch (error) {
+    await refundStopped(job);
     return escalateError(
       job,
       error,
@@ -131,6 +133,12 @@ async function failedChecksFix(job: Run, sha: string): Promise<Gate> {
   }
   job.repairing = true;
   return GATE_FIXED;
+}
+
+async function refundStopped(job: Run): Promise<void> {
+  if (runStopped()) {
+    await refundBudget(job, 'ciFixes');
+  }
 }
 
 export async function escalateError(

@@ -1,6 +1,6 @@
 import { REVIEWING } from './agents.mts';
 import { runStopped } from './children.mts';
-import { budgetUse, spendBudget } from './budget.mts';
+import { budgetUse, refundBudget, spendBudget } from './budget.mts';
 import { message } from './errors.mts';
 import { fixRound, type Unfixed } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
@@ -34,9 +34,18 @@ export async function reviewRound(job: Run): Promise<Round> {
     return exhausted;
   }
 
-  await setStatus(context, issue.number, config.labels.inReview);
   const earlier = history(state.reviewLog);
-  const verdict = parseVerdict(await runReviewer(job, earlier));
+  let text: string;
+  try {
+    await setStatus(context, issue.number, config.labels.inReview);
+    text = await runReviewer(job, earlier);
+  } catch (error) {
+    if (runStopped()) {
+      await refundBudget(job, 'reviewRounds');
+    }
+    throw error;
+  }
+  const verdict = parseVerdict(text);
   if (verdict === undefined) {
     return escalateAndFinish(job, 'The reviewer gave no verdict.', 'no verdict');
   }
