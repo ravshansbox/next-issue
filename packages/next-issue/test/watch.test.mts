@@ -315,6 +315,73 @@ test('a user who presses Ctrl-C during a hunt sees the watch stop after that hun
   assert.equal(result.stoppedAt, 1);
 });
 
+test('a user who asks to stop while the hunter reads the ready issues sees no hunt start and the watch end after the running issue', async () => {
+  const fake = watcher([['done'], ['done']]);
+  const steps: string[] = [];
+  let stopped = false;
+  const { promise: read, resolve } = deferred();
+  const { promise: claimed, resolve: claim } = deferred();
+  fake.stop = () => stopped;
+  fake.hunter = {
+    cap: 1,
+    ready: async () => {
+      steps.push('ready');
+      await claimed;
+      stopped = true;
+      resolve();
+      return [];
+    },
+    hunt: async () => {
+      steps.push('hunt');
+      return true;
+    },
+    wait: async () => {
+      steps.push('wait');
+    },
+  };
+  const process = fake.process;
+  fake.process = async (target, claimedIssue) => {
+    claim();
+    return process(target, claimedIssue);
+  };
+  holdIssues(fake, read);
+  const result = await watchIssues(ARGS, fake);
+  steps.push('watch end');
+  assert.deepEqual(steps, ['ready', 'watch end']);
+  assert.deepEqual(fake.processed, [1]);
+  assert.equal(result.stoppedAt, 1);
+});
+
+test('a user whose watch ends while the hunter reads the ready issues sees no hunt start', async () => {
+  const fake = watcher([['done']]);
+  const steps: string[] = [];
+  const { promise: ended, resolve } = deferred();
+  const wait = fake.wait;
+  fake.wait = async (minutes) => {
+    resolve();
+    return wait(minutes);
+  };
+  fake.hunter = {
+    cap: 1,
+    ready: async () => {
+      steps.push('ready');
+      await ended;
+      await sleep(0);
+      return [];
+    },
+    hunt: async () => {
+      steps.push('hunt');
+      return true;
+    },
+    wait: async () => {
+      steps.push('wait');
+    },
+  };
+  await watchIssues(ARGS, fake);
+  steps.push('watch end');
+  assert.deepEqual(steps, ['ready', 'watch end']);
+});
+
 test('a user who watches with --hunt sees the hunter wait with the back-off after each failed hunt, and back at 1 minute after a hunt that succeeds', async () => {
   const fake = watcher([['done']]);
   const hunting = hunter(fake, [[], [], [], []], 1, ['failed', 'failed', 'filed', 'failed']);

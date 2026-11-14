@@ -92,6 +92,9 @@ async function huntIssues(
   let step = 0;
   while (!stopped()) {
     const ready = await hunter.ready(running, failed).catch(() => undefined);
+    if (stopped()) {
+      return;
+    }
     claims.take();
     const waiting = ready?.filter((issue) => !running.has(issue.number)).length;
     if (waiting !== undefined && waiting < hunter.cap) {
