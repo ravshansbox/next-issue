@@ -493,27 +493,27 @@ because no pull request is opened.
 }
 ```
 
-| Field                   | Default            | Effect                                                                                                                               |
-| ----------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `remote`                | `origin`           | The git remote for the repository and the branches                                                                                   |
-| `issueLimit`            | `100`              | The maximum number of open issues to read. With `labels.ready` set, only issues with the ready, in-progress or in-review label count |
-| `concurrency`           | `1`                | The most issues that a run handles at the same time                                                                                  |
-| `huntCap`               | `1`                | With `--hunt`, the hunter hunts only while fewer ready issues than this wait besides the running ones                                |
-| `maxCiFixes`            | `5`                | The budget for check fixes per issue                                                                                                 |
-| `maxCommitFixes`        | `10`               | The budget for fixes of a commit that a git hook stopped, per issue                                                                  |
-| `maxReviewRounds`       | `5`                | The budget for review rounds per issue                                                                                               |
-| `checkIntervalSeconds`  | `15`               | The time between two check states, at most `2147483`                                                                                 |
-| `checkGraceSeconds`     | `60`               | The time to wait for the first check to show, and for more checks after they all pass                                                |
-| `checkTimeoutMinutes`   | `60`               | The limit for one check wait, at most `35791`                                                                                        |
-| `agentTimeoutMinutes`   | `30`               | The limit for one agent call, at most `35791`                                                                                        |
-| `setupTimeoutMinutes`   | `15`               | The limit for the setup command, at most `35791`                                                                                     |
-| `commandTimeoutMinutes` | `10`               | The limit for one `git` or `gh` command, at most `35791`                                                                             |
-| `logMaxChars`           | `20000`            | The maximum length of the failed job logs, shared between the failed jobs                                                            |
-| `diffMaxChars`          | `60000`            | The maximum length of the diff that the reviewer reads                                                                               |
-| `keepRunDays`           | `7`                | The number of days to keep the run files; `0` keeps them all                                                                         |
-| `setupCommand`          | from the lock file | A shell command to run in a new worktree, before the implementer                                                                     |
-| `models`                | `null` per role    | The pi model per agent role, as `provider/model`: `implementer`, `reviewer`, `fixer`                                                 |
-| `labels`                | see above          | The names of the labels that the harness reads and sets                                                                              |
+| Field                   | Default            | Effect                                                                                                                                                                                                    |
+| ----------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `remote`                | `origin`           | The git remote for the repository and the branches                                                                                                                                                        |
+| `issueLimit`            | `100`              | The maximum number of open issues to read. With `labels.ready` set, only issues with the ready, in-progress or in-review label count                                                                      |
+| `concurrency`           | `1`                | The most issues that a run handles at the same time                                                                                                                                                       |
+| `huntCap`               | `1`                | With `--hunt`, the hunter hunts only while fewer ready issues than this wait besides the running ones                                                                                                     |
+| `maxCiFixes`            | `5`                | The budget for check fixes per issue                                                                                                                                                                      |
+| `maxCommitFixes`        | `10`               | The budget for fixes of a commit that a git hook stopped, per issue                                                                                                                                       |
+| `maxReviewRounds`       | `5`                | The budget for review rounds per issue                                                                                                                                                                    |
+| `checkIntervalSeconds`  | `15`               | The time between two check states, at most `2147483`                                                                                                                                                      |
+| `checkGraceSeconds`     | `60`               | The time to wait for the first check to show, and for more checks after they all pass; the grace ends at the `checkTimeoutMinutes` limit, where checks that all pass, or no checks, still count as a pass |
+| `checkTimeoutMinutes`   | `60`               | The limit for one check wait, at most `35791`                                                                                                                                                             |
+| `agentTimeoutMinutes`   | `30`               | The limit for one agent call, at most `35791`                                                                                                                                                             |
+| `setupTimeoutMinutes`   | `15`               | The limit for the setup command, at most `35791`                                                                                                                                                          |
+| `commandTimeoutMinutes` | `10`               | The limit for one `git` or `gh` command, at most `35791`                                                                                                                                                  |
+| `logMaxChars`           | `20000`            | The maximum length of the failed job logs, shared between the failed jobs                                                                                                                                 |
+| `diffMaxChars`          | `60000`            | The maximum length of the diff that the reviewer reads                                                                                                                                                    |
+| `keepRunDays`           | `7`                | The number of days to keep the run files; `0` keeps them all                                                                                                                                              |
+| `setupCommand`          | from the lock file | A shell command to run in a new worktree, before the implementer                                                                                                                                          |
+| `models`                | `null` per role    | The pi model per agent role, as `provider/model`: `implementer`, `reviewer`, `fixer`                                                                                                                      |
+| `labels`                | see above          | The names of the labels that the harness reads and sets                                                                                                                                                   |
 
 The hunter adds `labels.hunt` to each issue it files, so you can tell those
 issues apart from your own and filter them.

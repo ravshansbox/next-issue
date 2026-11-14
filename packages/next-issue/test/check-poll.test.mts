@@ -69,6 +69,32 @@ test('no check after the grace time gives none', async () => {
   assert.equal(time.time, 60_000);
 });
 
+test('a passing build with a grace time as long as the timeout gives pass at the deadline', async () => {
+  const time = fakeClock();
+  const options = { intervalSeconds: 15, graceMs: 60_000, timeoutMs: 60_000 };
+  assert.equal(await pollChecks(probe(['some'], ['pass']), options, time), 'pass');
+  assert.equal(time.time, 60_000);
+});
+
+test('no check with a grace time longer than the timeout gives none at the deadline', async () => {
+  const time = fakeClock();
+  const options = { intervalSeconds: 15, graceMs: 120_000, timeoutMs: 60_000 };
+  assert.equal(await pollChecks(probe(['none'], []), options, time), 'none');
+  assert.equal(time.time, 60_000);
+});
+
+test('a pending build at the deadline gives timeout', async () => {
+  const options = { intervalSeconds: 15, graceMs: 60_000, timeoutMs: 60_000 };
+  assert.equal(
+    await pollChecks(
+      probe(['some'], ['pass', 'pending', 'pending', 'pending', 'pending']),
+      options,
+      fakeClock(),
+    ),
+    'timeout',
+  );
+});
+
 test('a grace time of zero gives none at once', async () => {
   const target = probe(['none'], []);
   assert.equal(await pollChecks(target, { ...OPTIONS, graceMs: 0 }, fakeClock()), 'none');

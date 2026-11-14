@@ -3,6 +3,8 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { failedBaseLogs, rerunFailedBase, waitForBaseChecks } from '../src/base-checks.mts';
+import { pollChecks } from '../src/check-poll.mts';
+import { fakeClock } from './fake-clock.mts';
 import { installGh } from './fake-gh.mts';
 import { harness } from './harness.mts';
 import { tempDir } from './temp-dir.mts';
@@ -406,4 +408,30 @@ async function stopAfterFirstRead(dir: string, stop: () => void): Promise<void> 
   }
   await new Promise((resolve) => setTimeout(resolve, 200));
   stop();
+}
+
+for (const [checks, state] of [
+  ['some', 'pass'],
+  ['none', 'none'],
+] as const) {
+  test(`a user with a one-minute check timeout and the default grace time whose landed commit has ${state === 'pass' ? 'passing checks' : 'no checks'} gets the issue closed and done`, async (t) => {
+    const target = await harness(t, { config: { checkTimeoutMinutes: 1 } });
+    const time = fakeClock();
+    target.context.ports.waitForBaseChecks = (_repo, _sha, options) =>
+      pollChecks(
+        {
+          head: async () => '2',
+          lags: async () => true,
+          list: async () => checks,
+          watch: async () => state,
+        },
+        options,
+        time,
+      );
+    const report = await target.run();
+    assert.equal(report.outcome, 'done');
+    assert.deepEqual(target.closed, [7]);
+    assert.equal(target.labels.at(-1)!.label, 'status:done');
+    assert.equal(time.time, 60_000);
+  });
 }

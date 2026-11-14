@@ -43,12 +43,14 @@ export async function pollChecks(
   const rest = (): number => Math.max(0, deadline - clock.now());
   let shown: number | undefined;
   let failures = 0;
+  let last: CheckState | 'behind' | Error | undefined;
   for (;;) {
     refuseWhenStopped();
     if (rest() === 0) {
-      return 'timeout';
+      return last === 'pass' || last === 'none' ? last : 'timeout';
     }
     const state = await read(probe, options.head, rest(), () => (shown ??= clock.now()));
+    last = state;
     if (state === 'behind' && shown !== undefined) {
       return 'moved';
     }
