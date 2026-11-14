@@ -8,7 +8,7 @@ import { type TestContext, test } from 'node:test';
 import { onStop } from '../src/children.mts';
 import { run, type RunResult } from '../src/exec.mts';
 import type { WorkerMessage } from '../src/protocol.mts';
-import { processStart } from '../src/lock.mts';
+import { lock, processStart } from '../src/lock.mts';
 import { startWorker } from '../src/serve.mts';
 import { tempDir } from './temp-dir.mts';
 import { connect, fakeRuns, noQuestions, runsOf, worker } from './worker-harness.mts';
@@ -358,6 +358,17 @@ test('a worker takes over the lock and the socket file that a dead worker left',
   assert.ok(started);
   t.after(() => started.close());
   await connect(t, socketPath);
+});
+
+test('a worker that cannot read its own start time gets an error and leaves no lock file', async () => {
+  const lockPath = join(await tempDir(), 'w.lock');
+  await assert.rejects(
+    lock(lockPath, 0, async () => undefined),
+    {
+      message: 'next-issue: cannot read the start time of the worker process',
+    },
+  );
+  await assert.rejects(stat(lockPath), { code: 'ENOENT' });
 });
 
 test('a worker takes over the lock when its process id now belongs to a process that is not a worker', async (t) => {

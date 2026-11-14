@@ -51,11 +51,19 @@ export async function stopWorker(lockPath: string): Promise<number | undefined> 
   return pid;
 }
 
-export async function lock(path: string, waitMs: number): Promise<boolean> {
+export async function lock(
+  path: string,
+  waitMs: number,
+  readStart: (pid: number) => Promise<string | undefined> = processStart,
+): Promise<boolean> {
+  const started = await readStart(process.pid);
+  if (started === undefined) {
+    throw new Error('next-issue: cannot read the start time of the worker process');
+  }
   const deadline = Date.now() + waitMs;
   for (;;) {
     try {
-      await writeFile(path, `${process.pid} ${await processStart(process.pid)}\n`, {
+      await writeFile(path, `${process.pid} ${started}\n`, {
         flag: 'wx',
         mode: 0o600,
       });
