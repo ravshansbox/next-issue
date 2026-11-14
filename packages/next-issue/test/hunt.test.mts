@@ -43,7 +43,7 @@ test('a user who hunts with one free place sees the hunter told to file at most 
   }
 });
 
-test('a user who hunts sees the hunter told to add the source label, which the harness creates first', async (t) => {
+test('a user who hunts in a repository without the ready label sees the harness create the ready and source labels before the hunter runs', async (t) => {
   const target = await harness(t);
   const order: string[] = [];
   const ports = target.context.ports;
@@ -56,7 +56,7 @@ test('a user who hunts sees the hunter told to add the source label, which the h
     return runAgent(recorder, request);
   };
   await hunt(target.context, 1);
-  assert.deepEqual(order, ['ensure source:hunt', 'hunter']);
+  assert.deepEqual(order, ['ensure status:todo', 'ensure source:hunt', 'hunter']);
   assert.match(target.prompts[0]!.prompt, /--label "status:todo" --label "source:hunt"/);
 });
 
@@ -69,12 +69,17 @@ test('a user who sets labels.hunt sees the hunter add that label', async (t) => 
   assert.match(target.prompts[0]!.prompt, /--label "bot"/);
 });
 
-test('a user who sets an empty labels.ready sees the hunter add only the source label', async (t) => {
+test('a user who sets an empty labels.ready sees the hunter add only the source label, and the harness create only that label', async (t) => {
   const defaults = await harness(t);
   const target = await harness(t, {
     config: { labels: { ...defaults.context.config.labels, ready: '' } },
   });
+  const ensured: string[] = [];
+  target.context.ports.ensureLabel = async (_repo, label) => {
+    ensured.push(label);
+  };
   await hunt(target.context, 1);
+  assert.deepEqual(ensured, ['source:hunt']);
   assert.match(target.prompts[0]!.prompt, /gh issue create --label "source:hunt" --title/);
 });
 

@@ -34,7 +34,11 @@ export async function hunt(context: Context, count: number): Promise<boolean> {
   const { repo, config, base, recorder, ports } = context;
   return recorder.step('hunt', {}, async () => {
     const cwd = await oneAtATime(repo.root, () => ports.huntWorktree(repo, base, config.remote));
-    await ports.ensureLabel(repo, config.labels.hunt);
+    for (const label of [config.labels.ready, config.labels.hunt]) {
+      if (label.length > 0) {
+        await ports.ensureLabel(repo, label);
+      }
+    }
     const instructions = await readTextIfPresent(join(repo.root, HUNT_FILE));
     const result = await ports.runAgent(recorder, {
       name: 'hunter',
