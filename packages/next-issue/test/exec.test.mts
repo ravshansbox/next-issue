@@ -5,6 +5,7 @@ import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { runChildren, stopRunChildren, withRunChildren } from '../src/children.mts';
 import {
   type CommandRecord,
   must,
@@ -91,6 +92,44 @@ test('run stops on the time limit even when a grandchild holds the output open',
   const result = await run('bash', ['-lc', 'sleep 30 & sleep 30'], { timeoutMs: 300 });
   assert.equal(result.timedOut, true);
   assert.ok(Date.now() - started < 10_000);
+});
+
+test('run settles a command that exits at once, leaving a background job on its output, with its own code and output', async () => {
+  const started = Date.now();
+  const result = await run('bash', ['-c', 'echo out; echo err >&2; sleep 5 & exit 4'], {
+    timeoutMs: 3000,
+  });
+  assert.equal(result.timedOut, false);
+  assert.equal(result.code, 4);
+  assert.equal(result.stdout, 'out\n');
+  assert.equal(result.stderr, 'err\n');
+  assert.ok(Date.now() - started < 1500);
+});
+
+test('run settles a command that exits at once, leaving a setsid process on its output, before the time limit', async () => {
+  const started = Date.now();
+  const result = await run('bash', ['-c', 'echo out; setsid sleep 5 & exit 0'], {
+    timeoutMs: 3000,
+  });
+  assert.equal(result.timedOut, false);
+  assert.equal(result.code, 0);
+  assert.equal(result.stdout, 'out\n');
+  assert.ok(Date.now() - started < 1500);
+});
+
+test('a user who stops a run now after its command exits, leaving a setsid process on its output, sees the step end before the time limit', async () => {
+  const children = runChildren();
+  const started = Date.now();
+  const running = withRunChildren(children, () =>
+    run('bash', ['-c', 'echo out; setsid sleep 30 & exit 0'], { timeoutMs: 60_000 }),
+  );
+  await sleep(50);
+  stopRunChildren(children);
+  const result = await running;
+  assert.equal(result.code, 0);
+  assert.equal(result.timedOut, false);
+  assert.equal(result.stdout, 'out\n');
+  assert.ok(Date.now() - started < 1500);
 });
 
 test('run kills a grandchild that outlives its parent on the time limit', async () => {
