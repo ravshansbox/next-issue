@@ -20,6 +20,8 @@ async function fakeRunsGh(
 ): Promise<string> {
   const dir = await tempDir();
   await writeFile(join(dir, 'check-runs'), jsonLines(checkRuns));
+  await writeFile(join(dir, 'runs'), jsonLines(runs));
+  await writeFile(join(dir, 'rerun-runs'), jsonLines(rerunRuns));
   for (const [index, reply] of statuses.entries()) {
     await writeFile(join(dir, `status.${index}`), jsonLines(reply));
   }
@@ -27,11 +29,11 @@ async function fakeRunsGh(
   const script = `#!/bin/sh
 d="$(dirname "$0")"
 case "$*" in
+  "api --paginate repos/acme/tool/actions/runs?head_sha=abc&per_page=100 --jq "*) if [ -f "$d/reruns" ]; then cat "$d/rerun-runs"; else cat "$d/runs"; fi; exit 0 ;;
   "api --paginate repos/acme/tool/commits/abc/check-runs?per_page=100 --jq "*) cat "$d/check-runs"; exit 0 ;;
   "api --paginate repos/acme/tool/commits/abc/status?per_page=100 --jq "*) n=$(cat "$d/status-reads" 2>/dev/null || echo 0); echo $((n + 1)) > "$d/status-reads"; f="$d/status.$n"; [ -f "$f" ] || f="$d/status.last"; cat "$f"; exit 0 ;;
 esac
 case "$1 $2" in
-  "run list") [ "$3 $4" = "--commit abc" ] || { echo "unexpected: $*" >&2; exit 1; }; if [ -f "$(dirname "$0")/reruns" ]; then echo '${JSON.stringify(rerunRuns)}'; else echo '${JSON.stringify(runs)}'; fi ;;
   "run view") echo "boom in $3" ;;
   "run rerun") [ "$4" = "--failed" ] || { echo "unexpected: $*" >&2; exit 1; }; echo "$3" >> "$(dirname "$0")/reruns" ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
@@ -86,6 +88,42 @@ test('waitForBaseChecks fails as soon as one run on the commit fails', async (t)
     await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', BASE_WAIT),
     'fail',
   );
+});
+
+function passedRuns(count: number): unknown[] {
+  return Array.from({ length: count }, (_, index) => ({
+    databaseId: index + 1,
+    name: `Package ${index + 1}`,
+    status: 'completed',
+    conclusion: 'success',
+    attempt: 1,
+  }));
+}
+
+test('waitForBaseChecks fails when the commit has more than 20 runs and one beyond the first 20 fails', async (t) => {
+  const dir = await fakeRunsGh(t, [
+    ...passedRuns(20),
+    { databaseId: 21, name: 'Release', status: 'completed', conclusion: 'failure', attempt: 1 },
+  ]);
+  assert.equal(
+    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', BASE_WAIT),
+    'fail',
+  );
+});
+
+test('rerunFailedBase and failedBaseLogs cover a failed run beyond the first 20 runs on the commit', async (t) => {
+  const failed = { databaseId: 21, name: 'Release', status: 'completed', conclusion: 'failure' };
+  const dir = await fakeRunsGh(
+    t,
+    [...passedRuns(20), { ...failed, attempt: 1 }],
+    [...passedRuns(20), { ...failed, status: 'queued', conclusion: '', attempt: 2 }],
+  );
+  const repo = { owner: 'acme', name: 'tool', root: dir };
+  const report = await failedBaseLogs(repo, 'abc', 1000);
+  assert.match(report, /## Release/);
+  assert.match(report, /boom in 21/);
+  assert.deepEqual(await rerunFailedBase(repo, 'abc'), ['21']);
+  assert.equal(await readFile(join(dir, 'reruns'), 'utf8'), '21\n');
 });
 
 test('waitForBaseChecks reports none when the commit starts no run', async (t) => {

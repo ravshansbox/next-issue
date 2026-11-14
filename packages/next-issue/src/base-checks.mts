@@ -1,7 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { type CheckState, pollChecks, type PollOptions } from './check-poll.mts';
 import { secondsToMs } from './durations.mts';
-import { gh, ghApi, ghJson } from './gh.mts';
+import { gh, ghApi } from './gh.mts';
 import type { Repo } from './git.mts';
 import { runLogs } from './run-logs.mts';
 
@@ -33,22 +33,21 @@ const FAILED_STATES = new Set(['failure', 'error']);
 
 const FAILED_CONCLUSIONS = new Set(['failure', 'timed_out', 'startup_failure']);
 
-async function baseRuns(repo: Repo, sha: string): Promise<BaseRun[]> {
-  return ghJson<BaseRun[]>(repo, [
-    'run',
-    'list',
-    '--commit',
-    sha,
-    '--json',
-    'databaseId,name,status,conclusion,attempt',
-  ]);
-}
-
 function jsonLines<T>(raw: string): T[] {
   return raw
     .split('\n')
     .filter((line) => line.trim() !== '')
     .map((line) => JSON.parse(line) as T);
+}
+
+async function baseRuns(repo: Repo, sha: string): Promise<BaseRun[]> {
+  const runs = await ghApi(
+    repo,
+    `actions/runs?head_sha=${sha}&per_page=100`,
+    '.workflow_runs[] | {databaseId: .id, name, status, conclusion: (.conclusion // ""), attempt: .run_attempt} | @json',
+    { paginate: true },
+  );
+  return jsonLines<BaseRun>(runs);
 }
 
 async function externalChecks(repo: Repo, sha: string): Promise<Check[]> {
