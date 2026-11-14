@@ -14,7 +14,7 @@ import { WORKTREE_DIR } from './worktree.mts';
 
 export const HUNT_FILE = 'next-issue.hunt.md';
 
-const FILED = /^issue:\s*(\S+)\s*$/m;
+const FILED = /^issue:\s*(\S+)\s*$/gm;
 
 export async function huntWorktree(repo: Repo, base: string, remote: string): Promise<string> {
   const path = join(repo.root, WORKTREE_DIR, 'hunt');
@@ -29,7 +29,7 @@ export async function huntWorktree(repo: Repo, base: string, remote: string): Pr
   return path;
 }
 
-export async function hunt(context: Context): Promise<boolean> {
+export async function hunt(context: Context, count: number): Promise<boolean> {
   const { repo, config, base, recorder, ports } = context;
   return recorder.step('hunt', {}, async () => {
     const cwd = await oneAtATime(repo.root, () => ports.huntWorktree(repo, base, config.remote));
@@ -38,13 +38,17 @@ export async function hunt(context: Context): Promise<boolean> {
     const result = await ports.runAgent(recorder, {
       name: 'hunter',
       cwd,
-      prompt: huntPrompt(instructions, config.labels.ready, config.labels.hunt),
+      prompt: huntPrompt(instructions, config.labels.ready, config.labels.hunt, count),
       profile: REVIEWING,
       timeoutMs: minutesToMs(config.agentTimeoutMinutes),
     });
-    const url = FILED.exec(result.text)?.[1] ?? 'none';
-    recorder.event('hunt.issue', { url }, 'quiet');
-    return /^https?:\/\//.test(url);
+    const urls = [...result.text.matchAll(FILED)]
+      .map((match) => match[1]!)
+      .filter((url) => /^https?:\/\//.test(url));
+    for (const url of urls.length === 0 ? ['none'] : urls) {
+      recorder.event('hunt.issue', { url }, 'quiet');
+    }
+    return urls.length > 0;
   });
 }
 
@@ -64,10 +68,10 @@ export function hunter(context: Context): Hunter & { busy: () => boolean } {
       );
       return open.filter((_issue, index) => blockers[index]!.length === 0);
     },
-    hunt: async () => {
+    hunt: async (count) => {
       hunting = true;
       try {
-        return await hunt(context);
+        return await hunt(context, count);
       } catch {
         return false;
       } finally {

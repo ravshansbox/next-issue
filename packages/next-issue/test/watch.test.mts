@@ -118,7 +118,7 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
   return { promise, resolve };
 }
 
-type FakeHunter = { steps: string[]; idle: Promise<void> };
+type FakeHunter = { steps: string[]; counts: number[]; idle: Promise<void> };
 
 function hunter(
   fake: FakeWatch,
@@ -127,6 +127,7 @@ function hunter(
   results: Array<'filed' | 'failed' | 'none'> = [],
 ): FakeHunter {
   const steps: string[] = [];
+  const counts: number[] = [];
   const { promise: idle, resolve } = deferred();
   const busy = Array.from({ length: cap }, (_, index) => issue(100 + index));
   let checks = 0;
@@ -141,7 +142,8 @@ function hunter(
       }
       return numbers.map(issue);
     },
-    hunt: async () => {
+    hunt: async (count) => {
+      counts.push(count);
       const outcome = results.shift() ?? 'filed';
       steps.push(outcome === 'filed' ? 'hunt' : `hunt ${outcome}`);
       return outcome === 'filed';
@@ -153,7 +155,7 @@ function hunter(
       }
     },
   };
-  return { steps, idle };
+  return { steps, counts, idle };
 }
 
 function holdIssues(fake: FakeWatch, until: Promise<void>): void {
@@ -198,6 +200,15 @@ test('a user who watches with --hunt sees the running issues left out of the rea
   };
   await watchIssues(ARGS, fake);
   assert.deepEqual(hunting.steps, ['hunt', 'wait 1']);
+  assert.deepEqual(hunting.counts, [1]);
+});
+
+test('a user who watches with --hunt sees each hunt asked to file up to huntCap less the ready issues that are not running', async () => {
+  const fake = watcher([['done']]);
+  const hunting = hunter(fake, [[], [7], [7, 8]], 3);
+  holdIssues(fake, hunting.idle);
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(hunting.counts, [3, 2, 1]);
 });
 
 test('a user who presses Ctrl-C during a hunt sees the watch stop after that hunt', async () => {

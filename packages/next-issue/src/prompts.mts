@@ -202,24 +202,26 @@ export function huntPrompt(
   instructions: string | undefined,
   ready: string,
   source: string,
+  count: number,
 ): string {
+  const issues = count === 1 ? '1 issue' : `${count} issues`;
   const kept = instructions?.trim() ?? '';
   const label = [ready, source]
     .filter((name) => name !== '')
     .map((name) => ` --label "${name}"`)
     .join('');
   return paragraphs([
-    'You are the hunter. Find the most serious problem in this repository and file one issue for it.',
+    `You are the hunter. Find the most serious problems in this repository and file up to ${issues} for them.`,
     `## Instructions\n${kept === '' ? HUNT_DEFAULT : kept}`,
     '## Rules',
     [
       'Run no test suite and no build. Change no file. Do not commit or push.',
-      'File one issue only, for your most serious finding. File nothing when you find no real problem.',
-      'Before you file it, search the open and closed issues for a duplicate, for example with `gh issue list --state all --search "<words>"`. File nothing when a duplicate exists.',
-      `File it with \`gh issue create${label} --title "<conventional commit subject>" --body-file -\`.`,
+      `File up to ${issues}, your most serious findings first. File nothing when you find no real problem.`,
+      'Before you file an issue, search the open and closed issues for a duplicate, for example with `gh issue list --state all --search "<words>"`. Do not file a finding when a duplicate exists.',
+      `File each issue with \`gh issue create${label} --title "<conventional commit subject>" --body-file -\`.`,
       `The body holds these sections as \`##\` headings, in this order: ${ISSUE_SECTIONS.map((section) => `\`## ${section}\``).join(', ')}.`,
       'Give the file and line of each piece of evidence. Leave the Open questions section empty.',
-      'End your final message with one line in the form `issue: <url of the new issue>`, or `issue: none` when you filed nothing.',
+      'End your final message with one line in the form `issue: <url>` for each issue you filed, or one `issue: none` line when you filed nothing.',
     ].join('\n'),
   ]);
 }

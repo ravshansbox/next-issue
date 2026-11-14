@@ -6,7 +6,7 @@ import { handled, type Loop, type LoopResult, runIssues } from './loop.mts';
 export type Hunter = {
   cap: number;
   ready: () => Promise<Issue[]>;
-  hunt: () => Promise<boolean>;
+  hunt: (count: number) => Promise<boolean>;
   wait: (minutes: number, signal: AbortSignal) => Promise<void>;
 };
 
@@ -93,7 +93,7 @@ async function huntIssues(
     claims.take();
     const waiting = ready?.filter((issue) => !running.has(issue.number)).length;
     if (waiting !== undefined && waiting < hunter.cap) {
-      if (await hunter.hunt()) {
+      if (await hunter.hunt(hunter.cap - waiting)) {
         step = 0;
         continue;
       }

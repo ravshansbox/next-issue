@@ -13,7 +13,7 @@ import { harness, ISSUE } from './harness.mts';
 test('a user who hunts with next-issue.hunt.md sees the hunter follow it in the hunt worktree with read-only tools', async (t) => {
   const target = await harness(t);
   await writeFile(join(target.context.repo.root, HUNT_FILE), 'Look only at the parser.\n');
-  await hunt(target.context);
+  await hunt(target.context, 1);
   assert.deepEqual(target.hunts, ['main']);
   assert.deepEqual(target.profiles, [{ role: 'hunter', tools: REVIEWING.tools }]);
   const prompt = target.prompts[0]!.prompt;
@@ -23,16 +23,17 @@ test('a user who hunts with next-issue.hunt.md sees the hunter follow it in the 
 
 test('a user who hunts with no next-issue.hunt.md sees the hunter get the built-in prompt', async (t) => {
   const target = await harness(t);
-  await hunt(target.context);
+  await hunt(target.context, 1);
   assert.match(target.prompts[0]!.prompt, /Read the whole repository/);
 });
 
-test('a user who hunts sees the hunter told to file one ready issue in the issue format after a search for duplicates, with no test run and no change', async (t) => {
+test('a user who hunts with one free place sees the hunter told to file at most one ready issue in the issue format after a search for duplicates, with no test run and no change', async (t) => {
   const target = await harness(t);
-  await hunt(target.context);
+  await hunt(target.context, 1);
   const prompt = target.prompts[0]!.prompt;
-  assert.match(prompt, /one issue/);
-  assert.match(prompt, /most serious finding/);
+  assert.match(prompt, /File up to 1 issue,/);
+  assert.match(prompt, /most serious findings first/);
+  assert.match(prompt, /File nothing when you find no real problem/);
   assert.match(prompt, /--label "status:todo"/);
   assert.match(prompt, /duplicate/);
   assert.match(prompt, /Run no test suite/);
@@ -54,7 +55,7 @@ test('a user who hunts sees the hunter told to add the source label, which the h
     order.push('hunter');
     return runAgent(recorder, request);
   };
-  await hunt(target.context);
+  await hunt(target.context, 1);
   assert.deepEqual(order, ['ensure source:hunt', 'hunter']);
   assert.match(target.prompts[0]!.prompt, /--label "status:todo" --label "source:hunt"/);
 });
@@ -64,7 +65,7 @@ test('a user who sets labels.hunt sees the hunter add that label', async (t) => 
   const target = await harness(t, {
     config: { labels: { ...defaults.context.config.labels, hunt: 'bot' } },
   });
-  await hunt(target.context);
+  await hunt(target.context, 1);
   assert.match(target.prompts[0]!.prompt, /--label "bot"/);
 });
 
@@ -73,7 +74,7 @@ test('a user who sets an empty labels.ready sees the hunter add only the source 
   const target = await harness(t, {
     config: { labels: { ...defaults.context.config.labels, ready: '' } },
   });
-  await hunt(target.context);
+  await hunt(target.context, 1);
   assert.match(target.prompts[0]!.prompt, /gh issue create --label "source:hunt" --title/);
 });
 
@@ -81,14 +82,46 @@ test('a user who hunts sees the filed issue in the run log', async (t) => {
   const target = await harness(t, {
     hunterText: 'Found it.\nissue: https://github.com/acme/tool/issues/9',
   });
-  await hunt(target.context);
+  await hunt(target.context, 1);
   const event = target.events.find((record) => record.kind === 'hunt.issue');
   assert.equal(event?.url, 'https://github.com/acme/tool/issues/9');
 });
 
+test('a user who hunts with three free places sees the hunter told to file up to three issues, the most serious first', async (t) => {
+  const target = await harness(t);
+  await hunt(target.context, 3);
+  const prompt = target.prompts[0]!.prompt;
+  assert.match(prompt, /File up to 3 issues, your most serious findings first\./);
+  assert.match(prompt, /one line in the form `issue: <url>` for each issue you filed/);
+});
+
+test('a user whose hunt files several issues sees a hunt.issue event for each in the run log', async (t) => {
+  const target = await harness(t, {
+    hunterText:
+      'Found two.\nissue: https://github.com/acme/tool/issues/9\nissue: https://github.com/acme/tool/issues/10',
+  });
+  assert.equal(await hunt(target.context, 2), true);
+  const urls = target.events
+    .filter((record) => record.kind === 'hunt.issue')
+    .map((record) => record.url);
+  assert.deepEqual(urls, [
+    'https://github.com/acme/tool/issues/9',
+    'https://github.com/acme/tool/issues/10',
+  ]);
+});
+
+test('a user whose hunt files nothing sees one hunt.issue event with none in the run log', async (t) => {
+  const target = await harness(t, { hunterText: 'Nothing found.\nissue: none' });
+  assert.equal(await hunt(target.context, 2), false);
+  const urls = target.events
+    .filter((record) => record.kind === 'hunt.issue')
+    .map((record) => record.url);
+  assert.deepEqual(urls, ['none']);
+});
+
 test('a user whose hunter fails sees a hunt.error event', async (t) => {
   const target = await harness(t, { fail: 'runAgent' });
-  await assert.rejects(hunt(target.context), /the port broke/);
+  await assert.rejects(hunt(target.context, 1), /the port broke/);
   assert.ok(target.events.some((record) => record.kind === 'hunt.error'));
 });
 
@@ -148,7 +181,7 @@ test('a user who hunts sees the hunter busy only during a hunt', async (t) => {
   const target = await harness(t);
   const watched = hunter(target.context);
   assert.equal(watched.busy(), false);
-  const hunting = watched.hunt();
+  const hunting = watched.hunt(1);
   assert.equal(watched.busy(), true);
   await hunting;
   assert.equal(watched.busy(), false);
@@ -156,22 +189,22 @@ test('a user who hunts sees the hunter busy only during a hunt', async (t) => {
 
 test('a user whose hunt fails sees the hunter report the failure so the watch backs off', async (t) => {
   const target = await harness(t, { fail: 'runAgent' });
-  assert.equal(await hunter(target.context).hunt(), false);
+  assert.equal(await hunter(target.context).hunt(1), false);
 });
 
 test('a user whose hunt files an issue sees the hunter report the success', async (t) => {
   const target = await harness(t, {
     hunterText: 'Found it.\nissue: https://github.com/acme/tool/issues/9',
   });
-  assert.equal(await hunter(target.context).hunt(), true);
+  assert.equal(await hunter(target.context).hunt(1), true);
 });
 
 test('a user whose hunt replies issue: none sees the hunter report it so the watch backs off', async (t) => {
   const target = await harness(t, { hunterText: 'Nothing found.\nissue: none' });
-  assert.equal(await hunter(target.context).hunt(), false);
+  assert.equal(await hunter(target.context).hunt(1), false);
 });
 
 test('a user whose hunt reply has no issue line sees the hunter report it so the watch backs off', async (t) => {
   const target = await harness(t, { hunterText: 'Nothing found.' });
-  assert.equal(await hunter(target.context).hunt(), false);
+  assert.equal(await hunter(target.context).hunt(1), false);
 });
