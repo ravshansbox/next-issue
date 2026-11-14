@@ -151,9 +151,26 @@ async function handOver(
 ): Promise<void> {
   const { repo, ports, config } = context;
   log.event('hand-over', { reason }, 'quiet');
+  try {
+    await setStatus(context, issue, config.labels.needsHuman);
+    await ports.commentOnIssue(repo, issue, handOverComment(reason));
+  } catch (error) {
+    throw new HandOverFailed(reason, error);
+  }
   await writeState(repo, { ...state, handedOver: true });
-  await setStatus(context, issue, config.labels.needsHuman);
-  await ports.commentOnIssue(repo, issue, handOverComment(reason));
+}
+
+class HandOverFailed extends Error {
+  readonly reason: string;
+
+  constructor(reason: string, cause: unknown) {
+    super(message(cause), { cause });
+    this.reason = reason;
+  }
+}
+
+function handOverReason(error: unknown, reason: string): string {
+  return error instanceof HandOverFailed ? error.reason : `The run failed: ${reason}`;
 }
 
 const CUT = '\n\nThe reason was too long for a GitHub comment and was cut.';
@@ -172,7 +189,7 @@ export async function claimedError(
 ): Promise<IssueReport> {
   const { reason } = logIssueError(log, error, started);
   try {
-    await handOver(context, log, issue.number, state, `The run failed: ${reason}`);
+    await handOver(context, log, issue.number, state, handOverReason(error, reason));
   } catch (failure) {
     log.event('hand-over.error', { error: message(failure) }, 'quiet');
   }

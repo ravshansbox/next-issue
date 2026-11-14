@@ -535,7 +535,10 @@ Every hand-over comment is cut to fit a GitHub comment, whatever the reason, so 
 long reply or a long run error does not lose it. A cut comment ends with a line
 that says so.
 
-A hand-over marks the state file as handed over. To give the issue another try,
+A hand-over marks the state file as handed over once its label and comment
+reach GitHub. When either fails, or the run stops during it, the state keeps its
+budgets and findings, and a later hand-over of the issue keeps the first
+reason. To give the issue another try,
 take the `status:needs-human` label off, or answer the hand-over. The next run
 that claims the issue puts the budgets and the findings back to zero, clears
 the mark and keeps the branch and the step that the last run reached, so the
