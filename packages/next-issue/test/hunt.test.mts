@@ -301,6 +301,23 @@ test('a user who hunts sees the hunter leave out an issue that failed earlier in
   );
 });
 
+test('a user who hunts with 100 ready issues sees the hunter read their blockers one at a time and count them all', async (t) => {
+  const open = Array.from({ length: 100 }, (_value, index) => ({ ...ISSUE, number: index + 1 }));
+  const target = await harness(t, { open });
+  let inFlight = 0;
+  let peak = 0;
+  target.context.ports.openBlockers = async () => {
+    inFlight += 1;
+    peak = Math.max(peak, inFlight);
+    await new Promise((resolve) => setImmediate(resolve));
+    inFlight -= 1;
+    return [];
+  };
+  const ready = await hunter(target.context).ready(new Set(), new Set());
+  assert.equal(ready.length, 100);
+  assert.equal(peak, 1);
+});
+
 test('a user who hunts sees each back-off wait of the hunter in the run log', async (t) => {
   const target = await harness(t);
   await hunter(target.context).wait(1, AbortSignal.abort());

@@ -79,9 +79,10 @@ export function hunter(context: Context): Hunter & { busy: () => boolean } {
         (issue) => !failed.has(issue.number) && skipReason(issue, config, false) === undefined,
       );
       const claimable = new Set(open.map((issue) => issue.number));
-      const blockers = await Promise.all(
-        open.map((issue) => ports.openBlockers(repo, issue.number)),
-      );
+      const blockers: string[][] = [];
+      for (const issue of open) {
+        blockers.push(await ports.openBlockers(repo, issue.number));
+      }
       return open.filter((_issue, index) =>
         blockers[index]!.every((blocker) => {
           const number = Number(/^#(\d+)$/.exec(blocker)?.[1]);
