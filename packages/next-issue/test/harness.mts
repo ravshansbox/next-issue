@@ -115,6 +115,7 @@ export type Plan = {
   accessFails?: boolean;
   hunterText?: string;
   root?: string;
+  onEvent?: (record: Record<string, unknown>) => void;
 };
 
 export type Harness = {
@@ -457,7 +458,10 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     };
   }
 
-  const recorder = await Recorder.create(root, 'quiet', (record) => state.events.push(record));
+  const recorder = await Recorder.create(root, 'quiet', (record) => {
+    state.events.push(record);
+    plan.onEvent?.(record);
+  });
   t.after(() => recorder.close());
   state.context = {
     repo,

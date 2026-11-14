@@ -6,6 +6,7 @@ import type { Recorder } from '../src/observe.mts';
 import type { Question, WorkerMessage } from '../src/protocol.mts';
 import type { ListQuestions } from '../src/questions.mts';
 import type { RunRepo } from '../src/serve.mts';
+import { type Harness, harness } from './harness.mts';
 import { type Client, connect, fakeRuns, worker } from './worker-harness.mts';
 
 const QUESTION: Question = {
@@ -298,4 +299,33 @@ test('a run whose issue ends writes no command events of the question read to it
   await client.next((value) => value.type === 'questions' && value.questions.length > 0);
   assert.deepEqual(events, []);
   ending.finish();
+});
+
+test('every client of a run whose issue ends in error gets the waiting questions read after the hand-over sets the needs-human label', async (t) => {
+  const reads: boolean[] = [];
+  let target: Harness | undefined;
+  const runRepo: RunRepo = async (_root, _args, controls) => {
+    target = await harness(t, { fail: 'runAgent', onEvent: controls.onEvent });
+    const setLabel = target.context.ports.setLabel;
+    target.context.ports.setLabel = async (...args) => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      return setLabel(...args);
+    };
+    await target.run();
+    return 0;
+  };
+  const { socketPath } = await worker(t, { ...fakeRuns(), runRepo }, '2.0.0', async () => {
+    const labelled = target?.labels.some((entry) => entry.label === 'status:needs-human') ?? false;
+    reads.push(labelled);
+    return labelled ? [QUESTION] : [];
+  });
+  const client = await connect(t, socketPath);
+  await client.next(questionsOf);
+  client.send({ type: 'start', root: '/repo' });
+  assert.deepEqual(await client.next((value) => value.type === 'questions'), {
+    type: 'questions',
+    root: '/repo',
+    questions: [QUESTION],
+  });
+  assert.deepEqual(reads, [false, true]);
 });

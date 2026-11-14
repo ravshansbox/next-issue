@@ -249,13 +249,15 @@ export async function claimedError(
   error: unknown,
   started: number,
 ): Promise<IssueReport> {
-  const { reason } = logIssueError(log, error, started);
+  const reason = message(error);
   try {
     const earlier = error instanceof HandOverFailed ? error.pending : undefined;
     await handOver(context, log, issue.number, state, handOverReason(error, reason), earlier);
   } catch (failure) {
     log.event('hand-over.error', { error: message(failure) }, 'quiet');
   }
+  // The issue ends (and the waiting questions go out) only once the hand-over is done.
+  logIssueError(log, error, started);
   await cleanUp(context, log, state.branch);
   return issueReport(issue.number, 'error', state, started, reason);
 }
