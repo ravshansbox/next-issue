@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { statSync } from 'node:fs';
-import { readdir, rm, stat, writeFile } from 'node:fs/promises';
+import fsPromises from 'node:fs/promises';
+import { readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { syncBuiltinESMExports } from 'node:module';
 import { Server } from 'node:net';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
@@ -358,6 +360,210 @@ test('a worker takes over the lock and the socket file that a dead worker left',
   assert.ok(started);
   t.after(() => started.close());
   await connect(t, socketPath);
+});
+
+async function startTogether(
+  t: TestContext,
+  dir: string,
+  count: number,
+): Promise<PromiseSettledResult<unknown>[]> {
+  const results = await Promise.allSettled(
+    Array.from({ length: count }, () =>
+      startWorker({
+        root: '/repo',
+        socketPath: join(dir, 'w.sock'),
+        lockPath: join(dir, 'w.lock'),
+        version: '2.0.0',
+        runRepo: fakeRuns().runRepo,
+        questions: noQuestions,
+        lockWaitMs: 0,
+      }),
+    ),
+  );
+  t.after(() =>
+    Promise.all(
+      results.map((result) => (result.status === 'fulfilled' ? result.value?.close() : undefined)),
+    ),
+  );
+  return results;
+}
+
+function outcomes(results: PromiseSettledResult<unknown>[]): string[] {
+  return results
+    .map((result) =>
+      result.status === 'rejected'
+        ? `failed: ${String(result.reason)}`
+        : result.value === undefined
+          ? 'refused'
+          : 'started',
+    )
+    .sort();
+}
+
+test('workers that start together while a dead worker left its lock end with one worker that listens', async (t) => {
+  const dir = await tempDir();
+  await writeFile(join(dir, 'w.lock'), '999999999 Thu Jan  1 00:00:00 1970\n');
+  const results = await startTogether(t, dir, 8);
+  assert.deepEqual(outcomes(results), [...Array(7).fill('refused'), 'started']);
+  await connect(t, join(dir, 'w.sock'));
+});
+
+test('workers that start together with no lock file end with one worker that listens', async (t) => {
+  const dir = await tempDir();
+  const results = await startTogether(t, dir, 8);
+  assert.deepEqual(outcomes(results), [...Array(7).fill('refused'), 'started']);
+  await connect(t, join(dir, 'w.sock'));
+});
+
+test('a worker that reads the lock file while another worker takes the lock never finds it empty', async () => {
+  const lockPath = join(await tempDir(), 'w.lock');
+  const seen = new Set<string>();
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    await rm(lockPath, { force: true });
+    let done = false;
+    const taking = lock(lockPath, 0).finally(() => {
+      done = true;
+    });
+    while (!done) {
+      seen.add(await readFile(lockPath, 'utf8').catch(() => 'missing'));
+    }
+    await taking;
+  }
+  assert.equal(seen.has(''), false);
+});
+
+test('a worker that closes leaves the socket and lock files that another worker owns', async (t) => {
+  const dir = await tempDir();
+  const socketPath = join(dir, 'w.sock');
+  const lockPath = join(dir, 'w.lock');
+  const started = await startWorker({
+    root: '/repo',
+    socketPath,
+    lockPath,
+    version: '2.0.0',
+    runRepo: fakeRuns().runRepo,
+    questions: noQuestions,
+  });
+  assert.ok(started);
+  const other = spawn('sleep', ['30']);
+  t.after(() => other.kill('SIGKILL'));
+  const otherLock = `${other.pid} ${await processStart(other.pid!)}\n`;
+  await rm(lockPath);
+  await writeFile(lockPath, otherLock);
+  await rm(socketPath);
+  await writeFile(socketPath, '');
+  await started.close();
+  assert.equal(await readFile(lockPath, 'utf8'), otherLock);
+  assert.ok(await stat(socketPath));
+});
+
+function exists(code: string): Error {
+  return Object.assign(new Error(code), { code });
+}
+
+async function withFs(t: TestContext, mocks: Record<string, (...args: never[]) => unknown>) {
+  for (const [name, implementation] of Object.entries(mocks)) {
+    t.mock.method(fsPromises, name as keyof typeof fsPromises, implementation as never);
+  }
+  syncBuiltinESMExports();
+  t.after(() => {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  });
+}
+
+test('a worker that breaks a stale lock keeps the lock file that another worker links after it finds none', async (t) => {
+  const lockPath = join(await tempDir(), 'w.lock');
+  const otherLock = `${process.pid} ${await processStart(process.pid)}\n`;
+  const realLink = fsPromises.link;
+  const realReadFile = fsPromises.readFile;
+  let refused = false;
+  let reads = 0;
+  await withFs(t, {
+    link: async (source: string, target: string) => {
+      if (target === lockPath && !refused) {
+        refused = true;
+        throw exists('EEXIST');
+      }
+      return realLink(source, target);
+    },
+    readFile: async (path: string, options: 'utf8') => {
+      if (path !== lockPath) {
+        return realReadFile(path, options);
+      }
+      reads += 1;
+      const text = await realReadFile(path, options).catch(() => undefined);
+      if (text === undefined && reads === 2) {
+        await writeFile(lockPath, otherLock, { flag: 'wx' });
+      }
+      return text ?? Promise.reject(exists('ENOENT'));
+    },
+  });
+  assert.equal(await lock(lockPath, 0), undefined);
+  assert.equal(await realReadFile(lockPath, 'utf8'), otherLock);
+});
+
+test('a worker whose break file link fails keeps the break file that another worker takes after it finds none', async (t) => {
+  const lockPath = join(await tempDir(), 'w.lock');
+  const breakPath = `${lockPath}.break`;
+  await writeFile(lockPath, '999999999 Thu Jan  1 00:00:00 1970\n');
+  const otherBreak = `${process.pid} ${await processStart(process.pid)}\n`;
+  const realLink = fsPromises.link;
+  const realReadFile = fsPromises.readFile;
+  let refused = false;
+  let taken = false;
+  await withFs(t, {
+    link: async (source: string, target: string) => {
+      if (target === breakPath && !refused) {
+        refused = true;
+        throw exists('EEXIST');
+      }
+      return realLink(source, target);
+    },
+    readFile: async (path: string, options: 'utf8') => {
+      const text = await realReadFile(path, options).catch(() => undefined);
+      if (path === breakPath && text === undefined && !taken) {
+        taken = true;
+        await writeFile(breakPath, otherBreak, { flag: 'wx' });
+      }
+      return text ?? Promise.reject(exists('ENOENT'));
+    },
+  });
+  const taking = lock(lockPath, 0);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(await realReadFile(breakPath, 'utf8').catch(() => 'missing'), otherBreak);
+  await rm(breakPath);
+  assert.ok(await taking);
+});
+
+test('a worker takes over an empty lock file that a worker which crashed while writing it left', async () => {
+  const lockPath = join(await tempDir(), 'w.lock');
+  await writeFile(lockPath, '');
+  const taking = lock(lockPath, 0);
+  const timeout = new Promise((resolve) => setTimeout(resolve, 2000, 'still waiting'));
+  const result = await Promise.race([taking, timeout]);
+  assert.notEqual(result, 'still waiting');
+  assert.ok(result);
+  assert.equal(
+    await readFile(lockPath, 'utf8'),
+    `${process.pid} ${await processStart(process.pid)}\n`,
+  );
+});
+
+test('a worker that starts removes the socket file that a worker which died before it listened left behind', async (t) => {
+  const dir = await tempDir();
+  await writeFile(join(dir, 's999999999'), '');
+  const started = await startWorker({
+    root: '/repo',
+    socketPath: join(dir, 'w.sock'),
+    lockPath: join(dir, 'w.lock'),
+    version: '2.0.0',
+    runRepo: fakeRuns().runRepo,
+    questions: noQuestions,
+  });
+  assert.ok(started);
+  t.after(() => started.close());
+  assert.deepEqual((await readdir(dir)).sort(), ['w.lock', 'w.sock']);
 });
 
 test('a worker that cannot read its own start time gets an error and leaves no lock file', async () => {

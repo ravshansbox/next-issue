@@ -556,7 +556,10 @@ affect another. The worker:
   with that id started at another time, for example because the system gave
   the id of a worker that was killed or lost in a reboot to another process.
   A lock without a start time, from an older version, is stale too. A worker
-  that cannot read its own start time exits with an error and takes no lock;
+  that cannot read its own start time exits with an error and takes no lock.
+  When several workers start at once, one takes the lock and the others exit
+  with `another worker is running`. A worker that stops removes the socket
+  and lock files only while it still holds the lock;
 - refuses a `start`, `stop` or `questions` message whose `root` is not
   the exact path of its repository with an `error` message, and starts or
   stops nothing;

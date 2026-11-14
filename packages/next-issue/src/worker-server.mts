@@ -1,6 +1,7 @@
 import { rm } from 'node:fs/promises';
 import type { Server } from 'node:http';
 import type { WebSocketServer } from 'ws';
+import type { HeldLock } from './lock.mts';
 import type { ClientMessage } from './protocol.mts';
 import { send } from './questions.mts';
 import { type Run, runsMessage } from './worker-run.mts';
@@ -69,14 +70,17 @@ export async function shutdown(
   server: Server,
   sockets: WebSocketServer,
   paths: { socketPath: string; lockPath: string },
+  held: HeldLock,
 ): Promise<void> {
   for (const socket of sockets.clients) {
     socket.terminate();
   }
   await whenClosed((done) => sockets.close(done));
   await whenClosed((done) => server.close(done));
-  await rm(paths.socketPath, { force: true });
-  await rm(paths.lockPath, { force: true });
+  if (held.owns()) {
+    await rm(paths.socketPath, { force: true });
+    await rm(paths.lockPath, { force: true });
+  }
 }
 
 export type Worker = {
