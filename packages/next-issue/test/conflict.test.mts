@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import { harness, roles } from './harness.mts';
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { type TestContext, test } from 'node:test';
+import type { AgentRequest } from '../src/agents.mts';
+import { commitAll } from '../src/git-commit.mts';
+import { pushToBase, squashOnto } from '../src/git-land.mts';
+import { abortMerge, commitMerge, startMerge } from '../src/git-merge.mts';
+import { diff, discardChanges, isDirty, latestSubject, revision, setAside } from '../src/git.mts';
+import type { Recorder } from '../src/observe.mts';
+import { addWorktree, findWorktree, removeWorktree } from '../src/worktree.mts';
+import { clones, git } from './clones.mts';
+import { type Harness, harness, roles } from './harness.mts';
 
 test('a user whose base branch moved without a conflict gets the base merged with no agent and no check fix spent', async (t) => {
   const target = await harness(t, { merges: [[]] });
@@ -65,4 +75,91 @@ test('a user whose merge of the base fails in a hook gets the hook output to the
   assert.match(target.messages[2]!, /^chore: merge the base\n/);
   assert.match(target.messages.at(-1)!, /^fix: work on #7\n/);
   assert.match(target.prompts.at(-1)!.prompt, /commitlint: subject may not be empty/);
+});
+
+type Fixer = (worktree: string) => Promise<unknown>;
+
+async function realMerge(t: TestContext, fixer: Fixer): Promise<{ target: Harness; base: string }> {
+  const { repo, other } = await clones();
+  await git(repo.root, 'config', 'user.name', 't');
+  await git(repo.root, 'config', 'user.email', 't@t');
+  const target = await harness(t, { root: repo.root });
+  const { ports } = target.context;
+  const fake = ports.runAgent;
+  Object.assign(ports, {
+    abortMerge,
+    addWorktree,
+    commitAll,
+    commitMerge,
+    diff,
+    discardChanges,
+    findWorktree,
+    isDirty,
+    latestSubject,
+    pushToBase,
+    removeWorktree,
+    revision,
+    setAside,
+    squashOnto,
+    startMerge,
+    runAgent: async (recorder: Recorder, request: AgentRequest) => {
+      if (request.name === 'implementer') {
+        await writeFile(join(request.cwd, 'a.txt'), 'branch\n');
+        await writeFile(join(other, 'a.txt'), 'base\n');
+        await writeFile(join(other, 'b.txt'), 'base\n');
+        await git(other, 'add', '-A');
+        await git(other, 'commit', '-q', '-m', 'base');
+        await git(other, 'push', '-q', 'origin', 'main');
+      }
+      if (request.name === 'fixer') {
+        await fixer(request.cwd);
+      }
+      return fake(recorder, request);
+    },
+  });
+  return { target, base: other };
+}
+
+async function remoteMain(base: string): Promise<string> {
+  await git(base, 'fetch', '-q', 'origin');
+  return git(base, 'rev-parse', 'origin/main');
+}
+
+test('a user whose fixer commits the merge with a conflict marker left gets the merge undone, the issue handed over and nothing pushed', async (t) => {
+  const { target, base } = await realMerge(t, (worktree) =>
+    git(worktree, 'commit', '-qam', 'merge'),
+  );
+  const report = await target.run();
+  const before = await git(base, 'rev-parse', 'HEAD');
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'merge conflict');
+  assert.equal(await remoteMain(base), before);
+});
+
+test('a user whose fixer aborts the merge and commits its own change gets the issue handed over and no base change reverted', async (t) => {
+  const { target, base } = await realMerge(t, async (worktree) => {
+    await git(worktree, 'merge', '--abort');
+    await writeFile(join(worktree, 'c.txt'), 'fixer\n');
+    await git(worktree, 'add', 'c.txt');
+    await git(worktree, 'commit', '-q', '-m', 'fixer');
+  });
+  const report = await target.run();
+  const before = await git(base, 'rev-parse', 'HEAD');
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'merge conflict');
+  assert.equal(await remoteMain(base), before);
+});
+
+test('a user whose fixer commits a clean merge of the base gets the change landed as one commit on the base', async (t) => {
+  const { target, base } = await realMerge(t, async (worktree) => {
+    await writeFile(join(worktree, 'a.txt'), 'branch and base\n');
+    await git(worktree, 'commit', '-qam', 'merge');
+  });
+  const report = await target.run();
+  const before = await git(base, 'rev-parse', 'HEAD');
+  assert.equal(report.outcome, 'done');
+  const landed = await remoteMain(base);
+  assert.equal(await git(base, 'rev-parse', `${landed}^`), before);
+  assert.equal(await git(base, 'show', `${landed}:a.txt`), 'branch and base');
+  assert.equal(await git(base, 'show', `${landed}:b.txt`), 'base');
 });

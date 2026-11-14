@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { run, succeeded } from './exec.mts';
 import { readTextOrEmpty } from './files.mts';
 import { commitEverything } from './git-commit.mts';
-import { fetchBase, git, resetHard, succeeds } from './git.mts';
+import { fetchBase, git, isAncestor, remoteRef, resetHard, succeeds } from './git.mts';
 import { lines } from './text.mts';
 
 export async function startMerge(
@@ -29,12 +29,25 @@ async function merging(cwd: string): Promise<boolean> {
 
 const CONFLICT_MARKER = /^(?:<{7}|>{7})(?: |$)/m;
 
-export async function commitMerge(cwd: string, files: string[], message: string): Promise<boolean> {
-  if (!(await merging(cwd)) || (await hasConflictMarkers(cwd, files))) {
+export type Merge = { before: string; base: string; remote: string; files: string[] };
+
+export async function commitMerge(cwd: string, merge: Merge, message: string): Promise<boolean> {
+  if (!(await merging(cwd))) {
+    await refuseUnmerged(cwd, merge);
+    return false;
+  }
+  if (await hasConflictMarkers(cwd, merge.files)) {
     return false;
   }
   await commitEverything(cwd, message);
   return true;
+}
+
+async function refuseUnmerged(cwd: string, merge: Merge): Promise<void> {
+  const holdsBase = await isAncestor(cwd, remoteRef(merge.remote, merge.base), 'HEAD');
+  if (!holdsBase || (await hasConflictMarkers(cwd, merge.files))) {
+    await resetHard(cwd, merge.before);
+  }
 }
 
 async function hasConflictMarkers(cwd: string, files: string[]): Promise<boolean> {

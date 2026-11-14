@@ -117,9 +117,11 @@ the run handles one issue. For each issue:
    the change. When git merges the base cleanly, no agent runs. When git
    reports conflicted files, the fixer gets the list from the check budget,
    `maxCiFixes`, removes the conflict markers, and the harness commits the
-   merge. With the budget used up, or when the fixer leaves a conflict marker
-   or the merge unresolved, or the fixer fails, the harness undoes the merge
-   and hands the issue to a person with the reason `merge conflict`. The
+   merge. A merge that the fixer commits itself counts only when the branch
+   then holds the base and the listed files hold no conflict marker. With the
+   budget used up, or when the fixer leaves a conflict marker or the merge
+   unresolved, aborts the merge, or fails, the harness undoes the merge and
+   hands the issue to a person with the reason `merge conflict`. The
    harness then pushes the commit to the base branch, without force. A push
    that the remote refuses, for example because the base moved, starts the
    rebase again, three times at most. When the push fails, the harness

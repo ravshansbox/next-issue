@@ -322,7 +322,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       head += 2;
       return true;
     },
-    commitMerge: async (_worktree, _files, commitMessage) => {
+    commitMerge: async (_worktree, _merge, commitMessage) => {
       state.messages.push(commitMessage);
       if (plan.mergeHook !== undefined && state.messages.length === 2) {
         throw new HookError(plan.mergeHook);

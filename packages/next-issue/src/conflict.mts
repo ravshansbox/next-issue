@@ -71,7 +71,7 @@ async function resolve(job: Run, before: string, files: string[]): Promise<boole
     const text = files.length > 0 ? await fixConflict(job, files) : '';
     const subject = parseCommitSubject(text, `chore: merge ${config.remote}/${context.base}`);
     return await commitWork(job, before, subject, 'fixer', (cwd, message) =>
-      ports.commitMerge(cwd, files, message),
+      ports.commitMerge(cwd, { before, base: context.base, remote: config.remote, files }, message),
     );
   } catch (error) {
     await ports.abortMerge(worktree, before);

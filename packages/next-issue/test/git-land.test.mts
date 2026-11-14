@@ -23,8 +23,10 @@ test('squashOnto makes one commit on top of the base, and pushToBase lands it th
   const { path, other } = await branch();
   await commit(other, 'd.txt');
   await git(other, 'push', '-q', 'origin', 'main');
+  const before = await git(path, 'rev-parse', 'HEAD');
   assert.deepEqual(await startMerge(path, 'main', 'origin'), []);
-  assert.equal(await commitMerge(path, [], 'chore: merge'), true);
+  const merge = { before, base: 'main', remote: 'origin', files: [] };
+  assert.equal(await commitMerge(path, merge, 'chore: merge'), true);
   assert.equal(await squashOnto(path, 'main', 'origin', 'feat: add b and c'), true);
   assert.equal(await git(path, 'rev-parse', 'HEAD^'), await git(path, 'rev-parse', 'origin/main'));
   assert.equal(await git(path, 'log', '-1', '--format=%s'), 'feat: add b and c');
