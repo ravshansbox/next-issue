@@ -80,9 +80,22 @@ export async function waitingQuestions(
   const issues = await ports.openIssues(repo, config.issueLimit, [config.labels.needsHuman]);
   const questions: Question[] = [];
   for (const issue of issues) {
-    questions.push(await waitingQuestion(repo, config, ports, writer, issue));
+    const question = await waitingQuestion(repo, config, ports, writer, issue);
+    if (question) {
+      questions.push(question);
+    }
   }
   return questions;
+}
+
+async function replyAfter(comments: Comment[], last: number, writer: Writer): Promise<string[]> {
+  if (last === -1) {
+    return [];
+  }
+  return writerQuotes(
+    comments.slice(last + 1).filter((comment) => !fromHarness(comment)),
+    writer,
+  );
 }
 
 async function waitingQuestion(
@@ -91,8 +104,11 @@ async function waitingQuestion(
   ports: QuestionPorts,
   writer: Writer,
   issue: Issue,
-): Promise<Question> {
+): Promise<Question | undefined> {
   const { comments, last } = await handOverThread(repo, ports, writer, issue.number);
+  if ((await replyAfter(comments, last, writer)).length > 0) {
+    return undefined;
+  }
   const comment = comments[last];
   return {
     issue: issue.number,
@@ -122,11 +138,5 @@ export async function handOverReply(context: Context, issue: number): Promise<st
   const { repo, ports } = context;
   const writer = writers(repo, ports);
   const { comments, last } = await handOverThread(repo, ports, writer, issue);
-  if (last === -1) {
-    return [];
-  }
-  return writerQuotes(
-    comments.slice(last + 1).filter((comment) => !fromHarness(comment)),
-    writer,
-  );
+  return replyAfter(comments, last, writer);
 }

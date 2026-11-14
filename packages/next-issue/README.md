@@ -668,7 +668,9 @@ affect another. The worker:
   from GitHub, so the list is the same after a restart. It sends them when a
   client connects, for its repository, after each issue of a run
   ends, and when a client sends `{ "type": "questions", "root": "<path>" }`.
-  An issue that no longer has the label leaves the list. An issue with the
+  An issue that no longer has the label leaves the list, and so does an issue
+  whose hand-over has an answer from a writer, the same answer that lets a run
+  claim it. An issue with the
   label but no hand-over comment is in the list with an empty reason and url.
   The issues are read one at a time. A client never gets an older list after
   a newer one. When the client adds an `"id"` to its message, the list that

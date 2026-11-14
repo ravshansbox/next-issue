@@ -91,3 +91,35 @@ test('the worker lists each open issue that waits for a person with the reason a
   ]);
   assert.equal(mostReading, 1);
 });
+
+test('the worker leaves out of the waiting questions an issue whose hand-over a writer has answered, and keeps one that only a stranger or the harness has answered', async () => {
+  const root = await tempDir();
+  const repo = { owner: 'acme', name: 'tool', root };
+  const config = await loadConfig(root);
+  const threads: Record<number, Comment[]> = {
+    10: [
+      { author: 'bot', body: 'next-issue needs help: Answered.', url: 'u10' },
+      { author: 'owner', body: 'Use the other api.', url: 'u11' },
+    ],
+    11: [
+      { author: 'bot', body: 'next-issue needs help: Stranger only.', url: 'u12' },
+      { author: 'stranger', body: 'Try again.', url: 'u13' },
+    ],
+    12: [
+      { author: 'bot', body: 'next-issue needs help: Harness only.', url: 'u14' },
+      { author: 'bot', body: '### Review: changes', url: 'u15' },
+    ],
+  };
+  const questions = await waitingQuestions(repo, config, {
+    openIssues: async () => [issue(10, 'Ten'), issue(11, 'Eleven'), issue(12, 'Twelve')],
+    threadComments: async (_repo, number) => threads[number] ?? [],
+    canWrite: async (_repo, login) => login !== 'stranger',
+  });
+  assert.deepEqual(
+    questions.map((question) => [question.issue, question.url]),
+    [
+      [11, 'u12'],
+      [12, 'u14'],
+    ],
+  );
+});
