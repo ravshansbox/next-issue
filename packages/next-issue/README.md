@@ -558,8 +558,9 @@ affect another. The worker:
   A lock without a start time, from an older version, is stale too. A worker
   that cannot read its own start time exits with an error and takes no lock.
   When several workers start at once, one takes the lock and the others exit
-  with `another worker is running`. A worker that stops removes the socket
-  and lock files only while it still holds the lock;
+  with `another worker is running`. A worker that stops removes the lock file
+  only while it still holds the lock, and the socket file only while it is
+  still the socket it bound;
 - refuses a `start`, `stop` or `questions` message whose `root` is not
   the exact path of its repository with an `error` message, and starts or
   stops nothing;

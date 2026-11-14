@@ -1,11 +1,12 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
-import { link, rm, writeFile } from 'node:fs/promises';
+import { link, open, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
 import { hasCode } from './errors.mts';
-import { readTextIfPresent, readTextOrEmpty } from './files.mts';
+import { readTextOrEmpty, unlessMissing } from './files.mts';
 
 const LOCK_POLL_MS = 100;
 
@@ -49,9 +50,108 @@ async function holder(lockPath: string): Promise<number | undefined> {
   return holderOf(await readTextOrEmpty(lockPath));
 }
 
-async function isStale(lockPath: string): Promise<boolean> {
-  const text = await readTextIfPresent(lockPath);
-  return text !== undefined && (await holderOf(text)) === undefined;
+type LockState = { state: 'missing' } | { state: 'stale' | 'held'; id: string };
+
+function idOf(found: { dev: number; ino: number }): string {
+  return `${found.dev}:${found.ino}`;
+}
+
+function draftPath(path: string): string {
+  return `${path}.${process.pid}.${randomUUID()}`;
+}
+
+async function lockState(path: string): Promise<LockState> {
+  const read = await unlessMissing(async () => {
+    const file = await open(path, 'r');
+    try {
+      return { id: idOf(await file.stat()), text: await file.readFile('utf8') };
+    } finally {
+      await file.close();
+    }
+  });
+  if (read === undefined) {
+    return { state: 'missing' };
+  }
+  return { state: (await holderOf(read.text)) === undefined ? 'stale' : 'held', id: read.id };
+}
+
+async function take(path: string, text: string): Promise<string | undefined> {
+  const draft = draftPath(path);
+  await writeFile(draft, text, { flag: 'wx', mode: 0o600 });
+  try {
+    await link(draft, path);
+    return idOf(await stat(draft));
+  } catch (error) {
+    if (!hasCode(error, 'EEXIST')) {
+      throw error;
+    }
+    return undefined;
+  } finally {
+    await rm(draft, { force: true });
+  }
+}
+
+async function removeIfSame(path: string, id: string): Promise<void> {
+  const moved = draftPath(path);
+  try {
+    await rename(path, moved);
+  } catch (error) {
+    if (hasCode(error, 'ENOENT')) {
+      return;
+    }
+    throw error;
+  }
+  try {
+    if (idOf(await stat(moved)) !== id) {
+      await link(moved, path).catch((error: unknown) => {
+        if (!hasCode(error, 'EEXIST')) {
+          throw error;
+        }
+      });
+    }
+  } finally {
+    await rm(moved, { force: true });
+  }
+}
+
+async function removeStale(path: string, text: string): Promise<void> {
+  const guard = `${path}.break`;
+  if ((await take(guard, text)) === undefined) {
+    const found = await lockState(guard);
+    if (found.state === 'stale') {
+      await removeIfSame(guard, found.id);
+    } else if (found.state === 'held') {
+      await delay(LOCK_POLL_MS);
+    }
+    return;
+  }
+  try {
+    const found = await lockState(path);
+    if (found.state === 'stale') {
+      await removeIfSame(path, found.id);
+    }
+  } finally {
+    await rm(guard, { force: true });
+  }
+}
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return !hasCode(error, 'ESRCH');
+  }
+}
+
+async function removeDeadDrafts(path: string): Promise<void> {
+  const name = basename(path);
+  for (const entry of await readdir(dirname(path))) {
+    const pid = /^\.(?:break\.)?(\d+)\.[0-9a-f-]{36}$/.exec(entry.slice(name.length))?.[1];
+    if (entry.startsWith(name) && pid !== undefined && !isAlive(Number(pid))) {
+      await rm(join(dirname(path), entry), { force: true });
+    }
+  }
 }
 
 export async function stopWorker(lockPath: string): Promise<number | undefined> {
@@ -66,10 +166,6 @@ export type HeldLock = {
   owns: () => boolean;
 };
 
-function inode(path: string): number | undefined {
-  return statSync(path, { throwIfNoEntry: false })?.ino;
-}
-
 function textOf(path: string): string | undefined {
   try {
     return readFileSync(path, 'utf8');
@@ -78,33 +174,13 @@ function textOf(path: string): string | undefined {
   }
 }
 
-async function linked(source: string, target: string): Promise<boolean> {
-  try {
-    await link(source, target);
-    return true;
-  } catch (error) {
-    if (hasCode(error, 'EEXIST')) {
-      return false;
-    }
-    throw error;
-  }
-}
-
-async function removeStale(path: string, filled: string): Promise<void> {
-  const breakPath = `${path}.break`;
-  if (!(await linked(filled, breakPath))) {
-    if (await isStale(breakPath)) {
-      await rm(breakPath, { force: true });
-    }
-    return;
-  }
-  try {
-    if (await isStale(path)) {
-      await rm(path, { force: true });
-    }
-  } finally {
-    await rm(breakPath, { force: true });
-  }
+function heldLock(path: string, id: string, text: string): HeldLock {
+  return {
+    owns: () => {
+      const found = statSync(path, { throwIfNoEntry: false });
+      return found !== undefined && idOf(found) === id && textOf(path) === text;
+    },
+  };
 }
 
 export async function lock(
@@ -116,26 +192,22 @@ export async function lock(
   if (started === undefined) {
     throw new Error('next-issue: cannot read the start time of the worker process');
   }
-  const filled = `${path}.${randomUUID()}`;
   const text = `${process.pid} ${started}\n`;
-  await writeFile(filled, text, { flag: 'wx', mode: 0o600 });
-  try {
-    const deadline = Date.now() + waitMs;
-    for (;;) {
-      if (await linked(filled, path)) {
-        const held = inode(path);
-        return {
-          owns: () => held !== undefined && inode(path) === held && textOf(path) === text,
-        };
-      }
-      if ((await holder(path)) === undefined) {
-        await removeStale(path, filled);
-      } else if (Date.now() >= deadline) {
+  const deadline = Date.now() + waitMs;
+  for (;;) {
+    const id = await take(path, text);
+    if (id !== undefined) {
+      await removeDeadDrafts(path);
+      return heldLock(path, id, text);
+    }
+    const found = await lockState(path);
+    if (found.state === 'stale') {
+      await removeStale(path, text);
+    } else if (found.state === 'held') {
+      if (Date.now() >= deadline) {
         return undefined;
       }
       await delay(LOCK_POLL_MS);
     }
-  } finally {
-    await rm(filled, { force: true });
   }
 }

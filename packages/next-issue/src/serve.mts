@@ -1,13 +1,11 @@
-import { rmSync } from 'node:fs';
 import { mkdir, rename, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { type WebSocket, WebSocketServer } from 'ws';
 import { type Args, parseStartArgs } from './args.mts';
 import { stopChildren, withRunChildren } from './children.mts';
 import { message } from './errors.mts';
-import { listOrEmpty } from './files.mts';
-import { type HeldLock, lock } from './lock.mts';
+import { lock } from './lock.mts';
 import { startProgress } from './progress.mts';
 import { type ClientMessage, isNewer, type Progress } from './protocol.mts';
 import { type ListQuestions, listQuestions, questionSender, send } from './questions.mts';
@@ -28,8 +26,11 @@ import {
 import {
   broadcast,
   closer,
+  fileId,
   listen,
+  type Owned,
   parseMessage,
+  removeOwned,
   shutdown,
   type Worker,
 } from './worker-server.mts';
@@ -50,22 +51,19 @@ type WorkerOptions = {
 const LOCK_WAIT_MS = 5_000;
 const IDLE_MS = 30_000;
 
-export async function startWorker(
-  options: WorkerOptions,
-): Promise<(Worker & { lock: HeldLock }) | undefined> {
+export async function startWorker(options: WorkerOptions): Promise<Worker | undefined> {
   checkSocketPath(options.socketPath);
   await mkdir(dirname(options.lockPath), { recursive: true });
   const held = await lock(options.lockPath, options.lockWaitMs ?? LOCK_WAIT_MS);
   if (held === undefined) {
     return undefined;
   }
-  const stateDir = dirname(options.socketPath);
-  const bindPath = join(stateDir, `s${process.pid}`);
-  for (const name of await listOrEmpty(stateDir)) {
-    if (/^s\d+$/.test(name)) {
-      await rm(join(stateDir, name), { force: true });
-    }
-  }
+  const owned: Owned = {
+    socketPath: options.socketPath,
+    lockPath: options.lockPath,
+    lock: held,
+    socket: '',
+  };
   const runs = new Map<string, Run>();
   let restart = false;
 
@@ -77,7 +75,7 @@ export async function startWorker(
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
   const { closed, close } = closer(async () => {
     clearTimeout(idleTimer);
-    await shutdown(server, sockets, options, held);
+    await shutdown(server, sockets, owned);
   });
   const closeWhenIdle = (): void => {
     if ((restart || sockets.clients.size === 0) && !busy()) {
@@ -171,10 +169,13 @@ export async function startWorker(
     });
   });
 
-  await listen(server, bindPath);
-  await rename(bindPath, options.socketPath);
+  const draft = join(dirname(options.socketPath), `~${basename(options.socketPath).slice(1)}`);
+  await rm(draft, { force: true });
+  await listen(server, draft);
+  await rename(draft, options.socketPath);
+  owned.socket = fileId(options.socketPath);
   idleTimer = setTimeout(closeWhenIdle, options.idleMs ?? IDLE_MS);
-  return { closed, close, lock: held };
+  return { closed, close, release: () => removeOwned(owned) };
 }
 
 export async function serve(root: string): Promise<number> {
@@ -193,10 +194,7 @@ export async function serve(root: string): Promise<number> {
   const end = (signal: NodeJS.Signals): void => {
     process.off('SIGTERM', onTerminate);
     process.off('SIGINT', onInterrupt);
-    if (worker.lock.owns()) {
-      rmSync(paths.socketPath, { force: true });
-      rmSync(paths.lockPath, { force: true });
-    }
+    worker.release();
     stopChildren(signal);
   };
   const onTerminate = (): void => end('SIGTERM');

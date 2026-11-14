@@ -1,4 +1,4 @@
-import { rm } from 'node:fs/promises';
+import { rmSync, statSync } from 'node:fs';
 import type { Server } from 'node:http';
 import type { WebSocketServer } from 'ws';
 import type { HeldLock } from './lock.mts';
@@ -66,29 +66,42 @@ function whenClosed(close: (done: () => void) => void): Promise<void> {
   return new Promise((resolve) => close(() => resolve()));
 }
 
+export type Owned = { socketPath: string; lockPath: string; lock: HeldLock; socket: string };
+
+export function fileId(path: string): string {
+  const found = statSync(path, { throwIfNoEntry: false });
+  return found?.isSocket() === true ? `${found.dev}:${found.ino}` : '';
+}
+
+export function removeOwned(owned: Owned): void {
+  if (owned.socket !== '' && fileId(owned.socketPath) === owned.socket) {
+    rmSync(owned.socketPath, { force: true });
+  }
+  if (owned.lock.owns()) {
+    rmSync(owned.lockPath, { force: true });
+  }
+}
+
 export async function shutdown(
   server: Server,
   sockets: WebSocketServer,
-  paths: { socketPath: string; lockPath: string },
-  held: HeldLock,
+  owned: Owned,
 ): Promise<void> {
   for (const socket of sockets.clients) {
     socket.terminate();
   }
   await whenClosed((done) => sockets.close(done));
   await whenClosed((done) => server.close(done));
-  if (held.owns()) {
-    await rm(paths.socketPath, { force: true });
-    await rm(paths.lockPath, { force: true });
-  }
+  removeOwned(owned);
 }
 
 export type Worker = {
   closed: Promise<void>;
   close: () => Promise<void>;
+  release: () => void;
 };
 
-export function closer(stop: () => Promise<void>): Worker {
+export function closer(stop: () => Promise<void>): Omit<Worker, 'release'> {
   let finish: () => void = () => undefined;
   const closed = new Promise<void>((resolve) => {
     finish = resolve;

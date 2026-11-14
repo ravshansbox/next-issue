@@ -1,19 +1,23 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { statSync } from 'node:fs';
 import fsPromises from 'node:fs/promises';
-import { readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { syncBuiltinESMExports } from 'node:module';
 import { Server } from 'node:net';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import { onStop } from '../src/children.mts';
 import { run, type RunResult } from '../src/exec.mts';
 import type { WorkerMessage } from '../src/protocol.mts';
 import { lock, processStart } from '../src/lock.mts';
 import { startWorker } from '../src/serve.mts';
+import { workerPaths } from '../src/worker-paths.mts';
 import { tempDir } from './temp-dir.mts';
 import { connect, fakeRuns, noQuestions, runsOf, worker } from './worker-harness.mts';
+
+const SERVE = new URL('../src/serve.mts', import.meta.url).href;
 
 test('a client that connects gets the worker version and the runs', async (t) => {
   const fake = fakeRuns();
@@ -362,7 +366,7 @@ test('a worker takes over the lock and the socket file that a dead worker left',
   await connect(t, socketPath);
 });
 
-async function startTogether(
+async function startTogetherInProcess(
   t: TestContext,
   dir: string,
   count: number,
@@ -403,14 +407,14 @@ function outcomes(results: PromiseSettledResult<unknown>[]): string[] {
 test('workers that start together while a dead worker left its lock end with one worker that listens', async (t) => {
   const dir = await tempDir();
   await writeFile(join(dir, 'w.lock'), '999999999 Thu Jan  1 00:00:00 1970\n');
-  const results = await startTogether(t, dir, 8);
+  const results = await startTogetherInProcess(t, dir, 8);
   assert.deepEqual(outcomes(results), [...Array(7).fill('refused'), 'started']);
   await connect(t, join(dir, 'w.sock'));
 });
 
 test('workers that start together with no lock file end with one worker that listens', async (t) => {
   const dir = await tempDir();
-  const results = await startTogether(t, dir, 8);
+  const results = await startTogetherInProcess(t, dir, 8);
   assert.deepEqual(outcomes(results), [...Array(7).fill('refused'), 'started']);
   await connect(t, join(dir, 'w.sock'));
 });
@@ -476,9 +480,9 @@ test('a worker that breaks a stale lock keeps the lock file that another worker 
   const lockPath = join(await tempDir(), 'w.lock');
   const otherLock = `${process.pid} ${await processStart(process.pid)}\n`;
   const realLink = fsPromises.link;
-  const realReadFile = fsPromises.readFile;
+  const realOpen = fsPromises.open;
   let refused = false;
-  let reads = 0;
+  let taken = false;
   await withFs(t, {
     link: async (source: string, target: string) => {
       if (target === lockPath && !refused) {
@@ -487,20 +491,17 @@ test('a worker that breaks a stale lock keeps the lock file that another worker 
       }
       return realLink(source, target);
     },
-    readFile: async (path: string, options: 'utf8') => {
-      if (path !== lockPath) {
-        return realReadFile(path, options);
-      }
-      reads += 1;
-      const text = await realReadFile(path, options).catch(() => undefined);
-      if (text === undefined && reads === 2) {
+    open: async (path: string, flags: string) => {
+      const file = await realOpen(path, flags).catch(() => undefined);
+      if (path === lockPath && file === undefined && !taken) {
+        taken = true;
         await writeFile(lockPath, otherLock, { flag: 'wx' });
       }
-      return text ?? Promise.reject(exists('ENOENT'));
+      return file ?? Promise.reject(exists('ENOENT'));
     },
   });
   assert.equal(await lock(lockPath, 0), undefined);
-  assert.equal(await realReadFile(lockPath, 'utf8'), otherLock);
+  assert.equal(await readFile(lockPath, 'utf8'), otherLock);
 });
 
 test('a worker whose break file link fails keeps the break file that another worker takes after it finds none', async (t) => {
@@ -509,7 +510,7 @@ test('a worker whose break file link fails keeps the break file that another wor
   await writeFile(lockPath, '999999999 Thu Jan  1 00:00:00 1970\n');
   const otherBreak = `${process.pid} ${await processStart(process.pid)}\n`;
   const realLink = fsPromises.link;
-  const realReadFile = fsPromises.readFile;
+  const realOpen = fsPromises.open;
   let refused = false;
   let taken = false;
   await withFs(t, {
@@ -520,18 +521,18 @@ test('a worker whose break file link fails keeps the break file that another wor
       }
       return realLink(source, target);
     },
-    readFile: async (path: string, options: 'utf8') => {
-      const text = await realReadFile(path, options).catch(() => undefined);
-      if (path === breakPath && text === undefined && !taken) {
+    open: async (path: string, flags: string) => {
+      const file = await realOpen(path, flags).catch(() => undefined);
+      if (path === breakPath && file === undefined && !taken) {
         taken = true;
         await writeFile(breakPath, otherBreak, { flag: 'wx' });
       }
-      return text ?? Promise.reject(exists('ENOENT'));
+      return file ?? Promise.reject(exists('ENOENT'));
     },
   });
   const taking = lock(lockPath, 0);
   await new Promise((resolve) => setTimeout(resolve, 300));
-  assert.equal(await realReadFile(breakPath, 'utf8').catch(() => 'missing'), otherBreak);
+  assert.equal(await readFile(breakPath, 'utf8').catch(() => 'missing'), otherBreak);
   await rm(breakPath);
   assert.ok(await taking);
 });
@@ -548,22 +549,6 @@ test('a worker takes over an empty lock file that a worker which crashed while w
     await readFile(lockPath, 'utf8'),
     `${process.pid} ${await processStart(process.pid)}\n`,
   );
-});
-
-test('a worker that starts removes the socket file that a worker which died before it listened left behind', async (t) => {
-  const dir = await tempDir();
-  await writeFile(join(dir, 's999999999'), '');
-  const started = await startWorker({
-    root: '/repo',
-    socketPath: join(dir, 'w.sock'),
-    lockPath: join(dir, 'w.lock'),
-    version: '2.0.0',
-    runRepo: fakeRuns().runRepo,
-    questions: noQuestions,
-  });
-  assert.ok(started);
-  t.after(() => started.close());
-  assert.deepEqual((await readdir(dir)).sort(), ['w.lock', 'w.sock']);
 });
 
 test('a worker that cannot read its own start time gets an error and leaves no lock file', async () => {
@@ -596,6 +581,167 @@ test('a worker takes over the lock when its process id now belongs to a process 
   assert.ok(started);
   t.after(() => started.close());
   await connect(t, socketPath);
+});
+
+async function startTogether(t: TestContext, dir: string, count: number): Promise<string[]> {
+  const inner = [
+    `import { startWorker } from ${JSON.stringify(SERVE)};`,
+    `process.stdout.write('ready\\n');`,
+    `await new Promise((resolve) => process.stdin.once('data', resolve));`,
+    'const started = await startWorker({',
+    `  root: '/repo',`,
+    `  socketPath: ${JSON.stringify(join(dir, 'w.sock'))},`,
+    `  lockPath: ${JSON.stringify(join(dir, 'w.lock'))},`,
+    `  version: '2.0.0',`,
+    '  runRepo: async () => 0,',
+    '  questions: async () => [],',
+    '  lockWaitMs: 0,',
+    '});',
+    `process.stdout.write(started === undefined ? 'refused\\n' : 'serving\\n');`,
+    'if (started === undefined) process.exit(0);',
+  ].join('\n');
+  const children = Array.from({ length: count }, () => {
+    const child = spawn(process.execPath, ['--input-type=module', '-e', inner], {
+      stdio: ['pipe', 'pipe', 'inherit'],
+    });
+    t.after(() => child.kill('SIGKILL'));
+    let output = '';
+    child.stdout.setEncoding('utf8');
+    const ready = new Promise<void>((resolve) =>
+      child.stdout.on('data', (chunk: string) => {
+        output += chunk;
+        if (output.startsWith('ready\n')) {
+          resolve();
+        }
+      }),
+    );
+    const result = new Promise<string>((resolve) =>
+      child.stdout.on('data', () => {
+        const lines = output.split('\n');
+        if (lines.length > 2) {
+          resolve(lines[1]!);
+        }
+      }),
+    );
+    return { child, ready, result };
+  });
+  await Promise.all(children.map(({ ready }) => ready));
+  for (const { child } of children) {
+    child.stdin.write('go\n');
+  }
+  return Promise.all(children.map(({ result }) => result));
+}
+
+test('two workers that start together in one repository, with or without a stale lock, leave exactly one serving', async (t) => {
+  for (const stale of [false, true, false, true, false, true, false, true]) {
+    const dir = await tempDir();
+    if (stale) {
+      await writeFile(join(dir, 'w.lock'), '999999999 Thu Jan  1 00:00:00 1970\n');
+    }
+    const results = await startTogether(t, dir, 2);
+    assert.deepEqual(results.sort(), ['refused', 'serving'], `stale lock: ${stale}`);
+    const client = await connect(t, join(dir, 'w.sock'));
+    assert.deepEqual(await client.next(runsOf), { type: 'runs', runs: {} });
+  }
+});
+
+test('a worker that closes leaves a socket and lock file that are not its own', async () => {
+  const dir = await tempDir();
+  const socketPath = join(dir, 'w.sock');
+  const lockPath = join(dir, 'w.lock');
+  const started = await startWorker({
+    root: '/repo',
+    socketPath,
+    lockPath,
+    version: '2.0.0',
+    runRepo: fakeRuns().runRepo,
+    questions: noQuestions,
+    idleMs: 50,
+  });
+  assert.ok(started);
+  await writeFile(join(dir, 'other.sock'), '');
+  await rename(join(dir, 'other.sock'), socketPath);
+  await writeFile(join(dir, 'other.lock'), '1 other\n');
+  await rename(join(dir, 'other.lock'), lockPath);
+  await started.closed;
+  assert.deepEqual((await readdir(dir)).sort(), ['w.lock', 'w.sock']);
+});
+
+test('a worker that closes leaves a lock file that another worker in the same process took', async () => {
+  const dir = await tempDir();
+  const socketPath = join(dir, 'w.sock');
+  const lockPath = join(dir, 'w.lock');
+  const started = await startWorker({
+    root: '/repo',
+    socketPath,
+    lockPath,
+    version: '2.0.0',
+    runRepo: fakeRuns().runRepo,
+    questions: noQuestions,
+    idleMs: 50,
+  });
+  assert.ok(started);
+  await writeFile(join(dir, 'other.lock'), `${process.pid} ${await processStart(process.pid)}\n`);
+  await rename(join(dir, 'other.lock'), lockPath);
+  await started.closed;
+  assert.deepEqual(await readdir(dir), ['w.lock']);
+});
+
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+  test(`a worker that gets ${signal} leaves a socket and lock file that are not its own`, async (t) => {
+    const root = await tempDir();
+    const { socketPath, lockPath } = workerPaths(root);
+    const child = spawn(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `import { serve } from ${JSON.stringify(SERVE)}; await serve(${JSON.stringify(root)});`,
+      ],
+      { stdio: ['ignore', 'ignore', 'pipe'] },
+    );
+    t.after(() => child.kill('SIGKILL'));
+    const exited = new Promise((resolve) => child.once('exit', resolve));
+    await new Promise<void>((resolve) => {
+      let output = '';
+      child.stderr.setEncoding('utf8');
+      child.stderr.on('data', (chunk: string) => {
+        output += chunk;
+        if (output.includes('listening')) {
+          resolve();
+        }
+      });
+    });
+    const dir = dirname(lockPath);
+    await writeFile(join(dir, 'other.sock'), '');
+    await rename(join(dir, 'other.sock'), socketPath);
+    await writeFile(join(dir, 'other.lock'), `${child.pid} ${await processStart(child.pid!)}\n`);
+    await rename(join(dir, 'other.lock'), lockPath);
+    child.kill(signal);
+    await exited;
+    assert.deepEqual((await readdir(dir)).sort(), ['worker.lock', 'worker.sock']);
+  });
+}
+
+test('a worker removes the draft files that a dead worker left', async () => {
+  const dir = await tempDir();
+  const draft = join(dir, `w.lock.999999999.${randomUUID()}`);
+  const guardDraft = join(dir, `w.lock.break.999999999.${randomUUID()}`);
+  await writeFile(draft, '');
+  await writeFile(guardDraft, '');
+  await writeFile(join(dir, '~.sock'), '');
+  const started = await startWorker({
+    root: '/repo',
+    socketPath: join(dir, 'w.sock'),
+    lockPath: join(dir, 'w.lock'),
+    version: '2.0.0',
+    runRepo: fakeRuns().runRepo,
+    questions: noQuestions,
+    idleMs: 50,
+  });
+  assert.ok(started);
+  await started.closed;
+  assert.deepEqual(await readdir(dir), []);
 });
 
 test('a worker that meets a newer client closes once no run is going', async (t) => {
