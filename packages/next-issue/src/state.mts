@@ -14,6 +14,7 @@ export type IssueState = {
   phase: Phase;
   branch: string;
   title?: string;
+  changeTitle?: string;
   implementerReply?: string;
   fixerReply?: string;
   ciFixes: number;
@@ -94,6 +95,7 @@ function isState(value: unknown): value is IssueState {
     PHASES.includes(value.phase) &&
     typeof value.branch === 'string' &&
     isOptional(value.title, 'string') &&
+    isOptional(value.changeTitle, 'string') &&
     isOptional(value.implementerReply, 'string') &&
     isOptional(value.fixerReply, 'string') &&
     typeof value.ciFixes === 'number' &&

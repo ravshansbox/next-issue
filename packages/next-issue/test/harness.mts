@@ -134,6 +134,7 @@ export type Harness = {
   landed: string[];
   localBase: string | undefined;
   reverts: Array<{ shas: string[]; message: string }>;
+  reapplies: string[];
   closed: number[];
   baseWaits: string[];
   reruns: string[];
@@ -193,6 +194,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     landed: [],
     localBase: undefined,
     reverts: [],
+    reapplies: [],
     closed: [],
     baseWaits: [],
     reruns: [],
@@ -312,6 +314,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     reapplyRevert: async () => false,
     revertOnBase: async (_worktree, revert) => {
       state.reverts.push({ shas: revert.shas, message: revert.message });
+      state.reapplies.push(revert.reapply);
       if (plan.revertFails === true) {
         return false;
       }

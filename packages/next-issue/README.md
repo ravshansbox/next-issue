@@ -115,12 +115,16 @@ the run handles one issue. For each issue:
    Approved changes land one at a time, so the next one waits until the
    checks of the last one end, and other issues go on meanwhile. The
    harness fetches the remote base, merges it into the branch and makes the
-   change one commit on top of it, with the subject of the newest commit of
-   the change. When git merges the base cleanly, no agent runs. When git
-   reports conflicted files, the fixer gets the list from the check budget,
-   `maxCiFixes`, removes the conflict markers, and the harness commits the
-   merge. A merge that the fixer commits itself counts only when the branch
-   then holds the base commit that was merged and the listed files hold no
+   change one commit on top of it, with the subject of the implementer's
+   commit. A review fix keeps that subject, but a commit fix for the
+   implementer's commit replaces it, and a fix for failed checks after the
+   landing lands under the fixer's own subject. The reapply commit after a
+   revert uses the subject of the change. When git merges the base cleanly,
+   no agent runs. When git reports conflicted files, the fixer gets the
+   list from the check budget, `maxCiFixes`, removes the conflict markers,
+   and the harness commits the merge. A merge that the fixer commits itself
+   counts only when the branch then holds the base commit that was merged
+   and the listed files hold no
    conflict marker. With the budget used up, or when the fixer leaves a
    conflict marker or the merge unresolved, aborts the merge, or fails, the
    harness undoes the merge and hands the issue to a person with the reason

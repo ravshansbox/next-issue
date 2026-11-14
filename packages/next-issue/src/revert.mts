@@ -29,7 +29,7 @@ export function sentence(text: string): string {
 
 export function reapplyMessage(job: Run): string {
   const { number } = job.issue;
-  return `${job.state.title ?? `fix: resolve issue #${number}`}\n\nRefs #${number}`;
+  return `${job.state.changeTitle ?? job.state.title ?? `fix: resolve issue #${number}`}\n\nRefs #${number}`;
 }
 
 export async function revert(job: Run): Promise<string> {

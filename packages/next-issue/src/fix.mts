@@ -66,7 +66,15 @@ export async function fixRound(
     return disputedFix(job, before, reason, { resolved });
   }
   const subject = parseCommitSubject(text, `fix: address feedback on issue #${issue.number}`);
-  if (!(await commitWork(job, before, subject, 'fixer'))) {
+  const title = job.state.title;
+  if (kind === 'checks') {
+    job.state.changeTitle ??= title;
+  }
+  const committed = await commitWork(job, before, subject, 'fixer');
+  if (kind === 'review') {
+    job.state.title = title;
+  }
+  if (!committed) {
     log.event('commit.empty', { reason }, 'quiet');
     return { committed: false };
   }
