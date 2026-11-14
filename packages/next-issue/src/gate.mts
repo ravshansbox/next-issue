@@ -1,7 +1,8 @@
 import { budgetUse } from './budget.mts';
 import { type CheckState, checkWaiting } from './check-poll.mts';
-import { asError } from './errors.mts';
-import { escalateCheckFix, fixRound } from './fix.mts';
+import { runStopped } from './children.mts';
+import { asError, message } from './errors.mts';
+import { escalateCheckFix, type Fix, fixRound } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
 import { type Gate, GATE_FIXED, GATE_PASSED, type Run } from './job.mts';
 import { revert } from './revert.mts';
@@ -67,13 +68,28 @@ async function failedChecksFix(job: Run, sha: string): Promise<Gate> {
   await writeState(repo, state);
   const logs = await ports.failedBaseLogs(repo, sha, config.logMaxChars);
   log.event('main-checks.logs', { chars: logs.length });
-  const fix = await fixRound(
-    job,
-    `The checks on ${base} failed after the change landed there.`,
-    logs,
-    [],
-    'checks',
-  );
+  let fix: Fix;
+  try {
+    fix = await fixRound(
+      job,
+      `The checks on ${base} failed after the change landed there.`,
+      logs,
+      [],
+      'checks',
+    );
+  } catch (error) {
+    if (runStopped()) {
+      throw error;
+    }
+    const reverted = await revert(job);
+    const detail = message(error);
+    const stop = detail.endsWith('.') ? '' : '.';
+    return escalateAndFinish(
+      job,
+      `The fixer for the failed checks on ${base} failed: ${detail}${stop}${reverted}`,
+      'fixer error',
+    );
+  }
   if (!fix.committed) {
     const reverted = await revert(job);
     return escalateCheckFix(job, fix.unrelated, `checks on ${base}`, reverted);

@@ -189,6 +189,52 @@ test('a user whose landing of the fix for main fails with an error gets the chan
   );
 });
 
+test('a user whose fixer for the failed checks on main fails with an error gets the change reverted, the issue handed over and the run halted', async (t) => {
+  const target = await harness(t, { baseChecks: ['fail'], fixerThrows: true });
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'fixer error');
+  assert.equal(report.halt, true);
+  assert.deepEqual(
+    target.reverts.map((entry) => entry.shas),
+    [['2']],
+  );
+  assert.match(
+    target.comments.at(-1)!,
+    /needs help: The fixer for the failed checks on main failed: the fixer timed out\. The harness reverted the change on main\./,
+  );
+  assert.equal((await target.state())?.landed, undefined);
+  assert.deepEqual(target.closed, []);
+});
+
+test('a user whose fixer fails with an error in a later round on main gets every landed commit reverted and the run halted', async (t) => {
+  const target = await harness(t, {
+    baseChecks: ['fail', 'fail'],
+    fixerText: 'Done.\ncommit: fix: repair main',
+  });
+  const ports = target.context.ports;
+  const runAgent = ports.runAgent;
+  ports.runAgent = async (recorder, request) => {
+    if (request.name === 'fixer' && target.landed.length > 1) {
+      throw new Error('The fixer agent did not finish in 5 ms.');
+    }
+    return runAgent(recorder, request);
+  };
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'fixer error');
+  assert.equal(report.halt, true);
+  assert.deepEqual(
+    target.reverts.map((entry) => entry.shas),
+    [['2', '4']],
+  );
+  assert.match(
+    target.comments.at(-1)!,
+    /failed: The fixer agent did not finish in 5 ms\. The harness reverted the change on main\./,
+  );
+  assert.equal((await target.state())?.landed, undefined);
+});
+
 test('a user whose checks on main fail with no check fix left gets the change reverted and the issue handed over', async (t) => {
   const target = await harness(t, { config: { maxCiFixes: 0 }, baseChecks: ['fail'] });
   const report = await target.run();
