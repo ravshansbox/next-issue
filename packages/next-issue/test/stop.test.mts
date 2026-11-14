@@ -55,6 +55,28 @@ test('a user who stops a run now during the implementation gets the issue stoppe
   assert.equal(target.labels.at(-1)?.label, 'status:in-progress');
 });
 
+test('a user who stops a run now during the second review gets the issue stopped with no hand-over, and the next run keeps the review rounds, check fixes and findings', async (t) => {
+  const first = await harness(t, { pressDuring: 'reviewer', verdicts: [changes('Rename it.')] });
+  assert.equal((await first.run()).outcome, 'stopped');
+  const before = (await first.state())!;
+  const stopped = await harness(t, {
+    saved: { ...before, ciFixes: 1 },
+    issue: { ...ISSUE, labels: ['status:in-review'] },
+    stopNowDuring: 'reviewer',
+  });
+  assert.equal((await stopped.run()).outcome, 'stopped');
+  const kept = (await stopped.state())!;
+  assert.equal(kept.handedOver, undefined);
+  assert.equal(kept.reviewRounds, before.reviewRounds + 1);
+  assert.equal(kept.ciFixes, 1);
+  assert.deepEqual(kept.reviewLog, before.reviewLog);
+  assert.equal(
+    stopped.events.some((record) => record.kind === 'hand-over' || record.reason === 'no verdict'),
+    false,
+  );
+  assert.deepEqual(stopped.comments, []);
+});
+
 test('a user who stops a run now while a new issue is claimed, after GitHub applied the in-progress label, gets the next run to resume that issue', async (t) => {
   const first = await harness(t, { stopNowOnLabel: 'status:in-progress' });
   assert.equal((await first.run()).outcome, 'stopped');

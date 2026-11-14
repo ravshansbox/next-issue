@@ -11,6 +11,7 @@ import {
 import { ModelRuntime, SettingsManager } from '@earendil-works/pi-coding-agent';
 import { isOwnResource } from '../src/agent-session.mts';
 import { CODING, REVIEWING, runAgent, toolFields } from '../src/agents.mts';
+import { runChildren, stopRunChildren, withRunChildren } from '../src/children.mts';
 import { Recorder } from '../src/observe.mts';
 import { logRecords } from './log-records.mts';
 import { tempDir } from './temp-dir.mts';
@@ -207,6 +208,14 @@ test('the harness reports a timeout when a pi agent runs too long', async () => 
   await assert.rejects(runAgent(recorder, { ...request, timeoutMs: 200 }), {
     message: 'The coder agent did not finish in 200 ms.',
   });
+});
+
+test('a user who stops a run now while a pi agent runs gets no agent reply, only a stopped run', async () => {
+  const { recorder, request } = await fakePi([fauxAssistantMessage('word '.repeat(500))], 5);
+  const children = runChildren();
+  const running = withRunChildren(children, () => runAgent(recorder, request));
+  setTimeout(() => stopRunChildren(children), 200);
+  await assert.rejects(running, { message: 'The run stopped.' });
 });
 
 test('the harness refuses a model name without a provider', async () => {

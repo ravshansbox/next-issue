@@ -376,7 +376,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       pressed ||= request.name === plan.pressDuring;
       if (request.name === plan.stopNowDuring) {
         stopRunChildren(children);
-        throw new Error('The agent was aborted.');
+        throw new Error('The run stopped.');
       }
       state.profiles.push({ role: request.name, tools: request.profile.tools });
       if (request.name === 'reviewer') {

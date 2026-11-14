@@ -65,6 +65,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     refuseWhenStopped();
     await session.bindExtensions({});
     await session.prompt(request.prompt, { expandPromptTemplates: false });
+    refuseWhenStopped();
     if (timer.timedOut()) {
       throw new Error(`The ${request.name} agent did not finish in ${request.timeoutMs} ms.`);
     }
