@@ -97,6 +97,34 @@ test('waitForBaseChecks fails as soon as one run on the commit fails', async (t)
   );
 });
 
+test('waitForBaseChecks fails when a workflow run on the commit ends waiting for someone to approve it', async (t) => {
+  const dir = await fakeRunsGh(t, [
+    { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'action_required' },
+    { databaseId: 2, name: 'Docs', status: 'completed', conclusion: 'success' },
+  ]);
+  assert.equal(
+    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
+    'fail',
+  );
+});
+
+test('rerunFailedBase reruns a failed workflow run and leaves one that waits for approval alone', async (t) => {
+  const dir = await fakeRunsGh(
+    t,
+    [
+      { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'action_required', attempt: 1 },
+      { databaseId: 2, name: 'Lint', status: 'completed', conclusion: 'failure', attempt: 1 },
+    ],
+    [
+      { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'action_required', attempt: 1 },
+      { databaseId: 2, name: 'Lint', status: 'queued', conclusion: '', attempt: 2 },
+    ],
+  );
+  const repo = { owner: 'acme', name: 'tool', root: dir };
+  assert.deepEqual(await rerunFailedBase(repo, 'abc', 'main'), ['2']);
+  assert.equal(await readFile(join(dir, 'reruns'), 'utf8'), '2\n');
+});
+
 function passedRuns(count: number): unknown[] {
   return Array.from({ length: count }, (_, index) => ({
     databaseId: index + 1,

@@ -33,7 +33,9 @@ const ACTIONS_APP = 'github-actions';
 
 const FAILED_STATES = new Set(['failure', 'error']);
 
-const FAILED_CONCLUSIONS = new Set(['failure', 'timed_out', 'startup_failure']);
+const AWAITS_APPROVAL = 'action_required';
+
+const FAILED_CONCLUSIONS = new Set(['failure', 'timed_out', 'startup_failure', AWAITS_APPROVAL]);
 
 function jsonLines<T>(raw: string): T[] {
   return raw
@@ -135,7 +137,9 @@ export async function rerunFailedBase(
   branch: string,
   started: () => void = () => {},
 ): Promise<string[]> {
-  const failed = (await baseRuns(repo, sha, branch)).filter(failedRun);
+  const failed = (await baseRuns(repo, sha, branch)).filter(
+    (entry) => failedRun(entry) && entry.conclusion !== AWAITS_APPROVAL,
+  );
   for (const entry of failed) {
     await gh(repo, ['run', 'rerun', String(entry.databaseId), '--failed']);
   }

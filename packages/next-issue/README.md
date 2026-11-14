@@ -163,8 +163,10 @@ the run handles one issue. For each issue:
    default branch as its commit. It also leaves out the `push` runs that a
    push of a tag or of another branch started on the same commit, such as
    a release or a deploy. A failed or errored commit status, or a
-   check run that ends with `failure`, `timed_out` or `action_required`,
-   fails the checks. When any check ends `cancelled`, for example because
+   workflow run or check run that ends with `failure`, `timed_out` or
+   `action_required`, fails the checks. The harness does not rerun a
+   workflow run that ends `action_required`, since it waits for a person
+   to approve it. When any check ends `cancelled`, for example because
    a later push cancelled the workflow run, that check never finished,
    even when another check (such as a release workflow) ends `success`:
    the harness hands the issue to a person with the reason
