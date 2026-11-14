@@ -32,6 +32,13 @@ test('an agent who creates an issue in a repository without the status:todo labe
   assert.match(skill, /gh label create status:todo[\s\S]*gh issue create/);
 });
 
+test('an agent who creates an issue with the create-issue skill adds no label other than status:todo', async () => {
+  const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
+  assert.match(skill, /Add no label other than `status:todo`/);
+  assert.match(readme, /and no other label/);
+});
+
 test('a user who asks pi for a change in a repository with .next-issue/config.json gets the create-issue skill', async () => {
   const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
   const description = skill.match(/^description: (.+)$/m)?.[1] ?? '';

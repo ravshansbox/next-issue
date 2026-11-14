@@ -43,7 +43,7 @@ The package ships the `create-issue` skill. Ask pi to write an issue, ask for a 
 1. restates the problem, reads the code when the problem touches it, and finds the open issues that must be done first;
 2. judges whether the change fits one atomic commit that leaves the trunk green. When it is too big for one atomic commit, it proposes a split into issues that each land alone and keep the trunk green;
 3. asks numbered questions until none is open, including whether you confirm the split;
-4. creates the `status:todo` label with `gh label create` when the repository does not have it, then runs `gh issue create --body-file` with the body from [`template.md`](skills/create-issue/template.md) and the `status:todo` label, without showing the body first;
+4. creates the `status:todo` label with `gh label create` when the repository does not have it, then runs `gh issue create --body-file` with the body from [`template.md`](skills/create-issue/template.md) and the `status:todo` label and no other label, without showing the body first;
 5. links each blocker with `gh issue edit --add-blocked-by`, so the worker waits for it. For a confirmed split, it creates each issue in turn and links it to the issues of the split it depends on;
 6. gives you the issue url and asks once whether to start a run, leave it or change it, and changes it with `gh issue edit --body-file` or `--title` until you start a run or leave it;
 7. calls `next_issue_start` when you asked for a run.

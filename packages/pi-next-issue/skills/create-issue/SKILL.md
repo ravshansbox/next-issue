@@ -19,7 +19,7 @@ Turn the problem of the user into one GitHub issue, or a split of linked issues 
    gh label create status:todo
    ```
 
-   Then create the issue without showing the body first:
+   Then create the issue without showing the body first. Add no label other than `status:todo`:
 
    ```bash
    gh issue create --title "<title>" --body-file <file> --label status:todo
