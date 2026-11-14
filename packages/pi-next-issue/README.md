@@ -43,14 +43,14 @@ The package ships the `create-issue` skill. Ask pi to write an issue, ask for a 
 1. restates the problem, reads the code when the problem touches it, and finds the open issues that must be done first;
 2. judges whether the change fits one atomic commit that leaves the trunk green. When it is too big for one atomic commit, it proposes a split into issues that each land alone and keep the trunk green;
 3. asks numbered questions until none is open, including whether you confirm the split;
-4. creates the ready label with `gh label create` when the repository does not have it, then runs `gh issue create --body-file` with the body from [`template.md`](skills/create-issue/template.md) and the ready label and no other label, without showing the body first. The ready label is the `labels.ready` label of `.next-issue/config.json`, or `status:todo` when `labels.ready` is not set or there is no config file. With an empty `labels.ready`, the issue gets no label, since the worker then claims every open issue;
-5. links each blocker with `gh issue edit --add-blocked-by`, so the worker waits for it. For a confirmed split, it creates each issue in turn and links it to the issues of the split it depends on;
+4. creates the ready label with `gh label create` when the repository does not have it, then runs `gh issue create --body-file` with the body from [`template.md`](skills/create-issue/template.md) and no label, without showing the body first;
+5. links each blocker with `gh issue edit --add-blocked-by`, so the worker waits for it, and adds the ready label with `gh issue edit --add-label` only after it links every blocker, so no run claims the issue before its blockers are linked. It adds the ready label and no other label. The ready label is the `labels.ready` label of `.next-issue/config.json`, or `status:todo` when `labels.ready` is not set or there is no config file. With an empty `labels.ready`, the issue gets no label, since the worker then claims every open issue. For a confirmed split, it creates each issue in turn, links it to the issues of the split it depends on, and only then adds its ready label;
 6. gives you the issue url and asks once whether to start a run, leave it or change it, and changes it with `gh issue edit --body-file` or `--title` until you start a run or leave it;
 7. calls `next_issue_start` when you asked for a run.
 
 Pi files the issue, the ready label and the blocker links in the repository of the `remote` of `.next-issue/config.json`, or of `origin` when there is no config file or no `remote` field, as the worker does. It passes `--repo` to every `gh` command, so another remote, such as the `upstream` of a fork, never gets the issue.
 
-The issue gets the ready label when it is created, so a run that is already going may claim it before you review it.
+The issue gets the ready label as soon as its blockers are linked, so a run that is already going may claim it before you review it.
 
 Pi does not implement the issue in that session. The worker does the work. The body holds the sections of the [issue format](../next-issue/README.md#issue-format).
 
