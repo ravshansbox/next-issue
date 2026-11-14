@@ -27,6 +27,19 @@ test('each fixer kind is offered the unrelated exit for its own cause', () => {
   assert.match(review, /unrelated: <one sentence on why the findings are wrong/);
 });
 
+test('each fixer kind is told to write no unrelated line after it fixes the cause', () => {
+  const checks = fixPrompt(
+    ISSUE,
+    'The continuous integration checks failed.',
+    'the logs',
+    [],
+    'checks',
+  );
+  const review = fixPrompt(ISSUE, 'The reviewer requested changes.', 'the findings', [], 'review');
+  assert.match(checks, /If you fix the cause, write no `unrelated` line\./);
+  assert.match(review, /If you fix the findings, write no `unrelated` line\./);
+});
+
 test('the conflict fixer is told to remove the conflict markers and leave the merge to the harness', () => {
   const conflict = fixPrompt(
     ISSUE,

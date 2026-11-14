@@ -121,12 +121,14 @@ export type FixKind = 'checks' | 'review' | 'conflict';
 const UNRELATED_RULE = [
   'The checks can fail for a reason this change did not cause: a test that is already broken on the base branch, one that exercises code the diff does not touch, or one that fails only under load.',
   'Establish that before you fix anything. If the failure is not yours, change nothing and end your final message with one line in the form `unrelated: <one sentence on what fails and why it is not this change>`.',
+  'If you fix the cause, write no `unrelated` line.',
   'A person then reads it. Do not weaken, skip or re-record a test to make the checks pass.',
 ].join('\n');
 
 const DISPUTE_RULE = [
   'A finding can be wrong: it can miss a convention of this repository, ask for work that the issue does not want, or describe behaviour that the code does not have.',
   'Establish that before you change anything. If every finding is wrong, change nothing and end your final message with one line in the form `unrelated: <one sentence on why the findings are wrong>`.',
+  'If you fix the findings, write no `unrelated` line.',
   'If only some of the findings are wrong, fix the correct ones and change nothing for the wrong ones. Write no `unrelated` line in that round. The next round holds only the findings that are left, and you can dispute them there.',
   'A finding can also be right and need no code change, for example when it asks for proof such as a failing test run.',
   'If every finding is settled with no code change, change nothing and end your final message with one line in the form `resolved: <how the findings were settled>`.',

@@ -69,6 +69,12 @@ test('parseUnrelated gives undefined without the marker', () => {
   assert.equal(parseUnrelated(''), undefined);
 });
 
+test('parseUnrelated treats a placeholder value as no dispute', () => {
+  for (const value of ['none', 'None', 'NONE', 'n/a', 'N/A', '-', ' none ']) {
+    assert.equal(parseUnrelated(`fixed it\nunrelated: ${value}`), undefined, value);
+  }
+});
+
 test('parseResolved reads the last marker line', () => {
   assert.equal(
     parseResolved('resolved: <how>\nran it\nresolved: the test failed before the fix'),
