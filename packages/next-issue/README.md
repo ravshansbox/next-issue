@@ -137,7 +137,11 @@ the run handles one issue. For each issue:
    and into the next round, where it answers every finding of its own
    round, so the reviewer withdraws them all or repeats them all. With only
    some findings wrong, the fixer fixes the correct ones, and the next round
-   holds the rest.
+   holds the rest. A fixer that settles every finding with no code change,
+   for example by showing a failing test run, changes nothing and ends with a
+   `resolved:` line instead. The note goes on the issue and into the next
+   round in the same way, and a change it leaves behind is handled as for a
+   dispute.
 
 ## Issue format
 
@@ -157,23 +161,24 @@ The harness hands the issue to a person, with the `status:needs-human` label,
 and comments the reason on the issue, when:
 
 - the check budget or the review budget runs out. A finding that the reviewer
-  repeats, even one that the fixer disputed, goes back to the fixer until the
-  review budget runs out;
+  repeats, even one that the fixer disputed or settled, goes back to the fixer
+  until the review budget runs out;
 - a fixer round adds no commit and gives no reason, so there is no progress;
 - the fixer reports that the checks fail for a reason the change did not cause,
   such as a test already broken on the base branch or one that fails only under
   load. It changes nothing and the reason reaches the issue, rather than
   the fixer spending its whole budget on a failure it cannot fix. A commit it
   makes anyway moves aside, as for a dispute of the findings;
-- a fixer disputes the findings and leaves a change behind, either in the
-  worktree or in a commit of its own. A dispute carries a reason, not a diff,
-  so the harness throws none of it away: an unclean worktree stays on the
-  disk, and a commit of the fixer moves to a new local
-  `<n>-dispute-<commit>` branch, so the `<n>` branch keeps only what will land. The worktree drops the change of that commit, unless the fixer
-  edited the worktree after the commit: then the worktree keeps both and stays
-  on the disk. Neither lands. The issue holds the reason of the dispute, and the change is on the machine that ran
-  the harness. The `<n>-dispute-<commit>` branches go away with the `<n>`
-  branch when the issue is done;
+- a fixer disputes or settles the findings and leaves a change behind, either
+  in the worktree or in a commit of its own. A dispute carries a reason, not a
+  diff, so the harness throws none of it away: an unclean worktree stays on
+  the disk, and a commit of the fixer moves to a new local
+  `<n>-dispute-<commit>` branch, so the `<n>` branch keeps only what will
+  land. The worktree drops the change of that commit, unless the fixer edited
+  the worktree after the commit: then the worktree keeps both and stays on the
+  disk. Neither lands. The issue holds the reason of the dispute, and the
+  change is on the machine that ran the harness. The `<n>-dispute-<commit>`
+  branches go away with the `<n>` branch when the issue is done;
 - the reviewer gives no verdict, or the checks do not finish in time;
 - the push to the base branch fails three times;
 - the checks on the base branch fail and the fixer cannot fix them, or they
@@ -191,13 +196,13 @@ its own disputes next to them. From round two, the reviewer judges only the
 earlier findings and any regression.
 
 Each agent that writes to the issue names itself in the first line of the
-comment: `### Review: approved`, `### Review: changes requested` and
-`### Fixer: no change`. The account is the same for all of them, so the heading,
-not the author, tells them apart. The agents get no comment that starts with
-one of these headings or with `next-issue needs help:`, so a comment of an
-agent never returns to a prompt: the dispute of the fixer reaches the reviewer
-through the state file. The one
-exception is the answer to a hand-over, see
+comment: `### Review: approved`, `### Review: changes requested`,
+`### Fixer: no change` and `### Fixer: settled with no change`. The account is
+the same for all of them, so the heading, not the author, tells them apart.
+The agents get no comment that starts with one of these headings or with
+`next-issue needs help:`, so a comment of an agent never returns to a
+prompt: the dispute of the fixer reaches the reviewer through the state file.
+The one exception is the answer to a hand-over, see
 [Retry an issue that waits for a person](#retry-an-issue-that-waits-for-a-person).
 
 ## Stop a run

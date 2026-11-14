@@ -108,7 +108,7 @@ async function runReviewer(job: Run, earlier: string[]): Promise<string> {
 async function unfixedRound(job: Run, fix: Unfixed): Promise<Round> {
   const { context, issue, state } = job;
   const { repo, ports } = context;
-  const note = fix.unrelated;
+  const note = fix.unrelated ?? fix.resolved;
   if (note === undefined) {
     return escalateAndFinish(
       job,
@@ -119,12 +119,18 @@ async function unfixedRound(job: Run, fix: Unfixed): Promise<Round> {
   if (fix.stray === true) {
     return escalateAndFinish(
       job,
-      `The fixer disputed the findings and left a change behind: ${note}`,
+      `The fixer ${fix.unrelated === undefined ? 'settled' : 'disputed'} the findings and left a change behind: ${note}`,
       'dispute with changes',
     );
   }
-  state.reviewLog.at(-1)!.dispute = note;
+  const round = state.reviewLog.at(-1)!;
+  if (fix.unrelated === undefined) {
+    round.settled = note;
+  } else {
+    round.dispute = note;
+  }
   await writeState(repo, state);
-  await ports.commentOnIssue(repo, issue.number, `### Fixer: no change\n\n${note}`);
+  const heading = fix.unrelated === undefined ? 'settled with no change' : 'no change';
+  await ports.commentOnIssue(repo, issue.number, `### Fixer: ${heading}\n\n${note}`);
   return ROUND_CONTINUE;
 }

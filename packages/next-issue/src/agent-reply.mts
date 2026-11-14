@@ -7,6 +7,11 @@ export function parseUnrelated(text: string): string | undefined {
   return note === '' ? undefined : note;
 }
 
+export function parseResolved(text: string): string | undefined {
+  const note = lastMatch(text, /^resolved:\s*(.+)$/gim);
+  return note === '' ? undefined : note;
+}
+
 export function parseCommitSubject(text: string, fallback: string): string {
   const subject = lastMatch(text, /^commit:\s*(.+)$/gim)
     ?.replace(/^`+|`+$/g, '')

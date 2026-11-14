@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseCommitSubject, parseUnrelated } from '../src/agent-reply.mts';
+import { parseCommitSubject, parseResolved, parseUnrelated } from '../src/agent-reply.mts';
 
 const FALLBACK = 'fix: fallback';
 
@@ -67,4 +67,13 @@ test('parseUnrelated gives undefined without the marker', () => {
   assert.equal(parseUnrelated('commit: fix: the thing'), undefined);
   assert.equal(parseUnrelated('unrelated:   '), undefined);
   assert.equal(parseUnrelated(''), undefined);
+});
+
+test('parseResolved reads the last marker line', () => {
+  assert.equal(
+    parseResolved('resolved: <how>\nran it\nresolved: the test failed before the fix'),
+    'the test failed before the fix',
+  );
+  assert.equal(parseResolved('resolved:   '), undefined);
+  assert.equal(parseResolved('unrelated: wrong'), undefined);
 });

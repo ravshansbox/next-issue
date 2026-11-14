@@ -29,6 +29,7 @@ export type ReviewRound = {
   round: number;
   findings: string;
   dispute?: string;
+  settled?: string;
 };
 
 export function stateDir(root: string): string {
@@ -79,7 +80,8 @@ function isReviewRound(value: unknown): value is ReviewRound {
     isRecord(value) &&
     typeof value.round === 'number' &&
     typeof value.findings === 'string' &&
-    isOptional(value.dispute, 'string')
+    isOptional(value.dispute, 'string') &&
+    isOptional(value.settled, 'string')
   );
 }
 

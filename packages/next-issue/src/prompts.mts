@@ -83,6 +83,8 @@ function reviewScope(earlier: string[]): string {
         'Do not raise a new point of taste. Do not repeat a finding that is fixed.',
         'A `The fixer disputed every finding of this round` line answers all of the findings of that round, not one of them.',
         'Withdraw every finding of that round if the dispute is correct. Repeat them all if the dispute is wrong.',
+        'A `The fixer settled every finding of this round with no code change` line also answers all of the findings of that round.',
+        'Withdraw every finding of that round if they are settled. Repeat them all if they are not.',
         `## Earlier findings\n${earlier.join('\n')}`,
       ].join('\n');
 }
@@ -126,6 +128,8 @@ const DISPUTE_RULE = [
   'A finding can be wrong: it can miss a convention of this repository, ask for work that the issue does not want, or describe behaviour that the code does not have.',
   'Establish that before you change anything. If every finding is wrong, change nothing and end your final message with one line in the form `unrelated: <one sentence on why the findings are wrong>`.',
   'If only some of the findings are wrong, fix the correct ones and change nothing for the wrong ones. Write no `unrelated` line in that round. The next round holds only the findings that are left, and you can dispute them there.',
+  'A finding can also be right and need no code change, for example when it asks for proof such as a failing test run.',
+  'If every finding is settled with no code change, change nothing and end your final message with one line in the form `resolved: <how the findings were settled>`.',
   'The reviewer reads that line in the next round. Do not make a change that you hold to be wrong only to end the round.',
 ].join('\n');
 
@@ -178,9 +182,12 @@ export function fixPrompt(
 export function history(rounds: ReviewRound[]): string[] {
   return rounds.map((round) => {
     const head = `Round ${round.round}:\n${round.findings}`;
-    return round.dispute === undefined
+    if (round.dispute !== undefined) {
+      return `${head}\nThe fixer disputed every finding of this round: ${round.dispute}`;
+    }
+    return round.settled === undefined
       ? head
-      : `${head}\nThe fixer disputed every finding of this round: ${round.dispute}`;
+      : `${head}\nThe fixer settled every finding of this round with no code change: ${round.settled}`;
   });
 }
 

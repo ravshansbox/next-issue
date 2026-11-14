@@ -1,4 +1,4 @@
-import { parseCommitSubject, parseUnrelated } from './agent-reply.mts';
+import { parseCommitSubject, parseResolved, parseUnrelated } from './agent-reply.mts';
 import { CODING } from './agents.mts';
 import { type BudgetUse, budgetUse } from './budget.mts';
 import { message } from './errors.mts';
@@ -9,7 +9,9 @@ import { type FixKind, fixPrompt, hookPrompt } from './prompts.mts';
 import { writeState } from './state.mts';
 import { keepTail } from './text.mts';
 
-export type Unfixed = { committed: false; unrelated?: string; stray?: boolean };
+type NoChange = { unrelated: string } | { resolved: string };
+
+export type Unfixed = { committed: false; unrelated?: string; resolved?: string; stray?: boolean };
 
 export type Fix = { committed: true } | Unfixed;
 
@@ -51,7 +53,11 @@ export async function fixRound(
   }
   const unrelated = parseUnrelated(text);
   if (unrelated !== undefined) {
-    return disputedFix(job, before, reason, unrelated);
+    return disputedFix(job, before, reason, { unrelated });
+  }
+  const resolved = kind === 'review' ? parseResolved(text) : undefined;
+  if (resolved !== undefined) {
+    return disputedFix(job, before, reason, { resolved });
   }
   const subject = parseCommitSubject(text, `fix: address feedback on issue #${issue.number}`);
   if (!(await commitWork(job, before, subject, 'fixer'))) {
@@ -79,12 +85,7 @@ function fixBudget(job: Run, kind: FixKind): BudgetUse {
   return budgetUse(job, kind === 'review' ? 'reviewRounds' : 'ciFixes');
 }
 
-async function disputedFix(
-  job: Run,
-  before: string,
-  reason: string,
-  unrelated: string,
-): Promise<Fix> {
+async function disputedFix(job: Run, before: string, reason: string, note: NoChange): Promise<Fix> {
   const { context, log, worktree, branch } = job;
   const { ports } = context;
   const disputed = await ports.revision(worktree);
@@ -95,8 +96,9 @@ async function disputedFix(
     log.event('fix.aside', { branch: aside }, 'quiet');
   }
   const stray = moved || (await ports.isDirty(worktree));
-  log.event('fix.unrelated', { reason, note: unrelated, stray }, 'quiet');
-  return { committed: false, unrelated, stray };
+  const event = 'unrelated' in note ? 'fix.unrelated' : 'fix.resolved';
+  log.event(event, { reason, note: Object.values(note)[0], stray }, 'quiet');
+  return { committed: false, ...note, stray };
 }
 
 export async function commitWork(

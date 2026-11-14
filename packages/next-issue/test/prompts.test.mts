@@ -46,6 +46,24 @@ test('the review fixer is told to dispute only when every finding is wrong', () 
   assert.match(review, /If only some of the findings are wrong, fix the correct ones/);
 });
 
+test('the review fixer is told to end with a resolved line when every finding is settled with no code change', () => {
+  const review = fixPrompt(ISSUE, 'The reviewer requested changes.', 'the findings', [], 'review');
+  const checks = fixPrompt(ISSUE, 'The checks failed.', 'the logs', [], 'checks');
+  assert.match(review, /resolved: <how the findings were settled>/);
+  assert.doesNotMatch(checks, /resolved:/);
+});
+
+test('a later reviewer is told that a settled note answers every finding of its round', () => {
+  const earlier = [
+    'Round 1:\n- Show the test fail.\nThe fixer settled every finding of this round with no code change: the run failed before the fix',
+  ];
+  const prompt = reviewPrompt(ISSUE, [], 'diff', earlier);
+  assert.match(
+    prompt,
+    /Withdraw every finding of that round if they are settled\. Repeat them all if they are not\./,
+  );
+});
+
 test('the implementer and the fixer get the answer of a person to the hand-over under its own heading', () => {
   const reply = ['@owner: ready, take it'];
   const implement = implementPrompt(ISSUE, [], reply);
