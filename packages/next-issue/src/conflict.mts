@@ -18,6 +18,7 @@ export async function rebase(job: Run): Promise<Finished | undefined> {
     if (merged !== undefined) {
       return merged;
     }
+    state.title = title;
   }
   const merged = await ports.revision(worktree);
   const squashed = await commitWork(job, merged, title, 'fixer', (cwd, message) =>

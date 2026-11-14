@@ -3,14 +3,14 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import type { AgentRequest } from '../src/agents.mts';
-import { commitAll } from '../src/git-commit.mts';
+import { commitAll, HookError } from '../src/git-commit.mts';
 import { pushToBase, squashOnto } from '../src/git-land.mts';
 import { abortMerge, commitMerge, startMerge } from '../src/git-merge.mts';
 import { diff, discardChanges, isDirty, latestSubject, revision, setAside } from '../src/git.mts';
 import type { Recorder } from '../src/observe.mts';
 import { addWorktree, findWorktree, removeWorktree } from '../src/worktree.mts';
 import { clones, git } from './clones.mts';
-import { type Harness, harness, roles } from './harness.mts';
+import { type Harness, harness, ISSUE, roles } from './harness.mts';
 
 test('a user whose base branch moved without a conflict gets the base merged with no agent and no check fix spent', async (t) => {
   const target = await harness(t, { merges: [[]] });
@@ -75,6 +75,30 @@ test('a user whose merge of the base fails in a hook gets the hook output to the
   assert.match(target.messages[2]!, /^chore: merge the base\n/);
   assert.match(target.messages.at(-1)!, /^fix: work on #7\n/);
   assert.match(target.prompts.at(-1)!.prompt, /commitlint: subject may not be empty/);
+});
+
+test('a user who resumes an issue whose squash failed after a merge of the base gets the change landed with its own subject', async (t) => {
+  const failed = await harness(t, { config: { maxCommitFixes: 0 }, merges: [[]] });
+  failed.context.ports.squashOnto = async () => {
+    throw new HookError('commitlint: subject may not be empty');
+  };
+  const report = await failed.run();
+  assert.equal(report.outcome, 'error');
+  assert.match(failed.messages.at(-1)!, /^chore: merge origin\/main\n/);
+  assert.equal((await failed.state())?.title, 'fix: work on #7');
+  const body = failed.issueNotes.at(-1)!.body;
+  const answered = await harness(t, {
+    issue: { ...ISSUE, labels: ['status:needs-human'] },
+    saved: await failed.state(),
+    thread: [
+      { author: 'bot', body },
+      { author: 'owner', body: 'Fixed the hook, take it.' },
+    ],
+    writers: ['owner', 'bot'],
+  });
+  const resumed = await answered.run();
+  assert.equal(resumed.outcome, 'done');
+  assert.match(answered.messages.at(-1)!, /^fix: work on #7\n/);
 });
 
 type Fixer = (worktree: string) => Promise<unknown>;
