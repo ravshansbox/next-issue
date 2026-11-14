@@ -14,10 +14,10 @@ export async function checkGate(job: Run, sha: string): Promise<Gate> {
   try {
     checks = await rerunOnce(job, sha, await waitForChecks(job, sha));
   } catch (error) {
-    if (!job.mainBroken) {
-      throw error;
+    if (job.mainBroken) {
+      return escalateError(job, error, `The read of the checks on ${base} failed`, 'checks error');
     }
-    return escalateError(job, error, `The read of the checks on ${base} failed`, 'checks error');
+    return unreadChecks(job, error);
   }
   if (checks === 'pass' || checks === 'none') {
     return GATE_PASSED;
@@ -139,6 +139,20 @@ async function refundStopped(job: Run): Promise<void> {
   if (runStopped()) {
     await refundBudget(job, 'ciFixes');
   }
+}
+
+/** A landed commit whose checks cannot be read leaves the base unknown, so the run halts and keeps the commit. */
+async function unreadChecks(job: Run, error: unknown): Promise<Finished> {
+  if (runStopped()) {
+    throw error;
+  }
+  const { base } = job.context;
+  job.mainBroken = true;
+  return escalateAndFinish(
+    job,
+    `The read of the checks on ${base} failed: ${sentence(message(error))} The landed commit is on \`${base}\`, and its checks were not awaited. The run halts, and the next run checks the base again.`,
+    'checks error',
+  );
 }
 
 export async function escalateError(

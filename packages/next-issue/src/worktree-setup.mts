@@ -5,6 +5,7 @@ import { escalateAndFinish } from './handover.mts';
 import { ROUND_CONTINUE, type Round, type Run } from './job.mts';
 import type { SetupResult } from './ports.mts';
 import { keepTail } from './text.mts';
+import { heldOnBase, unsettledNote } from './unsettled.mts';
 
 export async function setUp(job: Run): Promise<Round> {
   const { context, log, worktree } = job;
@@ -43,15 +44,6 @@ async function setupFailed(job: Run, setup: SetupResult): Promise<Round> {
 }
 
 function unsettledBase(job: Run): string {
-  const { landed, pushing, reverting } = job.state;
-  const base = `\`${job.context.base}\``;
-  const held = [
-    (landed ?? []).length > 0 ? `a landed commit is on ${base}` : '',
-    pushing === undefined ? '' : `a push may be on ${base}`,
-    reverting === undefined ? '' : `a revert may be on ${base}`,
-  ].filter((part) => part !== '');
-  if (held.length === 0) {
-    return '';
-  }
-  return ` This resume ran the setup before it checked the base: ${held.join(', ')}, and its checks were not awaited. The run halts, and the next run checks the base again.`;
+  const held = heldOnBase(job.state, job.context.base);
+  return held === '' ? '' : unsettledNote(held, 'This resume ran the setup');
 }

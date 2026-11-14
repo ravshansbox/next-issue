@@ -17,6 +17,7 @@ import {
   readState,
   resetState,
 } from './state.mts';
+import { beforeBaseSettled } from './unsettled.mts';
 import { setUp } from './worktree-setup.mts';
 
 export async function processIssue(
@@ -111,8 +112,10 @@ async function work(
   handedOver: boolean,
   pending: PendingHandOver | undefined,
 ): Promise<IssueReport> {
-  const job = await openJob(context, issue, log, state, start, handedOver, pending);
-  const setup = await setUp(job);
+  const { job, setup } = await beforeBaseSettled(state, context.base, async () => {
+    const opened = await openJob(context, issue, log, state, start, handedOver, pending);
+    return { job: opened, setup: await setUp(opened) };
+  });
   if (setup.done) {
     return setup.report;
   }

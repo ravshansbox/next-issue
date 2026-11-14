@@ -175,7 +175,12 @@ the run handles one issue. For each issue:
    seconds after the others; a check that shows up in that time counts, and
    one that shows up later does not. A pending state
    waits again, up to `checkTimeoutMinutes`. A read that fails is tried three
-   times. When the checks pass, the harness marks the state file as closing,
+   times. When the first read of the checks of a landed change still fails,
+   for example on a rate limit or an expired token, the harness hands the
+   issue to a person with the reason `checks error` and halts, before the
+   next change lands. The comment holds the error and says that the landed
+   commit is on the base and its checks were not awaited. The state file
+   keeps the commit, so the next run waits for its checks. When the checks pass, the harness marks the state file as closing,
    sets `status:done` and closes the issue. When a run stops or dies before
    the close, the next run sees the mark, sets `status:done` and closes the
    issue, with no new push, revert or hand-over. When a run stops or dies
@@ -282,7 +287,13 @@ and comments the reason on the issue, when:
 - a step of the run fails with an error. A `gh` call that is safe to repeat,
   such as a read or a label edit, is tried up to three times first when the
   network fails. A `gh issue comment` is
-  tried once, so a lost reply never makes a duplicate.
+  tried once, so a lost reply never makes a duplicate. On a resume whose
+  state holds a landed commit, or a push or revert that may have reached the
+  base, an error before the harness checks the base (for example a failed
+  fetch of the base, or a worktree that cannot be made) also halts the run,
+  as `push unknown` does. The issue ends in error, the comment says what may
+  be on the base and that its checks were not awaited, and the state keeps
+  the commits for the next run.
 
 After a halt, a running issue that reaches the landing does not land on the
 broken base branch: it ends `stopped` with the reason `run halted` and keeps

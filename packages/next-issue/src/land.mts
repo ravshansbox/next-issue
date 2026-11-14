@@ -7,6 +7,7 @@ import type { Finished, Run } from './job.mts';
 import { oneAtATime } from './lock.mts';
 import { revertFailedFix } from './revert.mts';
 import { writeState } from './state.mts';
+import { beforeBaseSettled } from './unsettled.mts';
 
 export function landApproved(job: Run): Promise<Finished> {
   return landing(job, () => landLoop(job));
@@ -14,7 +15,8 @@ export function landApproved(job: Run): Promise<Finished> {
 
 export function resumeLanding(job: Run, sha: string): Promise<Finished> {
   return landing(job, async () => {
-    if (await holdsUnlandedFix(job, sha)) {
+    const { state, context } = job;
+    if (await beforeBaseSettled(state, context.base, () => holdsUnlandedFix(job, sha))) {
       job.mainBroken = true;
       job.repairing = true;
       return landLoop(job);

@@ -17,6 +17,7 @@ import { revertFailedFix } from './revert.mts';
 import { logIssueError } from './skip.mts';
 import { dropState, type IssueState, type PendingHandOver, writeState } from './state.mts';
 import { fitComment } from './text.mts';
+import { UnsettledBase } from './unsettled.mts';
 
 export async function escalateAndFinish(job: Run, note: string, reason: string): Promise<Finished> {
   const reverted = await revertFailedFix(job);
@@ -232,7 +233,11 @@ class HandOverFailed extends Error {
 }
 
 function handOverReason(error: unknown, reason: string): string {
-  return error instanceof HandOverFailed ? error.reason : `The run failed: ${reason}`;
+  if (error instanceof HandOverFailed) {
+    return error.reason;
+  }
+  const unsettled = error instanceof UnsettledBase ? error.note : '';
+  return `The run failed: ${reason}${unsettled}`;
 }
 
 const CUT = '\n\nThe reason was too long for a GitHub comment and was cut.';
@@ -259,5 +264,10 @@ export async function claimedError(
   // The issue ends (and the waiting questions go out) only once the hand-over is done.
   logIssueError(log, error, started);
   await cleanUp(context, log, state.branch);
-  return issueReport(issue.number, 'error', state, started, reason);
+  const report = issueReport(issue.number, 'error', state, started, reason);
+  if (!(error instanceof UnsettledBase)) {
+    return report;
+  }
+  context.halted = true;
+  return { ...report, halt: true };
 }

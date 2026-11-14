@@ -3,11 +3,15 @@ import { ROUND_CONTINUE, type Round, type Run } from './job.mts';
 import { landApproved, resumeLanding } from './land.mts';
 import { reapplyMessage, restoreChange } from './revert.mts';
 import { writeState } from './state.mts';
+import { beforeBaseSettled } from './unsettled.mts';
 
 export async function enterReview(job: Run): Promise<Round> {
   const { context, state } = job;
-  await settlePush(job);
-  if (await settleRevert(job)) {
+  const reverted = await beforeBaseSettled(state, context.base, async () => {
+    await settlePush(job);
+    return settleRevert(job);
+  });
+  if (reverted) {
     job.mainBroken = true;
     const { base } = context;
     return escalateAndFinish(
@@ -16,12 +20,14 @@ export async function enterReview(job: Run): Promise<Round> {
       'revert stopped',
     );
   }
-  await settleSquash(job);
   const landed = state.landed?.at(-1);
-  if (landed !== undefined || state.phase === 'approved') {
-    const { ports } = context;
-    await ports.discardChanges(job.worktree, await ports.revision(job.worktree), job.branch);
-  }
+  await beforeBaseSettled(state, context.base, async () => {
+    await settleSquash(job);
+    if (landed !== undefined || state.phase === 'approved') {
+      const { ports } = context;
+      await ports.discardChanges(job.worktree, await ports.revision(job.worktree), job.branch);
+    }
+  });
   if (landed !== undefined) {
     return resumeLanding(job, landed);
   }
