@@ -31,6 +31,32 @@ test('a user whose base branch moves during the push gets the change rebased and
   assert.equal(report.ciFixes, 0);
 });
 
+test('a user whose push to the base branch lands but reports a failure gets the checks of the landed commit awaited and the issue done', async (t) => {
+  const target = await harness(t, { pushLandsAndFails: true });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.equal(target.baseMerges, 1);
+  assert.deepEqual(target.landed, ['2']);
+  assert.deepEqual(target.baseWaits, ['2']);
+  assert.deepEqual(target.closed, [7]);
+});
+
+test('a user whose push to the base branch lands but reports a failure and whose checks then fail gets the change reverted and the run halted', async (t) => {
+  const target = await harness(t, {
+    pushLandsAndFails: true,
+    config: { maxCiFixes: 0 },
+    baseChecks: ['fail'],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'check budget');
+  assert.equal(report.halt, true);
+  assert.deepEqual(
+    target.reverts.map((entry) => entry.shas),
+    [['2']],
+  );
+});
+
 test('a user whose push to the base branch keeps failing gets the issue handed over', async (t) => {
   const target = await harness(t, { pushRejects: 3 });
   const report = await target.run();

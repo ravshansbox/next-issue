@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { HookError } from '../src/git-commit.mts';
 import { pushToBase, type Revert, revertOnBase, squashOnto } from '../src/git-land.mts';
 import { commitMerge, startMerge } from '../src/git-merge.mts';
-import { isLanded } from '../src/git.mts';
+import { isLanded, isOnBase } from '../src/git.mts';
 import { addWorktree } from '../src/worktree.mts';
 import { clones, commit, git } from './clones.mts';
 
@@ -189,4 +189,13 @@ test('isLanded tells a branch whose head the base already holds from one with a 
   assert.equal(await isLanded(path, 'main', 'origin'), true);
   await commit(path, 'e.txt');
   assert.equal(await isLanded(path, 'main', 'origin'), false);
+});
+
+test('isOnBase fetches the base and tells a commit pushed from elsewhere from one the base lacks', async () => {
+  const { path, other } = await branch();
+  const sha = await git(path, 'rev-parse', 'HEAD');
+  assert.equal(await isOnBase(path, 'main', 'origin', sha), false);
+  await git(path, 'push', '-q', other, 'HEAD:refs/heads/landed');
+  await git(other, 'push', '-q', 'origin', 'landed:main');
+  assert.equal(await isOnBase(path, 'main', 'origin', sha), true);
 });

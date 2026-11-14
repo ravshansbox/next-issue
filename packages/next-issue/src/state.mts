@@ -19,6 +19,7 @@ export type IssueState = {
   ciFixes: number;
   commitFixes?: number;
   landed?: string[];
+  pushing?: string;
   rerun?: string;
   reviewRounds: number;
   reviewLog: ReviewRound[];
@@ -97,6 +98,7 @@ function isState(value: unknown): value is IssueState {
     typeof value.ciFixes === 'number' &&
     isOptional(value.commitFixes, 'number') &&
     (value.landed === undefined || isLanded(value.landed)) &&
+    isOptional(value.pushing, 'string') &&
     isOptional(value.rerun, 'string') &&
     typeof value.reviewRounds === 'number' &&
     Array.isArray(value.reviewLog) &&

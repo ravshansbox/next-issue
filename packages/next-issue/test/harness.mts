@@ -2,7 +2,12 @@ import { join } from 'node:path';
 import type { TestContext } from 'node:test';
 import type { AgentRequest, AgentResult } from '../src/agents.mts';
 import type { CheckState } from '../src/check-poll.mts';
-import { runChildren, stopRunChildren, withRunChildren } from '../src/children.mts';
+import {
+  refuseWhenStopped,
+  runChildren,
+  stopRunChildren,
+  withRunChildren,
+} from '../src/children.mts';
 import { type Config, loadConfig } from '../src/config.mts';
 import { HookError } from '../src/git-commit.mts';
 import type { Issue } from '../src/github.mts';
@@ -84,6 +89,8 @@ export type Plan = {
   mergeResolved?: boolean;
   mergeHook?: string;
   pushRejects?: number;
+  pushLandsAndFails?: boolean;
+  pushLandsAndStops?: boolean;
   baseMoved?: boolean;
   revertFails?: boolean;
   fixerThrows?: boolean;
@@ -280,7 +287,15 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
         return false;
       }
       state.landed.push(String(head));
-      return true;
+      if (plan.pushLandsAndStops === true) {
+        stopRunChildren(children);
+        return false;
+      }
+      return plan.pushLandsAndFails !== true;
+    },
+    isOnBase: async (_worktree, _base, _remote, sha) => {
+      refuseWhenStopped();
+      return state.landed.includes(sha) || plan.baseMoved === true;
     },
     revertOnBase: async (_worktree, revert) => {
       state.reverts.push({ shas: revert.shas, message: revert.message });

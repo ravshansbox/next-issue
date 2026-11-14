@@ -67,12 +67,21 @@ async function pushChange(job: Run): Promise<Finished | string> {
       return rebased;
     }
     const sha = await ports.revision(worktree);
-    const pushed = await log.step('land', { base, sha }, () =>
-      ports.pushToBase(worktree, config.remote, base),
+    state.pushing = sha;
+    await writeState(repo, state);
+    const pushed = await log.step(
+      'land',
+      { base, sha },
+      async () =>
+        (await ports.pushToBase(worktree, config.remote, base)) ||
+        ports.isOnBase(worktree, base, config.remote, sha),
     );
+    state.pushing = undefined;
     if (pushed) {
       state.landed = [...(state.landed ?? []), sha];
-      await writeState(repo, state);
+    }
+    await writeState(repo, state);
+    if (pushed) {
       job.repairing = false;
       return sha;
     }

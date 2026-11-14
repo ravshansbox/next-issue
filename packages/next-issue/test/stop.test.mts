@@ -32,6 +32,19 @@ test('a user who asks to stop during a review round gets the fix and no next rev
   assert.equal(target.labels.at(-1)?.label, 'status:in-review');
 });
 
+test('a user who stops a run now while a push to main lands gets the next run to await the checks of that commit with no new review', async (t) => {
+  const first = await harness(t, { pushLandsAndStops: true });
+  assert.equal((await first.run()).outcome, 'stopped');
+  const saved = await first.state();
+  const target = await harness(t, { saved, baseMoved: true });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(roles(target), []);
+  assert.deepEqual(target.landed, []);
+  assert.deepEqual(target.baseWaits, ['2']);
+  assert.deepEqual(target.closed, [7]);
+});
+
 test('a user who stops a run now during the implementation gets the issue stopped with no hand-over and the state kept', async (t) => {
   const target = await harness(t, { stopNowDuring: 'implementer' });
   const report = await target.run();

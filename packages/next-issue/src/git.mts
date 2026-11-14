@@ -142,6 +142,15 @@ export async function isLanded(cwd: string, base: string, remote: string): Promi
   return isAncestor(cwd, 'HEAD', remoteRef(remote, base));
 }
 
+export async function isOnBase(
+  cwd: string,
+  base: string,
+  remote: string,
+  sha: string,
+): Promise<boolean> {
+  return isAncestor(cwd, sha, await fetchBase(cwd, base, remote));
+}
+
 export async function deleteBranch(repo: Repo, branch: string): Promise<boolean> {
   return succeeds(repo.root, ['branch', '-D', branch]);
 }
