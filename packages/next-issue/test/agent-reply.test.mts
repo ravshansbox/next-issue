@@ -33,6 +33,14 @@ test('parseCommitSubject falls back without a line', () => {
   assert.equal(parseCommitSubject('', FALLBACK), FALLBACK);
 });
 
+test('an agent reply with a bare commit line followed by prose parses to the fallback subject', () => {
+  assert.equal(parseCommitSubject('Done.\ncommit:\n\nThe tests pass now.', FALLBACK), FALLBACK);
+  assert.equal(
+    parseCommitSubject('commit: docs: earlier\nDone.\ncommit:   \r\nThe tests pass now.', FALLBACK),
+    FALLBACK,
+  );
+});
+
 test('parseCommitSubject drops the backticks an agent wrapped the subject in', () => {
   assert.equal(
     parseCommitSubject('commit: `fix(ucps): re-probe a batch`', FALLBACK),

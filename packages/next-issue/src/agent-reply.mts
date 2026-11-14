@@ -32,7 +32,7 @@ export function withoutClosingReferences(subject: string, fallback: string): str
 }
 
 export function parseCommitSubject(text: string, fallback: string): string {
-  const subject = lastMatch(text, /^commit:\s*(.+)$/gim)
+  const subject = lastMatch(text, /^commit:[^\S\r\n]*(.*)$/gim)
     ?.replace(/^`+|`+$/g, '')
     .trim();
   return subject || fallback;
