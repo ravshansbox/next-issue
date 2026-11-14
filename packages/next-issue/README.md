@@ -358,7 +358,9 @@ Every run has an id, `<timestamp>`, and writes these under `.next-issue/runs/`:
 - `<id>.jsonl` — one JSON object per event, with `ts`, `runId`, `kind`, and the
   `issue`, `role` or `round` in scope;
 - `<id>.summary.json` — token totals per agent role, event counts, and
-  one report per issue with the outcome, the reason and the budgets used;
+  one report per issue with the outcome, the reason and the budgets used (in a
+  watch run, an issue skipped in several passes gets one report, and an issue
+  handled in more than one pass keeps a report for each);
 - `<id>/sessions/` — the full pi session of each agent call, with every
   message, tool call and tool result. The session id in a `usage` event is
   part of the file name.

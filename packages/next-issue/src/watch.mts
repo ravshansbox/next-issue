@@ -127,7 +127,7 @@ async function watchPasses(
       watch,
       new Set(failed),
     );
-    reports.push(...pass.reports);
+    addReports(reports, pass.reports);
     recordFailures(failed, pass.reports);
     if (handled(pass.reports) > 0) {
       await watch.passEnd(pass.reports);
@@ -143,6 +143,22 @@ async function watchPasses(
     step += 1;
     if (!(await watch.wait(minutes))) {
       return { reports };
+    }
+  }
+}
+
+function addReports(reports: IssueReport[], pass: IssueReport[]): void {
+  for (const report of pass) {
+    const skip = reports.findIndex(
+      (entry) => entry.issue === report.issue && entry.outcome === 'skipped',
+    );
+    if (report.outcome !== 'skipped' && skip >= 0) {
+      reports[skip] = report;
+    } else if (
+      report.outcome !== 'skipped' ||
+      reports.every((entry) => entry.issue !== report.issue)
+    ) {
+      reports.push(report);
     }
   }
 }

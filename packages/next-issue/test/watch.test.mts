@@ -1,9 +1,17 @@
 import assert from 'node:assert/strict';
+import { readdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { test } from 'node:test';
+import { parseArgs } from '../src/args.mts';
+import { must } from '../src/exec.mts';
+import { runRepo } from '../src/run.mts';
+import { runsDir } from '../src/state.mts';
 import type { Outcome } from '../src/job.mts';
 import { exitCode } from '../src/loop.mts';
 import { type Watch, watchIssues } from '../src/watch.mts';
+import { installGh } from './fake-gh.mts';
 import { ARGS, issue, report } from './loop-harness.mts';
+import { tempDir } from './temp-dir.mts';
 
 type FakeWatch = Watch & { processed: number[]; waits: number[]; passes: number[][] };
 
@@ -55,7 +63,96 @@ test('a user who watches sees the wait go back to 1 minute after a pass that han
   assert.deepEqual(fake.passes, [[1]]);
   assert.deepEqual(
     result.reports.map((entry) => entry.outcome),
-    ['done', 'skipped'],
+    ['done'],
+  );
+});
+
+test('a user who watches an issue that is skipped in every pass finds one report for it in the summary file and a skipped count of 1 in run.end', async (t) => {
+  const root = await tempDir();
+  await must('git', ['init', '-q'], { cwd: root });
+  await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/watch-summary.git'], {
+    cwd: root,
+  });
+  const listed = JSON.stringify([
+    {
+      number: 5,
+      title: 'Blocked',
+      body: '',
+      createdAt: '2026-01-01T00:00:00Z',
+      labels: [{ name: 'status:todo' }, { name: 'status:blocked' }],
+    },
+  ]);
+  await installGh(
+    t,
+    await tempDir(),
+    `#!/bin/sh
+case "$1 $2" in
+  "repo view") echo '{"defaultBranchRef":{"name":"main"}}' ;;
+  "issue list") echo '${listed}' ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+`,
+  );
+  let waits = 0;
+  const code = await runRepo(
+    root,
+    { ...parseArgs(['--watch']), level: 'quiet' },
+    {
+      interrupts: {
+        afterIssue: () => false,
+        afterRound: () => false,
+        sleep: async () => (waits += 1) < 3,
+      },
+    },
+  );
+  assert.equal(code, 0);
+  assert.equal(waits, 3);
+  const files = await readdir(runsDir(root));
+  const summaryFile = files.find((name) => name.endsWith('.summary.json'))!;
+  const summary = JSON.parse(await readFile(join(runsDir(root), summaryFile), 'utf8'));
+  assert.deepEqual(
+    summary.issues.map((entry: { issue: number; outcome: string }) => [entry.issue, entry.outcome]),
+    [[5, 'skipped']],
+  );
+  const log = await readFile(
+    join(runsDir(root), summaryFile.replace('.summary.json', '.jsonl')),
+    'utf8',
+  );
+  const runEnd = log
+    .split('\n')
+    .filter((line) => line.length > 0)
+    .map((line) => JSON.parse(line))
+    .find((record) => record.kind === 'run.end');
+  assert.equal(runEnd.skipped, 1);
+});
+
+test('a user who watches an issue that is handed over, skipped and then done keeps both handled reports and exit code 1', async () => {
+  const fake = watcher([['needs-human'], ['skipped'], ['done']]);
+  const result = await watchIssues(ARGS, fake);
+  assert.deepEqual(
+    result.reports.map((entry) => [entry.issue, entry.outcome]),
+    [
+      [1, 'needs-human'],
+      [1, 'done'],
+    ],
+  );
+  assert.equal(exitCode(result.reports), 1);
+});
+
+test('a user who watches gets the handled report in place of the skips of the same issue', async () => {
+  const fake = watcher([
+    ['skipped'],
+    ['skipped', 'skipped'],
+    ['needs-human', 'skipped'],
+    ['skipped'],
+  ]);
+  const result = await watchIssues(ARGS, fake);
+  assert.deepEqual(
+    result.reports.map((entry) => [entry.issue, entry.outcome]),
+    [
+      [1, 'needs-human'],
+      [2, 'skipped'],
+    ],
   );
 });
 
