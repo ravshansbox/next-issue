@@ -220,3 +220,41 @@ test('a user whose hand-over cannot read the issue thread still gets the needs-h
   assert.ok(target.labels.some((entry) => entry.label === 'status:needs-human'));
   assert.equal((await target.state())?.handedOver, true);
 });
+
+const RETRIED = { ...ISSUE, labels: [] };
+
+test('a person who takes the label off a hand-over whose comment failed gets the next run to reset the budgets and run the reviewer instead of handing over', async (t) => {
+  const first = await labelledWithoutComment(t);
+  const next = await harness(t, {
+    issue: RETRIED,
+    saved: (await first.state())!,
+    thread: OLD_THREAD,
+    writers: ['owner', 'bot'],
+    config: { maxReviewRounds: 1 },
+  });
+  const report = await next.run();
+  assert.notEqual(report.outcome, 'needs-human');
+  const reviewer = next.prompts.find((entry) => entry.role === 'reviewer')?.prompt;
+  assert.ok(reviewer !== undefined);
+  assert.doesNotMatch(reviewer, /- old/);
+  assert.equal((await next.state())?.ciFixes ?? 0, 0);
+});
+
+test('a writer who answers a hand-over whose comment failed and then takes the label off gets that answer passed to the agents as the hand-over answer', async (t) => {
+  const first = await labelledWithoutComment(t);
+  const next = await harness(t, {
+    issue: RETRIED,
+    saved: (await first.state())!,
+    thread: [
+      ...OLD_THREAD,
+      { author: 'owner', body: 'Try the other fixture.', createdAt: '2026-01-04T00:00:00Z' },
+    ],
+    writers: ['owner', 'bot'],
+    config: { maxReviewRounds: 2 },
+    verdicts: [changes('The count is wrong.'), APPROVE],
+  });
+  await next.run();
+  const fixer = next.prompts.find((entry) => entry.role === 'fixer')!.prompt;
+  assert.match(fixer, /## Answer of a person to the hand-over\n\n[^]*Try the other fixture\./);
+  assert.doesNotMatch(fixer, /Use the fixture in test\/data\./);
+});

@@ -74,13 +74,18 @@ export async function processIssue(
   return report;
 }
 
-/** A hand-over whose comment failed counts once the issue is claimed with its label still on, that is with an answer. */
+/**
+ * A hand-over whose comment failed counts once its label reached GitHub (a person who takes it off retries),
+ * or once the issue is claimed with its label still on, that is with an answer.
+ */
 function wasHandedOver(context: Context, issue: Issue, saved: IssueState | undefined): boolean {
   if (saved?.handedOver === true) {
     return true;
   }
+  const pending = saved?.pendingHandOver;
   return (
-    saved?.pendingHandOver !== undefined && hasLabel(issue.labels, context.config.labels.needsHuman)
+    pending !== undefined &&
+    (pending.labelled === true || hasLabel(issue.labels, context.config.labels.needsHuman))
   );
 }
 

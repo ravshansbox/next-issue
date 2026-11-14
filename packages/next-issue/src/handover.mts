@@ -205,11 +205,10 @@ async function handOver(
   const { pendingHandOver: _pending, ...rest } = state;
   try {
     const since = await threadEnd(context, issue);
-    await writeState(repo, {
-      ...rest,
-      pendingHandOver: { reason, ...(since === undefined ? {} : { since }) },
-    });
+    const pending = { reason, ...(since === undefined ? {} : { since }) };
+    await writeState(repo, { ...rest, pendingHandOver: pending });
     await setStatus(context, issue, config.labels.needsHuman);
+    await writeState(repo, { ...rest, pendingHandOver: { ...pending, labelled: true } });
     await ports.commentOnIssue(repo, issue, handOverComment(reason));
   } catch (error) {
     throw new HandOverFailed(reason, error);

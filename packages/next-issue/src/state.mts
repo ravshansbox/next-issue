@@ -10,7 +10,7 @@ export const STATE_DIR = '.next-issue';
 type Phase = 'claimed' | 'implemented' | 'review' | 'approved';
 
 /** A hand-over whose comment may not have reached GitHub: `since` is the time of the newest thread comment before it. */
-export type PendingHandOver = { reason: string; since?: string };
+export type PendingHandOver = { reason: string; since?: string; labelled?: boolean };
 
 export type IssueState = {
   issue: number;
@@ -96,7 +96,12 @@ function isReviewRound(value: unknown): value is ReviewRound {
 }
 
 function isPending(value: unknown): value is PendingHandOver {
-  return isRecord(value) && typeof value.reason === 'string' && isOptional(value.since, 'string');
+  return (
+    isRecord(value) &&
+    typeof value.reason === 'string' &&
+    isOptional(value.since, 'string') &&
+    isOptional(value.labelled, 'boolean')
+  );
 }
 
 function isState(value: unknown): value is IssueState {

@@ -595,7 +595,10 @@ that still has the label is not claimed, unless it has an answer to the
 hand-over: then the run claims it and takes the label off. When the label of a
 hand-over reaches GitHub but its comment does not, an answer to an earlier
 hand-over does not count: the issue waits, and the worker lists it, until a
-person takes the label off or a writer comments after that hand-over.
+person takes the label off or a writer comments after that hand-over. Either
+way, the next run that claims it counts it as a hand-over: it puts the budgets
+and the findings back to zero and passes on the comments posted after it. When
+the label edit itself fails, the next run keeps the budgets and the findings.
 
 To give guidance, answer the hand-over with a comment on the issue. When the run
 resumes the issue, it reads the comments posted after its last
