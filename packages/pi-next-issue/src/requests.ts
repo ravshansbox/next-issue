@@ -51,6 +51,11 @@ export function fresh(client: WorkerClient, root: string): Promise<Question[]> {
         reject(new Error(event.message));
       }
     });
+    if (!client.connected) {
+      stop();
+      reject(new Error(CLOSED));
+      return;
+    }
     client.send({ type: 'questions', root, id });
   });
 }

@@ -1147,6 +1147,31 @@ test('a user who runs /next-issue answer with no question waiting is told so', a
   assert.ok(notes.includes('next-issue: no questions waiting'));
 });
 
+test('a user who answers is told the worker closed when it closes while a question is shown', async () => {
+  const { path, calls, extension } = setup();
+  const started = await questionWorker(path, [[question(4), question(5)]]);
+  const { pi, ctx, emit, command, notes } = host('tui', '/repo', ['Retry']);
+  const store = globalThis as Record<symbol, Map<string, WorkerClient> | undefined>;
+  ctx.ui.select = async () => {
+    const closed = new Promise<void>((resolve) => {
+      store[KEY]?.get('/repo')?.subscribe((event) => {
+        if (event.type === 'closed') {
+          resolve();
+        }
+      });
+    });
+    await started.close();
+    await closed;
+    return 'Retry';
+  };
+  extension(pi as never);
+  await emit('session_start');
+  const hung = new Promise<string>((resolve) => setTimeout(() => resolve('hung'), 2000).unref());
+  assert.equal(await Promise.race([command('answer').then(() => 'ended'), hung]), 'ended');
+  assert.equal(calls.length, 1);
+  assert.ok(notes.includes('next-issue cannot answer: the worker closed the connection'));
+});
+
 test('a user sees why the questions could not be read', async () => {
   const { path, extension } = setup();
   const started = await startFakeWorker(path, '1.0.0', (self, message) => {
