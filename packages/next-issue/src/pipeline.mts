@@ -2,7 +2,7 @@ import { enterReview } from './enter-review.mts';
 import { branchName } from './git.mts';
 import type { Issue } from './github.mts';
 import { runStopped } from './children.mts';
-import { claimedError, finishClosing, stop, stopNow } from './handover.mts';
+import { claimedError, dropClosed, finishClosing, stop, stopNow } from './handover.mts';
 import { implement } from './implement.mts';
 import type { Context, IssueReport, Run } from './job.mts';
 import type { Recorder } from './observe.mts';
@@ -27,6 +27,9 @@ export async function processIssue(
     return unclaimedError(log, issue, error, started);
   }
   const closing = saved?.closing === true && saved.handedOver !== true;
+  if (issue.closed === true && !closing) {
+    return dropClosed(context, log, issue, saved?.branch ?? branchName(issue.number));
+  }
   const skip = closing ? undefined : await skipReport(context, log, issue, saved, started);
   if (skip !== undefined) {
     return skip;

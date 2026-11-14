@@ -40,10 +40,7 @@ async function savedIssue(
     if (saved === 'broken' || open) {
       return { open, issue };
     }
-    if (saved?.closing === true && saved.handedOver !== true) {
-      return { open, issue: { ...issue, closed: true } };
-    }
-    return { open };
+    return { open, issue: { ...issue, closed: true } };
   } catch (error) {
     context.recorder
       .scope({ issue: number })

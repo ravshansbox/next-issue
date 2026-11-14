@@ -71,6 +71,30 @@ export async function finishClosing(
   return (await finishDone(job)).report;
 }
 
+export async function dropClosed(
+  context: Context,
+  log: Recorder,
+  issue: Issue,
+  branch: string,
+): Promise<IssueReport> {
+  log.event('issue.drop', { title: issue.title, reason: 'closed' }, 'quiet');
+  try {
+    await cleanUp(context, log, branch);
+    await deleteBranches(context, log, branch);
+    await dropState(context.repo, issue.number);
+  } catch (error) {
+    log.event('drop.error', { error: message(error) }, 'quiet');
+  }
+  return {
+    issue: issue.number,
+    outcome: 'skipped',
+    reason: 'closed',
+    ciFixes: 0,
+    reviewRounds: 0,
+    ms: 0,
+  };
+}
+
 async function updateLocalBase(job: Run): Promise<void> {
   const { context, log } = job;
   const { repo, ports, config, base } = context;

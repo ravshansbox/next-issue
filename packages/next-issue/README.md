@@ -602,6 +602,17 @@ The `--reset` flag does the same for any issue that the run handles, whether or
 not it was handed over. It touches only an issue that the run handles, so the
 state of an issue that a label still holds back stays as it was.
 
+To drop an issue instead, close it. The next run that finds a saved state for an
+issue that a person closed removes that state file, the `<n>` branch, the
+`<n>-dispute-*` branches and the worktree of the issue. This holds for an issue
+that waits for a person and for one that a stop left behind. The run starts no
+agent and makes no push, revert, label change, close or comment, so a change
+that already landed stays on the base branch. A worktree or branch that cannot be
+removed stays, and the run log says so. The issue shows as `skipped` (`closed`)
+in the summary and does not count for `--max` or `--once`. A `--watch` run does
+not claim an issue again once it ended in `error` in that run, so it leaves such
+an issue for the next run to clean up.
+
 ## Commands and options
 
 | Argument    | Effect                                                                                 |

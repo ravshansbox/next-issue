@@ -24,8 +24,12 @@ test('a user with one open issue and two closed issues to resume sees an open co
   await writeState(target.context.repo, { ...LANDED, issue: 8 });
   const issues = await pendingIssues(target.context);
   assert.deepEqual(
-    issues.map((entry) => entry.number),
-    [3],
+    issues.map((entry) => [entry.number, entry.closed === true]),
+    [
+      [3, false],
+      [7, true],
+      [8, true],
+    ],
   );
   const counts = target.events.filter((record) => record.kind === 'issues');
   assert.deepEqual(
@@ -44,13 +48,18 @@ test('a user whose open issues arrive out of order gets them oldest first', asyn
   );
 });
 
-test('a user whose closed issue has a saved state with a landed change does not get it back in the list', async (t) => {
+test('a user whose closed issue has a saved state with a landed change gets the run to drop that state with no revert', async (t) => {
   const target = await harness(t, {
     saved: LANDED,
     open: [],
     closed: [ISSUE],
   });
-  assert.deepEqual(await pendingIssues(target.context), []);
+  const issues = await pendingIssues(target.context);
+  const report = await processIssue(target.context, issues[0]!);
+  assert.equal(report.outcome, 'skipped');
+  assert.equal(await target.state(), undefined);
+  assert.deepEqual(target.reverts, []);
+  assert.deepEqual(target.landed, []);
 });
 
 test('a user whose closed issue has a corrupt state file gets it back in the list with an error that names the file', async (t) => {
