@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { statSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { link, rm, writeFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
@@ -70,6 +70,14 @@ function inode(path: string): number | undefined {
   return statSync(path, { throwIfNoEntry: false })?.ino;
 }
 
+function textOf(path: string): string | undefined {
+  try {
+    return readFileSync(path, 'utf8');
+  } catch {
+    return undefined;
+  }
+}
+
 async function linked(source: string, target: string): Promise<boolean> {
   try {
     await link(source, target);
@@ -109,13 +117,16 @@ export async function lock(
     throw new Error('next-issue: cannot read the start time of the worker process');
   }
   const filled = `${path}.${randomUUID()}`;
-  await writeFile(filled, `${process.pid} ${started}\n`, { flag: 'wx', mode: 0o600 });
+  const text = `${process.pid} ${started}\n`;
+  await writeFile(filled, text, { flag: 'wx', mode: 0o600 });
   try {
     const deadline = Date.now() + waitMs;
     for (;;) {
       if (await linked(filled, path)) {
         const held = inode(path);
-        return { owns: () => held !== undefined && inode(path) === held };
+        return {
+          owns: () => held !== undefined && inode(path) === held && textOf(path) === text,
+        };
       }
       if ((await holder(path)) === undefined) {
         await removeStale(path, filled);
