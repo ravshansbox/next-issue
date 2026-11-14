@@ -3,7 +3,7 @@ import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { HookError } from '../src/git-commit.mts';
-import { pushToBase, revertOnBase, squashOnto } from '../src/git-land.mts';
+import { pushToBase, type Revert, revertOnBase, squashOnto } from '../src/git-land.mts';
 import { commitMerge, startMerge } from '../src/git-merge.mts';
 import { isLanded } from '../src/git.mts';
 import { addWorktree } from '../src/worktree.mts';
@@ -108,6 +108,73 @@ test('revertOnBase that cannot push puts the branch back as it was', async () =>
   assert.equal(pushed, false);
   assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');
   assert.equal(await git(path, 'rev-parse', 'HEAD'), landed);
+});
+
+async function landed(): Promise<{ path: string; other: string; sha: string }> {
+  const { path, other } = await branch();
+  await squashOnto(path, 'main', 'origin', 'feat: add b and c');
+  await pushToBase(path, 'origin', 'main');
+  const sha = await git(path, 'rev-parse', 'HEAD');
+  await git(other, 'pull', '-q', 'origin', 'main');
+  return { path, other, sha };
+}
+
+function revertOf(sha: string): Revert {
+  return {
+    base: 'main',
+    remote: 'origin',
+    branch: '3',
+    shas: [sha],
+    message: 'revert: issue #3',
+    reapply: 'feat: add b and c',
+  };
+}
+
+test('revertOnBase whose revert conflicts with the base aborts it and puts the branch back', async () => {
+  const { path, other, sha } = await landed();
+  await writeFile(join(other, 'b.txt'), 'changed\n');
+  await git(other, 'commit', '-q', '-am', 'change b');
+  await git(other, 'push', '-q', 'origin', 'main');
+  assert.equal(await revertOnBase(path, revertOf(sha)), false);
+  assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');
+  assert.equal(await git(path, 'rev-parse', 'HEAD'), sha);
+  assert.equal(await git(path, 'status', '--porcelain'), '');
+  await assert.rejects(git(path, 'rev-parse', '-q', '--verify', 'REVERT_HEAD'));
+});
+
+test('revertOnBase whose revert commit fails puts the branch back', async () => {
+  const { path, other, sha } = await landed();
+  await git(other, 'revert', '--no-edit', sha);
+  await git(other, 'push', '-q', 'origin', 'main');
+  await assert.rejects(revertOnBase(path, revertOf(sha)));
+  assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');
+  assert.equal(await git(path, 'rev-parse', 'HEAD'), sha);
+});
+
+test('revertOnBase whose push loses a race retries on the new base tip', async () => {
+  const { path, other, sha } = await landed();
+  const hooks = join(path, '..', 'hooks');
+  await mkdir(hooks, { recursive: true });
+  const marker = join(hooks, 'raced');
+  await writeFile(
+    join(hooks, 'pre-push'),
+    [
+      '#!/bin/sh',
+      `[ -f '${marker}' ] && exit 0`,
+      `touch '${marker}'`,
+      'unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE',
+      `git -C '${other}' -c user.name=t -c user.email=t@t commit -q --allow-empty -m race`,
+      `git -C '${other}' push -q origin main`,
+      '',
+    ].join('\n'),
+  );
+  await chmod(join(hooks, 'pre-push'), 0o755);
+  await git(path, 'config', 'core.hooksPath', hooks);
+  assert.equal(await revertOnBase(path, revertOf(sha)), true);
+  await git(other, 'pull', '-q', 'origin', 'main');
+  assert.equal(await git(other, 'log', '-2', '--format=%s'), 'revert: issue #3\nrace');
+  assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');
+  assert.equal(await git(path, 'rev-parse', 'HEAD^'), await git(other, 'rev-parse', 'HEAD'));
 });
 
 test('isLanded tells a branch whose head the base already holds from one with a commit the base lacks', async () => {

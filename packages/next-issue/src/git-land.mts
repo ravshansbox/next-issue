@@ -1,6 +1,8 @@
 import { fetchBase, git, remoteRef, revision, succeeds } from './git.mts';
 import { commitEverything } from './git-commit.mts';
 
+export const PUSH_TRIES = 3;
+
 export async function squashOnto(
   cwd: string,
   base: string,
@@ -36,18 +38,35 @@ export type Revert = {
 };
 
 export async function revertOnBase(cwd: string, revert: Revert): Promise<boolean> {
-  const { base, remote, branch, shas, message, reapply } = revert;
-  const target = await fetchBase(cwd, base, remote);
-  await git(cwd, ['checkout', '--force', '--detach', target]);
-  await git(cwd, ['clean', '-fd']);
-  await git(cwd, ['revert', '--no-commit', ...shas.toReversed()]);
-  await git(cwd, ['commit', '--no-verify', '-m', message]);
-  if (!(await pushToBase(cwd, remote, base))) {
-    await git(cwd, ['checkout', '--force', branch]);
-    return false;
+  const { branch } = revert;
+  let moved = false;
+  try {
+    moved = await pushRevert(cwd, revert);
+    return moved;
+  } finally {
+    if (!moved) {
+      await succeeds(cwd, ['revert', '--abort']);
+      await git(cwd, ['checkout', '--force', branch]);
+    }
   }
-  await git(cwd, ['revert', '--no-commit', await revision(cwd)]);
-  await git(cwd, ['commit', '--no-verify', '-m', reapply]);
-  await git(cwd, ['checkout', '-B', branch]);
-  return true;
+}
+
+async function pushRevert(cwd: string, revert: Revert): Promise<boolean> {
+  const { base, remote, branch, shas, message, reapply } = revert;
+  for (let attempt = 1; attempt <= PUSH_TRIES; attempt += 1) {
+    const target = await fetchBase(cwd, base, remote);
+    await git(cwd, ['checkout', '--force', '--detach', target]);
+    await git(cwd, ['clean', '-fd']);
+    if (!(await succeeds(cwd, ['revert', '--no-commit', ...shas.toReversed()]))) {
+      return false;
+    }
+    await git(cwd, ['commit', '--no-verify', '-m', message]);
+    if (await pushToBase(cwd, remote, base)) {
+      await git(cwd, ['revert', '--no-commit', await revision(cwd)]);
+      await git(cwd, ['commit', '--no-verify', '-m', reapply]);
+      await git(cwd, ['checkout', '-B', branch]);
+      return true;
+    }
+  }
+  return false;
 }

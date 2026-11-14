@@ -126,7 +126,9 @@ the run handles one issue. For each issue:
    fail again, the fixer gets their logs from the check budget, and its fix lands
    the same way. When the fixer cannot fix them, its fix cannot land, or the
    budget runs out, the harness reverts every commit of the change on the
-   base branch, pushes the revert and hands the issue to a person. A resume
+   base branch, pushes the revert and hands the issue to a person. A revert
+   push that the remote refuses, for example because the base moved, makes
+   the revert again on the new base, three times at most. A resume
    that stopped while the checks of a landed commit ran waits for them
    again, even when more commits landed on the base since, and a fix that
    was committed but not landed lands first. A problem that the reviewer

@@ -37,6 +37,7 @@ export async function addWorktree(
   const path = existing ?? worktreePath(repo, issue);
   const target = pushed ? upstream : remoteBase;
   if (existing === undefined) {
+    await succeeds(repo.root, ['worktree', 'remove', '--force', path]);
     const args =
       !start && (await hasWork(repo, branch, pushed, remoteBase))
         ? ['worktree', 'add', path, branch]

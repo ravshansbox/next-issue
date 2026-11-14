@@ -1,12 +1,11 @@
 import { rebase } from './conflict.mts';
 import { checkGate } from './gate.mts';
+import { PUSH_TRIES } from './git-land.mts';
 import { escalateAndFinish, finishDone } from './handover.mts';
 import type { Finished, Run } from './job.mts';
 import { oneAtATime } from './lock.mts';
 import { revertFailedFix } from './revert.mts';
 import { writeState } from './state.mts';
-
-const PUSH_TRIES = 3;
 
 export function landApproved(job: Run): Promise<Finished> {
   return landing(job, () => landLoop(job));

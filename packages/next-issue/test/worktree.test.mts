@@ -110,6 +110,18 @@ test('a user who resumes issue 3 while its old worktree holds the saved branch w
   assert.equal(existsSync(join(repo.root, '.worktrees', '3')), false);
 });
 
+test('a user who resumes issue 3 while .worktrees/3 is left detached gets branch 3 back in it', async () => {
+  const { repo } = await clones();
+  const { path: first } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  const kept = await commit(first, 'kept.txt');
+  await git(first, 'checkout', '-q', '--detach', 'origin/main');
+  await writeFile(join(first, 'stray.txt'), 'x\n');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  assert.equal(path, first);
+  assert.equal(await git(path, 'branch', '--show-current'), '3');
+  assert.equal(await revision(path), kept);
+});
+
 test('a user whose issue ends gets the worktree that holds its branch removed', async () => {
   const { repo } = await clones();
   const old = join(repo.root, '..', 'tool-issue-3');
