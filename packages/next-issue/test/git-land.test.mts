@@ -177,6 +177,42 @@ test('revertOnBase whose push loses a race retries on the new base tip', async (
   assert.equal(await git(path, 'rev-parse', 'HEAD^'), await git(other, 'rev-parse', 'HEAD'));
 });
 
+async function pushLandsAndFails(path: string, after = ''): Promise<void> {
+  const hooks = join(path, '..', 'hooks');
+  await mkdir(hooks, { recursive: true });
+  await writeFile(
+    join(hooks, 'pre-push'),
+    [
+      '#!/bin/sh',
+      'git push -q --no-verify origin HEAD:refs/heads/main || exit 0',
+      after,
+      'exit 1',
+      '',
+    ].join('\n'),
+  );
+  await chmod(join(hooks, 'pre-push'), 0o755);
+  await git(path, 'config', 'core.hooksPath', hooks);
+}
+
+test('revertOnBase whose push lands although git push reports a failure treats the revert as landed', async () => {
+  const { path, other, sha } = await landed();
+  await pushLandsAndFails(path);
+  assert.equal(await revertOnBase(path, revertOf(sha)), true);
+  await git(other, 'pull', '-q', 'origin', 'main');
+  assert.equal(await git(other, 'log', '-2', '--format=%s'), 'revert: issue #3\nfeat: add b and c');
+  assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');
+  assert.equal(await git(path, 'rev-parse', 'HEAD^'), await git(other, 'rev-parse', 'HEAD'));
+  assert.equal(await readFile(join(path, 'b.txt'), 'utf8'), 'b.txt\n');
+});
+
+test('revertOnBase whose push reports a failure and whose fetch of the base fails does not report the revert as landed', async () => {
+  const { path, sha } = await landed();
+  await pushLandsAndFails(path, `git config remote.origin.url '${join(path, 'missing.git')}'`);
+  await assert.rejects(revertOnBase(path, revertOf(sha)));
+  assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');
+  assert.equal(await git(path, 'rev-parse', 'HEAD'), sha);
+});
+
 test('isLanded tells a branch whose head the base already holds from one with a commit the base lacks', async () => {
   const { path, other } = await branch();
   assert.equal(await isLanded(path, 'main', 'origin'), false);

@@ -1,4 +1,12 @@
-import { fetchBase, git, oneFetchAtATime, remoteRef, revision, succeeds } from './git.mts';
+import {
+  fetchBase,
+  git,
+  isOnBase,
+  oneFetchAtATime,
+  remoteRef,
+  revision,
+  succeeds,
+} from './git.mts';
 import { commitEverything } from './git-commit.mts';
 
 export const PUSH_TRIES = 3;
@@ -61,8 +69,9 @@ async function pushRevert(cwd: string, revert: Revert): Promise<boolean> {
       return false;
     }
     await git(cwd, ['commit', '--no-verify', '-m', message]);
-    if (await pushToBase(cwd, remote, base)) {
-      await git(cwd, ['revert', '--no-commit', await revision(cwd)]);
+    const reverted = await revision(cwd);
+    if ((await pushToBase(cwd, remote, base)) || (await isOnBase(cwd, base, remote, reverted))) {
+      await git(cwd, ['revert', '--no-commit', reverted]);
       await git(cwd, ['commit', '--no-verify', '-m', reapply]);
       await git(cwd, ['checkout', '-B', branch]);
       return true;

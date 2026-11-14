@@ -135,7 +135,9 @@ the run handles one issue. For each issue:
    commit of the change on the base branch, pushes the revert and hands the
    issue to a person. A revert
    push that the remote refuses, for example because the base moved, makes
-   the revert again on the new base, three times at most. A resume
+   the revert again on the new base, three times at most. A failed revert
+   push that the base holds after a fetch counts as landed, and a fetch that
+   fails leaves the revert reported as failed. A resume
    that stopped while the checks of a landed commit ran waits for them
    again, even when more commits landed on the base since, and a fix that
    was committed but not landed lands first. A problem that the reviewer
