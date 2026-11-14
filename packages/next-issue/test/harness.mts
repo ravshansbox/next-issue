@@ -135,7 +135,7 @@ export type Harness = {
   events: Array<Record<string, unknown>>;
   hunts: string[];
   head: () => string;
-  run: () => Promise<IssueReport>;
+  run: (claimed?: () => void) => Promise<IssueReport>;
   state: () => Promise<IssueState | undefined>;
 };
 
@@ -193,7 +193,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     events: [],
     hunts: [],
     head: () => String(head),
-    run: () => withRunChildren(children, () => processIssue(state.context, issue)),
+    run: (claimed) => withRunChildren(children, () => processIssue(state.context, issue, claimed)),
     state: () => readState(repo, issue.number),
   };
 

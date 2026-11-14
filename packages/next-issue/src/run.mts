@@ -65,7 +65,7 @@ async function handle(
 
   const loop: Loop = {
     issues: () => pendingIssues(context),
-    process: (issue) => processIssue(context, issue),
+    process: (issue, claimed) => processIssue(context, issue, claimed),
     stop: interrupts.afterIssue,
     concurrency: config.concurrency,
   };

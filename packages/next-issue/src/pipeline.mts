@@ -12,7 +12,11 @@ import { skipReport, unclaimedError } from './skip.mts';
 import { type IssueState, newState, readState, resetState } from './state.mts';
 import { setUp } from './worktree-setup.mts';
 
-export async function processIssue(context: Context, issue: Issue): Promise<IssueReport> {
+export async function processIssue(
+  context: Context,
+  issue: Issue,
+  claimed: () => void = () => undefined,
+): Promise<IssueReport> {
   const { repo } = context;
   const started = Date.now();
   const log = context.recorder.scope({ issue: issue.number });
@@ -26,6 +30,7 @@ export async function processIssue(context: Context, issue: Issue): Promise<Issu
   if (skip !== undefined) {
     return skip;
   }
+  claimed();
   log.event('issue.start', { title: issue.title, createdAt: issue.createdAt }, 'quiet');
 
   const state = startState(context, issue, saved);

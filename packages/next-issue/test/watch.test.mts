@@ -18,10 +18,14 @@ function watcher(lists: Outcome[][], wakes: boolean[] = []): FakeWatch {
       (lists[pass] ?? [])
         .map((_, index) => issue(index + 1))
         .filter((entry) => !done.has(entry.number)),
-    process: async (target) => {
+    process: async (target, claimed) => {
       fake.processed.push(target.number);
       done.add(target.number);
-      return report(target.number, lists[pass]![target.number - 1]!);
+      const outcome = lists[pass]![target.number - 1]!;
+      if (outcome !== 'skipped') {
+        claimed?.();
+      }
+      return report(target.number, outcome);
     },
     stop: () => false,
     wait: async (minutes) => {
@@ -160,9 +164,10 @@ function hunter(
 
 function holdIssues(fake: FakeWatch, until: Promise<void>): void {
   const process = fake.process;
-  fake.process = async (target) => {
+  fake.process = async (target, claimed) => {
+    const processed = process(target, claimed);
     await until;
-    return process(target);
+    return processed;
   };
 }
 
@@ -365,10 +370,11 @@ function wakeable(fake: FakeWatch, readyLists: number[][], blockFrom = 0): WakeH
     },
   };
   const process = fake.process;
-  fake.process = async (target) => {
+  fake.process = async (target, ring) => {
+    const processed = process(target, ring);
     claimed.resolve();
     await Promise.race([settled.promise, sleep(200)]);
-    return process(target);
+    return processed;
   };
   return { steps, blocked: blocked.promise, hunted: hunted.promise };
 }
@@ -417,6 +423,22 @@ test('a user who watches with --hunt sees a claim wake the hunter, which waits a
     'wait 2',
     'wait over',
     'ready 1',
+    'wait 2',
+    'wait over',
+  ]);
+});
+
+test('a user who watches with --hunt sees a pass that skips an issue during a hunt not wake the hunter, which waits with the back-off', async () => {
+  const fake = watcher([[], ['skipped']]);
+  const hunting = wakeable(fake, [[], [], []], 1);
+  claimAfter(fake, hunting.hunted);
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(hunting.steps, [
+    'ready 0',
+    'hunt',
+    'wait 1',
+    'ready 0',
+    'hunt',
     'wait 2',
     'wait over',
   ]);

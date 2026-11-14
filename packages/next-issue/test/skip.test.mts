@@ -10,6 +10,26 @@ test('a skipped issue does nothing', async (t) => {
   assert.deepEqual(roles(target), []);
 });
 
+test('a watcher sees a skipped issue not counted as a claim', async (t) => {
+  const target = await harness(t, { issue: { ...ISSUE, labels: [] } });
+  let claims = 0;
+  const report = await target.run(() => {
+    claims += 1;
+  });
+  assert.equal(report.outcome, 'skipped');
+  assert.equal(claims, 0);
+});
+
+test('a watcher sees a claimed issue counted as a claim once, before any agent runs', async (t) => {
+  const target = await harness(t);
+  const claims: string[][] = [];
+  const report = await target.run(() => {
+    claims.push(roles(target));
+  });
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(claims, [[]]);
+});
+
 test('an issue with an open blocker waits without a claim', async (t) => {
   const target = await harness(t, { blockers: ['#3', 'acme/other#9'] });
   const report = await target.run();

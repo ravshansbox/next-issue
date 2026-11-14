@@ -4,7 +4,7 @@ import type { IssueReport } from './job.mts';
 
 export type Loop = {
   issues: () => Promise<Issue[]>;
-  process: (issue: Issue) => Promise<IssueReport>;
+  process: (issue: Issue, claimed?: () => void) => Promise<IssueReport>;
   stop: () => boolean;
   concurrency?: number;
 };

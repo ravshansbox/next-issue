@@ -40,9 +40,8 @@ export async function watchIssues(
       ...watch,
       process: async (issue) => {
         running.add(issue.number);
-        claims.ring();
         try {
-          return await watch.process(issue);
+          return await watch.process(issue, claims.ring);
         } finally {
           running.delete(issue.number);
         }
