@@ -205,6 +205,7 @@ export function huntPrompt(
   ready: string,
   source: string,
   count: number,
+  repository: string,
 ): string {
   const issues = count === 1 ? '1 issue' : `${count} issues`;
   const kept = instructions?.trim() ?? '';
@@ -219,8 +220,8 @@ export function huntPrompt(
     [
       'Run no test suite and no build. Change no file. Do not commit or push.',
       `File up to ${issues}, your most serious findings first. File nothing when you find no real problem.`,
-      'Before you file an issue, search the open and closed issues for a duplicate, for example with `gh issue list --state all --search "<words>"`. Do not file a finding when a duplicate exists.',
-      `File each issue with \`gh issue create${label} --title "<conventional commit subject>" --body-file -\`.`,
+      `Before you file an issue, search the open and closed issues for a duplicate, for example with \`gh issue list --repo ${repository} --state all --search "<words>"\`. Do not file a finding when a duplicate exists.`,
+      `File each issue with \`gh issue create --repo ${repository}${label} --title "<conventional commit subject>" --body-file -\`.`,
       `The body holds these sections as \`##\` headings, in this order: ${ISSUE_SECTIONS.map((section) => `\`## ${section}\``).join(', ')}.`,
       'Give the file and line of each piece of evidence. Leave the Open questions section empty.',
       'End your final message with one line in the form `issue: <url>` for each issue you filed, or one `issue: none` line when you filed nothing.',

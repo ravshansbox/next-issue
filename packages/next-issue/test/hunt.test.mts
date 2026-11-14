@@ -80,7 +80,10 @@ test('a user who sets an empty labels.ready sees the hunter add only the source 
   };
   await hunt(target.context, 1);
   assert.deepEqual(ensured, ['source:hunt']);
-  assert.match(target.prompts[0]!.prompt, /gh issue create --label "source:hunt" --title/);
+  assert.match(
+    target.prompts[0]!.prompt,
+    /gh issue create --repo acme\/tool --label "source:hunt" --title/,
+  );
 });
 
 test('a user who hunts sees the filed issue in the run log', async (t) => {
@@ -133,6 +136,49 @@ test('a user whose hunt reply has a bare issue: line with a url on the next line
     .filter((record) => record.kind === 'hunt.issue')
     .map((record) => record.url);
   assert.deepEqual(urls, ['none']);
+});
+
+test('a user who hunts sees the hunter told to search and file issues in the repository of the configured remote', async (t) => {
+  const target = await harness(t);
+  await hunt(target.context, 1);
+  const prompt = target.prompts[0]!.prompt;
+  assert.match(prompt, /gh issue list --repo acme\/tool --state all --search/);
+  assert.match(prompt, /gh issue create --repo acme\/tool --label "status:todo"/);
+});
+
+test('a user whose remote points to a fork sees the hunter told to search and file issues in the fork', async (t) => {
+  const target = await harness(t);
+  target.context.repo.owner = 'me';
+  target.context.repo.name = 'fork';
+  await hunt(target.context, 1);
+  const prompt = target.prompts[0]!.prompt;
+  assert.match(prompt, /gh issue list --repo me\/fork /);
+  assert.match(prompt, /gh issue create --repo me\/fork /);
+  assert.doesNotMatch(prompt, /acme\/tool/);
+});
+
+test('a user whose hunter reports an issue of another repository sees the hunt count it as nothing filed, so the watch backs off', async (t) => {
+  const target = await harness(t, {
+    hunterText:
+      'Filed.\nissue: https://github.com/upstream/tool/issues/9\nissue: https://github.com/acme/tool-x/issues/3\nissue: https://github.com/acme/tool/pull/4',
+  });
+  assert.equal(await hunter(target.context).hunt(1), false);
+  const urls = target.events
+    .filter((record) => record.kind === 'hunt.issue')
+    .map((record) => record.url);
+  assert.deepEqual(urls, ['none']);
+});
+
+test('a user whose hunter reports issues of the configured repository and of another one sees only the issue of the configured repository counted', async (t) => {
+  const target = await harness(t, {
+    hunterText:
+      'Filed.\nissue: https://github.com/upstream/tool/issues/9\nissue: https://github.com/Acme/Tool/issues/10',
+  });
+  assert.equal(await hunt(target.context, 2), true);
+  const urls = target.events
+    .filter((record) => record.kind === 'hunt.issue')
+    .map((record) => record.url);
+  assert.deepEqual(urls, ['https://github.com/Acme/Tool/issues/10']);
 });
 
 test('a user whose hunter fails sees a hunt.error event', async (t) => {

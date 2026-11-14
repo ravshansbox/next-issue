@@ -4,6 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { REVIEWING } from './agents.mts';
 import { minutesToMs } from './durations.mts';
 import { readTextIfPresent } from './files.mts';
+import { slug } from './gh.mts';
 import { git, gitFetch, remoteRef, type Repo } from './git.mts';
 import type { Context } from './job.mts';
 import { oneAtATime } from './lock.mts';
@@ -30,6 +31,11 @@ export async function huntWorktree(repo: Repo, base: string, remote: string): Pr
   return path;
 }
 
+function isIssueOf(repo: Repo, url: string): boolean {
+  const issue = /^https:\/\/github\.com\/([^/]+\/[^/]+)\/issues\/\d+\/?$/i.exec(url);
+  return issue?.[1]?.toLowerCase() === slug(repo).toLowerCase();
+}
+
 export async function hunt(context: Context, count: number): Promise<boolean> {
   const { repo, config, base, recorder, ports } = context;
   return recorder.step('hunt', {}, async () => {
@@ -43,13 +49,13 @@ export async function hunt(context: Context, count: number): Promise<boolean> {
     const result = await ports.runAgent(recorder, {
       name: 'hunter',
       cwd,
-      prompt: huntPrompt(instructions, config.labels.ready, config.labels.hunt, count),
+      prompt: huntPrompt(instructions, config.labels.ready, config.labels.hunt, count, slug(repo)),
       profile: REVIEWING,
       timeoutMs: minutesToMs(config.agentTimeoutMinutes),
     });
     const urls = [...result.text.matchAll(FILED)]
       .map((match) => match[1]!)
-      .filter((url) => /^https?:\/\//.test(url));
+      .filter((url) => isIssueOf(repo, url));
     for (const url of urls.length === 0 ? ['none'] : urls) {
       recorder.event('hunt.issue', { url }, 'quiet');
     }
