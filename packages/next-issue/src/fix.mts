@@ -120,10 +120,11 @@ export async function commitWork(
   for (;;) {
     subject = withoutClosingReferences(subject, fallbackTitle(issue));
     try {
-      if (await commitChanges(worktree, `${subject}\n\nRefs #${issue.number}`)) {
+      const committed = await commitChanges(worktree, `${subject}\n\nRefs #${issue.number}`);
+      if (committed) {
         log.event('commit', { subject });
       }
-      if ((await ports.revision(worktree)) === before) {
+      if (!committed && (await ports.revision(worktree)) === before) {
         return false;
       }
       state.title = subject;

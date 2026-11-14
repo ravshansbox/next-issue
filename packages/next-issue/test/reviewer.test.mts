@@ -183,6 +183,14 @@ test('a user who stops now during the squash hook keeps the change on branch 7, 
   await git(repo.root, 'cat-file', '-e', 'origin/main:implementer.txt');
 });
 
+test('a user whose branch already holds the squash commit, so the squash makes the same commit again, gets the change landed', async (t) => {
+  const target = await harness(t);
+  target.context.ports.squashOnto = async () => true;
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.equal(report.reason, undefined);
+});
+
 test('a diff that is too long is cut before the reviewer reads it', async (t) => {
   const target = await harness(t, { config: { diffMaxChars: 20 }, diff: 'x'.repeat(50) });
   assert.equal((await target.run()).outcome, 'done');
