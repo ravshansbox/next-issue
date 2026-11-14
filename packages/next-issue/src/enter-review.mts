@@ -1,7 +1,7 @@
 import { escalateAndFinish } from './handover.mts';
 import { ROUND_CONTINUE, type Round, type Run } from './job.mts';
 import { landApproved, resumeLanding } from './land.mts';
-import { reapplyMessage } from './revert.mts';
+import { reapplyMessage, restoreChange } from './revert.mts';
 import { writeState } from './state.mts';
 
 export async function enterReview(job: Run): Promise<Round> {
@@ -74,7 +74,7 @@ async function settleRevert(job: Run): Promise<boolean> {
       reverted: sha,
       reapply: reapplyMessage(job),
     });
-    state.landed = undefined;
+    restoreChange(state);
   }
   state.reverting = undefined;
   await writeState(repo, state);
