@@ -3,7 +3,7 @@ import { ROUND_CONTINUE, type Round, type Run } from './job.mts';
 import { landApproved, resumeLanding } from './land.mts';
 import { reapplyMessage, restoreChange } from './revert.mts';
 import { writeState } from './state.mts';
-import { beforeBaseSettled } from './unsettled.mts';
+import { beforeBaseSettled, releaseSettled } from './unsettled.mts';
 
 export async function enterReview(job: Run): Promise<Round> {
   const { context, state } = job;
@@ -50,6 +50,7 @@ async function settlePush(job: Run): Promise<void> {
     state.landed = [...(state.landed ?? []), sha];
   }
   state.pushing = undefined;
+  releaseSettled(state);
   await writeState(repo, state);
 }
 
@@ -83,6 +84,7 @@ async function settleRevert(job: Run): Promise<boolean> {
     restoreChange(state);
   }
   state.reverting = undefined;
+  releaseSettled(state);
   await writeState(repo, state);
   return reverted;
 }

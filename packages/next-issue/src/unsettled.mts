@@ -24,6 +24,13 @@ export function blocksLanding(state: IssueState, base: string): boolean {
   return state.halted === true && state.closing !== true && heldOnBase(state, base) !== '';
 }
 
+/** Drops a saved halt once nothing of this issue is, or may be, on the base with unknown checks. */
+export function releaseSettled(state: IssueState): void {
+  if (heldOnBase(state, '') === '') {
+    delete state.halted;
+  }
+}
+
 export function unsettledNote(held: string, step: string): string {
   return ` ${step} before it checked the base: ${held}, and its checks were not awaited. ${HALT_NOTE}`;
 }

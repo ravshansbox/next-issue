@@ -327,9 +327,11 @@ before the others, and a running one still resumes, so an older issue that
 reaches the landing first does not keep it from checking the base. Once a person answers or
 takes the label off, the issue resumes, checks the base and waits for the
 checks of its commit; when those are known (the issue is done, or its
-commits are reverted or found not on the base), the next run lands the
-held issues again. A person who gives such an issue up instead (the `skip`
-label, which **Give up** in pi adds) releases the block: the next run skips
+commits are reverted or found not on the base), the issue drops the halt
+from its state and the next run lands the held issues again. A later
+landing of that issue blocks other runs only if it halts again. A
+person who gives such an issue up instead (the `skip` label, which
+**Give up** in pi adds) releases the block: the next run skips
 the issue, drops its halt from the state and logs a `land.released` event,
 so other issues land again on a base whose last checks nobody read. The state
 keeps the commits, so taking the `skip` label off later resumes the issue

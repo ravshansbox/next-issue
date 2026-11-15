@@ -2,6 +2,7 @@ import { runStopped } from './children.mts';
 import { message } from './errors.mts';
 import type { Run } from './job.mts';
 import { type IssueState, writeState } from './state.mts';
+import { releaseSettled } from './unsettled.mts';
 
 export async function revertFailedFix(job: Run): Promise<string> {
   if (!job.repairing || (job.state.landed ?? []).length === 0) {
@@ -65,6 +66,7 @@ export async function revert(job: Run): Promise<string> {
     return ` The revert of the change on ${base} failed, so the landed commits stay on ${base}.`;
   }
   restoreChange(state);
+  releaseSettled(state);
   await writeState(repo, state);
   return ` The harness reverted the change on ${base}.`;
 }

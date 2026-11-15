@@ -5,7 +5,7 @@ import { runIssues } from '../src/loop.mts';
 import { pendingIssues } from '../src/pending.mts';
 import { processIssue } from '../src/pipeline.mts';
 import { readState, writeState } from '../src/state.mts';
-import { APPROVE, type Harness, harness, ISSUE, SAVED } from './harness.mts';
+import { APPROVE, changes, type Harness, harness, ISSUE, SAVED } from './harness.mts';
 
 const IN_REVIEW = { ...ISSUE, labels: ['status:in-review'] };
 
@@ -289,3 +289,116 @@ for (const concurrency of [1, 2]) {
     assert.equal(later.landed.length, 1);
   });
 }
+
+test('a user whose halted issue is resumed, reverted and later handed over with a new commit kept on main gets the next run to land another issue', async (t) => {
+  const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
+  first.context.ports.waitForBaseChecks = async () => {
+    throw new Error('gh: API rate limit exceeded');
+  };
+  assert.equal((await first.run()).reason, 'checks error');
+  const root = first.context.repo.root;
+  const answered = { ...ISSUE, labels: [] };
+  const reverted = await harness(t, {
+    root,
+    issue: answered,
+    baseChecks: ['fail'],
+    fixerText: 'unrelated: the server does not mount the release',
+  });
+  assert.equal((await reverted.run()).reason, 'unrelated failure');
+  assert.equal(reverted.reverts.length, 1);
+  assert.equal((await reverted.state())?.halted, undefined);
+  const kept = await harness(t, {
+    root,
+    issue: answered,
+    verdicts: [APPROVE],
+    baseChecks: ['fail'],
+    fixerText: 'unrelated: the server does not mount the release',
+    revertFails: true,
+  });
+  assert.equal((await kept.run()).reason, 'unrelated failure');
+  const state = await kept.state();
+  assert.equal(state?.landed?.length, 1);
+  assert.equal(state?.halted, undefined);
+  const other = await harness(t, { root, issue: OTHER });
+  assert.equal((await other.run()).outcome, 'done');
+  assert.equal(other.landed.length, 1);
+  assert.ok(!other.events.some((record) => record['kind'] === 'land.blocked'));
+});
+
+test('a user whose halted issue is resumed and has its landed commit checked gets the saved halt cleared', async (t) => {
+  const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
+  first.context.ports.waitForBaseChecks = async () => {
+    throw new Error('gh: API rate limit exceeded');
+  };
+  assert.equal((await first.run()).reason, 'checks error');
+  const kept = await harness(t, {
+    root: first.context.repo.root,
+    issue: { ...ISSUE, labels: [] },
+    baseChecks: ['fail'],
+    fixerText: 'unrelated: the server does not mount the release',
+    revertFails: true,
+  });
+  assert.equal((await kept.run()).reason, 'unrelated failure');
+  const state = await kept.state();
+  assert.ok((state?.landed ?? []).includes('2'));
+  assert.equal(state?.halted, undefined);
+});
+
+test('a user whose halted issue is resumed with a push that never reached main gets the saved halt cleared', async (t) => {
+  const target = await harness(t, {
+    issue: IN_REVIEW,
+    saved: { ...SAVED, pushing: '9', halted: true },
+    verdicts: [changes('more')],
+  });
+  target.context.ports.isOnBase = async () => false;
+  await target.run();
+  assert.equal((await target.state())?.halted, undefined);
+});
+
+test('a user whose halted issue is resumed and finds its revert already on main gets the saved halt cleared', async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: [] },
+    saved: { ...SAVED, landed: ['2'], reverting: '3', halted: true },
+  });
+  target.context.ports.isOnBase = async (_worktree, _base, _remote, sha) => sha === '3';
+  assert.equal((await target.run()).reason, 'revert stopped');
+  const state = await target.state();
+  assert.equal(state?.landed, undefined);
+  assert.equal(state?.halted, undefined);
+});
+
+test('a user whose halted issue is resumed, fails the read after a rerun and has its commit reverted gets the saved halt cleared', async (t) => {
+  const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
+  first.context.ports.waitForBaseChecks = async () => {
+    throw new Error('gh: API rate limit exceeded');
+  };
+  assert.equal((await first.run()).reason, 'checks error');
+  const target = await harness(t, {
+    root: first.context.repo.root,
+    issue: { ...ISSUE, labels: [] },
+  });
+  let reads = 0;
+  target.context.ports.waitForBaseChecks = async () => {
+    reads += 1;
+    if (reads > 1) {
+      throw new Error('gh: API rate limit exceeded');
+    }
+    return 'fail';
+  };
+  assert.equal((await target.run()).reason, 'checks error');
+  assert.equal(target.reverts.length, 1);
+  const state = await target.state();
+  assert.equal(state?.landed, undefined);
+  assert.equal(state?.halted, undefined);
+});
+
+test('a user whose issue keeps a halt with nothing on main and fails its push gets the saved halt cleared', async (t) => {
+  const target = await harness(t, {
+    issue: IN_REVIEW,
+    saved: { ...SAVED, phase: 'approved', halted: true },
+    pushRejects: 99,
+  });
+  target.context.ports.isOnBase = async () => false;
+  assert.equal((await target.run()).reason, 'push failed');
+  assert.equal((await target.state())?.halted, undefined);
+});

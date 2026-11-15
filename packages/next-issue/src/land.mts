@@ -7,7 +7,7 @@ import type { Finished, Run } from './job.mts';
 import { oneAtATime } from './lock.mts';
 import { revertFailedFix } from './revert.mts';
 import { readState, savedIssues, writeState } from './state.mts';
-import { beforeBaseSettled, blocksLanding, HALT_NOTE } from './unsettled.mts';
+import { beforeBaseSettled, blocksLanding, HALT_NOTE, releaseSettled } from './unsettled.mts';
 
 export function landApproved(job: Run): Promise<Finished> {
   return landing(job, () => landLoop(job));
@@ -128,6 +128,8 @@ async function pushChange(job: Run): Promise<Finished | string> {
       return rebased;
     }
     const sha = await ports.revision(worktree);
+    // A halt saved before nothing of this issue was left on the base must not block once this push lands.
+    releaseSettled(state);
     state.pushing = sha;
     await writeState(repo, state);
     const pushed = await log.step(
