@@ -53,11 +53,13 @@ export function refuseWhenStopped(): void {
 
 export function onStop(stopper: () => void): () => void {
   const children = current.getStore();
+  guard();
   stoppers.add(stopper);
   children?.stoppers.add(stopper);
   return () => {
     stoppers.delete(stopper);
     children?.stoppers.delete(stopper);
+    unguard();
   };
 }
 
@@ -83,13 +85,24 @@ export function stopChildren(signal: NodeJS.Signals): void {
 
 const onTerminate = (): void => stopChildren('SIGTERM');
 
+/** Handles `SIGTERM` while a command or an agent runs, so its process group is stopped too. */
+function guard(): void {
+  if (groups.size === 0 && stoppers.size === 0) {
+    process.on('SIGTERM', onTerminate);
+  }
+}
+
+function unguard(): void {
+  if (groups.size === 0 && stoppers.size === 0) {
+    process.off('SIGTERM', onTerminate);
+  }
+}
+
 export function watch(pid: number | undefined): () => void {
   if (pid === undefined) {
     return () => undefined;
   }
-  if (groups.size === 0) {
-    process.on('SIGTERM', onTerminate);
-  }
+  guard();
   groups.add(pid);
   const children = current.getStore();
   children?.groups.add(pid);
@@ -101,9 +114,7 @@ export function watch(pid: number | undefined): () => void {
 
 function unwatch(pid: number): void {
   groups.delete(pid);
-  if (groups.size === 0) {
-    process.off('SIGTERM', onTerminate);
-  }
+  unguard();
 }
 
 export function killTree(child: ChildProcess): void {

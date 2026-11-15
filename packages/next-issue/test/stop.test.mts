@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { watch } from '../src/children.mts';
+import { onStop, watch } from '../src/children.mts';
 import { listenForInterrupts } from '../src/interrupt.mts';
 import { pendingIssues } from '../src/pending.mts';
 import { processIssue } from '../src/pipeline.mts';
@@ -477,6 +477,29 @@ test('a user who sends SIGTERM to a command-line run while a command runs during
   assert.deepEqual(kills.mock.calls.at(-1)?.arguments, [process.pid, 'SIGTERM']);
   kills.mock.restore();
   assert.equal((await first.state())?.reviewRounds, 0);
+});
+
+test('a user who sends SIGTERM to a command-line run while an agent runs and no command runs sees the agent stopped before the run exits', (t) => {
+  const listeners = process.listenerCount('SIGTERM');
+  const order: string[] = [];
+  const kills = t.mock.method(process, 'kill', (pid: number, signal: NodeJS.Signals) => {
+    order.push(`kill ${pid === process.pid ? 'self' : pid} ${signal}`);
+    return true;
+  });
+  const release = onStop(() => order.push('agent stopped'));
+  process.emit('SIGTERM', 'SIGTERM');
+  release();
+  kills.mock.restore();
+  assert.deepEqual(order, ['agent stopped', 'kill self SIGTERM']);
+  assert.equal(process.listenerCount('SIGTERM'), listeners);
+});
+
+test('a user who sends SIGTERM to a command-line run after its agent ended finds no handler that keeps the run alive', () => {
+  const listeners = process.listenerCount('SIGTERM');
+  const release = onStop(() => undefined);
+  assert.equal(process.listenerCount('SIGTERM'), listeners + 1);
+  release();
+  assert.equal(process.listenerCount('SIGTERM'), listeners);
 });
 
 test('a user who presses Ctrl-C three times in a command-line run while the merge conflict fixer runs finds the check fix given back in the state file', async (t) => {

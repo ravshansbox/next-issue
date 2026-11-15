@@ -385,10 +385,12 @@ Press `Ctrl-C` to stop the run step by step:
    branch that this press kills before any job restarted runs again in the
    next run, before any fixer.
 
-`SIGTERM` to a command-line run while a command runs, and `SIGTERM` or
-`SIGINT` to the worker (as `next-issue stop` sends), act like the third
-press: they give back the review round, the check fix and the rerun in the
-same way.
+`SIGTERM` to a command-line run while a command or an agent runs, and
+`SIGTERM` or `SIGINT` to the worker (as `next-issue stop` sends), act like
+the third press: they stop the running harness commands and agents, with
+the commands the agents started, and give back the review round, the check
+fix and the rerun in the same way. When nothing runs, `SIGTERM` ends a
+command-line run at once.
 
 When the reviewer approved the change and the run stopped before its
 commit reached the base branch, the next run drops those edits and any
