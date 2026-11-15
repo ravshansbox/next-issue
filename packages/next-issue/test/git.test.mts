@@ -242,6 +242,8 @@ test('setAside moves a commit of the fixer whose file the fixer then edited agai
 test('saveEdits commits the tracked and untracked edits the fixer left, so a later checkout cannot lose them', async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  await git(path, 'config', 'user.name', 't');
+  await git(path, 'config', 'user.email', 't@t');
   const head = await revision(path);
   await writeFile(join(path, 'a.txt'), 'the fixer left this\n');
   await writeFile(join(path, 'new.txt'), 'a new file\n');
