@@ -405,7 +405,7 @@ test('a user whose issue keeps a halt with nothing on main and fails its push ge
 
 async function fixChecksUnread(
   t: Parameters<typeof harness>[0],
-  revert: 'fails' | 'throws' | 'lands',
+  revert: 'fails' | 'throws' | 'unknown' | 'lands',
 ) {
   const first = await harness(t, {
     baseChecks: ['fail'],
@@ -422,6 +422,12 @@ async function fixChecksUnread(
   };
   if (revert === 'throws') {
     ports.revertOnBase = async () => {
+      throw new Error('git fetch: could not resolve host');
+    };
+  }
+  if (revert === 'unknown') {
+    ports.revertOnBase = async (_worktree, pushed) => {
+      await pushed.pushing('9');
       throw new Error('git fetch: could not resolve host');
     };
   }
@@ -449,6 +455,19 @@ for (const revert of ['fails', 'throws'] as const) {
   });
 }
 
+test('a user whose fix for main lands with checks that cannot be read and whose revert push may have landed gets one halt note and the halt saved', async (t) => {
+  const first = await fixChecksUnread(t, 'unknown');
+  const state = await first.state();
+  assert.equal(state?.halted, true);
+  assert.equal(state?.reverting, '9');
+  const comment = first.comments.at(-1) ?? '';
+  assert.match(comment, /revert may be on `main`, and its checks were not awaited/);
+  assert.equal(comment.split('no run lands another change until this issue resumes').length, 2);
+  const second = await harness(t, { root: first.context.repo.root, issue: OTHER });
+  assert.equal((await second.run()).reason, 'base unchecked');
+  assert.deepEqual(second.landed, []);
+});
+
 test('a user whose fix for main lands with checks that cannot be read and whose revert lands gets the next run to land another issue', async (t) => {
   const first = await fixChecksUnread(t, 'lands');
   assert.equal((await first.state())?.halted, undefined);
@@ -456,4 +475,25 @@ test('a user whose fix for main lands with checks that cannot be read and whose 
   const second = await harness(t, { root: first.context.repo.root, issue: OTHER });
   assert.equal((await second.run()).outcome, 'done');
   assert.equal(second.landed.length, 1);
+});
+
+test('a user whose revert push on main fails and whose fetch of main fails too gets the halt saved and no other issue landed by the next run', async (t) => {
+  const first = await harness(t, { config: { maxCiFixes: 0 }, baseChecks: ['fail'] });
+  first.context.ports.revertOnBase = async (_worktree, revert) => {
+    await revert.pushing('9');
+    throw new Error('git fetch: could not resolve host');
+  };
+  const report = await first.run();
+  assert.equal(report.reason, 'check budget');
+  assert.equal(report.halt, true);
+  const saved = await first.state();
+  assert.equal(saved?.halted, true);
+  assert.equal(saved?.reverting, '9');
+  const comment = first.comments.at(-1) ?? '';
+  assert.match(comment, /revert may be on `main`, and its checks were not awaited/);
+  assert.match(comment, /no run lands another change until this issue resumes/);
+  assert.doesNotMatch(comment, /The landed commits stay/);
+  const second = await harness(t, { root: first.context.repo.root, issue: OTHER });
+  assert.equal((await second.run()).reason, 'base unchecked');
+  assert.deepEqual(second.landed, []);
 });

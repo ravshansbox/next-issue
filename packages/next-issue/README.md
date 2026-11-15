@@ -219,8 +219,9 @@ the run handles one issue. For each issue:
    issue to a person. A revert
    push that the remote refuses, for example because the base moved, makes
    the revert again on the new base, three times at most. A failed revert
-   push that the base holds after a fetch counts as landed, and a fetch that
-   fails leaves the revert reported as failed. The state file holds the
+   push that the base holds after a fetch counts as landed. When that fetch
+   fails too, the revert may be on the base with checks nobody awaited: the
+   harness reports it so, saves the halt and blocks later landings. The state file holds the
    revert commit during the push, so a run stopped meanwhile checks the base
    on resume. When the base holds the revert, the harness puts the change
    back on the branch on top of the revert, as after a revert that

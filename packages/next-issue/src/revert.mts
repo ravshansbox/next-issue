@@ -2,7 +2,7 @@ import { runStopped } from './children.mts';
 import { message } from './errors.mts';
 import type { Run } from './job.mts';
 import { type IssueState, writeState } from './state.mts';
-import { releaseSettled } from './unsettled.mts';
+import { HALT_NOTE, releaseSettled } from './unsettled.mts';
 
 export async function revertFailedFix(job: Run): Promise<string> {
   if (!job.repairing || (job.state.landed ?? []).length === 0) {
@@ -20,6 +20,13 @@ export async function revertOrReport(job: Run): Promise<string> {
       throw error;
     }
     job.repairing = false;
+    const { context, state } = job;
+    if (state.reverting !== undefined) {
+      // The revert push was tried and its result is unknown, like a push unknown: the halt is saved.
+      state.halted = true;
+      await writeState(context.repo, state);
+      return ` The revert of the change on ${context.base} failed: ${sentence(message(error))} The revert may be on \`${context.base}\`, and its checks were not awaited. ${HALT_NOTE}`;
+    }
     return ` The revert of the change on ${job.context.base} failed: ${sentence(message(error))} The landed commits stay on ${job.context.base}.`;
   }
 }

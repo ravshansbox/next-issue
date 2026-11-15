@@ -197,7 +197,7 @@ async function unreadFixChecks(job: Run, error: unknown): Promise<Finished> {
   state.halted = true;
   await writeState(context.repo, state);
   const reverted = await revertOrReport(job);
-  const halt = state.halted === true ? ` ${HALT_NOTE}` : '';
+  const halt = state.halted === true && !reverted.includes(HALT_NOTE) ? ` ${HALT_NOTE}` : '';
   return escalateAndFinish(
     job,
     `The read of the checks on ${context.base} failed: ${sentence(message(error))}${reverted}${halt}`,
