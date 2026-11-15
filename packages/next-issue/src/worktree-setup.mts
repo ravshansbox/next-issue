@@ -36,6 +36,7 @@ async function setupFailed(job: Run, setup: SetupResult): Promise<Round> {
   const unsettled = unsettledBase(job);
   if (unsettled !== '') {
     job.mainBroken = true;
+    job.state.halted = true;
   }
   const note = late
     ? `The setup command did not finish in ${job.context.config.setupTimeoutMinutes} minutes.`

@@ -33,6 +33,8 @@ export type IssueState = {
   handedOver?: boolean;
   pendingHandOver?: PendingHandOver;
   closing?: boolean;
+  /** The run halted while a commit of this issue was, or may be, on the base with checks nobody awaited. */
+  halted?: boolean;
 };
 
 export type ReviewRound = {
@@ -127,7 +129,8 @@ function isState(value: unknown): value is IssueState {
     value.reviewLog.every(isReviewRound) &&
     isOptional(value.handedOver, 'boolean') &&
     (value.pendingHandOver === undefined || isPending(value.pendingHandOver)) &&
-    isOptional(value.closing, 'boolean')
+    isOptional(value.closing, 'boolean') &&
+    isOptional(value.halted, 'boolean')
   );
 }
 

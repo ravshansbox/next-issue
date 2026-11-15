@@ -6,26 +6,29 @@ import { escalateAndFinish, finishDone, stop } from './handover.mts';
 import type { Finished, Run } from './job.mts';
 import { oneAtATime } from './lock.mts';
 import { revertFailedFix } from './revert.mts';
-import { writeState } from './state.mts';
-import { beforeBaseSettled } from './unsettled.mts';
+import { readState, savedIssues, writeState } from './state.mts';
+import { beforeBaseSettled, blocksLanding, HALT_NOTE } from './unsettled.mts';
 
 export function landApproved(job: Run): Promise<Finished> {
   return landing(job, () => landLoop(job));
 }
 
 export function resumeLanding(job: Run, sha: string): Promise<Finished> {
-  return landing(job, async () => {
+  return inLandingLock(job, async () => {
     const { state, context } = job;
     if (await beforeBaseSettled(state, context.base, () => holdsUnlandedFix(job, sha))) {
-      job.mainBroken = true;
-      job.repairing = true;
-      return landLoop(job);
+      return unblocked(job, () => {
+        job.mainBroken = true;
+        job.repairing = true;
+        return landLoop(job);
+      });
     }
+    // Checking a commit that is already on the base lands nothing, so other halted issues do not hold it back.
     const gate = await checkGate(job, sha);
     if (gate.done) {
       return gate;
     }
-    return gate.fixed ? landLoop(job) : finishDone(job);
+    return gate.fixed ? unblocked(job, () => landLoop(job)) : finishDone(job);
   });
 }
 
@@ -39,14 +42,53 @@ async function holdsUnlandedFix(job: Run, sha: string): Promise<boolean> {
 }
 
 function landing(job: Run, work: () => Promise<Finished>): Promise<Finished> {
+  return inLandingLock(job, () => unblocked(job, work));
+}
+
+function inLandingLock(job: Run, work: () => Promise<Finished>): Promise<Finished> {
   return oneAtATime(`${job.context.repo.root}#land`, async () => {
-    if (!job.context.halted) {
-      return work();
+    if (job.context.halted) {
+      return holdBack(job, 'run halted');
     }
-    job.state.phase = 'approved';
-    await writeState(job.context.repo, job.state);
-    return { done: true, report: stop(job, 'run halted') };
+    return work();
   });
+}
+
+/** Runs a step that lands a change, unless an earlier run halted with a commit on the base whose checks nobody read. */
+async function unblocked(job: Run, work: () => Promise<Finished>): Promise<Finished> {
+  const { context, log } = job;
+  const unchecked = await uncheckedIssues(job);
+  if (unchecked.length === 0) {
+    return work();
+  }
+  // Landing now would build on a commit whose checks nobody read.
+  log.event('land.blocked', { issues: unchecked }, 'quiet');
+  context.halted = true;
+  const held = await holdBack(job, 'base unchecked');
+  return { ...held, report: { ...held.report, halt: true } };
+}
+
+async function holdBack(job: Run, reason: string): Promise<Finished> {
+  job.state.phase = 'approved';
+  await writeState(job.context.repo, job.state);
+  return { done: true, report: stop(job, reason) };
+}
+
+/** The other saved issues whose halt left a commit on the base with checks nobody awaited. */
+async function uncheckedIssues(job: Run): Promise<number[]> {
+  const { repo, base } = job.context;
+  const unchecked: number[] = [];
+  for (const issue of await savedIssues(repo)) {
+    if (issue === job.issue.number) {
+      continue;
+    }
+    // An unreadable state file fails its own issue; it does not hold back every landing.
+    const state = await readState(repo, issue).catch(() => undefined);
+    if (state !== undefined && blocksLanding(state, base)) {
+      unchecked.push(issue);
+    }
+  }
+  return unchecked.sort((a, b) => a - b);
 }
 
 async function landLoop(job: Run): Promise<Finished> {
@@ -102,9 +144,10 @@ async function pushChange(job: Run): Promise<Finished | string> {
     );
     if (pushed === undefined) {
       job.mainBroken = true;
+      state.halted = true;
       return escalateAndFinish(
         job,
-        `The push to ${base} failed and the fetch of ${base} failed too, so the harness cannot tell whether the commit landed.`,
+        `The push to ${base} failed and the fetch of ${base} failed too, so the harness cannot tell whether the commit landed. ${HALT_NOTE}`,
         'push unknown',
       );
     }

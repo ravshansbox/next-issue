@@ -151,12 +151,14 @@ the run handles one issue. For each issue:
    fetch fails too, the harness hands the issue to a person with the reason
    `push unknown` and halts, even when the hand-over fails. The state file
    holds the commit during the push, so a run stopped meanwhile, or the
-   next run after that hand-over, checks the base on resume and waits for
-   the checks of the commit when it landed. The harness then waits for the
-   checks of the pushed commit on the base branch: the GitHub Actions
-   workflow runs that a `push` of the base branch started on it, its
-   commit statuses and the check runs of every other GitHub App, so checks
-   from another CI service count too. It leaves out the check runs of the GitHub Actions
+   resume after that hand-over (once a person answers or takes the label
+   off), checks the base and waits for the checks of the commit when it
+   landed. Until then, no run lands another change (see below). The
+   harness then waits for the checks of the pushed commit on the base
+   branch: the GitHub Actions workflow runs that a `push` of the base
+   branch started on it, its commit statuses and the check runs of every
+   other GitHub App, so checks from another CI service count too. It
+   leaves out the check runs of the GitHub Actions
    app, since it judges GitHub Actions by its workflow runs. It leaves out
    workflow runs that any other event (such as `issues`, `issue_comment` or
    `schedule`) started, since GitHub gives such a run the tip of the
@@ -182,19 +184,21 @@ the run handles one issue. For each issue:
    issue to a person with the reason `checks error` and halts, before the
    next change lands. The comment holds the error and says that the landed
    commit is on the base and its checks were not awaited. The state file
-   keeps the commit, so the next run waits for its checks. When the checks pass, the harness marks the state file as closing,
-   sets `status:done` and closes the issue. When a run stops or dies before
-   the close, the next run sees the mark, sets `status:done` and closes the
-   issue, with no new push, revert or hand-over. When a run stops or dies
-   after the close, before the state file goes away, the next run finds the
-   closed issue through its state file and removes the worktree, the local
-   branches and the state file, with no new push, revert, label, close or
-   hand-over. A label or close that fails
-   for another reason hands the issue over, and it then waits for a person
-   like any other hand-over. Then the harness fetches the remote and
-   fast-forwards the local base branch to the landed commit when that is
-   safe, and the worktree, the local branch and the state file go away. A
-   fetch that fails or a fast-forward that is
+   keeps the commit, so the resume after a person answers or takes the
+   label off waits for its checks, and until then no run lands another
+   change (see below). When the checks pass, the harness marks the state
+   file as closing, sets `status:done` and closes the issue. When a run
+   stops or dies before the close, the next run sees the mark, sets
+   `status:done` and closes the issue, with no new push, revert or
+   hand-over. When a run stops or dies after the close, before the state
+   file goes away, the next run finds the closed issue through its state
+   file and removes the worktree, the local branches and the state file,
+   with no new push, revert, label, close or hand-over. A label or close
+   that fails for another reason hands the issue over, and it then waits
+   for a person like any other hand-over. Then the harness fetches the
+   remote and fast-forwards the local base branch to the landed commit
+   when that is safe, and the worktree, the local branch and the state
+   file go away. A fetch that fails or a fast-forward that is
    not safe leaves the local base branch as it is and writes a `base.behind`
    event, and the issue is still done. When the checks fail, the harness
    reruns the failed GitHub Actions jobs once with
@@ -301,6 +305,23 @@ After a halt, a running issue that reaches the landing does not land on the
 broken base branch: it ends `stopped` with the reason `run halted` and keeps
 its state, branch and labels. The next run resumes it and lands it with no new
 review.
+
+A halt that leaves a commit on the base, or a push or revert that may be on
+it, with checks nobody awaited (`checks error`, `push unknown`,
+`main checks timeout`, `main checks cancelled`, or an error or a failed setup
+on such a resume before the base is checked) is saved in the state file of
+its issue. The issue waits for a person, so later runs skip it, but no
+later run lands another change meanwhile: an issue that reaches the
+landing ends `stopped` with the reason `base unchecked`, keeps its state,
+branch and labels, and halts that run too; the log holds a
+`land.blocked` event with the waiting issues. Once a person answers or
+takes the label off, the issue resumes, checks the base and waits for the
+checks of its commit; when those are known (the issue is done, or its
+commits are reverted or found not on the base), the next run lands the
+held issues again. Such a resume is not held back
+by another halted issue while it only checks its commit already on the
+base; a fix it has to land waits like any other change. The hand-over
+comment says so.
 
 The fixer sees the findings of all earlier rounds, not only the last one, with
 its own disputes next to them. From round two, the reviewer judges only the

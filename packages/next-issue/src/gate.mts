@@ -7,6 +7,7 @@ import { escalateAndFinish } from './handover.mts';
 import { type Finished, type Gate, GATE_FIXED, GATE_PASSED, type Run } from './job.mts';
 import { revertOrReport, sentence } from './revert.mts';
 import { writeState } from './state.mts';
+import { HALT_NOTE } from './unsettled.mts';
 
 export async function checkGate(job: Run, sha: string): Promise<Gate> {
   const { base } = job.context;
@@ -23,17 +24,21 @@ export async function checkGate(job: Run, sha: string): Promise<Gate> {
     return GATE_PASSED;
   }
   job.mainBroken = true;
+  if (checks !== 'fail') {
+    // Checks that never finished leave the base unknown, so later runs land nothing until a person resumes this issue.
+    job.state.halted = true;
+  }
   if (checks === 'cancelled') {
     return escalateAndFinish(
       job,
-      `The checks on ${base} were cancelled before they finished.`,
+      `The checks on ${base} were cancelled before they finished. ${HALT_NOTE}`,
       'main checks cancelled',
     );
   }
   if (checks !== 'fail') {
     return escalateAndFinish(
       job,
-      `The checks on ${base} did not finish in time.`,
+      `The checks on ${base} did not finish in time. ${HALT_NOTE}`,
       'main checks timeout',
     );
   }
@@ -148,9 +153,10 @@ async function unreadChecks(job: Run, error: unknown): Promise<Finished> {
   }
   const { base } = job.context;
   job.mainBroken = true;
+  job.state.halted = true;
   return escalateAndFinish(
     job,
-    `The read of the checks on ${base} failed: ${sentence(message(error))} The landed commit is on \`${base}\`, and its checks were not awaited. The run halts, and the next run checks the base again.`,
+    `The read of the checks on ${base} failed: ${sentence(message(error))} The landed commit is on \`${base}\`, and its checks were not awaited. ${HALT_NOTE}`,
     'checks error',
   );
 }

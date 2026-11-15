@@ -255,6 +255,10 @@ export async function claimedError(
   started: number,
 ): Promise<IssueReport> {
   const reason = message(error);
+  if (error instanceof UnsettledBase) {
+    // Saved with the hand-over, so later runs land nothing before the base is checked.
+    state.halted = true;
+  }
   try {
     const earlier = error instanceof HandOverFailed ? error.pending : undefined;
     await handOver(context, log, issue.number, state, handOverReason(error, reason), earlier);

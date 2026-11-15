@@ -15,8 +15,17 @@ export function heldOnBase(state: IssueState, base: string): string {
     .join(', ');
 }
 
+/** What a halt with an unchecked commit on the base means for the next runs. */
+export const HALT_NOTE =
+  'The run halts, and no run lands another change until this issue resumes (after an answer or once the label is off) and checks the base.';
+
+/** Whether this state keeps every run from landing: it halted with a commit on the base whose checks are still unknown. */
+export function blocksLanding(state: IssueState, base: string): boolean {
+  return state.halted === true && state.closing !== true && heldOnBase(state, base) !== '';
+}
+
 export function unsettledNote(held: string, step: string): string {
-  return ` ${step} before it checked the base: ${held}, and its checks were not awaited. The run halts, and the next run checks the base again.`;
+  return ` ${step} before it checked the base: ${held}, and its checks were not awaited. ${HALT_NOTE}`;
 }
 
 /** An error thrown on a resume before it settled the base, while a commit is or may be on it. */

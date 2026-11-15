@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { processIssue } from '../src/pipeline.mts';
+import { writeState } from '../src/state.mts';
 import { APPROVE, harness, ISSUE, SAVED } from './harness.mts';
 
 const IN_REVIEW = { ...ISSUE, labels: ['status:in-review'] };
@@ -84,4 +85,108 @@ test('a user who resumes an issue with a change landed on main and whose check f
     target.comments.at(-1) ?? '',
     /bad object.*landed commit is on `main`.*checks were not awaited/s,
   );
+});
+
+const OTHER = { ...ISSUE, number: 8 };
+
+test('a user whose run halted on a checks error gets no other issue landed by the next run until the halted commit has its checks read', async (t) => {
+  const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
+  first.context.ports.waitForBaseChecks = async () => {
+    throw new Error('gh: API rate limit exceeded');
+  };
+  assert.equal((await first.run()).reason, 'checks error');
+  assert.match(first.comments.at(-1) ?? '', /no run lands another change until this issue resumes/);
+  const root = first.context.repo.root;
+  const second = await harness(t, { root, issue: OTHER });
+  const blocked = await second.run();
+  assert.equal(blocked.outcome, 'stopped');
+  assert.equal(blocked.reason, 'base unchecked');
+  assert.equal(blocked.halt, true);
+  assert.deepEqual(second.landed, []);
+  assert.ok(
+    second.events.some(
+      (record) => record['kind'] === 'land.blocked' && String(record['issues']) === '7',
+    ),
+  );
+  const answered = await harness(t, { root, issue: { ...ISSUE, labels: [] }, baseMoved: true });
+  assert.equal((await answered.run()).outcome, 'done');
+  assert.deepEqual(answered.baseWaits, ['2']);
+  const third = await harness(t, { root, issue: OTHER });
+  assert.equal((await third.run()).outcome, 'done');
+  assert.equal(third.landed.length, 1);
+});
+
+test('a user whose run halted on a push unknown gets no other issue landed by the next run until the halted push is settled', async (t) => {
+  const first = await harness(t, { pushLandsAndFails: true, baseFetchFails: true });
+  assert.equal((await first.run()).reason, 'push unknown');
+  const root = first.context.repo.root;
+  const second = await harness(t, { root, issue: OTHER });
+  const blocked = await second.run();
+  assert.equal(blocked.outcome, 'stopped');
+  assert.equal(blocked.reason, 'base unchecked');
+  assert.deepEqual(second.landed, []);
+  const answered = await harness(t, { root, issue: { ...ISSUE, labels: [] }, baseMoved: true });
+  assert.equal((await answered.run()).outcome, 'done');
+  assert.deepEqual(answered.baseWaits, ['2']);
+  const third = await harness(t, { root, issue: OTHER });
+  assert.equal((await third.run()).outcome, 'done');
+  assert.equal(third.landed.length, 1);
+});
+
+test('a user whose resume failed before it checked a landed commit gets no other issue landed by the next run', async (t) => {
+  const first = await harness(t, { issue: IN_REVIEW, saved: { ...SAVED, landed: ['0'] } });
+  first.context.ports.addWorktree = async () => {
+    throw new Error('git worktree add: disk full');
+  };
+  assert.equal((await first.run()).halt, true);
+  const second = await harness(t, { root: first.context.repo.root, issue: OTHER });
+  assert.equal((await second.run()).reason, 'base unchecked');
+  assert.deepEqual(second.landed, []);
+});
+
+test('a user who answers one of two issues halted with unchecked commits on main gets its landed commit checked and the issue done', async (t) => {
+  const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
+  first.context.ports.waitForBaseChecks = async () => {
+    throw new Error('gh: API rate limit exceeded');
+  };
+  assert.equal((await first.run()).reason, 'checks error');
+  const root = first.context.repo.root;
+  await writeState(first.context.repo, {
+    ...SAVED,
+    issue: 8,
+    branch: 'issue-8',
+    phase: 'approved',
+    landed: ['5'],
+    halted: true,
+  });
+  const answered = await harness(t, { root, issue: { ...ISSUE, labels: [] }, baseMoved: true });
+  assert.equal((await answered.run()).outcome, 'done');
+  assert.deepEqual(answered.baseWaits, ['2']);
+});
+
+for (const state of ['timeout', 'cancelled'] as const) {
+  test(`a user whose run halted on main checks ${state} gets no other issue landed by the next run`, async (t) => {
+    const first = await harness(t, { baseChecks: [state] });
+    assert.equal((await first.run()).reason, `main checks ${state}`);
+    assert.match(
+      first.comments.at(-1) ?? '',
+      /no run lands another change until this issue resumes/,
+    );
+    const second = await harness(t, { root: first.context.repo.root, issue: OTHER });
+    assert.equal((await second.run()).reason, 'base unchecked');
+    assert.deepEqual(second.landed, []);
+  });
+}
+
+test('a user whose resume with a landed commit failed its setup gets no other issue landed by the next run', async (t) => {
+  const first = await harness(t, {
+    issue: IN_REVIEW,
+    saved: { ...SAVED, landed: ['0'] },
+    config: { setupCommand: 'npm ci' },
+    setupCode: 1,
+  });
+  assert.equal((await first.run()).reason, 'setup failed');
+  const second = await harness(t, { root: first.context.repo.root, issue: OTHER });
+  assert.equal((await second.run()).reason, 'base unchecked');
+  assert.deepEqual(second.landed, []);
 });
