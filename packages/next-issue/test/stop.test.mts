@@ -306,7 +306,6 @@ test('a user who stops a run now while the failed jobs on main are rerun gets th
   );
   const saved = (await first.state())!;
   assert.equal(saved.ciFixes, 0);
-  assert.equal(saved.rerun, undefined);
   assert.deepEqual(saved.landed, ['2']);
   const target = await harness(t, {
     saved,
@@ -321,7 +320,7 @@ test('a user who stops a run now while the failed jobs on main are rerun gets th
   assert.deepEqual(roles(target), []);
 });
 
-test('a user who stops a run now while the harness waits for the rerun failed jobs on main to restart gets the issue stopped with the rerun kept, and the next run sends a new failure to the fixer with no second rerun', async (t) => {
+test('a user who stops a run now while the harness waits for the rerun failed jobs on main to restart gets the issue stopped, and the next run, which finds the run rerun on GitHub, sends a new failure to the fixer with no second rerun', async (t) => {
   const first = await harness(t, { baseChecks: ['fail'] });
   first.context.ports.rerunFailedBase = async (_repo, sha, _branch, started) => {
     first.reruns.push(sha);
@@ -336,12 +335,12 @@ test('a user who stops a run now while the harness waits for the rerun failed jo
   );
   const saved = (await first.state())!;
   assert.equal(saved.ciFixes, 0);
-  assert.equal(saved.rerun, '2');
   const target = await harness(t, {
     saved,
     issue: { ...ISSUE, labels: ['status:in-review'] },
     baseMoved: true,
     baseChecks: ['fail', 'pass'],
+    rerunDone: ['2'],
   });
   await target.run();
   assert.deepEqual(target.reruns, []);
@@ -512,7 +511,6 @@ test('a user who presses Ctrl-C three times in a command-line run while the fail
   const first = await harness(t, { baseChecks: ['fail'], hangDuring: 'rerun' });
   await pressCtrlCThrice(t, first);
   const saved = (await first.state())!;
-  assert.equal(saved.rerun, undefined);
   const target = await harness(t, {
     saved,
     issue: { ...ISSUE, labels: ['status:in-review'] },

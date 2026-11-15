@@ -1,13 +1,13 @@
 import type { Restarted } from './base-checks.mts';
 import { budgetUse, refundBudget, refundOnKill } from './budget.mts';
 import { type CheckState, checkWaiting } from './check-poll.mts';
-import { onKill, runStopped } from './children.mts';
+import { runStopped } from './children.mts';
 import { asError, message } from './errors.mts';
 import { escalateCheckFix, type Fix, fixRound } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
 import { type Finished, type Gate, GATE_FIXED, GATE_PASSED, type Run } from './job.mts';
 import { revertOrReport, sentence } from './revert.mts';
-import { writeState, writeStateNow } from './state.mts';
+import { writeState } from './state.mts';
 import { HALT_NOTE } from './unsettled.mts';
 
 export async function checkGate(job: Run, sha: string): Promise<Gate> {
@@ -63,39 +63,38 @@ async function waitForChecks(
   return checks;
 }
 
+/** Reruns the failed jobs of each failed workflow run once; GitHub keeps the attempts, so a resume reruns only runs not rerun yet. */
 async function rerunOnce(job: Run, sha: string, checks: CheckState): Promise<CheckState> {
-  const { context, log, state } = job;
-  if (checks !== 'fail' || state.rerun === sha) {
-    return checks;
+  let state = checks;
+  while (state === 'fail') {
+    const restarted = await rerunFailed(job, sha);
+    if (restarted.length === 0) {
+      return state;
+    }
+    state = await waitForChecks(job, sha, { rerun: true }, restarted).catch((error: unknown) => {
+      job.mainBroken = true;
+      throw error;
+    });
   }
-  const before = state.rerun;
-  state.rerun = sha;
-  await writeState(context.repo, state);
+  return state;
+}
+
+async function rerunFailed(job: Run, sha: string): Promise<Restarted[]> {
+  const { context, log } = job;
   const restarted: Restarted[] = [];
-  const forget = onKill(() => {
-    state.rerun = before;
-    writeStateNow(context.repo, state);
-  });
   try {
     const runs = await context.ports.rerunFailedBase(context.repo, sha, context.base, (run) => {
-      forget();
       restarted.push(run);
     });
-    forget();
+    // An empty list tells why the fixer starts with no rerun: no failed workflow run is left to rerun.
     log.event('main-checks.rerun', { sha, runs });
   } catch (error) {
-    forget();
     if (runStopped()) {
-      if (restarted.length > 0) {
-        throw error;
-      }
-      state.rerun = before;
-      await writeState(context.repo, state);
       throw error;
     }
     if (restarted.length === 0) {
       log.event('main-checks.rerun-failed', { sha, error: asError(error).message });
-      return checks;
+      return restarted;
     }
     // Some runs restarted, so the fixer waits for them rather than getting a failure with no log.
     log.event('main-checks.rerun', {
@@ -104,10 +103,7 @@ async function rerunOnce(job: Run, sha: string, checks: CheckState): Promise<Che
       error: asError(error).message,
     });
   }
-  return waitForChecks(job, sha, { rerun: true }, restarted).catch((error: unknown) => {
-    job.mainBroken = true;
-    throw error;
-  });
+  return restarted;
 }
 
 async function failedChecksFix(job: Run, sha: string): Promise<Gate> {

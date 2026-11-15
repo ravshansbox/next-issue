@@ -9,7 +9,7 @@ npx -y next-issue@latest
 
 ## Overview
 
-The harness claims the oldest open issue with the `status:todo` label and gives it its own git worktree and branch. An implementer agent does the work and the harness commits it. A reviewer agent judges the diff, and a fixer agent deals with any open finding, and the review runs again. With no open finding left, the harness rebases the change onto the base branch as one commit, pushes it there with no pull request and waits for the checks of that commit. On a red build the harness reruns the failed jobs once, and only a second red build goes to the fixer, whose fix lands the same way. When the checks pass, the issue is closed and gets `status:done`. When a budget runs out or the work cannot go on, the issue gets `status:needs-human` and goes to a person. Then the harness takes the next issue.
+The harness claims the oldest open issue with the `status:todo` label and gives it its own git worktree and branch. An implementer agent does the work and the harness commits it. A reviewer agent judges the diff, and a fixer agent deals with any open finding, and the review runs again. With no open finding left, the harness rebases the change onto the base branch as one commit, pushes it there with no pull request and waits for the checks of that commit. On a red build the harness reruns the failed jobs of each failed workflow run once, and only a run that fails again goes to the fixer, whose fix lands the same way. When the checks pass, the issue is closed and gets `status:done`. When a budget runs out or the work cannot go on, the issue gets `status:needs-human` and goes to a person. Then the harness takes the next issue.
 
 ```mermaid
 flowchart TD
@@ -201,17 +201,23 @@ the run handles one issue. For each issue:
    file go away. A fetch that fails or a fast-forward that is
    not safe leaves the local base branch as it is and writes a `base.behind`
    event, and the issue is still done. When the checks fail, the harness
-   reruns the failed GitHub Actions jobs once with
-   `gh run rerun <id> --failed`, records a
-   `main-checks.rerun` event, saves the rerun in the state file and waits
-   again once the runs restart. A rerun that GitHub refuses because the run
+   reruns the failed jobs of each failed GitHub Actions workflow run once
+   with `gh run rerun <id> --failed`, records a `main-checks.rerun` event
+   and waits again once the runs restart. A failed run whose failed jobs
+   were already rerun (its attempt on GitHub is above 1) is not rerun
+   again, so a resumed run reruns only the runs not rerun yet. A failure
+   that gets a rerun ends the wait at once; any other failure (a run that
+   was rerun, a run that waits for approval, a check from another CI
+   service) waits until every check has finished, so a workflow run that
+   fails later, even after the first rerun started, still gets its own
+   rerun before any fixer. A rerun that GitHub refuses because the run
    is already running counts as started. When at least one run restarted
    and a later rerun or read fails, the event carries the error and the
    harness still waits for the checks again, counting each restarted run as
    running until a later attempt of it completes, so the fixer never runs
    while a rerun is queued or in progress. When the rerun cannot start (no
    run restarted, a `main-checks.rerun-failed` event), or the checks
-   fail again, the fixer gets their logs from the check budget (for a check
+   fail again with no run left to rerun, the fixer gets their logs from the check budget (for a check
    from another CI service, only its name and link), and its fix
    lands the same way. When the fixer cannot fix them, its fix cannot land,
    an error stops the fix, or the budget runs out, the harness reverts every

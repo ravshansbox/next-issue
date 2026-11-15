@@ -65,7 +65,8 @@ test('a user who resumes a landed change whose checks on main fail gets the fix 
 test('a user who resumes a landed change whose failed jobs were already rerun gets the fixer without a second rerun', async (t) => {
   const target = await harness(t, {
     issue: IN_REVIEW,
-    saved: { ...SAVED, ciFixes: 0, landed: ['0'], rerun: '0' },
+    saved: { ...SAVED, ciFixes: 0, landed: ['0'] },
+    rerunDone: ['0'],
     baseChecks: ['fail', 'pass'],
   });
   const report = await target.run();

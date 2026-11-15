@@ -103,6 +103,8 @@ export type Plan = {
   baseChecks?: CheckState[];
   rerunChecks?: CheckState[];
   rerunFails?: boolean;
+  /** Commits whose failed workflow runs were already rerun, as GitHub shows by their attempts. */
+  rerunDone?: string[];
   pressDuring?: string;
   stopNowDuring?: string;
   /** The agent (or `rerun`) that never settles, as when the process is killed while it runs. */
@@ -174,6 +176,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
   const baseChecks = [...(plan.baseChecks ?? [])];
   const rerunChecks = [...(plan.rerunChecks ?? [])];
   let rerun = false;
+  const rerunDone = new Set(plan.rerunDone ?? []);
   const verdicts = [...(plan.verdicts ?? [APPROVE])];
   const commits = [...(plan.commits ?? [])];
   const merges = [...(plan.merges ?? [])];
@@ -386,12 +389,17 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     resetToBase: async () => {
       state.resets += 1;
     },
-    rerunFailedBase: async (_repo, sha) => {
+    rerunFailedBase: async (_repo, sha, _branch, started = () => undefined) => {
+      if (rerunDone.has(sha)) {
+        return [];
+      }
       state.reruns.push(sha);
       await hangIf('rerun');
       if (plan.rerunFails === true) {
         throw new Error('run 41 cannot be rerun');
       }
+      rerunDone.add(sha);
+      started({ id: 41, attempt: 1 });
       rerun = true;
       return ['41'];
     },

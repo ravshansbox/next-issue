@@ -98,7 +98,7 @@ async function baseChecks(
   sha: string,
   branch: string,
   restarted: Restarted[],
-): Promise<{ checks: Check[]; rerunning: boolean }> {
+): Promise<{ runs: BaseRun[]; external: Check[]; rerunning: boolean }> {
   const [runs, external] = await Promise.all([
     baseRuns(repo, sha, branch),
     externalChecks(repo, sha),
@@ -111,21 +111,31 @@ async function baseChecks(
           run.databaseId === entry.id && run.attempt > entry.attempt && run.status === 'completed',
       ),
   );
-  return { checks: [...runs.map((entry) => ({ ...entry, url: '' })), ...external], rerunning };
+  return { runs, external, rerunning };
 }
 
 function failedRun(entry: { status: string; conclusion: string }): boolean {
   return entry.status === 'completed' && FAILED_CONCLUSIONS.has(entry.conclusion);
 }
 
-function baseState(runs: Check[]): CheckState {
-  if (runs.some(failedRun)) {
+/** A failed workflow run whose failed jobs were not rerun yet; one that waits for approval cannot be rerun. */
+function rerunnable(entry: BaseRun): boolean {
+  return failedRun(entry) && entry.conclusion !== AWAITS_APPROVAL && !(entry.attempt > 1);
+}
+
+function baseState(runs: BaseRun[], external: Check[]): CheckState {
+  // A failure that gets a rerun ends the wait at once; any other failure waits for every check, so no run that fails later misses its rerun.
+  if (runs.some(rerunnable)) {
     return 'fail';
   }
-  if (!runs.every((entry) => entry.status === 'completed')) {
+  const checks = [...runs, ...external];
+  if (!checks.every((entry) => entry.status === 'completed')) {
     return 'pending';
   }
-  return runs.some((entry) => entry.conclusion === 'cancelled') ? 'cancelled' : 'pass';
+  if (checks.some(failedRun)) {
+    return 'fail';
+  }
+  return checks.some((entry) => entry.conclusion === 'cancelled') ? 'cancelled' : 'pass';
 }
 
 export function waitForBaseChecks(
@@ -135,16 +145,20 @@ export function waitForBaseChecks(
   options: PollOptions,
   restarted: Restarted[] = [],
 ): Promise<CheckState> {
-  let read: { checks: Check[]; rerunning: boolean } = { checks: [], rerunning: false };
+  let read: { runs: BaseRun[]; external: Check[]; rerunning: boolean } = {
+    runs: [],
+    external: [],
+    rerunning: false,
+  };
   return pollChecks(
     {
       head: async () => sha,
       lags: async () => true,
       list: async () => {
         read = await baseChecks(repo, sha, branch, restarted);
-        return read.checks.length === 0 && !read.rerunning ? 'none' : 'some';
+        return read.runs.length + read.external.length === 0 && !read.rerunning ? 'none' : 'some';
       },
-      watch: async () => (read.rerunning ? 'pending' : baseState(read.checks)),
+      watch: async () => (read.rerunning ? 'pending' : baseState(read.runs, read.external)),
     },
     options,
   );
@@ -156,14 +170,14 @@ export async function rerunFailedBase(
   branch: string,
   started: (run: Restarted) => void = () => {},
 ): Promise<string[]> {
-  const failed = (await baseRuns(repo, sha, branch)).filter(
-    (entry) => failedRun(entry) && entry.conclusion !== AWAITS_APPROVAL,
-  );
+  const failed = (await baseRuns(repo, sha, branch)).filter(rerunnable);
   for (const entry of failed) {
     await rerun(repo, entry.databaseId);
     started({ id: entry.databaseId, attempt: entry.attempt });
   }
-  await waitForRestart(repo, sha, branch, failed);
+  if (failed.length > 0) {
+    await waitForRestart(repo, sha, branch, failed);
+  }
   return failed.map((entry) => String(entry.databaseId));
 }
 

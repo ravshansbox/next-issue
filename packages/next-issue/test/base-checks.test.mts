@@ -676,7 +676,7 @@ test(
       after: [[], [], [QUEUED_CI], [{ ...FAILED_CI, attempt: 2 }]],
     });
     await target.run();
-    assert.deepEqual(fixerReads, ['4\n']);
+    assert.deepEqual(fixerReads, ['5\n']);
     assert.ok(target.prompts.some((entry) => entry.role === 'fixer'));
   },
 );
@@ -695,7 +695,7 @@ test(
       ],
     });
     await target.run();
-    assert.deepEqual(fixerReads, ['3\n']);
+    assert.deepEqual(fixerReads, ['4\n']);
     const fixer = target.prompts.find((entry) => entry.role === 'fixer');
     assert.match(fixer!.prompt, /boom in 2/);
   },
@@ -716,3 +716,90 @@ test(
     assert.deepEqual(fixerReads, []);
   },
 );
+
+const RUNNING_E2E = {
+  databaseId: 2,
+  name: 'e2e',
+  status: 'in_progress',
+  conclusion: '',
+  attempt: 1,
+};
+const FAILED_E2E = { ...RUNNING_E2E, status: 'completed', conclusion: 'failure' };
+const QUEUED_E2E = { ...RUNNING_E2E, status: 'queued', attempt: 2 };
+
+test(
+  'a user whose second workflow run on main fails only after the rerun of the first started gets the second rerun too and the fixer only once both reruns end',
+  { timeout: 60_000 },
+  async (t) => {
+    const { target, dir, fixerReads } = await rerunHarness(t, {
+      runs: [FAILED_CI, RUNNING_E2E],
+      after: [
+        [QUEUED_CI, RUNNING_E2E],
+        [QUEUED_CI, FAILED_E2E],
+        [PASSED_CI, FAILED_E2E],
+        [PASSED_CI, FAILED_E2E],
+        [PASSED_CI, QUEUED_E2E],
+        [PASSED_CI, { ...QUEUED_E2E, status: 'in_progress' }],
+        [PASSED_CI, { ...FAILED_E2E, attempt: 2 }],
+      ],
+    });
+    await target.run();
+    assert.equal(await readFile(join(dir, 'rerun-ids'), 'utf8'), '1\n2\n');
+    assert.deepEqual(fixerReads, ['8\n']);
+    const fixer = target.prompts.find((entry) => entry.role === 'fixer');
+    assert.match(fixer!.prompt, /boom in 2/);
+  },
+);
+
+test('rerunFailedBase leaves alone a failed run whose failed jobs were already rerun', async (t) => {
+  const dir = await fakeRunsGh(t, [
+    { ...FAILED_CI, attempt: 2 },
+    { ...FAILED_DOCS, attempt: 1 },
+  ]);
+  const repo = { owner: 'acme', name: 'tool', root: dir };
+  assert.deepEqual(await rerunFailedBase(repo, 'abc', 'main'), ['2']);
+  assert.equal(await readFile(join(dir, 'reruns'), 'utf8'), '2\n');
+});
+
+test(
+  'a user whose rerun on main fails again while a second workflow run still runs gets the second run rerun once it fails and the fixer only after that',
+  { timeout: 60_000 },
+  async (t) => {
+    const REFAILED_CI = { ...FAILED_CI, attempt: 2 };
+    const { target, dir, fixerReads } = await rerunHarness(t, {
+      runs: [FAILED_CI, RUNNING_E2E],
+      after: [
+        [QUEUED_CI, RUNNING_E2E],
+        [QUEUED_CI, RUNNING_E2E],
+        [REFAILED_CI, RUNNING_E2E],
+        [REFAILED_CI, RUNNING_E2E],
+        [REFAILED_CI, FAILED_E2E],
+        [REFAILED_CI, FAILED_E2E],
+        [REFAILED_CI, QUEUED_E2E],
+        [REFAILED_CI, { ...FAILED_E2E, attempt: 2 }],
+      ],
+    });
+    await target.run();
+    assert.equal(await readFile(join(dir, 'rerun-ids'), 'utf8'), '1\n2\n');
+    assert.deepEqual(fixerReads, ['9\n']);
+  },
+);
+
+test('a user whose landed commit fails only a check from another CI service gets the log saying no workflow run was rerun before the fixer', async (t) => {
+  const target = await harness(t, { config: { checkGraceSeconds: 0, checkIntervalSeconds: 1 } });
+  await fakeRunsGh(t, [], [], {
+    sha: '2',
+    checkRuns: [
+      { name: 'buildkite', status: 'completed', conclusion: 'failure', app: 'buildkite', url: '' },
+    ],
+  });
+  target.context.ports.waitForBaseChecks = waitForBaseChecks;
+  target.context.ports.rerunFailedBase = rerunFailedBase;
+  await target.run();
+  const fixer = target.events.findIndex((event) => event.kind === 'main-checks.logs');
+  const rerun = target.events.findIndex(
+    (event) => event.kind === 'main-checks.rerun' && event.sha === '2',
+  );
+  assert.ok(rerun !== -1 && (fixer === -1 || rerun < fixer));
+  assert.deepEqual(target.events[rerun]!.runs, []);
+});
