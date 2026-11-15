@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { hasCode } from './errors.mts';
 
@@ -25,6 +27,19 @@ export async function replaceJson(path: string, value: unknown): Promise<void> {
     await rename(draft, path);
   } catch (error) {
     await rm(draft, { force: true });
+    throw error;
+  }
+}
+
+/** The synchronous `replaceJson`, for a write that must land before the process dies. */
+export function replaceJsonNow(path: string, value: unknown): void {
+  const draft = `${path}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(draft, prettyJson(value));
+    renameSync(draft, path);
+  } catch (error) {
+    rmSync(draft, { force: true });
     throw error;
   }
 }

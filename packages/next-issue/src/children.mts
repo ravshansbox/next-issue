@@ -7,6 +7,8 @@ const groups = new Set<number>();
 
 const stoppers = new Set<() => void>();
 
+const undos = new Set<() => void>();
+
 const current = new AsyncLocalStorage<RunChildren>();
 
 export function runChildren(): RunChildren {
@@ -59,8 +61,22 @@ export function onStop(stopper: () => void): () => void {
   };
 }
 
+/** Runs `undo` (synchronously) if the process is killed, for a step the kill leaves unsettled. */
+export function onKill(undo: () => void): () => void {
+  undos.add(undo);
+  return () => {
+    undos.delete(undo);
+  };
+}
+
 export function stopChildren(signal: NodeJS.Signals): void {
   stopAll({ groups, stoppers }, signal);
+  for (const undo of undos) {
+    try {
+      undo();
+    } catch {}
+  }
+  undos.clear();
   process.off('SIGTERM', onTerminate);
   process.kill(process.pid, signal);
 }

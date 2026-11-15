@@ -105,6 +105,8 @@ export type Plan = {
   rerunFails?: boolean;
   pressDuring?: string;
   stopNowDuring?: string;
+  /** The agent (or `rerun`) that never settles, as when the process is killed while it runs. */
+  hangDuring?: string;
   stopNowDuringSetup?: boolean;
   stopNowOnLabel?: string;
   disputes?: string[];
@@ -151,6 +153,8 @@ export type Harness = {
   hunts: string[];
   head: () => string;
   stopNow: () => void;
+  /** Settles when the step named by `hangDuring` starts. */
+  hung: Promise<void>;
   run: (claimed?: () => void) => Promise<IssueReport>;
   state: () => Promise<IssueState | undefined>;
 };
@@ -178,6 +182,16 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
   let pressed = false;
   let removed = false;
   const children = runChildren();
+  let hang = (): void => undefined;
+  const hung = new Promise<void>((resolve) => {
+    hang = resolve;
+  });
+  const hangIf = async (name: string): Promise<void> => {
+    if (name === plan.hangDuring) {
+      hang();
+      await new Promise(() => undefined);
+    }
+  };
   const state: Harness = {
     context: undefined as unknown as Context,
     profiles: [],
@@ -211,6 +225,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     hunts: [],
     head: () => String(head),
     stopNow: () => stopRunChildren(children),
+    hung,
     run: (claimed) => withRunChildren(children, () => processIssue(state.context, issue, claimed)),
     state: () => readState(repo, issue.number),
   };
@@ -275,7 +290,10 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     },
     disputeBranches: async () => plan.disputes ?? [],
     ensureLabel: async () => undefined,
-    failedBaseLogs: async () => 'the failed main logs',
+    failedBaseLogs: async () => {
+      await hangIf('logs');
+      return 'the failed main logs';
+    },
     findWorktree: async () => (removed ? undefined : join(root, 'worktree')),
     huntWorktree: async (_repo, base) => {
       state.hunts.push(base);
@@ -367,6 +385,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     },
     rerunFailedBase: async (_repo, sha) => {
       state.reruns.push(sha);
+      await hangIf('rerun');
       if (plan.rerunFails === true) {
         throw new Error('run 41 cannot be rerun');
       }
@@ -382,6 +401,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
         stopRunChildren(children);
         throw new Error('The run stopped.');
       }
+      await hangIf(request.name);
       state.profiles.push({ role: request.name, tools: request.profile.tools });
       if (request.name === 'reviewer') {
         if (plan.reviewerCommits === true) {

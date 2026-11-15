@@ -1,7 +1,7 @@
 import { mkdir, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseJson } from './errors.mts';
-import { readTextIfPresent, replaceJson, unlessMissing } from './files.mts';
+import { readTextIfPresent, replaceJson, replaceJsonNow, unlessMissing } from './files.mts';
 import type { Repo } from './git.mts';
 import { isRecord } from './records.mts';
 
@@ -155,6 +155,11 @@ export function resetState(state: IssueState): IssueState {
 export async function writeState(repo: Repo, state: IssueState): Promise<void> {
   await mkdir(stateDir(repo.root), { recursive: true });
   await replaceJson(file(repo, state.issue), state);
+}
+
+/** Writes the state synchronously, from a kill of the process. */
+export function writeStateNow(repo: Repo, state: IssueState): void {
+  replaceJsonNow(file(repo, state.issue), state);
 }
 
 export async function dropState(repo: Repo, issue: number): Promise<void> {

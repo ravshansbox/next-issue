@@ -1,6 +1,6 @@
 import { REVIEWING } from './agents.mts';
 import { runStopped } from './children.mts';
-import { budgetUse, refundBudget, spendBudget } from './budget.mts';
+import { budgetUse, refundBudget, refundOnKill, spendBudget } from './budget.mts';
 import { message } from './errors.mts';
 import { fixRound, type Unfixed } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
@@ -37,8 +37,10 @@ export async function reviewRound(job: Run): Promise<Round> {
   const earlier = history(state.reviewLog);
   let text: string;
   try {
-    await setStatus(context, issue.number, config.labels.inReview);
-    text = await runReviewer(job, earlier);
+    text = await refundOnKill(job, 'reviewRounds', async () => {
+      await setStatus(context, issue.number, config.labels.inReview);
+      return runReviewer(job, earlier);
+    });
   } catch (error) {
     if (runStopped()) {
       await refundBudget(job, 'reviewRounds');

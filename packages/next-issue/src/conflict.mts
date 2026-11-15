@@ -1,5 +1,5 @@
 import { parseCommitSubject } from './agent-reply.mts';
-import { refundBudget, spendBudget } from './budget.mts';
+import { refundBudget, refundOnKill, spendBudget } from './budget.mts';
 import { runStopped } from './children.mts';
 import type { Merge } from './git-merge.mts';
 import { commitWork, runFixer } from './fix.mts';
@@ -93,11 +93,14 @@ async function resolve(job: Run, merge: Merge): Promise<boolean> {
   const { before, files } = merge;
   const { config, ports } = context;
   try {
-    const text = files.length > 0 ? await fixConflict(job, files) : '';
-    const subject = parseCommitSubject(text, `chore: merge ${config.remote}/${context.base}`);
-    return await commitWork(job, before, subject, 'fixer', (cwd, message) =>
-      ports.commitMerge(cwd, merge, message),
-    );
+    const fixAndCommit = async (): Promise<boolean> => {
+      const text = files.length > 0 ? await fixConflict(job, files) : '';
+      const subject = parseCommitSubject(text, `chore: merge ${config.remote}/${context.base}`);
+      return commitWork(job, before, subject, 'fixer', (cwd, message) =>
+        ports.commitMerge(cwd, merge, message),
+      );
+    };
+    return await (files.length > 0 ? refundOnKill(job, 'ciFixes', fixAndCommit) : fixAndCommit());
   } catch (error) {
     if (files.length > 0 && runStopped()) {
       await refundBudget(job, 'ciFixes');

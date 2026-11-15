@@ -1,6 +1,7 @@
+import { onKill } from './children.mts';
 import { escalateAndFinish } from './handover.mts';
 import type { Finished, Run } from './job.mts';
-import { writeState } from './state.mts';
+import { writeState, writeStateNow } from './state.mts';
 
 const LIMITS = { ciFixes: 'maxCiFixes', reviewRounds: 'maxReviewRounds' } as const;
 
@@ -34,4 +35,22 @@ export async function refundBudget(job: Run, budget: Budget): Promise<void> {
   const { context, state } = job;
   state[budget] = Math.max(0, state[budget] - 1);
   await writeState(context.repo, state);
+}
+
+/** Gives the spent budget back if the process is killed (third Ctrl-C) while `body` runs. */
+export async function refundOnKill<T>(
+  job: Run,
+  budget: Budget,
+  body: () => Promise<T>,
+): Promise<T> {
+  const { context, state } = job;
+  const forget = onKill(() => {
+    state[budget] = Math.max(0, state[budget] - 1);
+    writeStateNow(context.repo, state);
+  });
+  try {
+    return await body();
+  } finally {
+    forget();
+  }
 }

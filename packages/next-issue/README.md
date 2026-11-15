@@ -372,16 +372,23 @@ Press `Ctrl-C` to stop the run step by step:
    starts, so the reviewer sees only the commits of the branch. Files that
    git ignores, such as build output, stay. When it
    resumes before the first commit, the implementer runs again and the
-   commit holds them. A review round or a check fix whose reviewer or
-   fixer this press kills does not count, so the next run runs that step
-   again with the same budget.
+   commit holds them. A review round or a check fix whose reviewer,
+   fixer or read of the failed logs this press kills does not count, so the next run runs that step
+   again with the same budget. A rerun of the failed jobs on the base
+   branch that this press kills before any job restarted runs again in the
+   next run, before any fixer.
 
-   When the reviewer approved the change and the run stopped before its
-   commit reached the base branch, the next run drops those edits and any
-   unfinished merge of the base branch, then lands the change with no new
-   review round. A hand-over of the issue cancels that approval, so the
-   issue resumes in review. A revert of the landed change cancels it too,
-   even when the hand-over after it does not finish.
+`SIGTERM` to a command-line run while a command runs, and `SIGTERM` or
+`SIGINT` to the worker (as `next-issue stop` sends), act like the third
+press: they give back the review round, the check fix and the rerun in the
+same way.
+
+When the reviewer approved the change and the run stopped before its
+commit reached the base branch, the next run drops those edits and any
+unfinished merge of the base branch, then lands the change with no new
+review round. A hand-over of the issue cancels that approval, so the
+issue resumes in review. A revert of the landed change cancels it too,
+even when the hand-over after it does not finish.
 
 Signals that arrive within 100 ms of the last counted one count as one press,
 because `npx` and `npm exec` pass on a press as a second signal.

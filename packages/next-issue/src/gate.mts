@@ -1,13 +1,13 @@
 import type { Restarted } from './base-checks.mts';
-import { budgetUse, refundBudget } from './budget.mts';
+import { budgetUse, refundBudget, refundOnKill } from './budget.mts';
 import { type CheckState, checkWaiting } from './check-poll.mts';
-import { runStopped } from './children.mts';
+import { onKill, runStopped } from './children.mts';
 import { asError, message } from './errors.mts';
 import { escalateCheckFix, type Fix, fixRound } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
 import { type Finished, type Gate, GATE_FIXED, GATE_PASSED, type Run } from './job.mts';
 import { revertOrReport, sentence } from './revert.mts';
-import { writeState } from './state.mts';
+import { writeState, writeStateNow } from './state.mts';
 import { HALT_NOTE } from './unsettled.mts';
 
 export async function checkGate(job: Run, sha: string): Promise<Gate> {
@@ -70,12 +70,19 @@ async function rerunOnce(job: Run, sha: string, checks: CheckState): Promise<Che
   state.rerun = sha;
   await writeState(context.repo, state);
   const restarted: Restarted[] = [];
+  const forget = onKill(() => {
+    state.rerun = before;
+    writeStateNow(context.repo, state);
+  });
   try {
     const runs = await context.ports.rerunFailedBase(context.repo, sha, context.base, (run) => {
+      forget();
       restarted.push(run);
     });
+    forget();
     log.event('main-checks.rerun', { sha, runs });
   } catch (error) {
+    forget();
     if (runStopped()) {
       if (restarted.length > 0) {
         throw error;
@@ -117,7 +124,9 @@ async function failedChecksFix(job: Run, sha: string): Promise<Gate> {
   await writeState(repo, state);
   let logs: string;
   try {
-    logs = await ports.failedBaseLogs(repo, sha, base, config.logMaxChars);
+    logs = await refundOnKill(job, 'ciFixes', () =>
+      ports.failedBaseLogs(repo, sha, base, config.logMaxChars),
+    );
   } catch (error) {
     await refundStopped(job);
     return escalateError(
@@ -130,12 +139,14 @@ async function failedChecksFix(job: Run, sha: string): Promise<Gate> {
   log.event('main-checks.logs', { chars: logs.length });
   let fix: Fix;
   try {
-    fix = await fixRound(
-      job,
-      `The checks on ${base} failed after the change landed there.`,
-      logs,
-      [],
-      'checks',
+    fix = await refundOnKill(job, 'ciFixes', () =>
+      fixRound(
+        job,
+        `The checks on ${base} failed after the change landed there.`,
+        logs,
+        [],
+        'checks',
+      ),
     );
   } catch (error) {
     await refundStopped(job);
