@@ -865,7 +865,14 @@ test('waitForBaseChecks keeps waiting for a running workflow run whose listed jo
   );
   const repo = { owner: 'acme', name: 'tool', root: dir };
   assert.equal(
-    await waitForBaseChecks(repo, 'abc', 'main', { ...BASE_WAIT, timeoutMs: 1500 }, [], ['release']),
+    await waitForBaseChecks(
+      repo,
+      'abc',
+      'main',
+      { ...BASE_WAIT, timeoutMs: 1500 },
+      [],
+      ['release'],
+    ),
     'timeout',
   );
 });
