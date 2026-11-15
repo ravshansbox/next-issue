@@ -285,14 +285,13 @@ and comments the reason on the issue, when:
   `<n>` branch when the issue is done;
 - a fixer disputes or settles the findings and leaves a change behind, either
   in the worktree or in a commit of its own. A dispute carries a reason, not a
-  diff, so the harness throws none of it away: an unclean worktree stays on
-  the disk, and a commit of the fixer moves to a new local
-  `<n>-dispute-<commit>` branch, so the `<n>` branch keeps only what will
-  land. The worktree drops the change of that commit, unless the fixer edited
-  the worktree after the commit: then the worktree keeps both and stays on the
-  disk. Neither lands. The issue holds the reason of the dispute, and the
-  change is on the machine that ran the harness. The `<n>-dispute-<commit>`
-  branches go away with the `<n>` branch when the issue is done;
+  diff, and a retry of the issue cleans the worktree before the next review,
+  so the change does not stay there: its edits are committed with no hooks on
+  top of any commit of its own, that commit moves to a new local
+  `<n>-dispute-<commit>` branch, and the hand-over comment names that branch.
+  The `<n>` branch keeps only what will land, and the reviewer of a retry sees
+  none of the change. Neither lands. The `<n>-dispute-<commit>` branches go
+  away with the `<n>` branch when the issue is done;
 - the reviewer gives no verdict, or the checks do not finish in time;
 - the push to the base branch fails three times;
 - the checks on the base branch fail and the fixer cannot fix them, an error

@@ -14,6 +14,7 @@ import {
   latestSubject,
   type Repo,
   revision,
+  saveEdits,
   setAside,
 } from '../src/git.mts';
 import type { Recorder } from '../src/observe.mts';
@@ -43,6 +44,7 @@ function withGit(target: Harness, reviewer: (worktree: string) => Promise<unknow
     latestSubject,
     removeWorktree,
     revision,
+    saveEdits,
     setAside,
     runAgent: async (recorder: Recorder, request: AgentRequest) => {
       if (request.name === 'reviewer') {
@@ -181,6 +183,38 @@ test('a user who resumes issue 7 after a stop now during the fixer gets a review
   );
   await git(repo.root, 'fetch', '-q', 'origin');
   assert.equal(await git(repo.root, 'rev-parse', 'origin/main^{tree}'), seen[0]!.tree);
+});
+
+test('a person who retries issue 7 after a fixer disputed and left edits still has those edits in a dispute branch, and the reviewer sees none of them', async (t) => {
+  const repo = await gitRepo();
+  const first = await harness(t, {
+    root: repo.root,
+    verdicts: [changes('The count is wrong.')],
+    fixerText: ['unrelated: the count follows the convention'],
+  });
+  withGit(first, async () => undefined);
+  const report = await first.run();
+  assert.equal(report.reason, 'dispute with changes');
+  const branch = await git(repo.root, 'rev-parse', '7');
+  const retried = await harness(t, { root: repo.root, stopNowDuring: 'reviewer' });
+  const seen: { status: string; head: string }[] = [];
+  withGit(retried, async (cwd) => {
+    seen.push({
+      status: await git(cwd, 'status', '--porcelain'),
+      head: await git(cwd, 'rev-parse', 'HEAD'),
+    });
+  });
+  await retried.run();
+  assert.deepEqual(seen, [{ status: '', head: branch }]);
+  const asides = await git(
+    repo.root,
+    'for-each-ref',
+    '--format=%(refname:short)',
+    'refs/heads/7-dispute-*',
+  );
+  assert.match(asides, /^7-dispute-[0-9a-f]{7}$/);
+  assert.equal(await git(repo.root, 'show', `${asides}:fixer.txt`), 'fixer');
+  assert.match(first.comments.at(-1)!, new RegExp(`saved in the branch \`${asides}\``));
 });
 
 function squashStoppedInHook(stopped: Harness, root: string): { head: () => string } {

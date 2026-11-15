@@ -2,7 +2,7 @@ import { REVIEWING } from './agents.mts';
 import { runStopped } from './children.mts';
 import { budgetUse, refundBudget, refundOnKill, spendBudget } from './budget.mts';
 import { message } from './errors.mts';
-import { fixRound, type Unfixed } from './fix.mts';
+import { fixRound, savedIn, type Unfixed } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
 import { ROUND_CONTINUE, type Round, type Run, runRole, setStatus } from './job.mts';
 import { landApproved } from './land.mts';
@@ -163,7 +163,7 @@ async function unfixedRound(job: Run, fix: Unfixed): Promise<Round> {
   if (fix.stray === true) {
     return escalateAndFinish(
       job,
-      `The fixer ${fix.unrelated === undefined ? 'settled' : 'disputed'} the findings and left a change behind: ${note}`,
+      `The fixer ${fix.unrelated === undefined ? 'settled' : 'disputed'} the findings: ${note}${savedIn(fix.aside)}`,
       'dispute with changes',
     );
   }

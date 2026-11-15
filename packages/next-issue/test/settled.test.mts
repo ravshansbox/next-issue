@@ -31,7 +31,18 @@ test('a fixer that settles the findings and leaves a change hands the issue to a
   const report = await target.run();
   assert.equal(report.outcome, 'needs-human');
   assert.equal(report.reason, 'dispute with changes');
-  assert.match(target.comments.at(-1)!, /left a change behind: the new test failed/);
+  assert.match(
+    target.comments.at(-1)!,
+    /settled the findings: the new test failed with the fix reverted and passes with it The fixer left a change behind;/,
+  );
+});
+
+test('a review fixer that settles the findings and leaves edits gets them saved in a dispute branch', async (t) => {
+  const target = await harness(t, { fixerWrites: true, ...SETTLED });
+  await target.run();
+  assert.equal(target.saves, 1);
+  assert.deepEqual(target.asides, [{ target: '1', branch: '7-dispute-2' }]);
+  assert.match(target.comments.at(-1)!, /saved in the branch `7-dispute-2`\./);
 });
 
 test('a fixer that settles the findings after its own commit gets the commit moved off the branch', async (t) => {

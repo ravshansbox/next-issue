@@ -22,7 +22,7 @@ export type Unfixed = {
   unrelated?: string;
   resolved?: string;
   stray?: boolean;
-  /** The dispute branch that holds the change a check fixer left behind. */
+  /** The dispute branch that holds the change the fixer left behind. */
   aside?: string;
 };
 
@@ -51,7 +51,7 @@ export function escalateCheckFix(
   );
 }
 
-function savedIn(aside: string | undefined): string {
+export function savedIn(aside: string | undefined): string {
   return aside === undefined
     ? ''
     : ` The fixer left a change behind; it is saved in the branch \`${aside}\`.`;
@@ -127,24 +127,19 @@ async function disputedFix(
 ): Promise<Fix> {
   const { context, issue, log, worktree, branch } = job;
   const { ports } = context;
-  // The revert after a failed check reuses this worktree, so edits left there would be lost.
-  const saved =
-    kind === 'checks' &&
-    (await ports.saveEdits(
-      worktree,
-      `fix: edits left by the check fixer\n\nRefs #${issue.number}`,
-    ));
+  // A retry or the revert after a failed check cleans this worktree, so edits left there would be lost.
+  const saved = await ports.saveEdits(
+    worktree,
+    `fix: edits left by the ${kind === 'checks' ? 'check' : 'review'} fixer\n\nRefs #${issue.number}`,
+  );
   const disputed = await ports.revision(worktree);
-  const moved = disputed !== before;
-  if (moved) {
-    const aside = `${branch}-dispute-${disputed.slice(0, 7)}`;
-    await ports.setAside(worktree, before, aside);
-    log.event('fix.aside', { branch: aside, saved }, 'quiet');
-    if (kind === 'checks') {
-      return disputedNote(job, reason, note, { stray: true, aside });
-    }
+  if (disputed === before) {
+    return disputedNote(job, reason, note, { stray: false });
   }
-  return disputedNote(job, reason, note, { stray: moved || (await ports.isDirty(worktree)) });
+  const aside = `${branch}-dispute-${disputed.slice(0, 7)}`;
+  await ports.setAside(worktree, before, aside);
+  log.event('fix.aside', { branch: aside, saved }, 'quiet');
+  return disputedNote(job, reason, note, { stray: true, aside });
 }
 
 function disputedNote(

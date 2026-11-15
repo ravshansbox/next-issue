@@ -40,7 +40,10 @@ test('a fixer that disputes and leaves a change hands the issue to a person', as
   assert.equal(report.outcome, 'needs-human');
   assert.equal(report.reason, 'dispute with changes');
   assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer']);
-  assert.match(target.comments.at(-1)!, /left a change behind: the count follows the convention/);
+  assert.match(
+    target.comments.at(-1)!,
+    /disputed the findings: the count follows the convention in CONTRIBUTING.md The fixer left a change behind;/,
+  );
 });
 
 test('a fixer that disputes after its own commit hands the issue to a person', async (t) => {
@@ -106,13 +109,30 @@ test('a finished issue gets the dispute branches of an earlier run deleted', asy
   assert.deepEqual(target.deleted, ['7', '7-dispute-3']);
 });
 
-test('a fixer that disputes and leaves only an unclean worktree keeps the branch as it is', async (t) => {
+test('a review fixer that disputes and leaves edits gets them saved in a dispute branch that the hand-over names', async (t) => {
   const target = await harness(t, {
     fixerWrites: true,
     ...DISPUTED,
   });
+  const report = await target.run();
+  assert.equal(report.reason, 'dispute with changes');
+  assert.equal(target.saves, 1);
+  assert.deepEqual(target.asides, [{ target: '1', branch: '7-dispute-2' }]);
+  assert.equal(target.head(), '1');
+  assert.match(
+    target.comments.at(-1)!,
+    /The fixer left a change behind; it is saved in the branch `7-dispute-2`\./,
+  );
+});
+
+test('a review fixer that disputes after its own commit gets a hand-over that names the dispute branch', async (t) => {
+  const target = await harness(t, {
+    selfCommit: true,
+    ...DISPUTED,
+  });
   await target.run();
-  assert.deepEqual(target.asides, []);
+  assert.equal(target.saves, 0);
+  assert.match(target.comments.at(-1)!, /saved in the branch `7-dispute-3`\./);
 });
 
 test('the next reviewer reads the dispute of the fixer', async (t) => {
