@@ -267,6 +267,25 @@ test('a handed-over issue whose only later comments come from the harness or a u
   assert.deepEqual(roles(target), []);
 });
 
+test('a person who adds the needs-human label to a stopped issue whose earlier hand-over was answered keeps the issue waiting with the label on', async (t) => {
+  const target = await harness(t, {
+    issue: NEEDS_HUMAN,
+    saved: SAVED,
+    thread: [
+      HAND_OVER_NOTE,
+      { author: 'owner', body: 'Ready, take it.' },
+      { author: 'owner', body: 'Holding this one.' },
+    ],
+    writers: ['owner', 'bot'],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'skipped');
+  assert.deepEqual(target.labels, []);
+  assert.deepEqual(target.removable, []);
+  assert.deepEqual(roles(target), []);
+  assert.deepEqual(await target.state(), SAVED);
+});
+
 test('--reset leaves the state of a skipped issue alone', async (t) => {
   const target = await harness(t, {
     issue: { ...ISSUE, labels: ['status:needs-human'] },

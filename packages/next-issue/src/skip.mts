@@ -96,6 +96,9 @@ async function hasAnswer(
   if (!hasLabel(issue.labels, context.config.labels.needsHuman)) {
     return false;
   }
+  if (saved !== undefined && saved.handedOver !== true && saved.pendingHandOver === undefined) {
+    return false;
+  }
   return (await handOverReply(context, issue.number, saved?.pendingHandOver)).length > 0;
 }
 

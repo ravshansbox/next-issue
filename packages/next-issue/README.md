@@ -53,7 +53,7 @@ the run handles one issue. For each issue:
    `status:in-progress` or `status:in-review` label. A `status:done`,
    `status:needs-human` or `status:blocked` label always stops the claim, a
    resume too, except a `status:needs-human` issue with an answer to its
-   hand-over, and except an issue whose finish a stop cut short and that
+   hand-over that the run made, and except an issue whose finish a stop cut short and that
    was not handed over (see step 7 below). An issue that GitHub lists as
    blocked by an open issue waits,
    because its blocker closes only when the change of the blocker lands.
@@ -747,7 +747,9 @@ the mark and keeps the branch and the step that the last run reached, so the
 work carries on where it stopped. After a revert, the branch holds the change
 again on top of the revert, so the change goes back to the review. An issue
 that still has the label is not claimed, unless it has an answer to the
-hand-over: then the run claims it and takes the label off. When the label of a
+hand-over: then the run claims it and takes the label off. A label that a
+person adds to a stopped issue that is not handed over holds the issue, even
+when an earlier hand-over has an answer. When the label of a
 hand-over reaches GitHub but its comment does not, an answer to an earlier
 hand-over does not count: the issue waits, and the worker lists it, until a
 person takes the label off or a writer comments after that hand-over. Either

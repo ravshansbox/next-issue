@@ -284,7 +284,7 @@ test('a user whose blockers read fails with no stop gets that issue ended as fai
 test('a user who stops a run now while the hand-over answer of a resumed needs-human issue is read gets its saved review rounds and check fixes in the report', async (t) => {
   const first = await harness(t, { pressDuring: 'reviewer', verdicts: [changes('Rename it.')] });
   assert.equal((await first.run()).outcome, 'stopped');
-  const saved = { ...(await first.state())!, ciFixes: 1 };
+  const saved = { ...(await first.state())!, ciFixes: 1, handedOver: true };
   const issue = { ...ISSUE, labels: ['status:needs-human'] };
   const { report } = await stopDuringRead(t, { saved, issue }, 'threadComments');
   assert.equal(report.outcome, 'stopped');
