@@ -5,6 +5,7 @@ import { commitAll } from './git-commit.mts';
 import { pushToBase, reapplyRevert, revertOnBase, squashOnto } from './git-land.mts';
 import { abortMerge, commitMerge, startMerge } from './git-merge.mts';
 import {
+  changedFiles,
   deleteBranch,
   diff,
   discardChanges,
@@ -59,6 +60,7 @@ export const PORTS = {
   abortMerge,
   addWorktree,
   canWrite,
+  changedFiles,
   closeIssue,
   commentOnIssue,
   commitAll,

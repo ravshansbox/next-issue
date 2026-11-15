@@ -235,6 +235,65 @@ test('a user whose checks on main fail for an unrelated reason gets the change r
   assert.deepEqual(target.closed, []);
 });
 
+test('a user whose fixer calls a failure in a test file that the change added unrelated gets the claim refused and another fix round', async (t) => {
+  const target = await harness(t, {
+    baseChecks: ['fail', 'pass'],
+    baseLogs: 'not ok 3 - /home/runner/work/tool/tool/test/local-checks.test.mts:126:5',
+    changedFiles: ['src/local-checks.mts', 'test/local-checks.test.mts'],
+    fixerText: [
+      'unrelated: serve.test.mts is a known flaky test',
+      'Done.\ncommit: fix: repair the new test',
+    ],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.equal(report.ciFixes, 2);
+  assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer', 'fixer']);
+  assert.match(
+    target.prompts[3]!.prompt,
+    /the failed logs name `test\/local-checks\.test\.mts`, a file of this change/,
+  );
+  assert.deepEqual(target.reverts, []);
+});
+
+test('a user whose fixer calls a failure unrelated and whose read of the changed files then fails gets the change reverted and the issue handed over', async (t) => {
+  const target = await harness(t, {
+    baseChecks: ['fail'],
+    fixerText: 'unrelated: serve.test.mts is a known flaky test',
+  });
+  target.context.ports.changedFiles = async () => {
+    throw new Error('git: bad object 2');
+  };
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'files error');
+  assert.deepEqual(
+    target.reverts.map((entry) => entry.shas),
+    [['2']],
+  );
+  assert.match(
+    target.comments.at(-1)!,
+    /needs help: The read of the files of the change failed: git: bad object 2\. The harness reverted the change on main\./,
+  );
+});
+
+test('a user whose fixer calls a failure in a file the change did not touch unrelated gets the change reverted and the issue handed over', async (t) => {
+  const target = await harness(t, {
+    baseChecks: ['fail'],
+    baseLogs: 'not ok 3 - /home/runner/work/tool/tool/test/serve.test.mts:40:5',
+    changedFiles: ['src/local-checks.mts', 'test/local-checks.test.mts'],
+    fixerText: 'unrelated: serve.test.mts is a known flaky test',
+  });
+  const report = await target.run();
+  assert.equal(report.reason, 'unrelated failure');
+  assert.equal(report.ciFixes, 1);
+  assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer']);
+  assert.deepEqual(
+    target.reverts.map((entry) => entry.shas),
+    [['2']],
+  );
+});
+
 test('a user whose fix for main conflicts with the base after the check budget is used up gets the change reverted and the issue handed over', async (t) => {
   const target = await harness(t, {
     config: { maxCiFixes: 1 },

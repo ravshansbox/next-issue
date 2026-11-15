@@ -156,7 +156,10 @@ const CONFLICT_RULE = [
 ].join('\n');
 
 const KIND_RULES: Record<FixKind, string> = {
-  checks: UNRELATED_RULE,
+  checks: [
+    UNRELATED_RULE,
+    'A failure in a file that this change added or changed is never unrelated. When the failed logs name such a file, the harness refuses an `unrelated` line and gives you another round.',
+  ].join('\n'),
   local: UNRELATED_RULE,
   review: [
     DISPUTE_RULE,

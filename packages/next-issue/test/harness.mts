@@ -69,6 +69,8 @@ export type Plan = {
   verdicts?: Verdict[];
   commits?: Array<boolean | string | Error>;
   diff?: string;
+  baseLogs?: string;
+  changedFiles?: string[];
   setupCode?: number;
   setupTimedOut?: boolean;
   selfCommit?: boolean;
@@ -308,8 +310,9 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     ensureLabel: async () => undefined,
     failedBaseLogs: async () => {
       await hangIf('logs');
-      return 'the failed main logs';
+      return plan.baseLogs ?? 'the failed main logs';
     },
+    changedFiles: async () => plan.changedFiles ?? [],
     findWorktree: async () => (removed ? undefined : join(root, 'worktree')),
     huntWorktree: async (_repo, base) => {
       state.hunts.push(base);

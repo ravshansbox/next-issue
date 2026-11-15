@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { hostname, hostOf, repoArg } from '../src/gh.mts';
 import { commitAll } from '../src/git-commit.mts';
 import {
+  changedFiles,
   detectRepo,
   discardChanges,
   disputeBranches,
@@ -313,4 +314,15 @@ test('a fixer commit made after a reviewer detached HEAD is still on branch 3 wh
   assert.equal(await git(resumed, 'branch', '--show-current'), '3');
   assert.equal(await revision(resumed), fixed);
   assert.equal(existsSync(join(resumed, 'fixer.txt')), true);
+});
+
+test('changedFiles gives the files that landed commits added or changed and leaves out deleted ones', async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  const added = await commit(path, 'b.txt');
+  await git(path, 'rm', '-q', 'a.txt');
+  await git(path, 'commit', '-q', '-m', 'drop a');
+  const dropped = await git(path, 'rev-parse', 'HEAD');
+  assert.deepEqual(await changedFiles(path, [added, dropped]), ['b.txt']);
+  assert.deepEqual(await changedFiles(path, []), []);
 });

@@ -80,6 +80,30 @@ export async function diff(cwd: string, base: string, remote: string): Promise<s
   return git(cwd, ['diff', `${remoteRef(remote, base)}...HEAD`]);
 }
 
+/** The files that the commits added or changed, as paths from the repository root. */
+export async function changedFiles(cwd: string, shas: string[]): Promise<string[]> {
+  if (shas.length === 0) {
+    return [];
+  }
+  const output = await git(cwd, [
+    'show',
+    '--no-renames',
+    '--diff-filter=d',
+    '--name-only',
+    '-z',
+    '--format=',
+    ...shas,
+  ]);
+  return [
+    ...new Set(
+      output
+        .split('\0')
+        .map((path) => path.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
 export async function discardChanges(
   cwd: string,
   target: string,

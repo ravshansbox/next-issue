@@ -35,6 +35,14 @@ test('each fixer kind is offered the unrelated exit for its own cause', () => {
   assert.match(review, /unrelated: <one sentence on why the findings are wrong/);
 });
 
+test('a fixer for failed checks is told that a failure in a file of the change is never unrelated', () => {
+  const checks = fixPrompt(ISSUE, [], 'checks failed', 'log', [], 'checks');
+  assert.match(
+    checks,
+    /A failure in a file that this change added or changed is never unrelated\./,
+  );
+});
+
 test('each fixer kind is told to write no unrelated line after it fixes the cause', () => {
   const checks = fixPrompt(
     ISSUE,
