@@ -4,7 +4,8 @@ import { type Sleeper, wakeableSleep } from './durations.mts';
 export type Interrupts = {
   afterIssue: () => boolean;
   afterRound: () => boolean;
-  sleep: (ms: number, hunting?: () => boolean) => Promise<boolean>;
+  // A sleep also ends (false) when `refreshed` aborts.
+  sleep: (ms: number, hunting?: () => boolean, refreshed?: AbortSignal) => Promise<boolean>;
 };
 
 export function listenForInterrupts(say: (text: string) => void): Interrupts {
@@ -39,9 +40,9 @@ export function listenForInterrupts(say: (text: string) => void): Interrupts {
   return {
     afterIssue: () => presses >= 1,
     afterRound: () => presses >= 2,
-    sleep: (ms, busy = () => false) => {
+    sleep: (ms, busy = () => false, refreshed) => {
       hunting = busy;
-      return wakeableSleep(sleeper, ms, presses >= 1);
+      return wakeableSleep(sleeper, ms, presses >= 1, refreshed);
     },
   };
 }

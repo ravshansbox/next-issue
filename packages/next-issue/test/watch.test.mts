@@ -9,6 +9,7 @@ import { runsDir } from '../src/state.mts';
 import type { Outcome } from '../src/job.mts';
 import { exitCode } from '../src/loop.mts';
 import { huntSwitch } from '../src/hunt-switch.mts';
+import { refresher } from '../src/refresh.mts';
 import { type Watch, watchIssues } from '../src/watch.mts';
 import { installGh } from './fake-gh.mts';
 import { ARGS, issue, report } from './loop-harness.mts';
@@ -855,4 +856,39 @@ test('a user whose watch ends while hunting is off sees the hunter never read th
   await watchIssues(ARGS, fake);
   assert.deepEqual(steps, []);
   assert.deepEqual(fake.processed, [1]);
+});
+
+test('a worker client who asks a hunting run to refresh wakes the waiting hunter, which checks the ready issues again and waits 1 minute', async () => {
+  const refresh = refresher();
+  const fake = watcher([[]]);
+  fake.refreshed = refresh.refreshed;
+  let checks = 0;
+  const waits: number[] = [];
+  const firstWait = deferred();
+  const secondWait = deferred();
+  let stopped = false;
+  fake.stop = () => stopped;
+  fake.hunter = {
+    cap: 1,
+    ready: async () => {
+      checks += 1;
+      return [issue(100)];
+    },
+    hunt: async () => assert.fail('no hunt while enough issues are ready'),
+    wait: async (minutes, signal) => {
+      waits.push(minutes);
+      (waits.length === 1 ? firstWait : secondWait).resolve();
+      await new Promise((done) => signal.addEventListener('abort', done, { once: true }));
+    },
+  };
+  fake.wait = async () => {
+    await firstWait.promise;
+    refresh.refresh();
+    await secondWait.promise;
+    stopped = true;
+    return false;
+  };
+  await watchIssues(ARGS, fake);
+  assert.equal(checks, 2);
+  assert.deepEqual(waits, [1, 1]);
 });

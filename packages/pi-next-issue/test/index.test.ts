@@ -256,13 +256,71 @@ test('a model that calls next_issue_start while a run is going starts nothing an
   assert.deepEqual(result.details, { started: false, root: '/repo' });
   assert.equal(
     result.content[0]?.text,
-    'A run of /repo is going already, so nothing started: #7 · implement · 3 tools. It picks up new issues by itself.',
+    'A run of /repo is going already, so nothing started: #7 · implement · 3 tools. Asked it to check for new issues now.',
   );
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await until(() => fake.received.some((message) => message.type === 'refresh'));
   assert.deepEqual(
-    fake.received.filter((message) => message.type === 'start' || message.type === 'stop'),
-    [],
+    fake.received.filter((message) => ['start', 'stop', 'refresh'].includes(message.type)),
+    [{ type: 'refresh', root: '/repo' }],
   );
+});
+
+function refusingRefresh(path: string) {
+  return startFakeWorker(path, '1.0.0', (self, message) => {
+    if (message.type === 'refresh') {
+      self.reply({ type: 'error', root: message.root, message: 'unknown message' });
+    } else if (message.type === 'hunt') {
+      self.update(message.root, { ...self.runs[message.root]!, hunting: message.on });
+    }
+  });
+}
+
+test('a model that calls next_issue_start while a run is going on an older worker that refuses refresh still gets the going run reported and sees no error note', async () => {
+  const { path, extension } = setup();
+  const fake = await refusingRefresh(path);
+  workers.push(fake);
+  fake.runs['/repo'] = running({ issues: [working(7, { stage: 'implement', tools: 3 })] });
+  const { pi, emit, start, notes } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const result = await start();
+  assert.deepEqual(result.details, { started: false, root: '/repo' });
+  assert.match(String(result.content[0]?.text), /^A run of \/repo is going already/);
+  await until(() => fake.received.some((message) => message.type === 'refresh'));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(notes, []);
+});
+
+test('a model that calls next_issue_start with --hunt while a run is going on an older worker that refuses refresh gets hunting turned on and no failure', async () => {
+  const { path, extension } = setup();
+  const fake = await refusingRefresh(path);
+  workers.push(fake);
+  fake.runs['/repo'] = running({ issues: [working(7, { stage: 'implement' })] });
+  const { pi, emit, start, notes } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const result = await start(undefined, { args: ['--hunt'] });
+  assert.deepEqual(result.details, { started: false, hunting: true, root: '/repo' });
+  await until(() => fake.received.some((message) => message.type === 'refresh'));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(notes, ['next-issue: hunting on']);
+});
+
+test('a user who runs /next-issue start --hunt while a run is going on an older worker that refuses refresh sees no error note', async () => {
+  const { path, extension } = setup();
+  const fake = await refusingRefresh(path);
+  workers.push(fake);
+  fake.runs['/repo'] = running({ issues: [working(7, { stage: 'implement', tools: 3 })] });
+  const { pi, emit, command, notes } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command('start --hunt');
+  await until(() => fake.received.some((message) => message.type === 'refresh'));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(notes.slice(0, 1), [
+    'A run of /repo is going already, so nothing started: #7 · implement · 3 tools. Asked it to check for new issues now. Turning hunting on.',
+  ]);
+  assert.ok(!notes.some((note) => note.startsWith('next-issue cannot')), notes.join('\n'));
 });
 
 test('a model that calls next_issue_start gets the error when the worker refuses to start a run', async () => {
@@ -550,7 +608,7 @@ test('a user who runs /next-issue start while a run is going is told so and noth
   await emit('session_start');
   await command('start --watch');
   assert.deepEqual(notes, [
-    'A run of /repo is going already, so nothing started: #7 · implement · 3 tools. It picks up new issues by itself.',
+    'A run of /repo is going already, so nothing started: #7 · implement · 3 tools. Asked it to check for new issues now.',
   ]);
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert.deepEqual(
@@ -1547,7 +1605,7 @@ test('a model that calls next_issue_start with --hunt while a run is going turns
   assert.deepEqual(result.details, { started: false, hunting: true, root: '/repo' });
   assert.equal(
     result.content[0]?.text,
-    'A run of /repo is going already, so nothing started: #7 · implement · 0 tools. It picks up new issues by itself. Turned hunting on.',
+    'A run of /repo is going already, so nothing started: #7 · implement · 0 tools. Asked it to check for new issues now. Turned hunting on.',
   );
   assert.deepEqual(
     fake.received.filter((message) => message.type === 'start' || message.type === 'hunt'),
@@ -1564,7 +1622,7 @@ test('a user who runs /next-issue start --hunt while a run is going asks it to h
   await emit('session_start');
   await command('start --hunt');
   assert.deepEqual(notes, [
-    'A run of /repo is going already, so nothing started: #7 · implement · 3 tools. It picks up new issues by itself. Turning hunting on.',
+    'A run of /repo is going already, so nothing started: #7 · implement · 3 tools. Asked it to check for new issues now. Turning hunting on.',
   ]);
   await until(() => fake.received.some((message) => message.type === 'hunt'));
   assert.deepEqual(

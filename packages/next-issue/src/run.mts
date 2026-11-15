@@ -33,6 +33,8 @@ export type RunControls = {
   onEvent?: (record: Fields) => void;
   // The worker passes a switch that its clients turn on and off; a command-line run keeps --hunt.
   hunting?: HuntSwitch;
+  // The worker passes the signal of its clients' refresh requests, which end a watch wait early.
+  refreshed?: () => AbortSignal;
 };
 
 export async function runLocked(root: string, args: Args, controls: RunControls): Promise<number> {
@@ -123,14 +125,15 @@ export function watchRun(
   const hunt = hunter(context);
   return watchIssues(args, {
     ...loop,
-    wait: (minutes) => {
+    wait: (minutes, refreshed) => {
       recorder.event('watch.wait', { minutes }, 'quiet');
       passStart = recorder.summary();
-      return interrupts.sleep(minutesToMs(minutes), () => hunt.busy());
+      return interrupts.sleep(minutesToMs(minutes), () => hunt.busy(), refreshed);
     },
     passEnd: (issues) => print({ ...recorder.summary(passStart), issues }),
     hunter: hunt,
     hunting: controls.hunting ?? huntSwitch(args.hunt),
+    refreshed: controls.refreshed,
   });
 }
 

@@ -145,7 +145,8 @@ export function createExtension(options: Options) {
     let hunting: boolean | undefined;
     let baseline = false;
     // The worker answers a refused request with an error that does not name it.
-    let asked: Action = 'start';
+    // A refresh is best effort, so an error that answers it is not shown.
+    let asked: Action | 'refresh' = 'start';
 
     const clientOf = (root: string) => shared(options.client, root);
 
@@ -240,7 +241,7 @@ export function createExtension(options: Options) {
         }
       } else if (event.type === 'questions' && event.root === root) {
         onQuestions(event.questions);
-      } else if (event.type === 'error' && event.root === root) {
+      } else if (event.type === 'error' && event.root === root && asked !== 'refresh') {
         tell(cannotNote(asked, event.message));
       }
     };
@@ -306,7 +307,7 @@ export function createExtension(options: Options) {
     pi.registerTool({
       name: 'next_issue_start',
       label: 'Start next-issue',
-      description: `Start a next-issue run of the GitHub issues of this repository when none is going. Starts the worker when needed. When a run is going, starts nothing and reports that run, which picks up new issues by itself. Optional args take the flags ${FLAGS}, for example ["--hunt"] to hunt for bugs and keep watching.`,
+      description: `Start a next-issue run of the GitHub issues of this repository when none is going. Starts the worker when needed. When a run is going, starts nothing, asks that run to check for new issues now (call it after filing an issue) and reports that run. Optional args take the flags ${FLAGS}, for example ["--hunt"] to hunt for bugs and keep watching.`,
       promptSnippet: 'Start a next-issue run of this repository when none is going',
       parameters: Type.Object({
         args: Type.Optional(
@@ -318,7 +319,9 @@ export function createExtension(options: Options) {
       async execute(_toolCallId, params, signal, _onUpdate, ctx) {
         const { client, root, progress } = await connect(ctx);
         asked = going(progress) ? 'hunt' : 'start';
-        return startRun(client, root, progress, params.args ?? [], signal);
+        return startRun(client, root, progress, params.args ?? [], signal, () => {
+          asked = 'refresh';
+        });
       },
     });
 
@@ -381,7 +384,11 @@ export function createExtension(options: Options) {
             notify(requestHunt(client, root, progress, on));
           } else {
             asked = going(progress) ? 'hunt' : 'start';
-            notify(requestStart(client, root, progress, flags));
+            notify(
+              requestStart(client, root, progress, flags, () => {
+                asked = 'refresh';
+              }),
+            );
           }
         } catch (error) {
           notify(cannotNote(subcommand as Action, errorText(error)));

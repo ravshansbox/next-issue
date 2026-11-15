@@ -29,7 +29,15 @@ function sendStart(client: WorkerClient, root: string, args: string[]): void {
 }
 
 function goingAlready(root: string, progress: Progress): string {
-  return `A run of ${root} is going already, so nothing started: ${formatStatus(progress, Date.now())}. It picks up new issues by itself.`;
+  return `A run of ${root} is going already, so nothing started: ${formatStatus(progress, Date.now())}. Asked it to check for new issues now.`;
+}
+
+// Best effort: a worker that knows no refresh ignores it or answers with an error that does
+// not name it. So it goes last, after any request whose answer counts, and `refreshing` lets
+// the caller know that a later error answers the refresh.
+function sendRefresh(client: WorkerClient, root: string, refreshing: () => void): void {
+  client.send({ type: 'refresh', root });
+  refreshing();
 }
 
 export async function startRun(
@@ -38,12 +46,15 @@ export async function startRun(
   progress: Progress | undefined,
   args: string[],
   signal: AbortSignal | undefined,
+  refreshing: () => void = () => {},
 ) {
   if (going(progress)) {
     if (!turnsHuntingOn(progress, args)) {
+      sendRefresh(client, root, refreshing);
       return report(goingAlready(root, progress), { started: false, root });
     }
     await switchHunting(client, root, true, signal, 'next_issue_start');
+    sendRefresh(client, root, refreshing);
     return report(`${goingAlready(root, progress)} Turned hunting on.`, {
       started: false,
       hunting: true,
@@ -61,11 +72,18 @@ export function requestStart(
   root: string,
   progress: Progress | undefined,
   args: string[],
+  refreshing: () => void = () => {},
 ): Note | undefined {
   if (going(progress)) {
     if (!turnsHuntingOn(progress, args)) {
+      sendRefresh(client, root, refreshing);
       return { text: goingAlready(root, progress), level: 'info' };
     }
+    // The refresh waits for the hunt answer, so that an error still names the hunt.
+    accepted(client, root, undefined, (next) => !going(next) || next?.hunting === true).then(
+      () => sendRefresh(client, root, refreshing),
+      () => {},
+    );
     client.send({ type: 'hunt', root, on: true });
     return { text: `${goingAlready(root, progress)} Turning hunting on.`, level: 'info' };
   }

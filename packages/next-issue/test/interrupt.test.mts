@@ -63,3 +63,12 @@ test('a user who presses Ctrl-C twice more than 100 ms apart sees two presses co
     'Stopping after the current round. Press Ctrl-C again to stop now.',
   ]);
 });
+
+test('a wait that starts after a client already asked for a refresh ends at once', async (t) => {
+  const interrupts = listen(t, () => undefined);
+  const refresh = new AbortController();
+  refresh.abort();
+  const waited = interrupts.sleep(60_000, () => false, refresh.signal);
+  const timeout = sleep(1_000).then(() => 'still waiting');
+  assert.equal(await Promise.race([waited, timeout]), false);
+});

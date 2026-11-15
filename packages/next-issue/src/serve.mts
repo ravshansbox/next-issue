@@ -19,6 +19,7 @@ import {
   endStatus,
   huntRefusal,
   newRun,
+  requestRefresh,
   requestStop,
   type Run,
   runControls,
@@ -164,6 +165,8 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       stop(socket, value.root, value.after);
     } else if (value.type === 'hunt') {
       hunt(socket, value.root, value.on);
+    } else if (value.type === 'refresh') {
+      requestRefresh(runs.get(value.root));
     } else if (value.type === 'questions') {
       void sendQuestions(value.root, () => [socket], value.id);
     }

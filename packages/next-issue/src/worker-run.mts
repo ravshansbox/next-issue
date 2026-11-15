@@ -5,6 +5,7 @@ import type { Interrupts } from './interrupt.mts';
 import type { Fields } from './observe.mts';
 import { applyEvent } from './progress.mts';
 import { type Progress, STOP_POINTS, type StopPoint, type WorkerMessage } from './protocol.mts';
+import { type Refresher, refresher } from './refresh.mts';
 import type { RunControls } from './run.mts';
 
 export type Run = {
@@ -14,10 +15,17 @@ export type Run = {
   wake?: () => void;
   watching: boolean;
   hunting: HuntToggle;
+  refresher: Refresher;
 };
 
 export function newRun(progress: Progress, watching = false): Run {
-  return { progress, children: runChildren(), watching, hunting: huntSwitch(progress.hunting) };
+  return {
+    progress,
+    children: runChildren(),
+    watching,
+    hunting: huntSwitch(progress.hunting),
+    refresher: refresher(),
+  };
 }
 
 export function active(run: Run | undefined): boolean {
@@ -83,6 +91,15 @@ export function huntRefusal(run: Run | undefined, on: boolean): string | undefin
   return undefined;
 }
 
+// Only a running watch run refreshes; a pass that is going or a stop is left alone.
+export function requestRefresh(run: Run | undefined): boolean {
+  if (run?.progress.status !== 'running' || !run.watching || run.stop !== undefined) {
+    return false;
+  }
+  run.refresher.refresh();
+  return true;
+}
+
 export function setHunting(run: Run, on: boolean): void {
   run.hunting.set(on);
   run.progress = { ...run.progress, hunting: on };
@@ -92,7 +109,7 @@ function runInterrupts(run: Run): Interrupts {
   return {
     afterIssue: () => run.stop !== undefined,
     afterRound: () => run.stop === 'round' || run.stop === 'now',
-    sleep: (ms) => wakeableSleep(run, ms, run.stop !== undefined),
+    sleep: (ms, _hunting, refreshed) => wakeableSleep(run, ms, run.stop !== undefined, refreshed),
   };
 }
 
@@ -104,6 +121,7 @@ export function runControls(
   return {
     interrupts: runInterrupts(run),
     hunting: run.hunting,
+    refreshed: run.refresher.refreshed,
     onEvent: (record) => {
       update(applyEvent(run.progress, record));
       if (endsIssue(record)) {

@@ -38,7 +38,8 @@ export type ClientMessage =
   | { type: 'start'; root: string; args?: string[] }
   | { type: 'stop'; root: string; after?: StopPoint }
   | { type: 'questions'; root: string; id?: string }
-  | { type: 'hunt'; root: string; on: boolean };
+  | { type: 'hunt'; root: string; on: boolean }
+  | { type: 'refresh'; root: string };
 
 export type WorkerMessage =
   | { type: 'hello'; version: string }

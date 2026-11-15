@@ -234,6 +234,56 @@ const stopping = (value: WorkerMessage) =>
 const stoppedRun = (value: WorkerMessage) =>
   value.type === 'runs' && value.runs['/repo']?.status === 'stopped';
 
+const answered = (id: string) => (value: WorkerMessage) =>
+  value.type === 'questions' && value.id === id;
+
+test('a client that asks a waiting watch run to refresh wakes its wait, and the run goes on', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo', args: ['--watch'] });
+  await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
+  const controls = fake.controls();
+  const refreshed = controls.refreshed!();
+  const asleep = controls.interrupts.sleep(60_000, undefined, refreshed);
+  client.send({ type: 'refresh', root: '/repo' });
+  assert.equal(await asleep, false);
+  assert.equal(refreshed.aborted, true);
+  assert.equal(controls.interrupts.afterIssue(), false);
+  const another = await connect(t, socketPath);
+  const runs = await another.next(runsOf);
+  assert.equal(runs.type === 'runs' && runs.runs['/repo']?.status, 'running');
+});
+
+test('a client that asks a stopping run to refresh changes nothing and the run still stops', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo', args: ['--watch'] });
+  await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
+  client.send({ type: 'stop', root: '/repo' });
+  await client.next(stopping);
+  const refreshed = fake.controls().refreshed!();
+  client.send({ type: 'refresh', root: '/repo' });
+  client.send({ type: 'questions', root: '/repo', id: 'after' });
+  await client.next(answered('after'));
+  assert.equal(refreshed.aborted, false);
+  assert.equal(fake.controls().interrupts.afterIssue(), true);
+  fake.finish();
+  await client.next(stoppedRun);
+});
+
+test('a client that asks for a refresh with no run going gets no error and no run starts', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'refresh', root: '/repo' });
+  client.send({ type: 'questions', root: '/repo', id: 'after' });
+  const first = await client.next((value) => value.type === 'error' || answered('after')(value));
+  assert.equal(first.type, 'questions');
+  assert.equal(fake.calls.length, 0);
+});
+
 test('a client that stops a run with no point sees it claim nothing new, finish its issues and end as stopped', async (t) => {
   const { fake, client } = await startedRun(t);
   const controls = fake.controls();

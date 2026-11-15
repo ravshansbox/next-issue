@@ -12,10 +12,12 @@ export type Hunter = {
 };
 
 export type Watch = Loop & {
-  wait: (minutes: number) => Promise<boolean>;
+  // `refreshed` aborts when a client asks for new issues; the wait then ends early.
+  wait: (minutes: number, refreshed?: AbortSignal) => Promise<boolean>;
   passEnd: (reports: IssueReport[]) => Promise<void>;
   hunter?: Hunter;
   hunting?: HuntSwitch;
+  refreshed?: () => AbortSignal;
 };
 
 const BACK_OFF_MINUTES = [1, 2, 3, 5, 10];
@@ -37,6 +39,7 @@ export async function watchIssues(
           running,
           failed,
           claims,
+          watch.refreshed,
           () => ended.signal.aborted || watch.stop(),
           ended.signal,
         );
@@ -100,6 +103,7 @@ async function huntIssues(
   running: Set<number>,
   failed: ReadonlySet<number>,
   claims: ClaimAlarm,
+  refreshes: (() => AbortSignal) | undefined,
   stopped: () => boolean,
   signal: AbortSignal,
 ): Promise<void> {
@@ -126,8 +130,12 @@ async function huntIssues(
       continue;
     }
     const changed = hunting.changed();
-    await hunter.wait(backOffMinutes(step), AbortSignal.any([signal, claims.signal(), changed]));
-    if (changed.aborted) {
+    const refreshed = refreshes?.() ?? new AbortController().signal;
+    await hunter.wait(
+      backOffMinutes(step),
+      AbortSignal.any([signal, claims.signal(), changed, refreshed]),
+    );
+    if (changed.aborted || refreshed.aborted) {
       step = 0;
     } else if (!claims.take()) {
       step += 1;
@@ -163,8 +171,12 @@ async function watchPasses(
     }
     const minutes = backOffMinutes(step);
     step += 1;
-    if (!(await watch.wait(minutes))) {
-      return { reports };
+    const refreshed = watch.refreshed?.();
+    if (!(await watch.wait(minutes, refreshed))) {
+      if (refreshed?.aborted !== true || watch.stop()) {
+        return { reports };
+      }
+      step = 0;
     }
   }
 }

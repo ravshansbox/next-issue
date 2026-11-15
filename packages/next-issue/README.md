@@ -853,6 +853,12 @@ affect another. The worker:
   takes it from its own flags. Only runs of the worker can switch; a
   command-line run keeps what `--hunt` gave it. The progress of each run
   carries `hunting`, `true` while hunting is on;
+- asks a watching run to check for new issues now when a client sends
+  `{ "type": "refresh", "root": "<path>" }`. A run that waits between passes
+  starts a new pass at once, and its next wait starts again at 1 minute; a
+  waiting hunter checks the ready count again. A refresh while a pass runs,
+  for a run that is stopping or does not watch, or with no run going, changes
+  nothing and gets no answer;
 - exits, and removes its socket and lock files, when no run is going and no
   client is connected, or when no client connects in the 30 seconds after it
   starts;

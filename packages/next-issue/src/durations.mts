@@ -39,18 +39,27 @@ export function elapsedMs(started: number): number {
 
 export type Sleeper = { wake?: () => void };
 
-export function wakeableSleep(sleeper: Sleeper, ms: number, stopped: boolean): Promise<boolean> {
+// Resolves false when woken, or when `refreshed` aborts.
+export function wakeableSleep(
+  sleeper: Sleeper,
+  ms: number,
+  stopped: boolean,
+  refreshed?: AbortSignal,
+): Promise<boolean> {
   return new Promise((resolve) => {
-    if (stopped) {
+    if (stopped || refreshed?.aborted === true) {
       resolve(false);
       return;
     }
     const settle = (slept: boolean): void => {
       clearTimeout(timer);
+      refreshed?.removeEventListener('abort', onRefresh);
       sleeper.wake = undefined;
       resolve(slept);
     };
+    const onRefresh = (): void => settle(false);
     const timer = setTimeout(() => settle(true), timerMs(ms));
     sleeper.wake = () => settle(false);
+    refreshed?.addEventListener('abort', onRefresh, { once: true });
   });
 }
