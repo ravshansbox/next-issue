@@ -26,6 +26,8 @@ type ToolExecute = (
   ctx: unknown,
 ) => Promise<ToolResult>;
 
+const shutdowns: Array<() => Promise<void>> = [];
+
 function host(mode = 'tui', cwd = '/repo', answers: Array<string | undefined> = []) {
   const commands = new Map<string, (args: string, ctx: unknown) => Promise<void>>();
   const handlers = new Map<string, Handler[]>();
@@ -84,6 +86,7 @@ function host(mode = 'tui', cwd = '/repo', answers: Array<string | undefined> = 
       await handler(payload, ctx);
     }
   };
+  shutdowns.push(() => emit('session_shutdown'));
   const command = (args = '') => commands.get('next-issue')!(args, ctx);
   const complete = (prefix: string) => completions.get('next-issue')?.(prefix);
   const start = (signal?: AbortSignal, params: unknown = {}) =>
@@ -110,6 +113,10 @@ const KEY = Symbol.for('pi-next-issue');
 const workers: FakeWorker[] = [];
 
 afterEach(async () => {
+  // Stop each extension's timers first, so that none of them creates a client for the next test.
+  for (const shutdown of shutdowns.splice(0)) {
+    await shutdown();
+  }
   const store = globalThis as Record<symbol, Map<string, WorkerClient> | undefined>;
   for (const client of store[KEY]?.values() ?? []) {
     client.close();
