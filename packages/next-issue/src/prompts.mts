@@ -116,7 +116,7 @@ export function reviewPrompt(
   ].join('\n\n');
 }
 
-export type FixKind = 'checks' | 'review' | 'conflict';
+export type FixKind = 'checks' | 'local' | 'review' | 'conflict';
 
 const UNRELATED_RULE = [
   'The checks can fail for a reason this change did not cause: a test that is already broken on the base branch, one that exercises code the diff does not touch, or one that fails only under load.',
@@ -143,6 +143,7 @@ const CONFLICT_RULE = [
 
 const KIND_RULES: Record<FixKind, string> = {
   checks: UNRELATED_RULE,
+  local: UNRELATED_RULE,
   review: [
     DISPUTE_RULE,
     'For a behaviour change, run its test before the change and quote its failing output in your final message.',
