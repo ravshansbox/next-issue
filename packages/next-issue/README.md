@@ -105,9 +105,9 @@ the run handles one issue. For each issue:
    questions in order, numbered by the harness. The harness reads the issue
    again and adds the questions after any text under its `Open questions`
    heading, or adds that heading at the end of the body when it has none.
-   When that body edit fails, the harness records a `questions.body-failed`
-   event in the run log and still hands the issue over with the questions in
-   the comment.
+   When that read or body edit fails, the harness records a
+   `questions.body-failed` event in the run log and still hands the issue over
+   with the questions in the comment.
 5. Let the reviewer agent judge the diff, at most `diffMaxChars` of it. The
    reviewer reads files and runs commands in the worktree, so it can prove a
    finding with the tests or the type check. The harness then throws away every

@@ -35,8 +35,8 @@ async function askQuestions(job: Run, before: string, questions: string[]): Prom
   const { context, issue, log, worktree, branch } = job;
   const { repo, ports } = context;
   await ports.discardChanges(worktree, before, branch);
-  const fresh = await ports.viewIssue(repo, issue.number);
   try {
+    const fresh = await ports.viewIssue(repo, issue.number);
     await ports.editIssueBody(repo, issue.number, withOpenQuestions(fresh.body, questions));
   } catch (error) {
     log.event('questions.body-failed', { error: message(error) }, 'quiet');
