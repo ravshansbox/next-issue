@@ -7,7 +7,7 @@ import { shared } from './src/clients.ts';
 import { errorText } from './src/errors.ts';
 import { must } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
-import { going, type Progress, type Question } from './src/protocol.ts';
+import { going, type Progress, type Question, STOP_POINTS } from './src/protocol.ts';
 import {
   huntRun,
   parseHuntArgs,
@@ -17,6 +17,7 @@ import {
   requestStop,
   startRun,
   statusOf,
+  stopRun,
 } from './src/run.ts';
 import {
   type Action,
@@ -338,6 +339,26 @@ export function createExtension(options: Options) {
         const { client, root, progress } = await connect(ctx);
         asked = 'hunt';
         return huntRun(client, root, progress, params.on, signal);
+      },
+    });
+
+    pi.registerTool({
+      name: 'next_issue_stop',
+      label: 'Stop next-issue',
+      description:
+        'Ask the going next-issue run of this repository to stop: after the running issues (issue, the default), after the current round (round), or at once (now). Returns at once, without waiting for the run to end. Fails when no run is going.',
+      promptSnippet: 'Stop the going next-issue run of this repository',
+      parameters: Type.Object({
+        after: Type.Optional(
+          Type.Union(
+            STOP_POINTS.map((point) => Type.Literal(point)),
+            { description: 'When to stop: issue (the default), round or now' },
+          ),
+        ),
+      }),
+      async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+        const { client, root, progress } = await connect(ctx);
+        return stopRun(client, root, progress, params.after ?? 'issue');
       },
     });
 

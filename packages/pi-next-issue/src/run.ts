@@ -183,3 +183,22 @@ export function requestStop(
   client.send({ type: 'stop', root, after });
   return undefined;
 }
+
+const STOP_TEXTS: Record<StopPoint, string> = {
+  issue: 'after the running issues',
+  round: 'after the current round',
+  now: 'at once',
+};
+
+export function stopRun(
+  client: WorkerClient,
+  root: string,
+  progress: Progress | undefined,
+  after: StopPoint,
+) {
+  if (!going(progress)) {
+    throw new Error(`no run of ${root} is going`);
+  }
+  client.send({ type: 'stop', root, after });
+  return report(`Asked the run of ${root} to stop ${STOP_TEXTS[after]}.`, { after, root });
+}

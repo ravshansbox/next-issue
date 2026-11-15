@@ -16,7 +16,7 @@ import {
 type Handler = (event: unknown, ctx: unknown) => unknown;
 type ToolResult = {
   content: Array<{ type: string; text: string }>;
-  details: { started?: boolean; hunting?: boolean; root: string };
+  details: { started?: boolean; hunting?: boolean; after?: string; root: string };
 };
 type ToolExecute = (
   toolCallId: string,
@@ -94,6 +94,8 @@ function host(mode = 'tui', cwd = '/repo', answers: Array<string | undefined> = 
   const report = () => tools.get('next_issue_status')!('call', {}, undefined, undefined, ctx);
   const hunt = (params: unknown, signal?: AbortSignal) =>
     tools.get('next_issue_hunt')!('call', params, signal, undefined, ctx);
+  const stop = (params: unknown = {}) =>
+    tools.get('next_issue_stop')!('call', params, undefined, undefined, ctx);
   return {
     pi,
     ctx,
@@ -109,6 +111,7 @@ function host(mode = 'tui', cwd = '/repo', answers: Array<string | undefined> = 
     start,
     report,
     hunt,
+    stop,
   };
 }
 
@@ -289,6 +292,64 @@ test('a model that calls next_issue_start while a run is going on an older worke
   await until(() => fake.received.some((message) => message.type === 'refresh'));
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert.deepEqual(notes, []);
+});
+
+test('a model that calls next_issue_stop with no after asks the going run to stop after the running issues and gets told so at once', async () => {
+  const { path, extension } = setup();
+  const fake = await startFakeWorker(path, '1.0.0');
+  workers.push(fake);
+  fake.runs['/repo'] = running();
+  const { pi, emit, stop, asked } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const result = await stop();
+  assert.deepEqual(result.details, { after: 'issue', root: '/repo' });
+  assert.equal(result.content[0]?.text, 'Asked the run of /repo to stop after the running issues.');
+  await until(() => fake.received.some((message) => message.type === 'stop'));
+  assert.deepEqual(
+    fake.received.filter((message) => message.type === 'stop'),
+    [{ type: 'stop', root: '/repo', after: 'issue' }],
+  );
+  assert.deepEqual(asked, []);
+});
+
+test('a model that calls next_issue_stop with after round or now asks the going run to stop at that point', async () => {
+  const { path, extension } = setup();
+  const fake = await startFakeWorker(path, '1.0.0');
+  workers.push(fake);
+  fake.runs['/repo'] = running();
+  const { pi, emit, stop } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const round = await stop({ after: 'round' });
+  assert.deepEqual(round.details, { after: 'round', root: '/repo' });
+  assert.equal(round.content[0]?.text, 'Asked the run of /repo to stop after the current round.');
+  const now = await stop({ after: 'now' });
+  assert.deepEqual(now.details, { after: 'now', root: '/repo' });
+  assert.equal(now.content[0]?.text, 'Asked the run of /repo to stop at once.');
+  await until(() => fake.received.filter((message) => message.type === 'stop').length === 2);
+  assert.deepEqual(
+    fake.received.filter((message) => message.type === 'stop'),
+    [
+      { type: 'stop', root: '/repo', after: 'round' },
+      { type: 'stop', root: '/repo', after: 'now' },
+    ],
+  );
+});
+
+test('a model that calls next_issue_stop when no run is going gets an error and no stop is sent', async () => {
+  const { path, extension } = setup();
+  const fake = await startFakeWorker(path, '1.0.0');
+  workers.push(fake);
+  const { pi, emit, stop } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await assert.rejects(stop(), /no run of \/repo is going/);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(
+    fake.received.filter((message) => message.type === 'stop'),
+    [],
+  );
 });
 
 test('a model that calls next_issue_start with --hunt while a run is going on an older worker that refuses refresh gets hunting turned on and no failure', async () => {
