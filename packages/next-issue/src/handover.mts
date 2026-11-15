@@ -205,6 +205,8 @@ async function handOver(
   const { repo, ports, config } = context;
   log.event('hand-over', { reason }, 'quiet');
   const { pendingHandOver: _pending, ...rest } = state;
+  // Once the label is on, the issue is taken back from a close (`finishDone`) it may have reached.
+  const { closing: _closing, ...taken } = rest;
   let pending: PendingHandOver | undefined = earlier;
   try {
     // A retry keeps the thread time and the labelled mark of its earlier try.
@@ -213,12 +215,12 @@ async function handOver(
     await writeState(repo, { ...rest, pendingHandOver: pending });
     await setStatus(context, issue, config.labels.needsHuman);
     pending = { ...pending, labelled: true };
-    await writeState(repo, { ...rest, pendingHandOver: pending });
+    await writeState(repo, { ...taken, pendingHandOver: pending });
     await ports.commentOnIssue(repo, issue, handOverComment(reason));
   } catch (error) {
     throw new HandOverFailed(reason, error, pending);
   }
-  await writeState(repo, { ...rest, handedOver: true });
+  await writeState(repo, { ...taken, handedOver: true });
 }
 
 class HandOverFailed extends Error {

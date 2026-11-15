@@ -190,7 +190,9 @@ the run handles one issue. For each issue:
    file as closing, sets `status:done` and closes the issue. When a run
    stops or dies before the close, the next run sees the mark, sets
    `status:done` and closes the issue, with no new push, revert or
-   hand-over. When a run stops or dies after the close, before the state
+   hand-over. A hand-over clears the mark, so an issue taken back after
+   a failed label edit or close is resumed, not closed, by later runs.
+   When a run stops or dies after the close, before the state
    file goes away, the next run finds the closed issue through its state
    file and removes the worktree, the local branches and the state file,
    with no new push, revert, label, close or hand-over. A label or close

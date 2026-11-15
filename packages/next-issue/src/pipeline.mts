@@ -34,7 +34,9 @@ export async function processIssue(
   } catch (error) {
     return unclaimedError(log, issue, error, started);
   }
-  const closing = saved?.closing === true && saved.handedOver !== true;
+  const handedOver = wasHandedOver(context, issue, saved);
+  // A hand-over takes a closing issue back: its resume may revert or add to the change.
+  const closing = saved?.closing === true && !handedOver;
   if (issue.closed === true && !closing) {
     return dropClosed(context, log, issue, saved?.branch ?? branchName(issue.number));
   }
@@ -45,7 +47,6 @@ export async function processIssue(
   claimed();
   log.event('issue.start', { title: issue.title, createdAt: issue.createdAt }, 'quiet');
 
-  const handedOver = wasHandedOver(context, issue, saved);
   const state = startState(context, issue, saved, handedOver);
 
   let report: IssueReport;
