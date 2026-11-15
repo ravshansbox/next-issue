@@ -995,23 +995,30 @@ previous tag, grouped by type, and end with the compare link from that tag.
 The release is the `release` job of the `ci` workflow, and it runs only after
 the `check` job of the same commit passes. A commit that fails the typecheck,
 lint, format check, tests or build releases nothing. As the release is part of
-the `push` run, the harness waits for it like any other check.
+the `push` run, the harness waits for it like any other check. Release jobs run
+one at a time, in the order their `check` jobs finish, which is not always push
+order. When a later commit releases first, its tag holds the earlier commit and
+its version counts the commits of both, so the release job of the earlier commit
+only repairs and does nothing else.
 
 The workflow then gives `next-issue` and `@ravshansbox/pi-next-issue` the same
 new version and publishes both packages to npm with a
 [trusted publish](https://docs.npmjs.com/trusted-publishers), so no token is
 stored. It pushes the tag before the publish and makes the GitHub release after
 it, so the next release always counts from the new tag and never tries to
-publish a version that npm already holds. npm makes a new version live a few
+publish a version that npm already holds, and no release job counts from a tag
+before one that already holds its commit. npm makes a new version live a few
 minutes after the publish, and not always in the order it got them, so before
 it publishes, the job waits until npm serves both packages at the version of the
 last tag, for up to 10 minutes. Thus a new version never goes live before the
-one that came before it. Every run first repairs the last tag: from a checkout
-of that tag it publishes each package that npm does not serve at the tag
+one that came before it. Every run first repairs the last tag before its own
+commit: from a checkout of that tag it publishes each package that npm does not serve at the tag
 version, and makes the GitHub release if it is missing. A package that npm
 refuses as a version it already holds, but does not serve yet, counts as
-published. So when a step fails after the tag push, the next run finishes that
-release before it makes a new one. To repair a release without a new commit,
+published. So when a step fails after the tag push, the next run of a later
+commit finishes that release before it makes a new one. The release job of an
+earlier commit that runs after it does not, as it repairs the tag before its
+own commit. To repair a release without a new commit,
 run the `ci` workflow by hand; after the checks pass, the release job only
 repairs and does nothing else.
 The job uses the npm that comes with Node 24 and never installs another one.
