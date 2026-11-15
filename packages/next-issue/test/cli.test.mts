@@ -382,6 +382,14 @@ test('a user who stops the worker with SIGTERM sees it exit and remove its socke
   assert.deepEqual(await readdir(stateDir(root)), []);
 });
 
+test('a user whose terminal closes (SIGHUP) on a worker started by hand sees it exit and remove its socket and lock files', async () => {
+  const root = await repository();
+  const { child, exited } = await serveWorker(root);
+  child.kill('SIGHUP');
+  assert.equal(await exited, 'SIGHUP');
+  assert.deepEqual(await readdir(stateDir(root)), []);
+});
+
 test('a user who stops a worker with SIGTERM leaves the socket and lock files that another worker owns', async (t) => {
   const root = await repository();
   const { child, exited } = await serveWorker(root);

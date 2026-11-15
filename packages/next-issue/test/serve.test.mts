@@ -743,7 +743,7 @@ test('a worker that closes leaves a lock file that another worker in the same pr
   assert.deepEqual(await readdir(dir), ['w.lock']);
 });
 
-for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) {
   test(`a worker that gets ${signal} leaves a socket and lock file that are not its own`, async (t) => {
     const root = await tempDir();
     const { socketPath, lockPath } = workerPaths(root);

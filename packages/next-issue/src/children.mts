@@ -80,21 +80,29 @@ export function stopChildren(signal: NodeJS.Signals): void {
   }
   undos.clear();
   process.off('SIGTERM', onTerminate);
+  process.off('SIGHUP', onHangUp);
   process.kill(process.pid, signal);
 }
 
 const onTerminate = (): void => stopChildren('SIGTERM');
 
-/** Handles `SIGTERM` while a command or an agent runs, so its process group is stopped too. */
+const onHangUp = (): void => stopChildren('SIGHUP');
+
+/**
+ * Handles `SIGTERM` and `SIGHUP` (a closed terminal) while a command or an agent runs,
+ * so its process group is stopped too.
+ */
 function guard(): void {
   if (groups.size === 0 && stoppers.size === 0) {
     process.on('SIGTERM', onTerminate);
+    process.on('SIGHUP', onHangUp);
   }
 }
 
 function unguard(): void {
   if (groups.size === 0 && stoppers.size === 0) {
     process.off('SIGTERM', onTerminate);
+    process.off('SIGHUP', onHangUp);
   }
 }
 

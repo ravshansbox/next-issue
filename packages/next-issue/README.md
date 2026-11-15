@@ -391,12 +391,13 @@ Press `Ctrl-C` to stop the run step by step:
    branch that this press kills before any job restarted runs again in the
    next run, before any fixer.
 
-`SIGTERM` to a command-line run while a command or an agent runs, and
-`SIGTERM` or `SIGINT` to the worker (as `next-issue stop` sends), act like
+`SIGTERM` or `SIGHUP` (its terminal or ssh session closes) to a
+command-line run while a command or an agent runs, and `SIGTERM`, `SIGHUP`
+or `SIGINT` to the worker (`next-issue stop` sends `SIGTERM`), act like
 the third press: they stop the running harness commands and agents, with
 the commands the agents started, and give back the review round, the check
-fix and the rerun in the same way. When nothing runs, `SIGTERM` ends a
-command-line run at once.
+fix and the rerun in the same way. When nothing runs, `SIGTERM` or `SIGHUP`
+ends a command-line run at once.
 
 When the reviewer approved the change and the run stopped before its
 commit reached the base branch, the next run drops those edits and any
@@ -831,7 +832,7 @@ affect another. The worker:
   holds it;
 - closes once no run is going when a client with a newer version connects, so
   that the client can start the newer worker;
-- stops every agent and command and exits on `SIGTERM` or `SIGINT`, and
+- stops every agent and command and exits on `SIGTERM`, `SIGHUP` or `SIGINT`, and
   removes its socket and lock files;
 - keeps `.next-issue/worker.log`, where the extension writes the output of
   the worker, within 10 MiB: when it starts and once a minute while it runs,

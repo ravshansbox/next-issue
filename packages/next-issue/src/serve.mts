@@ -204,13 +204,16 @@ export async function serve(root: string, logCheckMs = LOG_CHECK_MS): Promise<nu
   const end = (signal: NodeJS.Signals): void => {
     process.off('SIGTERM', onTerminate);
     process.off('SIGINT', onInterrupt);
+    process.off('SIGHUP', onHangUp);
     worker.release();
     stopChildren(signal);
   };
   const onTerminate = (): void => end('SIGTERM');
   const onInterrupt = (): void => end('SIGINT');
+  const onHangUp = (): void => end('SIGHUP');
   process.on('SIGTERM', onTerminate);
   process.on('SIGINT', onInterrupt);
+  process.on('SIGHUP', onHangUp);
   process.stderr.write(`next-issue: worker listening on ${paths.socketPath}\n`);
   await worker.closed;
   stopTrimming();

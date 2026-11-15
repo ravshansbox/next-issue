@@ -501,6 +501,59 @@ test('a user who sends SIGTERM to a command-line run after its agent ended finds
   assert.equal(process.listenerCount('SIGTERM'), listeners);
 });
 
+test('a user whose terminal closes (SIGHUP) on a command-line run while the reviewer agent runs finds the review round given back in the state file', async (t) => {
+  const first = await harness(t, { hangDuring: 'reviewer' });
+  const kills = t.mock.method(process, 'kill', () => true);
+  void first.run();
+  await first.hung;
+  const release = onStop(() => undefined);
+  process.emit('SIGHUP', 'SIGHUP');
+  release();
+  assert.deepEqual(kills.mock.calls.at(-1)?.arguments, [process.pid, 'SIGHUP']);
+  kills.mock.restore();
+  assert.equal((await first.state())?.reviewRounds, 0);
+});
+
+test('a user whose terminal closes (SIGHUP) on a command-line run while an agent runs and no command runs sees the agent stopped before the run exits', (t) => {
+  const listeners = process.listenerCount('SIGHUP');
+  const order: string[] = [];
+  const kills = t.mock.method(process, 'kill', (pid: number, signal: NodeJS.Signals) => {
+    order.push(`kill ${pid === process.pid ? 'self' : pid} ${signal}`);
+    return true;
+  });
+  const release = onStop(() => order.push('agent stopped'));
+  process.emit('SIGHUP', 'SIGHUP');
+  release();
+  kills.mock.restore();
+  assert.deepEqual(order, ['agent stopped', 'kill self SIGHUP']);
+  assert.equal(process.listenerCount('SIGHUP'), listeners);
+});
+
+test('a user whose terminal closes (SIGHUP) on a command-line run while a command runs sees its process group stopped before the run exits', (t) => {
+  const listeners = process.listenerCount('SIGHUP');
+  const kills = t.mock.method(process, 'kill', () => true);
+  const unwatch = watch(999_999);
+  process.emit('SIGHUP', 'SIGHUP');
+  unwatch();
+  kills.mock.restore();
+  assert.deepEqual(
+    kills.mock.calls.map((call) => call.arguments),
+    [
+      [-999_999, 'SIGHUP'],
+      [process.pid, 'SIGHUP'],
+    ],
+  );
+  assert.equal(process.listenerCount('SIGHUP'), listeners);
+});
+
+test('a user whose terminal closes (SIGHUP) on a command-line run after its agent ended finds no handler that keeps the run alive', () => {
+  const listeners = process.listenerCount('SIGHUP');
+  const release = onStop(() => undefined);
+  assert.equal(process.listenerCount('SIGHUP'), listeners + 1);
+  release();
+  assert.equal(process.listenerCount('SIGHUP'), listeners);
+});
+
 test('a user who presses Ctrl-C three times in a command-line run while the merge conflict fixer runs finds the check fix given back in the state file', async (t) => {
   const first = await harness(t, { merges: [['src/a.ts']], hangDuring: 'fixer' });
   await pressCtrlCThrice(t, first);
