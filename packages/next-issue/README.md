@@ -947,6 +947,11 @@ workflow reads the commits since the last tag and picks the bump: `feat` gives a
 minor, `fix` gives a patch, and a `!` mark or a `BREAKING CHANGE` body gives a
 major. Any other type releases nothing.
 
+The release is the `release` job of the `ci` workflow, and it runs only after
+the `check` job of the same commit passes. A commit that fails the typecheck,
+lint, format check, tests or build releases nothing. As the release is part of
+the `push` run, the harness waits for it like any other check.
+
 The workflow then gives `next-issue` and `@ravshansbox/pi-next-issue` the same
 new version and publishes both packages to npm with a
 [trusted publish](https://docs.npmjs.com/trusted-publishers), so no token is
@@ -962,7 +967,8 @@ version, and makes the GitHub release if it is missing. A package that npm
 refuses as a version it already holds, but does not serve yet, counts as
 published. So when a step fails after the tag push, the next run finishes that
 release before it makes a new one. To repair a release without a new commit,
-run the workflow by hand; a manual run does nothing else.
+run the `ci` workflow by hand; after the checks pass, the release job only
+repairs and does nothing else.
 The job uses the npm that comes with Node 24 and never installs another one.
 Trusted publishing needs npm 11.5.1 or later, so the job stops with an error
 before anything else when the bundled npm is older.
