@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { closeSync, openSync, statSync } from 'node:fs';
+import { closeSync, createWriteStream, openSync, statSync } from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import {
   appendFile,
@@ -19,6 +19,7 @@ import { dirname, join } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import { onStop } from '../src/children.mts';
 import { run, type RunResult } from '../src/exec.mts';
+import { Recorder } from '../src/observe.mts';
 import type { WorkerMessage } from '../src/protocol.mts';
 import { lock, processStart } from '../src/lock.mts';
 import { startWorker } from '../src/serve.mts';
@@ -923,4 +924,28 @@ test('a worker that runs a long time keeps only the newest whole lines of worker
   assert.ok(second.length <= 5 * 1024 * 1024);
   assert.match(second, /^new x+\n/);
   assert.ok(second.endsWith(`new ${line}`));
+});
+
+test('a client of a run whose log cannot be written still sees its progress and the worker keeps answering', async (t) => {
+  t.mock.method(process.stderr, 'write', () => true);
+  const fake = fakeRuns();
+  let recorder: Recorder | undefined;
+  const runRepo: typeof fake.runRepo = async (root, args, controls) => {
+    const dir = await tempDir();
+    recorder = await Recorder.create(dir, 'quiet', controls.onEvent, () =>
+      createWriteStream('/dev/full', { flags: 'a' }),
+    );
+    recorder.event('issue.start', { issue: 7 }, 'verbose');
+    return fake.runRepo(root, args, controls);
+  };
+  const { client, socketPath } = await startedRun(t, { ...fake, runRepo });
+  await client.next((value) => value.type === 'runs' && value.runs['/repo']?.issues.length === 1);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  recorder!.event('issue.start', { issue: 8 }, 'verbose');
+  await client.next((value) => value.type === 'runs' && value.runs['/repo']?.issues.length === 2);
+  const another = await connect(t, socketPath);
+  await another.next((value) => value.type === 'hello');
+  await recorder!.close();
+  fake.finish();
+  await client.next((value) => value.type === 'runs' && value.runs['/repo']?.status === 'finished');
 });

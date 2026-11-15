@@ -28,6 +28,8 @@ class Sink {
   readonly level: Level;
   readonly file: string;
   private readonly listener: ((record: Fields) => void) | undefined;
+  /** Set once the run log fails: the run goes on, and its events reach only the listener. */
+  private failed = false;
 
   constructor(
     stream: WriteStream,
@@ -39,10 +41,24 @@ class Sink {
     this.level = level;
     this.file = file;
     this.listener = listener;
+    // With no listener, a failed open or write (`ENOSPC`, `EIO`, `EMFILE`) would crash the process.
+    stream.on('error', (error) => this.fail(error));
+  }
+
+  private fail(error: unknown): void {
+    if (this.failed) {
+      return;
+    }
+    this.failed = true;
+    process.stderr.write(
+      `next-issue: the run log ${this.file} cannot be written (${message(error)}); the run goes on without it\n`,
+    );
   }
 
   write(record: Fields): void {
-    this.stream.write(`${JSON.stringify(record)}\n`);
+    if (!this.failed) {
+      this.stream.write(`${JSON.stringify(record)}\n`);
+    }
     this.listener?.(record);
   }
 
@@ -59,7 +75,15 @@ class Sink {
   }
 
   close(): Promise<void> {
-    return new Promise((resolve) => this.stream.end(resolve));
+    return new Promise((resolve) => {
+      if (this.stream.closed) {
+        resolve();
+        return;
+      }
+      // `close` comes after the last write is flushed, and also after an error.
+      this.stream.once('close', () => resolve());
+      this.stream.end();
+    });
   }
 }
 
@@ -78,12 +102,13 @@ export class Recorder {
     root: string,
     level: Level,
     listener?: (record: Fields) => void,
+    open: (file: string) => WriteStream = (file) => createWriteStream(file, { flags: 'a' }),
   ): Promise<Recorder> {
     const runId = new Date().toISOString().replace(/[:.]/g, '-');
     const dir = runsDir(root);
     await mkdir(dir, { recursive: true });
     const file = join(dir, `${runId}.jsonl`);
-    const sink = new Sink(createWriteStream(file, { flags: 'a' }), level, file, listener);
+    const sink = new Sink(open(file), level, file, listener);
     return new Recorder(sink, {}, runId);
   }
 

@@ -1,3 +1,4 @@
+import { createWriteStream } from 'node:fs';
 import { join } from 'node:path';
 import type { TestContext } from 'node:test';
 import type { AgentRequest, AgentResult } from '../src/agents.mts';
@@ -120,6 +121,8 @@ export type Plan = {
   hunterText?: string;
   root?: string;
   onEvent?: (record: Record<string, unknown>) => void;
+  /** Every write to the run log fails with `ENOSPC`, as on a full disk. */
+  runLogFails?: boolean;
 };
 
 export type Harness = {
@@ -497,10 +500,15 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     };
   }
 
-  const recorder = await Recorder.create(root, 'quiet', (record) => {
-    state.events.push(record);
-    plan.onEvent?.(record);
-  });
+  const recorder = await Recorder.create(
+    root,
+    'quiet',
+    (record) => {
+      state.events.push(record);
+      plan.onEvent?.(record);
+    },
+    plan.runLogFails === true ? () => createWriteStream('/dev/full', { flags: 'a' }) : undefined,
+  );
   t.after(() => recorder.close());
   state.context = {
     repo,

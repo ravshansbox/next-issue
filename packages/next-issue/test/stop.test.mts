@@ -575,3 +575,18 @@ test('a user who presses Ctrl-C three times in a command-line run while the fail
   assert.deepEqual(target.reruns, ['2']);
   assert.deepEqual(roles(target), []);
 });
+
+test('a user whose run log cannot be written gets the run stopped as asked, with the state kept', async (t) => {
+  const target = await harness(t, { pressDuring: 'implementer', runLogFails: true });
+  const written: string[] = [];
+  t.mock.method(process.stderr, 'write', (chunk: unknown) => {
+    written.push(String(chunk));
+    return true;
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'stopped');
+  assert.equal((await target.state())?.phase, 'implemented');
+  assert.ok(target.events.some((record) => record.kind === 'issue.end'));
+  await sleep(50);
+  assert.equal(written.filter((line) => line.includes('ENOSPC')).length, 1);
+});

@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { createWriteStream } from 'node:fs';
+import { join } from 'node:path';
+import { type TestContext, test } from 'node:test';
 import { Recorder } from '../src/observe.mts';
 import { logRecords } from './log-records.mts';
 import { tempDir } from './temp-dir.mts';
@@ -91,5 +93,64 @@ test('a summary since an earlier one holds only the tokens and events after it',
   assert.equal(summary.roles.reviewer!.calls, 1);
   assert.equal(summary.total.total, 36);
   assert.deepEqual(summary.counts, { usage: 2 });
+  await target.close();
+});
+
+function failingLog(t: TestContext): string[] {
+  const written: string[] = [];
+  t.mock.method(process.stderr, 'write', (chunk: unknown) => {
+    written.push(String(chunk));
+    return true;
+  });
+  return written;
+}
+
+const full = () => createWriteStream('/dev/full', { flags: 'a' });
+
+test('a run whose log write fails keeps passing events to its listener and reports the error once', async (t) => {
+  const written = failingLog(t);
+  const seen: string[] = [];
+  const target = await Recorder.create(
+    await tempDir(),
+    'quiet',
+    (record) => seen.push(String(record.kind)),
+    full,
+  );
+  target.event('run.start', {}, 'verbose');
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  target.event('issue.start', {}, 'verbose');
+  target.event('issue.end', {}, 'verbose');
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(seen, ['run.start', 'issue.start', 'issue.end']);
+  const reports = written.filter((line) => line.includes('ENOSPC'));
+  assert.equal(reports.length, 1);
+  assert.match(reports[0]!, /run log/);
+  await target.close();
+});
+
+test('a run whose log write fails closes its log without a throw or a hang', async (t) => {
+  failingLog(t);
+  const target = await Recorder.create(await tempDir(), 'quiet', undefined, full);
+  target.event('run.start', {}, 'verbose');
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  await target.close();
+});
+
+test('a run whose log fails on its last write closes its log without a throw or a hang', async (t) => {
+  failingLog(t);
+  const target = await Recorder.create(await tempDir(), 'quiet', undefined, full);
+  target.event('run.end', {}, 'verbose');
+  await target.close();
+});
+
+test('a run whose log file cannot be opened keeps running and closes its log', async (t) => {
+  const written = failingLog(t);
+  const root = await tempDir();
+  const target = await Recorder.create(root, 'quiet', undefined, () =>
+    createWriteStream(join(root, 'missing', 'run.jsonl'), { flags: 'a' }),
+  );
+  target.event('run.start', {}, 'verbose');
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(written.filter((line) => line.includes('ENOENT')).length, 1);
   await target.close();
 });
