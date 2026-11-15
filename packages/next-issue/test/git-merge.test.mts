@@ -168,3 +168,58 @@ test('commitMerge that a pre-commit hook stops throws a hook error and keeps the
   });
   await git(path, 'rev-parse', '--verify', '--quiet', 'MERGE_HEAD');
 });
+
+test('startMerge lists a text conflict in a file with a conflict-marker-size attribute as marked, and commitMerge refuses its markers', async () => {
+  const { path, base } = await diverged();
+  await writeFile(join(path, '.gitattributes'), '*.txt conflict-marker-size=10\n');
+  await git(path, 'add', '.gitattributes');
+  await git(path, 'commit', '-q', '-m', 'attributes');
+  await writeFile(join(base, '.gitattributes'), '*.txt conflict-marker-size=10\n');
+  await writeFile(join(base, 'a.txt'), 'base\n');
+  await git(base, 'add', '-A');
+  await git(base, 'commit', '-q', '-m', 'base');
+  await git(base, 'push', '-q', 'origin', 'main');
+  const head = await revision(path);
+  const started = await startMerge(path, 'main', 'origin');
+  assert.deepEqual(started.files, ['a.txt']);
+  assert.deepEqual(started.unmarked, []);
+  assert.match(await readFile(join(path, 'a.txt'), 'utf8'), /^<{10} /m);
+  assert.equal(await commitMerge(path, merge(head, ['a.txt']), 'chore: merge'), false);
+});
+
+for (const autoupdate of ['false', 'true']) {
+  test(`startMerge ignores a recorded rerere resolution (autoupdate ${autoupdate}) and leaves the conflict markers for the fixer`, async () => {
+    const { path, base } = await diverged();
+    await git(path, 'config', 'rerere.enabled', 'true');
+    await git(path, 'config', 'rerere.autoupdate', autoupdate);
+    await writeFile(join(base, 'a.txt'), 'base\n');
+    await git(base, 'commit', '-q', '-am', 'base');
+    await git(base, 'push', '-q', 'origin', 'main');
+    const head = await revision(path);
+    await git(path, 'fetch', '-q', 'origin');
+    await git(path, 'merge', '-q', 'origin/main').catch(() => undefined);
+    await writeFile(join(path, 'a.txt'), 'resolved\n');
+    await git(path, 'add', 'a.txt');
+    await git(path, 'commit', '-q', '--no-edit');
+    await git(path, 'reset', '-q', '--hard', head);
+    const started = await startMerge(path, 'main', 'origin');
+    assert.deepEqual(started.files, ['a.txt']);
+    assert.deepEqual(started.unmarked, []);
+    assert.match(await readFile(join(path, 'a.txt'), 'utf8'), /^<{7} /m);
+  });
+}
+
+test('startMerge lists a text conflict as marked when the merged base adds a conflict-marker-size attribute, and commitMerge refuses its markers', async () => {
+  const { path, base } = await diverged();
+  await writeFile(join(base, '.gitattributes'), '*.txt conflict-marker-size=10\n');
+  await writeFile(join(base, 'a.txt'), 'base\n');
+  await git(base, 'add', '-A');
+  await git(base, 'commit', '-q', '-m', 'base');
+  await git(base, 'push', '-q', 'origin', 'main');
+  const head = await revision(path);
+  const started = await startMerge(path, 'main', 'origin');
+  assert.deepEqual(started.files, ['a.txt']);
+  assert.deepEqual(started.unmarked, []);
+  assert.match(await readFile(join(path, 'a.txt'), 'utf8'), /^<{7} /m);
+  assert.equal(await commitMerge(path, merge(head, ['a.txt']), 'chore: merge'), false);
+});
