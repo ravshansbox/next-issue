@@ -150,6 +150,25 @@ test('an unknown field stops the run', async () => {
   await assert.rejects(parse({ labels: { blocked: 'x' } }), /unknown label name: blocked/);
 });
 
+test('a user who gives labels.needsHuman and labels.skip the same name gets an error that names both', async () => {
+  await assert.rejects(
+    parse({ labels: { needsHuman: 'status:blocked' } }),
+    /labels\.needsHuman and labels\.skip must be different labels, but both are status:blocked/,
+  );
+});
+
+test('a user who gives labels.inProgress the ready name in another case gets an error', async () => {
+  await assert.rejects(
+    parse({ labels: { ready: 'Status:Todo', inProgress: 'status:todo' } }),
+    /labels\.ready and labels\.inProgress must be different labels/,
+  );
+});
+
+test('a user with an empty ready label and distinct status labels gets the config loaded', async () => {
+  const config = await parse({ labels: { ready: '', hunt: 'status:blocked' } });
+  assert.equal(config.labels.ready, '');
+});
+
 test('a budget of zero and an empty ready label are allowed', async () => {
   const config = await parse({ maxCiFixes: 0, checkGraceSeconds: 0, labels: { ready: '' } });
   assert.equal(config.maxCiFixes, 0);

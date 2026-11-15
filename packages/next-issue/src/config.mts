@@ -226,7 +226,27 @@ function parseLabels(value: unknown, defaultLabels: Config['labels']): Config['l
       parsed[name] = text(labels[name], `labels.${name}`, name === 'ready');
     }
   }
+  rejectSameLabels(parsed);
   return parsed;
+}
+
+// Label checks ignore case, so two status labels that match without case would
+// make the harness read one status as another.
+function rejectSameLabels(labels: Config['labels']): void {
+  const seen = new Map<string, string>();
+  for (const name of LABEL_NAMES) {
+    if (name === 'hunt' || labels[name] === '') {
+      continue;
+    }
+    const key = labels[name].toLowerCase();
+    const other = seen.get(key);
+    if (other !== undefined) {
+      throw new Error(
+        `${CONFIG_FILE}: labels.${other} and labels.${name} must be different labels, but both are ${labels[name]} when case is ignored.`,
+      );
+    }
+    seen.set(key, name);
+  }
 }
 
 export function managedLabels(config: Config): string[] {

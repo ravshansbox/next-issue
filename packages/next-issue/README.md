@@ -596,6 +596,10 @@ because no pull request is opened.
 The hunter adds `labels.hunt` to each issue it files, so you can tell those
 issues apart from your own and filter them.
 
+The names in `labels.ready`, `inProgress`, `inReview`, `done`, `needsHuman`
+and `skip` must be distinct, also when case is ignored; two equal names stop
+the run with an error that names both fields. `labels.hunt` may share a name.
+
 An empty `labels.ready` turns the ready requirement off. The harness then
 claims every open issue that no other label holds back.
 
