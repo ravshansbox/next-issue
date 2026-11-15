@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { rm, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import type { AgentRequest } from '../src/agents.mts';
@@ -358,3 +358,48 @@ for (const [who, conflict, file] of MARKERLESS) {
     );
   });
 }
+
+test('a user whose change conflicts with the base in a text file with a non-ASCII name gets the file to the fixer by its real name and the change landed', async (t) => {
+  const file = 'docs/café 日本.txt';
+  const { target, base } = await realMerge(
+    t,
+    async (worktree) => {
+      await writeFile(join(worktree, file), 'branch and base\n');
+      await git(worktree, 'commit', '-qam', 'merge');
+    },
+    {
+      start: async (other) => {
+        await mkdir(join(other, 'docs'));
+        await writeFile(join(other, file), 'start\n');
+      },
+      branch: (worktree) => writeFile(join(worktree, file), 'branch\n'),
+      base: (other) => writeFile(join(other, file), 'base\n'),
+    },
+  );
+  const report = await target.run();
+  assert.equal(report.reason, undefined);
+  assert.equal(report.outcome, 'done');
+  const fix = target.events.find((record) => record.kind === 'fix.start');
+  assert.equal(fix?.cause, 'conflict');
+  const conflicts = target.events.find((record) => record.kind === 'rebase.conflicts');
+  assert.deepEqual(conflicts?.files, [file]);
+  const fixer = target.prompts.find((entry) => entry.role === 'fixer')!.prompt;
+  assert.ok(fixer.includes(file));
+  assert.equal(await git(base, 'show', `${await remoteMain(base)}:${file}`), 'branch and base');
+});
+
+test('a user whose base deletes a file with a non-ASCII name that the branch changes gets the issue handed over with the file named by its real name', async (t) => {
+  const file = 'café.txt';
+  const { target } = await realMerge(t, (worktree) => git(worktree, 'commit', '-qam', 'merge'), {
+    start: (other) => writeFile(join(other, file), 'start\n'),
+    branch: (worktree) => writeFile(join(worktree, file), 'branch\n'),
+    base: (other) => rm(join(other, file)),
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'merge conflict');
+  assert.deepEqual(roles(target), ['implementer', 'reviewer']);
+  const comment = target.comments.at(-1)!;
+  assert.match(comment, /no conflict marker[^]*café\.txt/);
+  assert.doesNotMatch(comment, /\\303/);
+});

@@ -1,9 +1,8 @@
 import { join } from 'node:path';
-import { run, succeeded } from './exec.mts';
+import { failedWith, run, succeeded } from './exec.mts';
 import { readTextOrEmpty } from './files.mts';
 import { commitEverything } from './git-commit.mts';
 import { fetchBase, git, isAncestor, resetHard, succeeds } from './git.mts';
-import { lines } from './text.mts';
 
 export type MergeStart = { target: string; files: string[] | undefined; unmarked: string[] };
 
@@ -13,8 +12,7 @@ export async function startMerge(cwd: string, base: string, remote: string): Pro
   if (succeeded(result)) {
     return { target, files: (await merging(cwd)) ? [] : undefined, unmarked: [] };
   }
-  const listed = await git(cwd, ['diff', '--name-only', '--diff-filter=U']);
-  const files = lines(listed);
+  const files = await unmergedFiles(cwd);
   if (files.length === 0) {
     throw new Error(`git merge ${target} failed: ${result.stderr.trim()}`);
   }
@@ -25,6 +23,15 @@ export async function startMerge(cwd: string, base: string, remote: string): Pro
     }
   }
   return { target, files, unmarked };
+}
+
+async function unmergedFiles(cwd: string): Promise<string[]> {
+  const args = ['diff', '--name-only', '-z', '--diff-filter=U'];
+  const listed = await run('git', args, { cwd });
+  if (!succeeded(listed)) {
+    throw new Error(failedWith(`git ${args.join(' ')}`, listed));
+  }
+  return listed.stdout.split('\0').filter((file) => file !== '');
 }
 
 async function merging(cwd: string): Promise<boolean> {
