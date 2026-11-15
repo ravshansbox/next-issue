@@ -17,7 +17,7 @@ export async function checkGate(job: Run, sha: string): Promise<Gate> {
     checks = await rerunOnce(job, sha, await waitForChecks(job, sha));
   } catch (error) {
     if (job.mainBroken) {
-      return escalateError(job, error, `The read of the checks on ${base} failed`, 'checks error');
+      return unreadFixChecks(job, error);
     }
     return unreadChecks(job, error);
   }
@@ -184,6 +184,23 @@ async function unreadChecks(job: Run, error: unknown): Promise<Finished> {
   return escalateAndFinish(
     job,
     `The read of the checks on ${base} failed: ${sentence(message(error))} The landed commit is on \`${base}\`, and its checks were not awaited. ${HALT_NOTE}`,
+    'checks error',
+  );
+}
+
+/** A broken base whose checks cannot be read is reverted; while the revert fails, the halt stays saved. */
+async function unreadFixChecks(job: Run, error: unknown): Promise<Finished> {
+  if (runStopped()) {
+    throw error;
+  }
+  const { context, state } = job;
+  state.halted = true;
+  await writeState(context.repo, state);
+  const reverted = await revertOrReport(job);
+  const halt = state.halted === true ? ` ${HALT_NOTE}` : '';
+  return escalateAndFinish(
+    job,
+    `The read of the checks on ${context.base} failed: ${sentence(message(error))}${reverted}${halt}`,
     'checks error',
   );
 }

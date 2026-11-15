@@ -402,3 +402,58 @@ test('a user whose issue keeps a halt with nothing on main and fails its push ge
   assert.equal((await target.run()).reason, 'push failed');
   assert.equal((await target.state())?.halted, undefined);
 });
+
+async function fixChecksUnread(
+  t: Parameters<typeof harness>[0],
+  revert: 'fails' | 'throws' | 'lands',
+) {
+  const first = await harness(t, {
+    baseChecks: ['fail'],
+    fixerText: 'Done.\ncommit: fix: repair main',
+    revertFails: revert === 'fails',
+  });
+  const ports = first.context.ports;
+  const waitForBaseChecks = ports.waitForBaseChecks;
+  ports.waitForBaseChecks = async (...args) => {
+    if (first.landed.length > 1) {
+      throw new Error('gh: could not resolve host');
+    }
+    return waitForBaseChecks(...args);
+  };
+  if (revert === 'throws') {
+    ports.revertOnBase = async () => {
+      throw new Error('git fetch: could not resolve host');
+    };
+  }
+  const report = await first.run();
+  assert.equal(report.reason, 'checks error');
+  assert.equal(report.halt, true);
+  return first;
+}
+
+for (const revert of ['fails', 'throws'] as const) {
+  test(`a user whose fix for main lands with checks that cannot be read and whose revert ${revert === 'fails' ? 'fails' : 'throws'} gets the halt saved and no other issue landed by the next run`, async (t) => {
+    const first = await fixChecksUnread(t, revert);
+    const state = await first.state();
+    assert.equal(state?.landed?.length, 2);
+    assert.equal(state?.halted, true);
+    assert.match(
+      first.comments.at(-1) ?? '',
+      /no run lands another change until this issue resumes/,
+    );
+    const second = await harness(t, { root: first.context.repo.root, issue: OTHER });
+    const blocked = await second.run();
+    assert.equal(blocked.reason, 'base unchecked');
+    assert.deepEqual(second.landed, []);
+    assert.ok(second.events.some((record) => record['kind'] === 'land.blocked'));
+  });
+}
+
+test('a user whose fix for main lands with checks that cannot be read and whose revert lands gets the next run to land another issue', async (t) => {
+  const first = await fixChecksUnread(t, 'lands');
+  assert.equal((await first.state())?.halted, undefined);
+  assert.doesNotMatch(first.comments.at(-1) ?? '', /no run lands another change/);
+  const second = await harness(t, { root: first.context.repo.root, issue: OTHER });
+  assert.equal((await second.run()).outcome, 'done');
+  assert.equal(second.landed.length, 1);
+});
