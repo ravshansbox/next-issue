@@ -180,8 +180,13 @@ the run handles one issue. For each issue:
    `schedule`) started, since GitHub gives such a run the tip of the
    default branch as its commit. It also leaves out the `push` runs that a
    push of a tag or of another branch started on the same commit, such as
-   a release or a deploy. A failed or errored commit status, or a
-   workflow run or check run that ends with `failure`, `timed_out` or
+   a release or a deploy. It leaves out every GitHub Actions job, check run
+   and commit status whose name is in `ignoredChecks`: it does not wait for
+   it, its result does not fail the checks and its logs do not go to the
+   fixer. With `ignoredChecks` set, the harness judges each workflow run by
+   its other jobs, so a run whose only failed job is ignored passes. A
+   failed or errored commit status, or a workflow run or check run that
+   ends with `failure`, `timed_out` or
    `action_required`, fails the checks. The harness does not rerun a
    workflow run that ends `action_required`, since it waits for a person
    to approve it. When any check ends `cancelled`, for example because
@@ -600,6 +605,7 @@ because no pull request is opened.
   "keepRunDays": 7,
   "checks": [],
   "checksTimeoutMinutes": 30,
+  "ignoredChecks": [],
   "models": {
     "implementer": null,
     "reviewer": null,
@@ -637,6 +643,7 @@ because no pull request is opened.
 | `keepRunDays`           | `7`                | The number of days to keep the run files; `0` keeps them all                                                                                                                                              |
 | `checks`                | `[]`               | Shell commands that must pass in the worktree, in order, before an approved change is pushed; a failure goes to the fixer                                                                                 |
 | `checksTimeoutMinutes`  | `30`               | The limit for one command in `checks`, at most `35791`                                                                                                                                                    |
+| `ignoredChecks`         | `[]`               | Names of GitHub Actions jobs, check runs and commit statuses, such as `release`, that the checks on the base branch do not wait for and whose failure does not count                                      |
 | `setupCommand`          | from the lock file | A shell command to run in a new worktree, before the implementer                                                                                                                                          |
 | `models`                | `null` per role    | The pi model per agent role, as `provider/model`: `implementer`, `reviewer`, `fixer`                                                                                                                      |
 | `labels`                | see above          | The names of the labels that the harness reads and sets                                                                                                                                                   |

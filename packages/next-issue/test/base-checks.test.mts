@@ -9,7 +9,12 @@ import { installGh } from './fake-gh.mts';
 import { harness } from './harness.mts';
 import { tempDir } from './temp-dir.mts';
 
-type External = { checkRuns?: unknown[]; statuses?: unknown[][]; sha?: string };
+type External = {
+  checkRuns?: unknown[];
+  statuses?: unknown[][];
+  sha?: string;
+  jobs?: Record<number, unknown[]>;
+};
 
 function jsonLines(items: unknown[]): string {
   return items.map((item) => `${JSON.stringify(item)}\n`).join('');
@@ -23,10 +28,13 @@ async function fakeRunsGh(
   t: TestContext,
   runs: unknown[],
   rerunRuns: unknown[] = runs,
-  { checkRuns = [], statuses = [[]], sha = 'abc' }: External = {},
+  { checkRuns = [], statuses = [[]], sha = 'abc', jobs = {} }: External = {},
 ): Promise<string> {
   const dir = await tempDir();
   await writeFile(join(dir, 'check-runs'), jsonLines(checkRuns));
+  for (const [id, reply] of Object.entries(jobs)) {
+    await writeFile(join(dir, `jobs.${id}`), jsonLines(reply));
+  }
   await writeFile(join(dir, 'runs'), jsonLines(pushRuns(runs)));
   await writeFile(join(dir, 'rerun-runs'), jsonLines(pushRuns(rerunRuns)));
   for (const [index, reply] of statuses.entries()) {
@@ -38,10 +46,11 @@ d="$(dirname "$0")"
 case "$*" in
   "api --paginate repos/acme/tool/actions/runs?head_sha=${sha}&per_page=100 --jq "*) if [ -f "$d/reruns" ]; then cat "$d/rerun-runs"; else cat "$d/runs"; fi; exit 0 ;;
   "api --paginate repos/acme/tool/commits/${sha}/check-runs?per_page=100 --jq "*) cat "$d/check-runs"; exit 0 ;;
+  "api --paginate repos/acme/tool/actions/runs/"*"/jobs?filter=latest&per_page=100 --jq "*) id="\${3#repos/acme/tool/actions/runs/}"; id="\${id%%/*}"; cat "$d/jobs.$id" 2>/dev/null; exit 0 ;;
   "api --paginate repos/acme/tool/commits/${sha}/status?per_page=100 --jq "*) n=$(cat "$d/status-reads" 2>/dev/null || echo 0); echo $((n + 1)) > "$d/status-reads"; f="$d/status.$n"; [ -f "$f" ] || f="$d/status.last"; cat "$f"; exit 0 ;;
 esac
 case "$1 $2" in
-  "run view") if [ -f "$d/log" ]; then cat "$d/log"; else echo "boom in $3"; fi ;;
+  "run view") if [ "$3" = "--job" ]; then echo "boom in job $4"; elif [ -f "$d/log" ]; then cat "$d/log"; else echo "boom in $3"; fi ;;
   "run rerun") [ "$4" = "--failed" ] || { echo "unexpected: $*" >&2; exit 1; }; echo "$3" >> "$(dirname "$0")/reruns" ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
@@ -803,3 +812,145 @@ test('a user whose landed commit fails only a check from another CI service gets
   assert.ok(rerun !== -1 && (fixer === -1 || rerun < fixer));
   assert.deepEqual(target.events[rerun]!.runs, []);
 });
+
+const RELEASE_FAILED_CI = {
+  databaseId: 1,
+  name: 'ci',
+  status: 'completed',
+  conclusion: 'failure',
+  attempt: 1,
+};
+const RELEASE_FAILED_JOBS = {
+  1: [
+    { databaseId: 11, name: 'check', status: 'completed', conclusion: 'success' },
+    { databaseId: 12, name: 'release', status: 'completed', conclusion: 'failure' },
+  ],
+};
+
+test('waitForBaseChecks passes when the only failed job of a workflow run is in the ignored checks', async (t) => {
+  const dir = await fakeRunsGh(t, [RELEASE_FAILED_CI], [], { jobs: RELEASE_FAILED_JOBS });
+  const repo = { owner: 'acme', name: 'tool', root: dir };
+  assert.equal(await waitForBaseChecks(repo, 'abc', 'main', BASE_WAIT, [], ['release']), 'pass');
+  assert.equal(await waitForBaseChecks(repo, 'abc', 'main', BASE_WAIT, [], []), 'fail');
+});
+
+test('waitForBaseChecks does not wait for an ignored job that still runs once every other job passed', async (t) => {
+  const dir = await fakeRunsGh(
+    t,
+    [{ databaseId: 1, name: 'ci', status: 'in_progress', conclusion: '', attempt: 1 }],
+    [],
+    {
+      jobs: {
+        1: [
+          { databaseId: 11, name: 'check', status: 'completed', conclusion: 'success' },
+          { databaseId: 12, name: 'release', status: 'waiting', conclusion: '' },
+        ],
+      },
+    },
+  );
+  const repo = { owner: 'acme', name: 'tool', root: dir };
+  assert.equal(await waitForBaseChecks(repo, 'abc', 'main', BASE_WAIT, [], ['release']), 'pass');
+});
+
+test('waitForBaseChecks keeps waiting for a running workflow run whose listed jobs have all finished', async (t) => {
+  const dir = await fakeRunsGh(
+    t,
+    [{ databaseId: 1, name: 'ci', status: 'in_progress', conclusion: '', attempt: 1 }],
+    [],
+    {
+      jobs: {
+        1: [{ databaseId: 11, name: 'check', status: 'completed', conclusion: 'success' }],
+      },
+    },
+  );
+  const repo = { owner: 'acme', name: 'tool', root: dir };
+  assert.equal(
+    await waitForBaseChecks(repo, 'abc', 'main', { ...BASE_WAIT, timeoutMs: 1500 }, [], ['release']),
+    'timeout',
+  );
+});
+
+test('waitForBaseChecks fails when a job outside the ignored checks fails next to an ignored one', async (t) => {
+  const dir = await fakeRunsGh(t, [RELEASE_FAILED_CI], [], {
+    jobs: {
+      1: [
+        { databaseId: 11, name: 'check', status: 'completed', conclusion: 'failure' },
+        { databaseId: 12, name: 'release', status: 'completed', conclusion: 'failure' },
+      ],
+    },
+  });
+  const repo = { owner: 'acme', name: 'tool', root: dir };
+  assert.equal(await waitForBaseChecks(repo, 'abc', 'main', BASE_WAIT, [], ['release']), 'fail');
+});
+
+test('waitForBaseChecks leaves out a check run and a commit status whose names are in the ignored checks', async (t) => {
+  const dir = await fakeRunsGh(t, [], [], {
+    checkRuns: [
+      { name: 'deploy', status: 'completed', conclusion: 'failure', app: 'vercel', url: '' },
+      { name: 'build', status: 'completed', conclusion: 'success', app: 'circleci', url: '' },
+    ],
+    statuses: [[{ name: 'ci/jenkins', state: 'pending', url: '' }]],
+  });
+  const repo = { owner: 'acme', name: 'tool', root: dir };
+  assert.equal(
+    await waitForBaseChecks(repo, 'abc', 'main', BASE_WAIT, [], ['deploy', 'ci/jenkins']),
+    'pass',
+  );
+});
+
+test('rerunFailedBase and failedBaseLogs leave out a run whose only failed job is in the ignored checks', async (t) => {
+  const dir = await fakeRunsGh(t, [RELEASE_FAILED_CI], [], { jobs: RELEASE_FAILED_JOBS });
+  const repo = { owner: 'acme', name: 'tool', root: dir };
+  assert.equal(await failedBaseLogs(repo, 'abc', 'main', 1000, ['release']), '');
+  assert.deepEqual(await rerunFailedBase(repo, 'abc', 'main', () => {}, ['release']), []);
+});
+
+test('failedBaseLogs gives the logs of the failed jobs outside the ignored checks only', async (t) => {
+  const dir = await fakeRunsGh(t, [RELEASE_FAILED_CI], [], {
+    jobs: {
+      1: [
+        { databaseId: 11, name: 'check', status: 'completed', conclusion: 'failure' },
+        { databaseId: 12, name: 'release', status: 'completed', conclusion: 'failure' },
+      ],
+    },
+    checkRuns: [
+      { name: 'deploy', status: 'completed', conclusion: 'failure', app: 'vercel', url: '' },
+    ],
+  });
+  const report = await failedBaseLogs(
+    { owner: 'acme', name: 'tool', root: dir },
+    'abc',
+    'main',
+    1000,
+    ['release', 'deploy'],
+  );
+  assert.match(report, /## ci \/ check/);
+  assert.match(report, /boom in job 11/);
+  assert.doesNotMatch(report, /release|boom in job 12|deploy/);
+});
+
+for (const ignoredChecks of [['release'], []]) {
+  test(`a user whose landed commit fails only the release job ${ignoredChecks.length > 0 ? 'with release in ignoredChecks gets the issue closed and done' : 'with no ignoredChecks gets the fixer and no close'}`, async (t) => {
+    const target = await harness(t, {
+      config: { checkGraceSeconds: 0, checkIntervalSeconds: 1, maxCiFixes: 0, ignoredChecks },
+    });
+    await fakeRunsGh(t, [RELEASE_FAILED_CI], [{ ...RELEASE_FAILED_CI, attempt: 2 }], {
+      sha: '2',
+      jobs: RELEASE_FAILED_JOBS,
+    });
+    target.context.ports.waitForBaseChecks = waitForBaseChecks;
+    target.context.ports.rerunFailedBase = rerunFailedBase;
+    target.context.ports.failedBaseLogs = failedBaseLogs;
+    const report = await target.run();
+    if (ignoredChecks.length > 0) {
+      assert.equal(report.outcome, 'done');
+      assert.deepEqual(target.closed, [7]);
+      assert.deepEqual(target.reverts, []);
+      assert.deepEqual(target.reruns, []);
+    } else {
+      assert.equal(report.reason, 'check budget');
+      assert.deepEqual(target.closed, []);
+      assert.notDeepEqual(target.reverts, []);
+    }
+  });
+}

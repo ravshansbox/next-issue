@@ -2,6 +2,7 @@ import { mkdir, readFile, rename } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
   CONFIG_FILE,
+  checkNames,
   commands,
   OLD_CONFIG_FILE,
   record,
@@ -34,6 +35,8 @@ export type Config = {
   /** Commands that must pass in the worktree before a change is pushed to the base. */
   checks: string[];
   checksTimeoutMinutes: number;
+  /** Names of GitHub Actions jobs, check runs and commit statuses that the checks of a landed commit leave out. */
+  ignoredChecks: string[];
   models: {
     implementer?: string;
     reviewer?: string;
@@ -69,6 +72,7 @@ const DEFAULTS: Config = {
   keepRunDays: 7,
   checks: [],
   checksTimeoutMinutes: 30,
+  ignoredChecks: [],
   models: {},
   labels: {
     ready: 'status:todo',
@@ -85,6 +89,7 @@ function defaults(): Config {
   return {
     ...DEFAULTS,
     checks: [...DEFAULTS.checks],
+    ignoredChecks: [...DEFAULTS.ignoredChecks],
     models: { ...DEFAULTS.models },
     labels: { ...DEFAULTS.labels },
   };
@@ -210,6 +215,9 @@ function parseConfig(value: unknown): Config {
   }
   if (file.checks !== undefined) {
     config.checks = commands(file.checks, 'checks');
+  }
+  if (file.ignoredChecks !== undefined) {
+    config.ignoredChecks = checkNames(file.ignoredChecks, 'ignoredChecks');
   }
   if (file.models !== undefined) {
     config.models = parseModels(file.models);

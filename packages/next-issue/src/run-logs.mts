@@ -5,24 +5,24 @@ import { joinFilled } from './text.mts';
 
 export async function runLogs(
   repo: Repo,
-  failed: Array<{ heading: string; runId: string | undefined }>,
+  failed: Array<{ heading: string; view: string[] | undefined }>,
   maxChars: number,
 ): Promise<string> {
-  const withLog = failed.filter(({ runId }) => runId !== undefined).length;
+  const withLog = failed.filter(({ view }) => view !== undefined).length;
   const share = Math.max(1, Math.floor(maxChars / Math.max(1, withLog)));
   const parts: string[] = [];
-  for (const { heading, runId } of failed) {
+  for (const { heading, view } of failed) {
     parts.push(heading);
-    if (runId === undefined) {
+    if (view === undefined) {
       continue;
     }
-    parts.push(await runLog(repo, runId, share));
+    parts.push(await runLog(repo, view, share));
   }
   return parts.join('\n\n');
 }
 
-async function runLog(repo: Repo, runId: string, share: number): Promise<string> {
-  const logs = await ghRun(repo, ['run', 'view', runId, '--log-failed'], { tailChars: share });
+async function runLog(repo: Repo, view: string[], share: number): Promise<string> {
+  const logs = await ghRun(repo, ['run', 'view', ...view, '--log-failed'], { tailChars: share });
   if (succeeded(logs)) {
     return logs.stdout;
   }

@@ -57,7 +57,14 @@ async function waitForChecks(
   const { context, log } = job;
   const { repo, config, ports } = context;
   const checks = await log.step('main-checks', { sha, ...fields }, () =>
-    ports.waitForBaseChecks(repo, sha, context.base, checkWaiting(config, true), restarted),
+    ports.waitForBaseChecks(
+      repo,
+      sha,
+      context.base,
+      checkWaiting(config, true),
+      restarted,
+      config.ignoredChecks,
+    ),
   );
   log.event('main-checks.state', { state: checks, ...fields });
   return checks;
@@ -83,9 +90,15 @@ async function rerunFailed(job: Run, sha: string): Promise<Restarted[]> {
   const { context, log } = job;
   const restarted: Restarted[] = [];
   try {
-    const runs = await context.ports.rerunFailedBase(context.repo, sha, context.base, (run) => {
-      restarted.push(run);
-    });
+    const runs = await context.ports.rerunFailedBase(
+      context.repo,
+      sha,
+      context.base,
+      (run) => {
+        restarted.push(run);
+      },
+      context.config.ignoredChecks,
+    );
     // An empty list tells why the fixer starts with no rerun: no failed workflow run is left to rerun.
     log.event('main-checks.rerun', { sha, runs });
   } catch (error) {
@@ -123,7 +136,7 @@ async function failedChecksFix(job: Run, sha: string, refused?: string): Promise
   let logs: string;
   try {
     logs = await refundOnKill(job, 'ciFixes', () =>
-      ports.failedBaseLogs(repo, sha, base, config.logMaxChars),
+      ports.failedBaseLogs(repo, sha, base, config.logMaxChars, config.ignoredChecks),
     );
   } catch (error) {
     await refundStopped(job);

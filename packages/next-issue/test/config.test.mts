@@ -32,6 +32,7 @@ test('a missing file gives the defaults', async () => {
   assert.equal(config.diffMaxChars, 60000);
   assert.deepEqual(config.checks, []);
   assert.equal(config.checksTimeoutMinutes, 30);
+  assert.deepEqual(config.ignoredChecks, []);
   assert.deepEqual(config.models, {});
   assert.equal(config.labels.hunt, 'source:hunt');
 });
@@ -149,6 +150,20 @@ test('a user who sets checks to something other than a list of commands gets an 
     parse({ checksTimeoutMinutes: 0 }),
     /checksTimeoutMinutes must be a whole number from 1 to 35791/,
   );
+});
+
+test('a user who sets ignoredChecks gets the check names', async () => {
+  const config = await parse({ ignoredChecks: ['release', 'deploy'] });
+  assert.deepEqual(config.ignoredChecks, ['release', 'deploy']);
+});
+
+test('a user who sets ignoredChecks to something other than a list of names gets an error that names the field', async () => {
+  for (const ignoredChecks of ['release', [''], [3], null]) {
+    await assert.rejects(
+      parse({ ignoredChecks }),
+      /ignoredChecks must be a list of check names that are not empty/,
+    );
+  }
 });
 
 test('a user who sets agent in the file gets an unknown field error', async () => {

@@ -54,3 +54,10 @@ export function commands(value: unknown, field: string): string[] {
   }
   return [...(value as string[])];
 }
+
+export function checkNames(value: unknown, field: string): string[] {
+  if (!Array.isArray(value) || !value.every((entry) => typeof entry === 'string' && entry !== '')) {
+    throw new Error(`${CONFIG_FILE}: ${field} must be a list of check names that are not empty.`);
+  }
+  return [...(value as string[])];
+}

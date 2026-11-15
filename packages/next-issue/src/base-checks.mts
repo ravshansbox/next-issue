@@ -14,7 +14,10 @@ type BaseRun = {
   attempt: number;
   event: string;
   branch: string;
+  jobs?: Job[];
 };
+
+type Job = { databaseId: number; name: string; status: string; conclusion: string };
 
 type Check = { name: string; status: string; conclusion: string; url: string };
 
@@ -49,19 +52,67 @@ function jsonLines<T>(raw: string): T[] {
     .map((line) => JSON.parse(line) as T);
 }
 
-async function baseRuns(repo: Repo, sha: string, branch: string): Promise<BaseRun[]> {
+async function baseRuns(
+  repo: Repo,
+  sha: string,
+  branch: string,
+  ignored: string[],
+): Promise<BaseRun[]> {
   const runs = await ghApi(
     repo,
     `actions/runs?head_sha=${sha}&per_page=100`,
     '.workflow_runs[] | {databaseId: .id, name, status, conclusion: (.conclusion // ""), attempt: .run_attempt, event, branch: (.head_branch // "")} | @json',
     { paginate: true },
   );
-  return jsonLines<BaseRun>(runs).filter(
+  const pushed = jsonLines<BaseRun>(runs).filter(
     (entry) => entry.event === 'push' && entry.branch === branch,
   );
+  if (ignored.length === 0) {
+    return pushed;
+  }
+  const judged = await Promise.all(pushed.map((entry) => withoutIgnored(repo, entry, ignored)));
+  return judged.filter((entry) => entry !== undefined);
 }
 
-async function externalChecks(repo: Repo, sha: string): Promise<Check[]> {
+/** Judges a workflow run by its jobs outside the ignored checks; a run with no job yet, or a running one whose listed jobs all finished, keeps its own state, as a job not listed yet may follow. */
+async function withoutIgnored(
+  repo: Repo,
+  run: BaseRun,
+  ignored: string[],
+): Promise<BaseRun | undefined> {
+  const jobs = jsonLines<Job>(
+    await ghApi(
+      repo,
+      `actions/runs/${run.databaseId}/jobs?filter=latest&per_page=100`,
+      '.jobs[] | {databaseId: .id, name, status, conclusion: (.conclusion // "")} | @json',
+      { paginate: true },
+    ),
+  );
+  if (jobs.length === 0 || (run.status !== 'completed' && jobs.every(completedJob))) {
+    return run;
+  }
+  const kept = jobs.filter((job) => !ignored.includes(job.name));
+  if (kept.length === 0) {
+    return undefined;
+  }
+  if (!kept.every(completedJob)) {
+    return { ...run, status: 'in_progress', conclusion: '', jobs: kept };
+  }
+  return { ...run, status: 'completed', conclusion: jobsConclusion(kept), jobs: kept };
+}
+
+function completedJob(job: Job): boolean {
+  return job.status === 'completed';
+}
+
+function jobsConclusion(jobs: Job[]): string {
+  if (jobs.some(failedRun)) {
+    return 'failure';
+  }
+  return jobs.some((job) => job.conclusion === 'cancelled') ? 'cancelled' : 'success';
+}
+
+async function externalChecks(repo: Repo, sha: string, ignored: string[]): Promise<Check[]> {
   const [runs, statuses] = await Promise.all([
     ghApi(
       repo,
@@ -90,7 +141,7 @@ async function externalChecks(repo: Repo, sha: string): Promise<Check[]> {
     conclusion: FAILED_STATES.has(entry.state) ? 'failure' : entry.state,
     url: entry.url ?? '',
   }));
-  return [...checkRuns, ...commitStatuses];
+  return [...checkRuns, ...commitStatuses].filter((entry) => !ignored.includes(entry.name));
 }
 
 async function baseChecks(
@@ -98,10 +149,11 @@ async function baseChecks(
   sha: string,
   branch: string,
   restarted: Restarted[],
+  ignored: string[],
 ): Promise<{ runs: BaseRun[]; external: Check[]; rerunning: boolean }> {
   const [runs, external] = await Promise.all([
-    baseRuns(repo, sha, branch),
-    externalChecks(repo, sha),
+    baseRuns(repo, sha, branch, ignored),
+    externalChecks(repo, sha, ignored),
   ]);
   // A rerun run counts as running until a later attempt of it completes, so its old failure never ends the wait.
   const rerunning = restarted.some(
@@ -144,6 +196,7 @@ export function waitForBaseChecks(
   branch: string,
   options: PollOptions,
   restarted: Restarted[] = [],
+  ignored: string[] = [],
 ): Promise<CheckState> {
   let read: { runs: BaseRun[]; external: Check[]; rerunning: boolean } = {
     runs: [],
@@ -155,7 +208,7 @@ export function waitForBaseChecks(
       head: async () => sha,
       lags: async () => true,
       list: async () => {
-        read = await baseChecks(repo, sha, branch, restarted);
+        read = await baseChecks(repo, sha, branch, restarted, ignored);
         return read.runs.length + read.external.length === 0 && !read.rerunning ? 'none' : 'some';
       },
       watch: async () => (read.rerunning ? 'pending' : baseState(read.runs, read.external)),
@@ -169,14 +222,15 @@ export async function rerunFailedBase(
   sha: string,
   branch: string,
   started: (run: Restarted) => void = () => {},
+  ignored: string[] = [],
 ): Promise<string[]> {
-  const failed = (await baseRuns(repo, sha, branch)).filter(rerunnable);
+  const failed = (await baseRuns(repo, sha, branch, ignored)).filter(rerunnable);
   for (const entry of failed) {
     await rerun(repo, entry.databaseId);
     started({ id: entry.databaseId, attempt: entry.attempt });
   }
   if (failed.length > 0) {
-    await waitForRestart(repo, sha, branch, failed);
+    await waitForRestart(repo, sha, branch, failed, ignored);
   }
   return failed.map((entry) => String(entry.databaseId));
 }
@@ -197,9 +251,10 @@ async function waitForRestart(
   sha: string,
   branch: string,
   failed: BaseRun[],
+  ignored: string[],
 ): Promise<void> {
   for (let attempt = 1; attempt <= RESTART_TRIES; attempt += 1) {
-    const runs = await baseRuns(repo, sha, branch);
+    const runs = await baseRuns(repo, sha, branch, ignored);
     const restarted = failed.every((entry) =>
       runs.some((run) => run.databaseId === entry.databaseId && run.attempt > entry.attempt),
     );
@@ -215,13 +270,19 @@ export async function failedBaseLogs(
   sha: string,
   branch: string,
   maxChars: number,
+  ignored: string[] = [],
 ): Promise<string> {
-  const failed = (await baseRuns(repo, sha, branch))
-    .filter(failedRun)
-    .map((entry) => ({ heading: `## ${entry.name}`, runId: String(entry.databaseId) }));
-  const external = (await externalChecks(repo, sha)).filter(failedRun).map((entry) => ({
+  const failed = (await baseRuns(repo, sha, branch, ignored)).filter(failedRun).flatMap((entry) =>
+    entry.jobs === undefined
+      ? [{ heading: `## ${entry.name}`, view: [String(entry.databaseId)] }]
+      : entry.jobs.filter(failedRun).map((job) => ({
+          heading: `## ${entry.name} / ${job.name}`,
+          view: ['--job', String(job.databaseId)],
+        })),
+  );
+  const external = (await externalChecks(repo, sha, ignored)).filter(failedRun).map((entry) => ({
     heading: entry.url === '' ? `## ${entry.name}` : `## ${entry.name}\n${entry.url}`,
-    runId: undefined,
+    view: undefined,
   }));
   return runLogs(repo, [...failed, ...external], maxChars);
 }
