@@ -98,7 +98,7 @@ esac
   let waits = 0;
   const code = await runRepo(
     root,
-    { ...parseArgs(['--watch']), level: 'quiet' },
+    { ...parseArgs(['start', '--watch']), level: 'quiet' },
     {
       interrupts: {
         afterIssue: () => false,

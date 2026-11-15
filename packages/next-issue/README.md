@@ -4,7 +4,7 @@ A small harness that works through the open issues of a GitHub repository with
 the [pi](https://github.com/earendil-works/pi) SDK. Run it inside a git repository.
 
 ```bash
-npx -y next-issue@latest
+npx -y next-issue@latest start
 ```
 
 ## Overview
@@ -393,7 +393,7 @@ The one exception is the answer to a hand-over, see
 
 ## Stop a run
 
-Press `Ctrl-C` to stop the run step by step:
+Press `Ctrl-C` to stop a `next-issue start` run step by step:
 
 1. The first press stops new claims. The harness finishes every issue that it
    holds and then writes the summary as usual.
@@ -735,31 +735,41 @@ an issue for the next run to clean up.
 
 ## Commands and options
 
-| Argument    | Effect                                                                                 |
-| ----------- | -------------------------------------------------------------------------------------- |
-| `init`      | Write the config file with the defaults                                                |
-| `serve`     | Run the worker of this repository that pi extensions talk to, see [Worker](#worker)    |
-| `stop`      | Stop the worker of this repository, see [Worker](#worker)                              |
-| `logs`      | Show the latest run log and follow it, see [Observability](#observability)             |
-| `--force`   | Replace an existing config file, with `init`                                           |
-| `--once`    | Stop after the first handled issue                                                     |
-| `--max <n>` | Handle at most n issues                                                                |
-| `--watch`   | Keep running, and read the open issues again after each pass                           |
-| `--hunt`    | Hunt the repository for bugs alongside the issues, see [Hunt for bugs](#hunt-for-bugs) |
-| `--reset`   | Drop the saved budgets and findings, and keep the rest of the state                    |
-| `--json`    | Print the machine summary instead of the text one, or the raw JSON lines with `logs`   |
-| `--verbose` | Show every command and all agent output                                                |
-| `--quiet`   | Show only the milestones and the summary                                               |
-| `--help`    | Show the option list                                                                   |
+| Argument    | Effect                                                                                               |
+| ----------- | ---------------------------------------------------------------------------------------------------- |
+| `start`     | Start a run: claim issues, fix them and push them to the base branch                                 |
+| `init`      | Write the config file with the defaults                                                              |
+| `serve`     | Run the worker of this repository that pi extensions talk to, see [Worker](#worker)                  |
+| `stop`      | Stop the worker of this repository, see [Worker](#worker)                                            |
+| `logs`      | Show the latest run log and follow it, see [Observability](#observability)                           |
+| `--force`   | Replace an existing config file, with `init`                                                         |
+| `--once`    | Stop after the first handled issue, with `start`                                                     |
+| `--max <n>` | Handle at most n issues, with `start`                                                                |
+| `--watch`   | Keep running, and read the open issues again after each pass, with `start`                           |
+| `--hunt`    | Hunt the repository for bugs alongside the issues, with `start`, see [Hunt for bugs](#hunt-for-bugs) |
+| `--reset`   | Drop the saved budgets and findings, and keep the rest of the state, with `start`                    |
+| `--json`    | Print the machine summary instead of the text one, or the raw JSON lines with `logs`                 |
+| `--verbose` | Show every command and all agent output                                                              |
+| `--quiet`   | Show only the milestones and the summary                                                             |
+| `--help`    | Show the option list                                                                                 |
 
-The exit code is 1 when an issue needs a person or failed, and 0 when it does
-not, so a cron job or a CI step can read the result of the run.
+`--once`, `--max <n>`, `--watch`, `--hunt` and `--reset` belong to `start`, and
+any other command refuses them. `next-issue` with no command prints the option
+list on standard error, starts nothing and exits with 1.
+
+The exit code of `next-issue start` is 1 when an issue needs a person or
+failed, and 0 when it does not, so a cron job or a CI step can read the result
+of the run.
+
+Versions before 7.0.0 started a run with no command, as `next-issue` or
+`next-issue --once`. From 7.0.0 a run needs `next-issue start`, and the old
+form starts nothing and exits with 1.
 
 ## Watch for new issues
 
-A run without `--watch` ends when no unseen issue is left. With `--watch`, the
-harness then waits, reads the open issues again and runs another pass, so it
-picks up an issue that someone opens during the run, or one whose blocker
+A run without `--watch` ends when no unseen issue is left. With
+`next-issue start --watch`, the harness then waits, reads the open issues again
+and runs another pass, so it picks up an issue that someone opens during the run, or one whose blocker
 closes. Each pass tries every open issue again, also one that an earlier pass
 skipped. An issue that failed in an earlier pass is not tried again until the
 next run.
@@ -785,7 +795,7 @@ The watch stops:
 
 ## Hunt for bugs
 
-With `--hunt`, which turns on `--watch`, the harness runs a hunter agent at the same time as the issues. Before each hunt it reads the open issues with the `labels.ready` label and counts those that are ready to claim and are not running. An issue that failed earlier in the run does not count, since the watch does not try it again. It counts a blocked issue only when each of its open blockers is in the same repository and is running or ready to claim, since those blockers can land and close; a blocker that cannot move, such as one with `labels.needsHuman`, `labels.skip` or `labels.done`, one without `labels.ready`, or one in another repository, leaves it out. It looks only at the direct blockers, and reads them one issue at a time, so it runs one `gh` call at a time. It hunts only while that count is less than `huntCap`, 1 by default. Otherwise it waits and checks again, with the same back-off as the watch: 1, 2, 3, 5, 10, then 10 minutes, back to 1 minute after a hunt that files an issue. Each wait writes a `hunt.wait` event with the `minutes` to the run log. A hunt that files nothing backs off like a failed one. When the harness claims an issue, the hunter wakes: it ends its wait at once, or skips the wait after a hunt that is going, and checks the count again. A wake keeps the back-off where it was. The hunter:
+With `next-issue start --hunt`, which turns on `--watch`, the harness runs a hunter agent at the same time as the issues. Before each hunt it reads the open issues with the `labels.ready` label and counts those that are ready to claim and are not running. An issue that failed earlier in the run does not count, since the watch does not try it again. It counts a blocked issue only when each of its open blockers is in the same repository and is running or ready to claim, since those blockers can land and close; a blocker that cannot move, such as one with `labels.needsHuman`, `labels.skip` or `labels.done`, one without `labels.ready`, or one in another repository, leaves it out. It looks only at the direct blockers, and reads them one issue at a time, so it runs one `gh` call at a time. It hunts only while that count is less than `huntCap`, 1 by default. Otherwise it waits and checks again, with the same back-off as the watch: 1, 2, 3, 5, 10, then 10 minutes, back to 1 minute after a hunt that files an issue. Each wait writes a `hunt.wait` event with the `minutes` to the run log. A hunt that files nothing backs off like a failed one. When the harness claims an issue, the hunter wakes: it ends its wait at once, or skips the wait after a hunt that is going, and checks the count again. A wake keeps the back-off where it was. The hunter:
 
 - works in its own worktree at `.worktrees/hunt`, on a detached `HEAD` at the remote base branch, which the harness fetches and checks out before each hunt. A branch that the hunter checks out keeps its commits, and an issue that resumes never uses the hunt worktree as its own;
 - follows `next-issue.hunt.md` in the repository root, or a short built-in prompt when the file is missing;
@@ -828,9 +838,9 @@ affect another. The worker:
   stops nothing;
 - runs at most one run at a time. A client starts it with
   `{ "type": "start", "root": "<path>", "args": [...] }`. Each run is like
-  `next-issue` with those args, or with none when `args` is left out. It takes
+  `next-issue start` with those args, or with none when `args` is left out. It takes
   `--once`, `--max <n>`, `--watch`, `--hunt`, `--reset`, `--verbose` and
-  `--quiet`, and refuses a command, `--json`, `--force`, `--help` or an
+  `--quiet`, and refuses a command (`start` too), `--json`, `--force`, `--help` or an
   unknown argument with an `error` message;
 - sends every client the progress of every run when it connects and on every
   change: for each running issue the issue, the step, the tool count and the

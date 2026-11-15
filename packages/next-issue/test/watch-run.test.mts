@@ -78,7 +78,7 @@ async function until(done: () => boolean): Promise<void> {
 
 test('a worker client who turns hunting on for a run started with --watch alone sees that run hunt with its own hunter', async (t) => {
   const hunting = huntSwitch(false);
-  const run = await startWatch(t, parseArgs(['--watch']), { hunting });
+  const run = await startWatch(t, parseArgs(['start', '--watch']), { hunting });
   await delay(50);
   assert.equal(run.hunts(), 0);
   hunting.set(true);
@@ -88,7 +88,7 @@ test('a worker client who turns hunting on for a run started with --watch alone 
 
 test('a worker client who turns hunting off for a run started with --hunt sees that run start no new hunt', async (t) => {
   const hunting = huntSwitch(true);
-  const run = await startWatch(t, parseArgs(['--hunt']), { hunting });
+  const run = await startWatch(t, parseArgs(['start', '--hunt']), { hunting });
   hunting.set(false);
   await delay(50);
   assert.equal(run.hunts(), 0);
@@ -96,13 +96,13 @@ test('a worker client who turns hunting off for a run started with --hunt sees t
 });
 
 test('a user who runs with --hunt and no worker switch sees the run hunt', async (t) => {
-  const run = await startWatch(t, parseArgs(['--hunt']));
+  const run = await startWatch(t, parseArgs(['start', '--hunt']));
   await until(() => run.hunts() === 1);
   await run.end();
 });
 
 test('a user who runs with --watch alone and no worker switch sees the run never hunt', async (t) => {
-  const run = await startWatch(t, parseArgs(['--watch']));
+  const run = await startWatch(t, parseArgs(['start', '--watch']));
   await delay(50);
   assert.equal(run.hunts(), 0);
   await run.end();
@@ -110,7 +110,7 @@ test('a user who runs with --watch alone and no worker switch sees the run never
 
 test('a worker client who asks a waiting watch run to refresh sees it start a new pass at once and wait 1 minute again', async (t) => {
   const refresh = refresher();
-  const run = await startWatch(t, parseArgs(['--watch']), { refresher: refresh });
+  const run = await startWatch(t, parseArgs(['start', '--watch']), { refresher: refresh });
   await until(() => run.sleeps.length === 1);
   refresh.refresh();
   await until(() => run.sleeps.length === 2);
@@ -126,7 +126,7 @@ test('a worker client who asks a watch run to refresh while a pass runs leaves t
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
-  const run = await startWatch(t, parseArgs(['--watch']), {
+  const run = await startWatch(t, parseArgs(['start', '--watch']), {
     refresher: refresh,
     issues: async () => {
       await held;

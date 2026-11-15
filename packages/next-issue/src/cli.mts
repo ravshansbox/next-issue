@@ -28,6 +28,10 @@ async function main(): Promise<number> {
     await write(process.stdout, USAGE);
     return 0;
   }
+  if (args.command === undefined) {
+    await write(process.stderr, USAGE);
+    return 1;
+  }
   const root = await repoRoot(process.cwd());
   if (args.command === 'init') {
     return init(root, args.force);

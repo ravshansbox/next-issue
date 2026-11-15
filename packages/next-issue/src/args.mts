@@ -1,10 +1,10 @@
 import { CONFIG_FILE } from './config-fields.mts';
 import type { Level } from './observe.mts';
 
-type Command = 'run' | 'init' | 'serve' | 'stop' | 'logs';
+type Command = 'start' | 'init' | 'serve' | 'stop' | 'logs';
 
 export type Args = {
-  command: Command;
+  command?: Command;
   once: boolean;
   max?: number;
   help: boolean;
@@ -33,18 +33,19 @@ const LEVELS = new Map<string, Level>([
   ['--quiet', 'quiet'],
 ]);
 
-export const USAGE = `next-issue [command] [options]
+export const USAGE = `next-issue <command> [options]
 
+  start        start a run: claim issues, fix them and push them to the base branch
+    --once     stop after the first handled issue
+    --max <n>  handle at most n issues
+    --watch    keep running and read the issues again after each pass
+    --hunt     hunt the repository for bugs and file issues alongside the issues, turns on --watch
+    --reset    drop the saved budgets and findings first
   init         write ${CONFIG_FILE} with the defaults and add .next-issue/ and .worktrees/ to info/exclude
   serve        run the worker of this repository that pi extensions talk to
   stop         stop the worker of this repository
   logs         show the latest run log and follow it
 
-  --once       stop after the first handled issue
-  --max <n>    handle at most n issues
-  --watch      keep running and read the issues again after each pass
-  --hunt       hunt the repository for bugs and file issues alongside the issues, turns on --watch
-  --reset      drop the saved budgets and findings first
   --json       print the machine summary instead of the text one, or raw lines with logs
   --force      replace an existing config file, with init
   --verbose    show every command and all agent output
@@ -52,9 +53,29 @@ export const USAGE = `next-issue [command] [options]
   --help       show this text
 `;
 
+const RUN_FLAGS = new Set(['--once', '--max', '--watch', '--hunt', '--reset']);
+
 export function parseArgs(argv: string[]): Args {
+  const { args, flag, runFlag } = readArgs(argv);
+  if (args.help) {
+    return args;
+  }
+  if (args.command === undefined && flag !== undefined) {
+    throw new Error(
+      'no command given: use next-issue start to start a run, or see next-issue --help',
+    );
+  }
+  if (args.command !== undefined && args.command !== 'start' && runFlag !== undefined) {
+    throw new Error(`${args.command} does not take ${runFlag}: it belongs to start`);
+  }
+  if (args.command === 'serve' && flag !== undefined) {
+    throw new Error(`serve does not take ${flag}`);
+  }
+  return args;
+}
+
+function readArgs(argv: string[]): { args: Args; flag?: string; runFlag?: string } {
   const args: Args = {
-    command: 'run',
     once: false,
     help: false,
     json: false,
@@ -65,10 +86,14 @@ export function parseArgs(argv: string[]): Args {
     level: 'normal',
   };
   let flag: string | undefined;
+  let runFlag: string | undefined;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]!;
-    if (index !== 0 && arg !== '--help') {
+    if ((index !== 0 || arg.startsWith('-')) && arg !== '--help') {
       flag ??= arg;
+    }
+    if (RUN_FLAGS.has(arg)) {
+      runFlag ??= arg;
     }
     if (index === 0 && !arg.startsWith('-')) {
       args.command = command(arg);
@@ -82,15 +107,12 @@ export function parseArgs(argv: string[]): Args {
       throw new Error(`Unknown argument: ${arg}`);
     }
   }
-  if (args.command === 'serve' && !args.help && flag !== undefined) {
-    throw new Error(`serve does not take ${flag}`);
-  }
   args.watch ||= args.hunt;
-  return args;
+  return { args, flag, runFlag };
 }
 
 function command(arg: string): Command {
-  if (arg !== 'init' && arg !== 'serve' && arg !== 'stop' && arg !== 'logs') {
+  if (arg !== 'start' && arg !== 'init' && arg !== 'serve' && arg !== 'stop' && arg !== 'logs') {
     throw new Error(`Unknown command: ${arg}`);
   }
   return arg;
@@ -107,13 +129,13 @@ function whole(value: string | undefined, option: string): number {
 const OUTPUT_ONLY: Switch[] = ['json', 'force', 'help'];
 
 export function parseStartArgs(argv: string[]): Args {
-  const args = parseArgs(argv);
-  if (args.command !== 'run') {
+  const { args } = readArgs(argv);
+  if (args.command !== undefined) {
     throw new Error(`start does not take ${args.command}`);
   }
   const refused = OUTPUT_ONLY.find((name) => args[name]);
   if (refused !== undefined) {
     throw new Error(`start does not take --${refused}`);
   }
-  return args;
+  return { ...args, command: 'start' };
 }

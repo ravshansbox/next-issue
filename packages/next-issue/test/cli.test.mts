@@ -164,7 +164,7 @@ case "$1 $2" in
 esac
 `;
   await writeFile(join(bin, 'gh'), script, { mode: 0o755 });
-  const child = spawn(process.execPath, [CLI, '--watch'], {
+  const child = spawn(process.execPath, [CLI, 'start', '--watch'], {
     cwd: root,
     env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
   });
@@ -208,7 +208,7 @@ async function refusedRun(root: string, cwd = root) {
   const bin = await tempDir();
   const called = join(bin, 'called');
   await writeFile(join(bin, 'gh'), `#!/bin/sh\ntouch "${called}"\nexit 1\n`, { mode: 0o755 });
-  const error = await promisify(execFile)(process.execPath, [CLI, '--once'], {
+  const error = await promisify(execFile)(process.execPath, [CLI, 'start', '--once'], {
     cwd,
     env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
   }).then(
@@ -239,7 +239,10 @@ async function watchingRun(root: string) {
   await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/watch.git'], {
     cwd: root,
   });
-  const child = spawn(process.execPath, [CLI, '--watch'], { cwd: root, env: await idleGh() });
+  const child = spawn(process.execPath, [CLI, 'start', '--watch'], {
+    cwd: root,
+    env: await idleGh(),
+  });
   let stderr = '';
   child.stderr.on('data', (chunk) => (stderr += chunk));
   const exited = new Promise<number | null>((resolve) => child.on('exit', resolve));
@@ -335,7 +338,7 @@ test('a user who serves the repository while a command-line run is going sees th
 });
 
 async function onceRun(root: string) {
-  return promisify(execFile)(process.execPath, [CLI, '--once'], { cwd: root }).then(
+  return promisify(execFile)(process.execPath, [CLI, 'start', '--once'], { cwd: root }).then(
     () => '',
     (failure: { stderr: string }) => failure.stderr,
   );
@@ -746,6 +749,63 @@ test('a user who runs --help sees the logs command', async () => {
   assert.match(stdout, /^ {2}logs {9}show the latest run log and follow it$/m);
 });
 
+function cliFails(args: string[], options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}) {
+  return promisify(execFile)(process.execPath, [CLI, ...args], options).then(
+    () => undefined,
+    (failure: { code: number; stdout: string; stderr: string }) => failure,
+  );
+}
+
+test('a user who runs next-issue with no argument sees the usage on standard error, exit code 1 and no issue read', async () => {
+  const root = await repository();
+  const { env, called } = await oldGit('2.50.0');
+  const error = await cliFails([], { cwd: root, env });
+  const { stdout: usage } = await promisify(execFile)(process.execPath, [CLI, '--help']);
+  assert.equal(error?.code, 1);
+  assert.equal(error?.stdout, '');
+  assert.equal(error?.stderr, usage);
+  assert.equal(await exists(called), false);
+});
+
+test('a user who runs next-issue --once sees an error that says to use next-issue start, exit code 1 and no issue read', async () => {
+  const root = await repository();
+  const { env, called } = await oldGit('2.50.0');
+  const error = await cliFails(['--once'], { cwd: root, env });
+  assert.equal(error?.code, 1);
+  assert.match(error?.stderr ?? '', /no command given: use next-issue start/);
+  assert.equal(await exists(called), false);
+});
+
+test('a user who runs start --help sees the usage and exit code 0', async () => {
+  const help = await promisify(execFile)(process.execPath, [CLI, '--help']);
+  const startHelp = await promisify(execFile)(process.execPath, [CLI, 'start', '--help']);
+  assert.equal(startHelp.stdout, help.stdout);
+});
+
+test('a user who runs --help sees start as a command with the run flags under it', async () => {
+  const { stdout } = await promisify(execFile)(process.execPath, [CLI, '--help']);
+  assert.match(stdout, /^next-issue <command> \[options\]$/m);
+  assert.match(
+    stdout,
+    /^ {2}start {8}.*\n {4}--once {5}.*\n {4}--max <n> {2}.*\n {4}--watch {4}.*\n {4}--hunt {5}.*\n {4}--reset {4}.*\n {2}init /m,
+  );
+});
+
+for (const args of [
+  ['logs', '--watch'],
+  ['stop', '--once'],
+]) {
+  test(`a user who runs ${args.join(' ')} sees an error that says the flag belongs to start and exit code 1`, async () => {
+    const root = await repository();
+    const error = await cliFails(args, { cwd: root });
+    assert.equal(error?.code, 1);
+    assert.match(
+      error?.stderr ?? '',
+      new RegExp(`${args[0]} does not take ${args[1]}: it belongs to start`),
+    );
+  });
+}
+
 test('a user who runs serve --hunt gets an error, exit code 1 and no worker', async () => {
   const root = await repository();
   await assert.rejects(
@@ -778,7 +838,7 @@ test('a user who runs next-issue on git 2.39 sees an error that names the found 
   const root = await repository();
   await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/old.git'], { cwd: root });
   const { env, called } = await oldGit('2.39.5');
-  const error = await promisify(execFile)(process.execPath, [CLI, '--once'], {
+  const error = await promisify(execFile)(process.execPath, [CLI, 'start', '--once'], {
     cwd: root,
     env,
   }).then(

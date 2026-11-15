@@ -205,6 +205,8 @@ test('a client that starts a run with a command or a flag that start does not ta
   const client = await connect(t, socketPath);
   for (const [args, message] of [
     [['init'], 'start does not take init'],
+    [['start'], 'start does not take start'],
+    [['start', '--once'], 'start does not take start'],
     [['--json'], 'start does not take --json'],
     [['--force'], 'start does not take --force'],
     [['--help'], 'start does not take --help'],
