@@ -953,5 +953,8 @@ refuses as a version it already holds, but does not serve yet, counts as
 published. So when a step fails after the tag push, the next run finishes that
 release before it makes a new one. To repair a release without a new commit,
 run the workflow by hand; a manual run does nothing else.
+The job uses the npm that comes with Node 24 and never installs another one.
+Trusted publishing needs npm 11.5.1 or later, so the job stops with an error
+before anything else when the bundled npm is older.
 The release job stays on a GitHub runner, because npm takes provenance only
 from a GitHub runner.

@@ -25,7 +25,7 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-      - run: npm install -g npm@latest
+      - run: .github/scripts/check-npm.sh
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
