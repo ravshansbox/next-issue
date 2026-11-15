@@ -19,6 +19,7 @@ import {
   questionNotes,
   statusNote,
 } from './src/status.ts';
+import { lockHolder } from './src/lock.ts';
 import { spawnWorker, workerPaths } from './src/spawn-worker.ts';
 import { WorkerClient, type WorkerEvent } from './src/worker.ts';
 
@@ -102,7 +103,8 @@ const fromMachine: Options = {
     new WorkerClient({
       socketPath: workerPaths(root).socketPath,
       version: packageVersion(),
-      spawnWorker: (version) => spawnWorker(root, version),
+      spawnWorker: (version, onExit) => spawnWorker(root, version, onExit),
+      lockHolder: () => lockHolder(workerPaths(root).lockPath),
     }),
   root: repoRoot,
   gh: (args, options) => must('gh', args, options),

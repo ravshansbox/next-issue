@@ -123,7 +123,9 @@ type GhCall = { args: string[]; cwd: string; input?: string };
 function setup(
   options: {
     version?: string;
-    spawn?: (path: string) => Promise<void>;
+    spawn?: (path: string, onExit: (reason: string) => void) => Promise<void>;
+    holder?: () => number | undefined;
+    startTimeoutMs?: number;
     gh?: (call: GhCall) => string | undefined;
     paths?: Record<string, string>;
   } = {},
@@ -136,11 +138,12 @@ function setup(
       new WorkerClient({
         socketPath: options.paths?.[root] ?? path,
         version: options.version ?? '1.0.0',
-        spawnWorker: (version) => {
+        spawnWorker: (version, onExit) => {
           spawns.push(version);
-          void options.spawn?.(path);
+          void options.spawn?.(path, onExit);
         },
-        startTimeoutMs: 2000,
+        lockHolder: async () => options.holder?.(),
+        startTimeoutMs: options.startTimeoutMs ?? 2000,
         reconnectMs: 50,
       }),
     root: async (cwd) => {
@@ -643,6 +646,124 @@ test('a user sees why a run could not start when the worker does not come up', a
   extension(pi as never);
   await command('start');
   assert.match(notes[0] ?? '', /^next-issue cannot start: the next-issue worker did not start/);
+});
+
+const RUN_NOTE = (action: string) =>
+  `next-issue cannot ${action}: a command-line next-issue run (process 4242) is going in this repository. Wait until it ends, or stop it, then try again`;
+
+for (const action of ['start', 'stop', 'answer']) {
+  test(`a user who runs /next-issue ${action} while a command-line run holds the repository is told so at once and no worker starts`, async () => {
+    const { spawns, extension } = setup({ holder: () => 4242, startTimeoutMs: 60_000 });
+    const { pi, command, notes } = host();
+    extension(pi as never);
+    const began = Date.now();
+    await command(action);
+    assert.ok(Date.now() - began < 5000);
+    assert.deepEqual(notes, [RUN_NOTE(action)]);
+    assert.equal(spawns.length, 0);
+  });
+}
+
+test('a model that calls next_issue_start while a command-line run holds the repository gets that error at once and no worker starts', async () => {
+  const { spawns, extension } = setup({ holder: () => 4242, startTimeoutMs: 60_000 });
+  const { pi, start } = host();
+  extension(pi as never);
+  const began = Date.now();
+  await assert.rejects(
+    start(),
+    /^Error: a command-line next-issue run \(process 4242\) is going in this repository/,
+  );
+  assert.ok(Date.now() - began < 5000);
+  assert.equal(spawns.length, 0);
+});
+
+test('a user whose worker is closing as the lock is read connects to a new worker once the lock is free', async () => {
+  let held = true;
+  let started: FakeWorker | undefined;
+  const { spawns, extension } = setup({
+    holder: () => (held ? 4242 : undefined),
+    spawn: async (path) => {
+      started = await worker(path);
+    },
+  });
+  setTimeout(() => {
+    held = false;
+  }, 300);
+  const { pi, command } = host();
+  extension(pi as never);
+  await command('start');
+  assert.equal(spawns.length, 1);
+  await until(() => started?.received.some((message) => message.type === 'start') === true);
+});
+
+test('a user whose worker holds the lock but listens only after a moment connects to it and no new worker starts', async () => {
+  const { path, spawns, extension } = setup({ holder: () => 4242, startTimeoutMs: 60_000 });
+  let started: FakeWorker | undefined;
+  setTimeout(() => {
+    void worker(path).then((fake) => {
+      started = fake;
+    });
+  }, 300);
+  const { pi, command, notes } = host();
+  extension(pi as never);
+  await command('start');
+  assert.equal(spawns.length, 0);
+  assert.deepEqual(notes, []);
+  await until(() => started?.received.some((message) => message.type === 'start') === true);
+});
+
+test('a user whose spawned worker finds a command-line run and exits sees that run at once', async () => {
+  let held = false;
+  const { extension } = setup({
+    startTimeoutMs: 60_000,
+    holder: () => (held ? 4242 : undefined),
+    spawn: async (_path, onExit) => {
+      held = true;
+      setTimeout(() => onExit('next-issue: another worker is running'), 100);
+    },
+  });
+  const { pi, command, notes } = host();
+  extension(pi as never);
+  const began = Date.now();
+  await command('start');
+  assert.ok(Date.now() - began < 5000);
+  assert.deepEqual(notes, [RUN_NOTE('start')]);
+});
+
+test('a user whose spawned worker exits before it listens sees its reason at once', async () => {
+  const { extension } = setup({
+    startTimeoutMs: 60_000,
+    spawn: async (_path, onExit) => {
+      setTimeout(
+        () => onExit('exit code 1: npm error 404 next-issue@9.9.9 is not in this registry'),
+        100,
+      );
+    },
+  });
+  const { pi, command, notes } = host();
+  extension(pi as never);
+  const began = Date.now();
+  await command('start');
+  assert.ok(Date.now() - began < 5000);
+  assert.deepEqual(notes, [
+    'next-issue cannot start: the next-issue worker exited before it listened: exit code 1: npm error 404 next-issue@9.9.9 is not in this registry',
+  ]);
+});
+
+test('a user whose worker starts slowly still connects to it and starts a run', async () => {
+  let started: FakeWorker | undefined;
+  const { extension } = setup({
+    startTimeoutMs: 10_000,
+    spawn: async (path) => {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      started = await worker(path);
+    },
+  });
+  const { pi, command, notes } = host();
+  extension(pi as never);
+  await command('start');
+  assert.deepEqual(notes, []);
+  await until(() => started?.received.some((message) => message.type === 'start') === true);
 });
 
 test('a user with a newer extension gets a new worker once the old idle worker closes', async () => {

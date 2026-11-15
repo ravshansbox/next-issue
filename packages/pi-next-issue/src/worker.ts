@@ -14,14 +14,17 @@ export type WorkerEvent = Exclude<WorkerMessage, { type: 'hello' }> | { type: 'c
 export type WorkerOptions = {
   socketPath: string;
   version: string;
-  spawnWorker: (version: string) => void;
+  spawnWorker: (version: string, onExit: (reason: string) => void) => void;
+  lockHolder?: () => Promise<number | undefined>;
   startTimeoutMs?: number;
+  holderGraceMs?: number;
   reconnectMs?: number;
 };
 
 const START_TIMEOUT_MS = 120_000;
 const RECONNECT_MS = 5_000;
 const POLL_MS = 200;
+const HOLDER_GRACE_MS = 2_000;
 
 export const CLOSED = 'the worker closed the connection';
 
@@ -41,6 +44,12 @@ function parseMessage(text: string): WorkerMessage | undefined {
   } catch {
     return undefined;
   }
+}
+
+function runGoing(pid: number): Error {
+  return new Error(
+    `a command-line next-issue run (process ${pid}) is going in this repository. Wait until it ends, or stop it, then try again`,
+  );
 }
 
 function delay(ms: number): Promise<void> {
@@ -123,25 +132,68 @@ export class WorkerClient {
     return this.connecting;
   }
 
-  private async start(): Promise<void> {
-    checkSocketPath(this.options.socketPath);
-    try {
-      await this.open();
-      return;
-    } catch {
-      this.options.spawnWorker(this.options.version);
-    }
-    await this.waitForStart();
+  private holder(): Promise<number | undefined> {
+    return this.options.lockHolder?.() ?? Promise.resolve(undefined);
   }
 
-  private async waitForStart(): Promise<void> {
+  private async start(): Promise<void> {
+    checkSocketPath(this.options.socketPath);
+    if (await this.opened()) {
+      return;
+    }
+    if (await this.waitForHolder()) {
+      return;
+    }
+    let exited: string | undefined;
+    this.options.spawnWorker(this.options.version, (reason) => {
+      exited ??= reason;
+    });
+    await this.waitForStart(() => exited);
+  }
+
+  private async opened(): Promise<boolean> {
+    try {
+      await this.open();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // A live process holds the lock but does not listen: a worker that is about to listen or
+  // to close, or a command-line run, which holds the lock for its whole run.
+  private async waitForHolder(): Promise<boolean> {
+    const deadline = Date.now() + (this.options.holderGraceMs ?? HOLDER_GRACE_MS);
+    for (;;) {
+      const pid = await this.holder();
+      if (pid === undefined) {
+        return false;
+      }
+      if (Date.now() >= deadline) {
+        throw runGoing(pid);
+      }
+      await delay(POLL_MS);
+      if (await this.opened()) {
+        return true;
+      }
+    }
+  }
+
+  private async waitForStart(exited: () => string | undefined): Promise<void> {
     const deadline = Date.now() + this.startTimeoutMs;
     for (;;) {
       await delay(POLL_MS);
+      const reason = exited();
       try {
         await this.open();
         return;
       } catch (error) {
+        if (reason !== undefined) {
+          const pid = await this.holder();
+          throw pid === undefined
+            ? new Error(`the next-issue worker exited before it listened: ${reason}`)
+            : runGoing(pid);
+        }
         if (Date.now() >= deadline) {
           throw new Error(`the next-issue worker did not start: ${errorText(error)}`);
         }
