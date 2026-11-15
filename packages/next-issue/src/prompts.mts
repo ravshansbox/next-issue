@@ -25,6 +25,12 @@ const COMMIT_RULES = [
   'End your final message with one line in the form `commit: <conventional commit subject>`.',
 ].join('\n');
 
+const QUESTION_RULES = [
+  'Check the issue first. When the scope, the expected behaviour or the acceptance criteria are ambiguous, make no change and ask instead of guessing.',
+  'Write each question on its own line in the form `question: <n>. <question>`, numbered from 1. In each question, label its options with letters and recommend one.',
+  'The harness then hands the issue to a person with your questions.',
+].join('\n');
+
 function issueBlock(issue: Issue, comments: string[]): string {
   return paragraphs([
     `# Issue #${issue.number}: ${issue.title}`,
@@ -50,6 +56,7 @@ export function implementPrompt(issue: Issue, comments: string[], reply: string[
     replyBlock(reply),
     '## Rules',
     'Read the repository conventions first. Keep the change minimal and focused on the issue.',
+    QUESTION_RULES,
     ENGINEERING_RULES,
     'Add or update tests when the repository has a test suite.',
     'For a behaviour change, write the test first and run it before the change. Then quote its failing output in your final message.',

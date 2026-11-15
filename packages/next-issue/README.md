@@ -95,6 +95,16 @@ the run handles one issue. For each issue:
    and the newest of them gives the subject of the landed commit. A lost state
    file does not count, since an issue with no saved state resets its local
    branch (step 3).
+   The implementer checks the issue first. When the scope, the expected
+   behaviour or the acceptance criteria are ambiguous, it makes no change and
+   asks instead of guessing, with each question on its own
+   `question: <n>. <question>` line, its options labelled by letters and one
+   option recommended. A reply with at least one `question:` line makes the
+   harness drop any change in the worktree, commit nothing and hand the issue
+   to a person with the reason `questions`. The hand-over comment lists the
+   questions in order, numbered by the harness. The harness reads the issue
+   again and adds the questions after any text under its `Open questions`
+   heading, or adds that heading at the end of the body when it has none.
 5. Let the reviewer agent judge the diff, at most `diffMaxChars` of it. The
    reviewer reads files and runs commands in the worktree, so it can prove a
    finding with the tests or the type check. The harness then throws away every
@@ -340,6 +350,7 @@ and comments the reason on the issue, when:
   broken, so the run claims no new issue and ends once the running issues
   end. It halts this way even when the hand-over fails; the issue then ends
   in error with both the reason and the hand-over error;
+- the implementer asks questions about the issue (reason `questions`);
 - an agent does not finish in `agentTimeoutMinutes`;
 - the setup command fails, or does not finish in `setupTimeoutMinutes`. On a
   resume whose state holds a landed commit, or a push or revert that may have
@@ -718,6 +729,7 @@ says so: a workflow rule in `AGENTS.md` about these, such as "push to main" or
 
 When the implementer makes no change, the hand-over comment holds its full
 reply after the note, so its reasons and questions can be answered on the issue.
+When it asks questions on `question:` lines, the comment lists them instead.
 Every hand-over comment is cut to fit a GitHub comment, whatever the reason, so a
 long reply or a long run error does not lose it. A cut comment ends with a line
 that says so.

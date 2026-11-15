@@ -130,3 +130,112 @@ test('a fixer that changes nothing hands the issue to a person', async (t) => {
   assert.equal(report.reason, 'no fix commit');
   assert.equal(target.reverts.length, 1);
 });
+
+const QUESTIONS = [
+  'I am not sure of the scope.',
+  'question: 1. Should the flag be global? a) yes b) no. I recommend a.',
+  'question: 2) Which name? a) --fast b) --quick. I recommend b.',
+  'commit: feat: add a flag',
+].join('\n');
+
+const ASKED = [
+  '1. Should the flag be global? a) yes b) no. I recommend a.',
+  '2. Which name? a) --fast b) --quick. I recommend b.',
+].join('\n');
+
+test('an implementer that asks questions hands the issue to a person with the questions listed in order and nothing committed', async (t) => {
+  const target = await harness(t, {
+    implementerText: [QUESTIONS],
+    selfCommit: true,
+    fresh: ISSUE,
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'questions');
+  assert.equal(target.labels.at(-1)!.label, 'status:needs-human');
+  assert.equal(
+    target.issueNotes.at(-1)!.body,
+    `next-issue needs help: The implementer has questions about the issue.\n\n${ASKED}`,
+  );
+  assert.deepEqual(target.messages, []);
+  assert.equal(target.head(), '0');
+  assert.equal(target.pushes, 0);
+});
+
+test('a user whose implementer asks questions finds them under a new Open questions heading at the end of the issue body as GitHub holds it', async (t) => {
+  const target = await harness(t, {
+    implementerText: [QUESTIONS],
+    fresh: { ...ISSUE, body: 'Please add it.\n\nEdited during the run.' },
+  });
+  await target.run();
+  assert.deepEqual(target.bodies, [
+    {
+      number: ISSUE.number,
+      body: `Please add it.\n\nEdited during the run.\n\n## Open questions\n\n${ASKED}`,
+    },
+  ]);
+});
+
+test('a user whose issue already has open questions keeps them and finds the new questions after them', async (t) => {
+  const body = [
+    '## Problem',
+    '',
+    'No flag.',
+    '',
+    '## Open questions',
+    '',
+    'Should it be on by default? Yes.',
+    '',
+    '## Notes',
+    '',
+    'Later.',
+  ].join('\n');
+  const target = await harness(t, { implementerText: [QUESTIONS], fresh: { ...ISSUE, body } });
+  await target.run();
+  assert.equal(
+    target.bodies[0]!.body,
+    [
+      '## Problem',
+      '',
+      'No flag.',
+      '',
+      '## Open questions',
+      '',
+      'Should it be on by default? Yes.',
+      '',
+      ASKED,
+      '',
+      '## Notes',
+      '',
+      'Later.',
+    ].join('\n'),
+  );
+});
+
+test('a user whose issue has an empty Open questions section at the end finds the questions under it', async (t) => {
+  const body = '## Problem\n\nNo flag.\n\n## Open questions\n';
+  const target = await harness(t, { implementerText: [QUESTIONS], fresh: { ...ISSUE, body } });
+  await target.run();
+  assert.equal(target.bodies[0]!.body, `## Problem\n\nNo flag.\n\n## Open questions\n\n${ASKED}`);
+});
+
+test('a user whose issue has a subheading inside Open questions finds the new questions after the text under the subheading', async (t) => {
+  const body = '## Open questions\n\n### From review\n\n1. Old?\n\n## Notes\n\nLater.';
+  const target = await harness(t, { implementerText: [QUESTIONS], fresh: { ...ISSUE, body } });
+  await target.run();
+  assert.equal(
+    target.bodies[0]!.body,
+    `## Open questions\n\n### From review\n\n1. Old?\n\n${ASKED}\n\n## Notes\n\nLater.`,
+  );
+});
+
+test('an implementer whose reply holds only a placeholder question line gets its change committed and no issue body edit', async (t) => {
+  const target = await harness(t, {
+    implementerText: ['question: none\ncommit: feat: add a flag'],
+    fresh: ISSUE,
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.match(target.messages[0]!, /^feat: add a flag\n/);
+  assert.deepEqual(target.bodies, []);
+});

@@ -14,6 +14,12 @@ export function parseResolved(text: string): string | undefined {
   return note === undefined || PLACEHOLDERS.has(note.toLowerCase()) ? undefined : note;
 }
 
+export function parseQuestions(text: string): string[] {
+  return [...text.matchAll(/^question:[^\S\r\n]*(.+)$/gim)]
+    .map((match) => match[1]!.replace(/^\d+[.)]\s*/, '').trim())
+    .filter((question) => !PLACEHOLDERS.has(question.toLowerCase()));
+}
+
 const CLOSING_REFERENCE =
   /(\s*[,;]?\s*(?:and\s+)?)\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?)(\s*:\s*|\s+)(?:[\w.-]+\/[\w.-]+#\d+|#\d+|https?:\/\/\S+\/(?:issues|pull)\/\d+)/gi;
 

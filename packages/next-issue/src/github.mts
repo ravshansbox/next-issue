@@ -163,3 +163,7 @@ async function comment(repo: Repo, kind: Kind, number: number, body: string): Pr
 export async function commentOnIssue(repo: Repo, issue: number, body: string): Promise<void> {
   await comment(repo, 'issue', issue, body);
 }
+
+export async function editIssueBody(repo: Repo, issue: number, body: string): Promise<void> {
+  await ghOnce(repo, ['issue', 'edit', String(issue), '--body-file', '-'], body);
+}

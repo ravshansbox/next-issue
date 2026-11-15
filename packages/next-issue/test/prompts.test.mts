@@ -168,6 +168,17 @@ test('the implementer is told to write a failing test first and quote its output
   assert.match(prompt, /quote its failing output in your final message/);
 });
 
+test('the implementer is told to ask numbered questions with lettered options instead of guessing when the issue is ambiguous', () => {
+  const prompt = implementPrompt(ISSUE, []);
+  assert.match(prompt, /Check the issue first\./);
+  assert.match(
+    prompt,
+    /scope, the expected behaviour or the acceptance criteria are ambiguous, make no change and ask instead of guessing\./,
+  );
+  assert.match(prompt, /each question on its own line in the form `question: <n>\. <question>`/);
+  assert.match(prompt, /label its options with letters and recommend one/);
+});
+
 test('reviewPrompt gives the reply of the implementer and asks for a finding when a behaviour change has no failing run', () => {
   const prompt = reviewPrompt(ISSUE, [], 'diff', [], 'The test failed: expected 2, got 1.');
   assert.match(prompt, /## Reply of the implementer\nThe test failed: expected 2, got 1\./);

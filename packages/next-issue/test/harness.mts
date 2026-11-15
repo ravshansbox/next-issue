@@ -84,6 +84,8 @@ export type Plan = {
   fixerWrites?: boolean;
   detected?: string;
   issue?: Issue;
+  /** The issue as GitHub holds it when the harness reads it again during the run. */
+  fresh?: Issue;
   baseUpdated?: boolean;
   landedBaseUpdated?: boolean;
   landedFetchFails?: boolean;
@@ -139,6 +141,8 @@ export type Harness = {
   messages: string[];
   comments: string[];
   issueNotes: Array<{ number: number; body: string }>;
+  /** Each body the harness wrote to an issue. */
+  bodies: Array<{ number: number; body: string }>;
   discards: number;
   setups: string[];
   /** Each local check command run, with the head it ran on. */
@@ -217,6 +221,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     messages: [],
     comments: [],
     issueNotes: [],
+    bodies: [],
     discards: 0,
     setups: [],
     checks: [],
@@ -300,6 +305,9 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       return true;
     },
     diff: async () => plan.diff ?? 'the diff',
+    editIssueBody: async (_repo, number, body) => {
+      state.bodies.push({ number, body });
+    },
     discardChanges: async (_worktree, target) => {
       state.discards += 1;
       const moved = String(head) !== target;
@@ -502,6 +510,9 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       return plan.thread ?? [];
     },
     viewIssue: async (_repo, number) => {
+      if (plan.fresh?.number === number) {
+        return { ...plan.fresh, open: true };
+      }
       const closed = (plan.closed ?? []).find((entry) => entry.number === number);
       return closed === undefined
         ? { ...(plan.unlisted ?? []).find((entry) => entry.number === number)!, open: true }
