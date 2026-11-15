@@ -1,3 +1,4 @@
+import type { Restarted } from './base-checks.mts';
 import { budgetUse, refundBudget } from './budget.mts';
 import { type CheckState, checkWaiting } from './check-poll.mts';
 import { runStopped } from './children.mts';
@@ -45,11 +46,16 @@ export async function checkGate(job: Run, sha: string): Promise<Gate> {
   return failedChecksFix(job, sha);
 }
 
-async function waitForChecks(job: Run, sha: string, fields = {}): Promise<CheckState> {
+async function waitForChecks(
+  job: Run,
+  sha: string,
+  fields = {},
+  restarted: Restarted[] = [],
+): Promise<CheckState> {
   const { context, log } = job;
   const { repo, config, ports } = context;
   const checks = await log.step('main-checks', { sha, ...fields }, () =>
-    ports.waitForBaseChecks(repo, sha, context.base, checkWaiting(config, true)),
+    ports.waitForBaseChecks(repo, sha, context.base, checkWaiting(config, true), restarted),
   );
   log.event('main-checks.state', { state: checks, ...fields });
   return checks;
@@ -63,25 +69,33 @@ async function rerunOnce(job: Run, sha: string, checks: CheckState): Promise<Che
   const before = state.rerun;
   state.rerun = sha;
   await writeState(context.repo, state);
-  let started = false;
+  const restarted: Restarted[] = [];
   try {
-    const runs = await context.ports.rerunFailedBase(context.repo, sha, context.base, () => {
-      started = true;
+    const runs = await context.ports.rerunFailedBase(context.repo, sha, context.base, (run) => {
+      restarted.push(run);
     });
     log.event('main-checks.rerun', { sha, runs });
   } catch (error) {
     if (runStopped()) {
-      if (started) {
+      if (restarted.length > 0) {
         throw error;
       }
       state.rerun = before;
       await writeState(context.repo, state);
       throw error;
     }
-    log.event('main-checks.rerun-failed', { sha, error: asError(error).message });
-    return checks;
+    if (restarted.length === 0) {
+      log.event('main-checks.rerun-failed', { sha, error: asError(error).message });
+      return checks;
+    }
+    // Some runs restarted, so the fixer waits for them rather than getting a failure with no log.
+    log.event('main-checks.rerun', {
+      sha,
+      runs: restarted.map((run) => String(run.id)),
+      error: asError(error).message,
+    });
   }
-  return waitForChecks(job, sha, { rerun: true }).catch((error: unknown) => {
+  return waitForChecks(job, sha, { rerun: true }, restarted).catch((error: unknown) => {
     job.mainBroken = true;
     throw error;
   });

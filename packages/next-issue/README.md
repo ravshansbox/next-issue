@@ -204,7 +204,13 @@ the run handles one issue. For each issue:
    reruns the failed GitHub Actions jobs once with
    `gh run rerun <id> --failed`, records a
    `main-checks.rerun` event, saves the rerun in the state file and waits
-   again once the runs restart. When the rerun cannot start, or the checks
+   again once the runs restart. A rerun that GitHub refuses because the run
+   is already running counts as started. When at least one run restarted
+   and a later rerun or read fails, the event carries the error and the
+   harness still waits for the checks again, counting each restarted run as
+   running until a later attempt of it completes, so the fixer never runs
+   while a rerun is queued or in progress. When the rerun cannot start (no
+   run restarted, a `main-checks.rerun-failed` event), or the checks
    fail again, the fixer gets their logs from the check budget (for a check
    from another CI service, only its name and link), and its fix
    lands the same way. When the fixer cannot fix them, its fix cannot land,
@@ -292,7 +298,9 @@ and comments the reason on the issue, when:
   awaited;
 - a step of the run fails with an error. A `gh` call that is safe to repeat,
   such as a read or a label edit, is tried up to three times first when the
-  network fails. A `gh issue comment` is
+  network fails. So is a `gh run rerun`: when GitHub took the first try, it
+  refuses the next as already running, which counts as a started rerun. A
+  `gh issue comment` is
   tried once, so a lost reply never makes a duplicate. On a resume whose
   state holds a landed commit, or a push or revert that may have reached the
   base, an error before the harness checks the base (for example a failed

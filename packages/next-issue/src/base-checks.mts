@@ -1,6 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { type CheckState, pollChecks, type PollOptions } from './check-poll.mts';
 import { secondsToMs } from './durations.mts';
+import { errorMatches } from './errors.mts';
 import { gh, ghApi } from './gh.mts';
 import type { Repo } from './git.mts';
 import { runLogs } from './run-logs.mts';
@@ -28,6 +29,10 @@ type CheckRun = {
 type CommitStatus = { name: string; state: string; url: string | null };
 
 const RESTART_TRIES = 10;
+
+const ALREADY_RUNNING = /already running/i;
+
+export type Restarted = { id: number; attempt: number };
 
 const ACTIONS_APP = 'github-actions';
 
@@ -88,12 +93,25 @@ async function externalChecks(repo: Repo, sha: string): Promise<Check[]> {
   return [...checkRuns, ...commitStatuses];
 }
 
-async function baseChecks(repo: Repo, sha: string, branch: string): Promise<Check[]> {
+async function baseChecks(
+  repo: Repo,
+  sha: string,
+  branch: string,
+  restarted: Restarted[],
+): Promise<{ checks: Check[]; rerunning: boolean }> {
   const [runs, external] = await Promise.all([
     baseRuns(repo, sha, branch),
     externalChecks(repo, sha),
   ]);
-  return [...runs.map((entry) => ({ ...entry, url: '' })), ...external];
+  // A rerun run counts as running until a later attempt of it completes, so its old failure never ends the wait.
+  const rerunning = restarted.some(
+    (entry) =>
+      !runs.some(
+        (run) =>
+          run.databaseId === entry.id && run.attempt > entry.attempt && run.status === 'completed',
+      ),
+  );
+  return { checks: [...runs.map((entry) => ({ ...entry, url: '' })), ...external], rerunning };
 }
 
 function failedRun(entry: { status: string; conclusion: string }): boolean {
@@ -115,17 +133,18 @@ export function waitForBaseChecks(
   sha: string,
   branch: string,
   options: PollOptions,
+  restarted: Restarted[] = [],
 ): Promise<CheckState> {
-  let checks: Check[] = [];
+  let read: { checks: Check[]; rerunning: boolean } = { checks: [], rerunning: false };
   return pollChecks(
     {
       head: async () => sha,
       lags: async () => true,
       list: async () => {
-        checks = await baseChecks(repo, sha, branch);
-        return checks.length === 0 ? 'none' : 'some';
+        read = await baseChecks(repo, sha, branch, restarted);
+        return read.checks.length === 0 && !read.rerunning ? 'none' : 'some';
       },
-      watch: async () => baseState(checks),
+      watch: async () => (read.rerunning ? 'pending' : baseState(read.checks)),
     },
     options,
   );
@@ -135,17 +154,28 @@ export async function rerunFailedBase(
   repo: Repo,
   sha: string,
   branch: string,
-  started: () => void = () => {},
+  started: (run: Restarted) => void = () => {},
 ): Promise<string[]> {
   const failed = (await baseRuns(repo, sha, branch)).filter(
     (entry) => failedRun(entry) && entry.conclusion !== AWAITS_APPROVAL,
   );
   for (const entry of failed) {
-    await gh(repo, ['run', 'rerun', String(entry.databaseId), '--failed']);
+    await rerun(repo, entry.databaseId);
+    started({ id: entry.databaseId, attempt: entry.attempt });
   }
-  started();
   await waitForRestart(repo, sha, branch, failed);
   return failed.map((entry) => String(entry.databaseId));
+}
+
+async function rerun(repo: Repo, id: number): Promise<void> {
+  try {
+    await gh(repo, ['run', 'rerun', String(id), '--failed']);
+  } catch (error) {
+    // A rerun repeated after a lost reply finds the run running again, so that answer means the rerun started.
+    if (!errorMatches(error, ALREADY_RUNNING)) {
+      throw error;
+    }
+  }
 }
 
 async function waitForRestart(

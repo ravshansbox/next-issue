@@ -313,7 +313,7 @@ test('a user who stops a run now while the harness waits for the rerun failed jo
   const first = await harness(t, { baseChecks: ['fail'] });
   first.context.ports.rerunFailedBase = async (_repo, sha, _branch, started) => {
     first.reruns.push(sha);
-    started?.();
+    started?.({ id: 41, attempt: 1 });
     first.stopNow();
     throw new Error('The run stopped.');
   };

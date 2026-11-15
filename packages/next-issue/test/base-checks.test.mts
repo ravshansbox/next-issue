@@ -544,3 +544,148 @@ for (const [checks, state] of [
     assert.equal(time.time, 60_000);
   });
 }
+
+type RerunPlan = {
+  runs: unknown[];
+  after: unknown[][];
+  afterErrors?: Record<number, string>;
+  refuse?: Record<number, string>;
+};
+
+async function fakeRerunGh(t: TestContext, plan: RerunPlan): Promise<string> {
+  const dir = await tempDir();
+  await writeFile(join(dir, 'runs'), jsonLines(pushRuns(plan.runs)));
+  for (const [index, reply] of plan.after.entries()) {
+    await writeFile(join(dir, `after.${index}`), jsonLines(pushRuns(reply)));
+  }
+  await writeFile(join(dir, 'after.last'), jsonLines(pushRuns(plan.after.at(-1) ?? [])));
+  for (const [index, error] of Object.entries(plan.afterErrors ?? {})) {
+    await writeFile(join(dir, `after-error.${index}`), error);
+  }
+  for (const [id, error] of Object.entries(plan.refuse ?? {})) {
+    await writeFile(join(dir, `refuse.${id}`), error);
+  }
+  const script = `#!/bin/sh
+d="$(dirname "$0")"
+case "$*" in
+  "api --paginate repos/acme/tool/actions/runs?head_sha=2&per_page=100 --jq "*)
+    if [ ! -f "$d/reruns" ]; then cat "$d/runs"; exit 0; fi
+    n=$(cat "$d/after-reads" 2>/dev/null || echo 0); echo $((n + 1)) > "$d/after-reads"
+    if [ -f "$d/after-error.$n" ]; then cat "$d/after-error.$n" >&2; exit 1; fi
+    f="$d/after.$n"; [ -f "$f" ] || f="$d/after.last"; cat "$f"; exit 0 ;;
+  "api --paginate repos/acme/tool/commits/2/check-runs?per_page=100 --jq "*) exit 0 ;;
+  "api --paginate repos/acme/tool/commits/2/status?per_page=100 --jq "*) exit 0 ;;
+esac
+case "$1 $2" in
+  "run view") echo "boom in $3" ;;
+  "run rerun") touch "$d/reruns"; if [ -f "$d/refuse.$3" ]; then cat "$d/refuse.$3" >&2; exit 1; fi; echo "$3" >> "$d/rerun-ids" ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+`;
+  await installGh(t, dir, script);
+  return dir;
+}
+
+async function rerunHarness(t: TestContext, plan: RerunPlan) {
+  const target = await harness(t, { config: { checkGraceSeconds: 0, checkIntervalSeconds: 1 } });
+  const dir = await fakeRerunGh(t, plan);
+  const fixerReads: string[] = [];
+  target.context.ports.waitForBaseChecks = waitForBaseChecks;
+  target.context.ports.rerunFailedBase = rerunFailedBase;
+  target.context.ports.failedBaseLogs = async (...args) => {
+    fixerReads.push(await readFile(join(dir, 'after-reads'), 'utf8').catch(() => '0\n'));
+    return failedBaseLogs(...args);
+  };
+  return { target, dir, fixerReads };
+}
+
+const FAILED_CI = {
+  databaseId: 1,
+  name: 'CI',
+  status: 'completed',
+  conclusion: 'failure',
+  attempt: 1,
+};
+const QUEUED_CI = { databaseId: 1, name: 'CI', status: 'queued', conclusion: '', attempt: 2 };
+const PASSED_CI = {
+  databaseId: 1,
+  name: 'CI',
+  status: 'completed',
+  conclusion: 'success',
+  attempt: 2,
+};
+const FAILED_DOCS = {
+  databaseId: 2,
+  name: 'Docs',
+  status: 'completed',
+  conclusion: 'failure',
+  attempt: 1,
+};
+
+test(
+  'a user whose read of the restarted runs on main fails after the rerun went through gets the rerun awaited and the issue done with no check fix spent',
+  { timeout: 60_000 },
+  async (t) => {
+    const { target, fixerReads } = await rerunHarness(t, {
+      runs: [FAILED_CI],
+      afterErrors: { 0: 'HTTP 403: API rate limit exceeded' },
+      after: [[], [FAILED_CI], [QUEUED_CI], [PASSED_CI]],
+    });
+    const report = await target.run();
+    assert.equal(report.outcome, 'done');
+    assert.equal(report.ciFixes, 0);
+    assert.deepEqual(fixerReads, []);
+    assert.deepEqual(target.reverts, []);
+  },
+);
+
+test(
+  'a user whose restarted run on main is missing from the run list for a while gets the rerun awaited and the fixer once it fails again',
+  { timeout: 60_000 },
+  async (t) => {
+    const { target, fixerReads } = await rerunHarness(t, {
+      runs: [FAILED_CI],
+      afterErrors: { 0: 'HTTP 403: API rate limit exceeded' },
+      after: [[], [], [QUEUED_CI], [{ ...FAILED_CI, attempt: 2 }]],
+    });
+    await target.run();
+    assert.deepEqual(fixerReads, ['4\n']);
+    assert.ok(target.prompts.some((entry) => entry.role === 'fixer'));
+  },
+);
+
+test(
+  'a user whose second rerun on main fails after the first went through gets the fixer only once the first rerun ends',
+  { timeout: 60_000 },
+  async (t) => {
+    const { target, fixerReads } = await rerunHarness(t, {
+      runs: [FAILED_CI, FAILED_DOCS],
+      refuse: { 2: 'HTTP 403: Must have admin rights to Repository.' },
+      after: [
+        [QUEUED_CI, FAILED_DOCS],
+        [QUEUED_CI, FAILED_DOCS],
+        [PASSED_CI, FAILED_DOCS],
+      ],
+    });
+    await target.run();
+    assert.deepEqual(fixerReads, ['3\n']);
+    const fixer = target.prompts.find((entry) => entry.role === 'fixer');
+    assert.match(fixer!.prompt, /boom in 2/);
+  },
+);
+
+test(
+  'a user whose rerun on main GitHub refuses as already running gets the rerun awaited and the issue done with no check fix spent',
+  { timeout: 60_000 },
+  async (t) => {
+    const { target, fixerReads } = await rerunHarness(t, {
+      runs: [FAILED_CI],
+      refuse: { 1: 'run 1 cannot be rerun; This workflow is already running' },
+      after: [[{ ...QUEUED_CI, status: 'in_progress' }], [PASSED_CI]],
+    });
+    const report = await target.run();
+    assert.equal(report.outcome, 'done');
+    assert.equal(report.ciFixes, 0);
+    assert.deepEqual(fixerReads, []);
+  },
+);
