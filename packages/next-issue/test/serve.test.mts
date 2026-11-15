@@ -3,15 +3,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { closeSync, createWriteStream, openSync, statSync } from 'node:fs';
 import fsPromises from 'node:fs/promises';
-import {
-  mkdir,
-  readdir,
-  readFile,
-  rename,
-  rm,
-  stat,
-  writeFile,
-} from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { syncBuiltinESMExports } from 'node:module';
 import { createConnection, Server } from 'node:net';
 import { dirname, join } from 'node:path';
