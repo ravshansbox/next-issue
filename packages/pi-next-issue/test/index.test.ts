@@ -1568,7 +1568,7 @@ test('a user whose worker refuses to switch hunting on sees why', async () => {
   assert.deepEqual(notes, ['next-issue cannot hunt: the run does not watch']);
 });
 
-test('a user sees a note when hunting of the going run turns on or off, and the footer shows it', async () => {
+test('a user sees a note when hunting of the going run turns on or off', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
   fake.runs['/repo'] = running({ hunting: false });
@@ -1577,10 +1577,11 @@ test('a user sees a note when hunting of the going run turns on or off, and the 
   await emit('session_start');
   await until(() => status.at(-1) === 'looking for issues');
   fake.update('/repo', running({ hunting: true }));
-  await until(() => status.at(-1) === 'looking for issues · hunting');
+  await until(() => notes.length === 1);
   fake.update('/repo', running({ hunting: false }));
   await until(() => notes.length === 2);
   assert.deepEqual(notes, ['next-issue: hunting on', 'next-issue: hunting off']);
+  assert.ok(status.every((line) => !line?.includes('hunting')));
 });
 
 test('a user who types /next-issue hunt followed by a space is offered on and off', () => {
@@ -1692,11 +1693,10 @@ test('a user who runs /next-issue start --hunt while a run is going asks it to h
   );
 });
 
-test('a user sees whether a going run hunts in the footer', () => {
-  assert.equal(formatStatus(progress({ hunting: true }), now), 'looking for issues · hunting');
+test('a user whose going run hunts sees no hunting marker in the footer', () => {
+  assert.equal(formatStatus(progress({ hunting: true }), now), 'looking for issues');
   assert.equal(
     formatStatus(progress({ hunting: true, issues: [working(4, { stage: 'implement' })] }), now),
-    '#4 · implement · 0 tools · hunting',
+    '#4 · implement · 0 tools',
   );
-  assert.equal(formatStatus(progress({ hunting: false }), now), 'looking for issues');
 });

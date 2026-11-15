@@ -84,12 +84,11 @@ export function formatStatus(progress: Progress, now: number): string {
   const running = progress.issues ?? [];
   switch (progress.status) {
     case 'running': {
-      const hunting = progress.hunting === true ? ' · hunting' : '';
       if (running.length === 0) {
-        return `looking for issues${hunting}`;
+        return 'looking for issues';
       }
       const count = progress.open === undefined ? '' : `/${progress.open}`;
-      return running.map((item) => issueLine(item, count, now)).join(' | ') + hunting;
+      return running.map((item) => issueLine(item, count, now)).join(' | ');
     }
     case 'stopping': {
       const issues = running.map((item) => `#${item.issue}`);
