@@ -499,6 +499,9 @@ Three levels of console output:
 ## Requirements
 
 - Node 24 or later
+- git 2.40 or later (every commit runs `git hook run`, every conflict with the
+  base runs `git check-attr --source`). A run or `serve` run on an older git
+  stops before it claims an issue, with an error that names both versions.
 - `gh`, authenticated with write access to the repository
 - a `remote` on GitHub: `github.com`, or a GitHub Enterprise host. Every `gh`
   call names the host of the remote url (`--repo <host>/<owner>/<name>`,

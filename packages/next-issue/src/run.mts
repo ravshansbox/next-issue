@@ -9,6 +9,7 @@ import { withDefaultTimeout } from './exec.mts';
 import { writeJson } from './files.mts';
 import { slug } from './gh.mts';
 import { detectRepo, type Repo } from './git.mts';
+import { checkGitVersion } from './git-version.mts';
 import { defaultBranch } from './github.mts';
 import { hunter } from './hunt.mts';
 import type { Interrupts } from './interrupt.mts';
@@ -63,6 +64,7 @@ async function runWithConfig(
   controls: RunControls,
   config: Config,
 ): Promise<number> {
+  await checkGitVersion();
   const repo = await detectRepo(root, config.remote);
   const recorder = await Recorder.create(repo.root, args.level, controls.onEvent);
   const pruned = await pruneRuns(repo.root, config.keepRunDays);
