@@ -42,19 +42,6 @@ async function runSetup(command: string, cwd: string, timeoutMs: number): Promis
   return run('bash', ['-lc', command], { cwd, timeoutMs });
 }
 
-export type CheckResult = { code: number; output: string; timedOut: boolean };
-
-/** Runs a check command with its stderr in its stdout, so the output keeps the order it was written in. */
-async function runCheck(
-  command: string,
-  cwd: string,
-  timeoutMs: number,
-  tailChars?: number,
-): Promise<CheckResult> {
-  const result = await run('bash', ['-lc', `exec 2>&1\n${command}`], { cwd, timeoutMs, tailChars });
-  return { code: result.code, output: result.stdout, timedOut: result.timedOut };
-}
-
 export const PORTS = {
   abortMerge,
   addWorktree,
@@ -91,7 +78,6 @@ export const PORTS = {
   revertOnBase,
   revision,
   runAgent,
-  runCheck,
   runSetup,
   saveEdits,
   setAside,

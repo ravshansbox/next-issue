@@ -111,9 +111,6 @@ export type Plan = {
   /** The agent (or `rerun`) that never settles, as when the process is killed while it runs. */
   hangDuring?: string;
   stopNowDuringSetup?: boolean;
-  /** The exit codes of the local check commands in turn; a missing code passes, `timeout` does not finish. */
-  checkCodes?: Array<number | 'timeout'>;
-  stopNowDuringCheck?: boolean;
   stopNowOnLabel?: string;
   disputes?: string[];
   earlier?: string;
@@ -139,8 +136,6 @@ export type Harness = {
   issueNotes: Array<{ number: number; body: string }>;
   discards: number;
   setups: string[];
-  /** Each local check command run, with the head it ran on. */
-  checks: Array<{ command: string; head: string }>;
   pushes: number;
   forcedPushes: number;
   baseMerges: number;
@@ -188,7 +183,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
   const verdicts = [...(plan.verdicts ?? [APPROVE])];
   const commits = [...(plan.commits ?? [])];
   const merges = [...(plan.merges ?? [])];
-  const checkCodes = [...(plan.checkCodes ?? [])];
   let rejects = plan.pushRejects ?? 0;
   const fixerTexts = Array.isArray(plan.fixerText) ? [...plan.fixerText] : [];
   const implementerTexts = [...(plan.implementerText ?? [])];
@@ -217,7 +211,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     issueNotes: [],
     discards: 0,
     setups: [],
-    checks: [],
     pushes: 0,
     forcedPushes: 0,
     baseMerges: 0,
@@ -460,18 +453,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
         return { code: 130, stderr: '', timedOut: false };
       }
       return { code: plan.setupCode ?? 0, stderr: '', timedOut: plan.setupTimedOut };
-    },
-    runCheck: async (command) => {
-      state.checks.push({ command, head: String(head) });
-      if (plan.stopNowDuringCheck === true) {
-        stopRunChildren(children);
-        return { code: 143, output: '', timedOut: false };
-      }
-      const code = checkCodes.shift() ?? 0;
-      if (code === 'timeout') {
-        return { code: 143, output: `${command} hung`, timedOut: true };
-      }
-      return { code, output: code === 0 ? 'ok' : `${command} broke`, timedOut: false };
     },
     saveEdits: async () => {
       if (plan.fixerWrites !== true) {

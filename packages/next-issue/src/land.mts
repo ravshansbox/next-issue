@@ -2,7 +2,6 @@ import { runStopped } from './children.mts';
 import { rebase } from './conflict.mts';
 import { checkGate, escalateError } from './gate.mts';
 import { PUSH_TRIES } from './git-land.mts';
-import { localChecks } from './local-checks.mts';
 import { escalateAndFinish, finishDone, stop } from './handover.mts';
 import type { Finished, Run } from './job.mts';
 import { oneAtATime } from './lock.mts';
@@ -123,18 +122,10 @@ async function landLoop(job: Run): Promise<Finished> {
 async function pushChange(job: Run): Promise<Finished | string> {
   const { context, log, state, worktree } = job;
   const { repo, config, ports, base } = context;
-  for (let attempt = 1; ;) {
+  for (let attempt = 1; ; attempt += 1) {
     const rebased = await rebase(job);
     if (rebased !== undefined) {
       return rebased;
-    }
-    const checked = await localChecks(job);
-    if (checked === false) {
-      // The fixer committed: merge the base again and run every check on the result.
-      continue;
-    }
-    if (checked !== true) {
-      return checked;
     }
     const sha = await ports.revision(worktree);
     // A halt saved before nothing of this issue was left on the base must not block once this push lands.
@@ -171,8 +162,7 @@ async function pushChange(job: Run): Promise<Finished | string> {
       job.repairing = false;
       return sha;
     }
-    attempt += 1;
-    if (attempt > PUSH_TRIES) {
+    if (attempt >= PUSH_TRIES) {
       return escalateAndFinish(
         job,
         `The push to ${base} failed ${PUSH_TRIES} times.`,

@@ -143,29 +143,13 @@ the run handles one issue. For each issue:
    conflict marker. With the budget used up, or when the fixer leaves a
    conflict marker or the merge unresolved, aborts the merge, or fails, the
    harness undoes the merge and hands the issue to a person with the reason
-   `merge conflict`. When `checks` lists commands, the harness then runs
-   each one in the worktree, in order, with `bash -lc` and stderr merged
-   into stdout, each for at most `checksTimeoutMinutes`. Their output goes
-   to the run log (`check.output`, and `check.fail` for a failure). A
-   command that fails or does not finish stops the landing before the push:
-   the fixer gets the command and the tail of its output (at most
-   `logMaxChars`) from the check budget, `maxCiFixes`, and its fix is
-   squashed into the change, which keeps its subject. The harness then
-   merges the base again and runs every command again, so nothing lands
-   until all pass. When the budget runs out, the harness hands the issue to
-   a person with the reason `local checks failed: <command>` and the tail
-   of the output in the comment; a fixer that adds no commit or calls the
-   failure unrelated hands it over too, as for the checks on the base.
-   Nothing of the change reaches the base. A run that stops while a
-   command runs keeps the budget, and the next run merges and runs every
-   command again before any push. The harness then pushes the commit to
-   the base branch, without force. A push that the remote refuses, for
-   example because the base moved, starts the rebase again, three times at
-   most. When the push fails, the harness fetches the base first, and
-   treats the push as landed when the base holds the commit, for example
-   after a timeout. When that fetch fails too, the harness hands the issue
-   to a person with the reason `push unknown` and halts, even when the
-   hand-over fails. The state file
+   `merge conflict`. The harness then pushes the commit to the base branch,
+   without force. A push that the remote refuses, for example because the
+   base moved, starts the rebase again, three times at most. When the push
+   fails, the harness fetches the base first, and treats the push as landed
+   when the base holds the commit, for example after a timeout. When that
+   fetch fails too, the harness hands the issue to a person with the reason
+   `push unknown` and halts, even when the hand-over fails. The state file
    holds the commit during the push, so a run stopped meanwhile, or the
    resume after that hand-over (once a person answers or takes the label
    off), checks the base and waits for the checks of the commit when it
@@ -311,8 +295,6 @@ and comments the reason on the issue, when:
   none of the change. Neither lands. The `<n>-dispute-<commit>` branches go
   away with the `<n>` branch when the issue is done;
 - the reviewer gives no verdict, or the checks do not finish in time;
-- a command in `checks` still fails before the push when the check budget
-  runs out; nothing of the change is pushed;
 - the push to the base branch fails three times;
 - the checks on the base branch fail and the fixer cannot fix them, an error
   stops the fix, or they do not finish in time. The base branch is then
@@ -582,8 +564,6 @@ because no pull request is opened.
   "logMaxChars": 20000,
   "diffMaxChars": 60000,
   "keepRunDays": 7,
-  "checks": [],
-  "checksTimeoutMinutes": 30,
   "models": {
     "implementer": null,
     "reviewer": null,
@@ -619,8 +599,6 @@ because no pull request is opened.
 | `logMaxChars`           | `20000`            | The maximum length of the failed job logs, shared between the failed GitHub Actions runs (failed external checks are listed by name and link only)                                                        |
 | `diffMaxChars`          | `60000`            | The maximum length of the diff that the reviewer reads                                                                                                                                                    |
 | `keepRunDays`           | `7`                | The number of days to keep the run files; `0` keeps them all                                                                                                                                              |
-| `checks`                | `[]`               | Shell commands that must pass in the worktree, in order, before an approved change is pushed; a failure goes to the fixer                                                                                 |
-| `checksTimeoutMinutes`  | `30`               | The limit for one command in `checks`, at most `35791`                                                                                                                                                    |
 | `setupCommand`          | from the lock file | A shell command to run in a new worktree, before the implementer                                                                                                                                          |
 | `models`                | `null` per role    | The pi model per agent role, as `provider/model`: `implementer`, `reviewer`, `fixer`                                                                                                                      |
 | `labels`                | see above          | The names of the labels that the harness reads and sets                                                                                                                                                   |
