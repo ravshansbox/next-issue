@@ -165,6 +165,7 @@ async function pushChange(job: Run): Promise<Finished | string> {
     state.pushing = undefined;
     if (pushed) {
       state.landed = [...(state.landed ?? []), sha];
+      state.halted = true;
     }
     await writeState(repo, state);
     if (pushed) {

@@ -62,6 +62,50 @@ test('a user who stops a run now while a push to main lands gets the next run to
   assert.deepEqual(target.closed, [7]);
 });
 
+test('a user who stops a run now while it waits for the checks of a landed commit gets no other issue landed by the next run until those checks are read', async (t) => {
+  const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
+  first.context.ports.waitForBaseChecks = async () => {
+    first.stopNow();
+    throw new Error('The run stopped.');
+  };
+  assert.equal((await first.run()).outcome, 'stopped');
+  const root = first.context.repo.root;
+  const older = await harness(t, { root, issue: { ...ISSUE, number: 5 } });
+  const blocked = await older.run();
+  assert.equal(blocked.outcome, 'stopped');
+  assert.equal(blocked.reason, 'base unchecked');
+  assert.deepEqual(older.landed, []);
+  const resumed = await harness(t, {
+    root,
+    issue: { ...ISSUE, labels: ['status:in-review'] },
+    baseMoved: true,
+  });
+  assert.equal((await resumed.run()).outcome, 'done');
+  assert.deepEqual(resumed.baseWaits, ['2']);
+  const next = await harness(t, { root, issue: { ...ISSUE, number: 5 } });
+  assert.equal((await next.run()).outcome, 'done');
+  assert.equal(next.landed.length, 1);
+});
+
+test('a user who stops a run now while it reverts a landed commit whose checks failed gets the next run to land an older approved issue', async (t) => {
+  const first = await harness(t, {
+    verdicts: [APPROVE, APPROVE],
+    config: { maxCiFixes: 0 },
+    baseChecks: ['fail'],
+  });
+  first.context.ports.revertOnBase = async () => {
+    first.stopNow();
+    throw new Error('The run stopped.');
+  };
+  assert.equal((await first.run()).outcome, 'stopped');
+  const older = await harness(t, {
+    root: first.context.repo.root,
+    issue: { ...ISSUE, number: 5 },
+  });
+  assert.equal((await older.run()).outcome, 'done');
+  assert.equal(older.landed.length, 1);
+});
+
 test('a user who stops a run now during the implementation gets the issue stopped with no hand-over and the state kept', async (t) => {
   const target = await harness(t, { stopNowDuring: 'implementer' });
   const report = await target.run();

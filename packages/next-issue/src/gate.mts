@@ -22,7 +22,10 @@ export async function checkGate(job: Run, sha: string): Promise<Gate> {
     return unreadChecks(job, error);
   }
   // The checks are known now, so an earlier halt on this issue no longer holds back other landings.
-  delete job.state.halted;
+  if (job.state.halted === true) {
+    delete job.state.halted;
+    await writeState(job.context.repo, job.state);
+  }
   if (checks === 'pass' || checks === 'none') {
     return GATE_PASSED;
   }
