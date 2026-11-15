@@ -16,6 +16,7 @@ import {
   push,
   resetToBase,
   revision,
+  saveEdits,
   setAside,
 } from './git.mts';
 import {
@@ -78,6 +79,7 @@ export const PORTS = {
   revision,
   runAgent,
   runSetup,
+  saveEdits,
   setAside,
   setLabel,
   squashOnto,

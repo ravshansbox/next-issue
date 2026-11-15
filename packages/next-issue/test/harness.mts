@@ -148,6 +148,8 @@ export type Harness = {
   branches: string[];
   starts: boolean[];
   asides: Array<{ target: string; branch: string }>;
+  /** Edits of a fixer committed by `saveEdits`. */
+  saves: number;
   threads: number[];
   events: Array<Record<string, unknown>>;
   hunts: string[];
@@ -220,6 +222,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     branches: [],
     starts: [],
     asides: [],
+    saves: 0,
     threads: [],
     events: [],
     hunts: [],
@@ -439,6 +442,14 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
         return { code: 130, stderr: '', timedOut: false };
       }
       return { code: plan.setupCode ?? 0, stderr: '', timedOut: plan.setupTimedOut };
+    },
+    saveEdits: async () => {
+      if (plan.fixerWrites !== true) {
+        return false;
+      }
+      state.saves += 1;
+      head += 1;
+      return true;
     },
     setAside: async (_worktree, target, branch) => {
       state.asides.push({ target, branch });

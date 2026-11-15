@@ -7,7 +7,15 @@ import type { Config } from '../src/config.mts';
 import { commitAll, HookError } from '../src/git-commit.mts';
 import { pushToBase, squashOnto } from '../src/git-land.mts';
 import { abortMerge, commitMerge, startMerge } from '../src/git-merge.mts';
-import { diff, discardChanges, isDirty, latestSubject, revision, setAside } from '../src/git.mts';
+import {
+  diff,
+  discardChanges,
+  isDirty,
+  latestSubject,
+  revision,
+  saveEdits,
+  setAside,
+} from '../src/git.mts';
 import type { Recorder } from '../src/observe.mts';
 import { addWorktree, findWorktree, removeWorktree } from '../src/worktree.mts';
 import { clones, commit, git } from './clones.mts';
@@ -130,6 +138,7 @@ const REAL_GIT = {
   pushToBase,
   removeWorktree,
   revision,
+  saveEdits,
   setAside,
   squashOnto,
   startMerge,

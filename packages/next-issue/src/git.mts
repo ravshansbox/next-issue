@@ -106,6 +106,16 @@ export async function resetHard(cwd: string, target: string): Promise<void> {
   await git(cwd, ['clean', '-fd']);
 }
 
+/** Commits every edit in the worktree, with no hooks, so a later checkout cannot throw it away. */
+export async function saveEdits(cwd: string, commitMessage: string): Promise<boolean> {
+  if (!(await isDirty(cwd))) {
+    return false;
+  }
+  await git(cwd, ['add', '-A']);
+  await git(cwd, ['commit', '--no-verify', '-m', commitMessage]);
+  return true;
+}
+
 export async function setAside(cwd: string, target: string, branch: string): Promise<void> {
   await git(cwd, ['branch', branch]);
   if (await isDirty(cwd)) {

@@ -13,6 +13,7 @@ import {
   isLanded,
   latestSubject,
   revision,
+  saveEdits,
   setAside,
 } from '../src/git.mts';
 import type { Recorder } from '../src/observe.mts';
@@ -36,6 +37,7 @@ const REAL_GIT = {
   removeWorktree,
   revertOnBase,
   revision,
+  saveEdits,
   setAside,
   squashOnto,
   startMerge,

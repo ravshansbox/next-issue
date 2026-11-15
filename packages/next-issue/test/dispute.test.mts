@@ -138,3 +138,40 @@ test('a reviewer that holds to a disputed finding sends it back to the fixer unt
   assert.equal(report.reason, 'review budget');
   assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer', 'reviewer', 'fixer']);
 });
+
+test('a check fixer that reports an unrelated failure on main and leaves edits gets them saved in a dispute branch that the hand-over names', async (t) => {
+  const target = await harness(t, {
+    fixerWrites: true,
+    baseChecks: ['fail'],
+    fixerText: 'unrelated: product-inventories fails on main too, the diff does not touch it',
+  });
+  const report = await target.run();
+  assert.equal(report.reason, 'unrelated failure');
+  assert.equal(target.saves, 1);
+  assert.deepEqual(target.asides, [{ target: '2', branch: '7-dispute-3' }]);
+  assert.match(
+    target.comments.at(-1)!,
+    /The fixer left a change behind; it is saved in the branch `7-dispute-3`\./,
+  );
+});
+
+test('a check fixer that reports an unrelated failure on main after its own commit gets a hand-over that names the dispute branch', async (t) => {
+  const target = await harness(t, {
+    selfCommit: true,
+    baseChecks: ['fail'],
+    fixerText: 'unrelated: product-inventories fails on main too, the diff does not touch it',
+  });
+  await target.run();
+  assert.equal(target.saves, 0);
+  assert.match(target.comments.at(-1)!, /saved in the branch `7-dispute-4`\./);
+});
+
+test('a check fixer that reports an unrelated failure on main and leaves nothing gets a hand-over that names no branch', async (t) => {
+  const target = await harness(t, {
+    baseChecks: ['fail'],
+    fixerText: 'unrelated: product-inventories fails on main too, the diff does not touch it',
+  });
+  await target.run();
+  assert.deepEqual(target.asides, []);
+  assert.doesNotMatch(target.comments.at(-1)!, /dispute|left a change/);
+});

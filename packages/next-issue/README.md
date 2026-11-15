@@ -271,8 +271,12 @@ and comments the reason on the issue, when:
 - the fixer reports that the checks fail for a reason the change did not cause,
   such as a test already broken on the base branch or one that fails only under
   load. It changes nothing and the reason reaches the issue, rather than
-  the fixer spending its whole budget on a failure it cannot fix. A commit it
-  makes anyway moves aside, as for a dispute of the findings;
+  the fixer spending its whole budget on a failure it cannot fix. The revert
+  of the change reuses the worktree, so a change the fixer leaves behind does
+  not stay there: its edits are committed with no hooks on top of any commit
+  of its own, that commit moves to a new local `<n>-dispute-<commit>` branch,
+  and the hand-over comment names that branch. The branch goes away with the
+  `<n>` branch when the issue is done;
 - a fixer disputes or settles the findings and leaves a change behind, either
   in the worktree or in a commit of its own. A dispute carries a reason, not a
   diff, so the harness throws none of it away: an unclean worktree stays on

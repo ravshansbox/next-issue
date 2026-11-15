@@ -16,6 +16,7 @@ import {
   push,
   repoRoot,
   revision,
+  saveEdits,
   setAside,
 } from '../src/git.mts';
 import { addWorktree } from '../src/worktree.mts';
@@ -236,6 +237,20 @@ test('setAside moves a commit of the fixer whose file the fixer then edited agai
   assert.equal(await revision(path), head);
   assert.equal(await git(path, 'rev-parse', '3-dispute-1'), disputed);
   assert.equal(await readFile(join(path, 'a.txt'), 'utf8'), 'the fixer left this\n');
+});
+
+test('saveEdits commits the tracked and untracked edits the fixer left, so a later checkout cannot lose them', async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  const head = await revision(path);
+  await writeFile(join(path, 'a.txt'), 'the fixer left this\n');
+  await writeFile(join(path, 'new.txt'), 'a new file\n');
+  assert.equal(await saveEdits(path, 'the edits of the fixer'), true);
+  assert.equal(await isDirty(path), false);
+  assert.equal(await git(path, 'rev-parse', 'HEAD~1'), head);
+  assert.equal(await git(path, 'show', 'HEAD:new.txt'), 'a new file');
+  assert.equal(await git(path, 'show', 'HEAD:a.txt'), 'the fixer left this');
+  assert.equal(await saveEdits(path, 'nothing left'), false);
 });
 
 test('disputeBranches lists the dispute branches of an issue only', async () => {

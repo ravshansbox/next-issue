@@ -17,7 +17,14 @@ import { keepTail } from './text.mts';
 
 type NoChange = { unrelated: string } | { resolved: string };
 
-export type Unfixed = { committed: false; unrelated?: string; resolved?: string; stray?: boolean };
+export type Unfixed = {
+  committed: false;
+  unrelated?: string;
+  resolved?: string;
+  stray?: boolean;
+  /** The dispute branch that holds the change a check fixer left behind. */
+  aside?: string;
+};
 
 export type Fix = { committed: true } | Unfixed;
 
@@ -28,6 +35,7 @@ export function escalateCheckFix(
   unrelated: string | undefined,
   checks: string,
   after = '',
+  aside?: string,
 ): Promise<Finished> {
   if (unrelated === undefined) {
     return escalateAndFinish(
@@ -38,9 +46,15 @@ export function escalateCheckFix(
   }
   return escalateAndFinish(
     job,
-    `The ${checks} fail for a reason this change did not cause: ${unrelated}${after}`,
+    `The ${checks} fail for a reason this change did not cause: ${unrelated}${savedIn(aside)}${after}`,
     'unrelated failure',
   );
+}
+
+function savedIn(aside: string | undefined): string {
+  return aside === undefined
+    ? ''
+    : ` The fixer left a change behind; it is saved in the branch \`${aside}\`.`;
 }
 
 export async function fixRound(
@@ -59,11 +73,11 @@ export async function fixRound(
   }
   const unrelated = parseUnrelated(text);
   if (unrelated !== undefined) {
-    return disputedFix(job, before, reason, { unrelated });
+    return disputedFix(job, before, reason, { unrelated }, kind);
   }
   const resolved = kind === 'review' ? parseResolved(text) : undefined;
   if (resolved !== undefined) {
-    return disputedFix(job, before, reason, { resolved });
+    return disputedFix(job, before, reason, { resolved }, kind);
   }
   const subject = parseCommitSubject(text, `fix: address feedback on issue #${issue.number}`);
   const title = job.state.title;
@@ -104,20 +118,44 @@ function fixBudget(job: Run, kind: FixKind): BudgetUse {
   return budgetUse(job, kind === 'review' ? 'reviewRounds' : 'ciFixes');
 }
 
-async function disputedFix(job: Run, before: string, reason: string, note: NoChange): Promise<Fix> {
-  const { context, log, worktree, branch } = job;
+async function disputedFix(
+  job: Run,
+  before: string,
+  reason: string,
+  note: NoChange,
+  kind: FixKind,
+): Promise<Fix> {
+  const { context, issue, log, worktree, branch } = job;
   const { ports } = context;
+  // The revert after a failed check reuses this worktree, so edits left there would be lost.
+  const saved =
+    kind === 'checks' &&
+    (await ports.saveEdits(
+      worktree,
+      `fix: edits left by the check fixer\n\nRefs #${issue.number}`,
+    ));
   const disputed = await ports.revision(worktree);
   const moved = disputed !== before;
   if (moved) {
     const aside = `${branch}-dispute-${disputed.slice(0, 7)}`;
     await ports.setAside(worktree, before, aside);
-    log.event('fix.aside', { branch: aside }, 'quiet');
+    log.event('fix.aside', { branch: aside, saved }, 'quiet');
+    if (kind === 'checks') {
+      return disputedNote(job, reason, note, { stray: true, aside });
+    }
   }
-  const stray = moved || (await ports.isDirty(worktree));
+  return disputedNote(job, reason, note, { stray: moved || (await ports.isDirty(worktree)) });
+}
+
+function disputedNote(
+  job: Run,
+  reason: string,
+  note: NoChange,
+  left: { stray: boolean; aside?: string },
+): Fix {
   const event = 'unrelated' in note ? 'fix.unrelated' : 'fix.resolved';
-  log.event(event, { reason, note: Object.values(note)[0], stray }, 'quiet');
-  return { committed: false, ...note, stray };
+  job.log.event(event, { reason, note: Object.values(note)[0], ...left }, 'quiet');
+  return { committed: false, ...note, ...left };
 }
 
 export async function commitWork(

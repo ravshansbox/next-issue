@@ -161,7 +161,7 @@ async function failedChecksFix(job: Run, sha: string): Promise<Gate> {
   }
   if (!fix.committed) {
     const reverted = await revertOrReport(job);
-    return escalateCheckFix(job, fix.unrelated, `checks on ${base}`, reverted);
+    return escalateCheckFix(job, fix.unrelated, `checks on ${base}`, reverted, fix.aside);
   }
   job.repairing = true;
   return GATE_FIXED;
