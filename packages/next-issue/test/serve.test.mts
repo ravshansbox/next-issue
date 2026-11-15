@@ -4,7 +4,6 @@ import { randomUUID } from 'node:crypto';
 import { closeSync, createWriteStream, openSync, statSync } from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import {
-  appendFile,
   mkdir,
   readdir,
   readFile,
@@ -919,7 +918,10 @@ test('a worker that runs a long time keeps only the newest whole lines of worker
   const first = await trimmed('old ', 'listening');
   assert.ok(first.length <= 5 * 1024 * 1024 + 200, `worker.log holds ${first.length} bytes`);
   assert.match(first, /^old x+\n/);
-  await appendFile(logPath, `new ${line}`.repeat(110_000));
+  // A trim that fires partway through a chunked append can leave a file under the limit that never trims again,
+  // so the long-running worker's log grows by one rename that the trimmer sees whole.
+  await writeFile(`${logPath}.next`, `${first}${`new ${line}`.repeat(110_000)}`);
+  await rename(`${logPath}.next`, logPath);
   const second = await trimmed('new ', `new ${line}`);
   assert.ok(second.length <= 5 * 1024 * 1024);
   assert.match(second, /^new x+\n/);
