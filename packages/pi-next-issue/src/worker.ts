@@ -246,6 +246,8 @@ export class WorkerClient {
       return;
     }
     this.socket = undefined;
+    this.runs = {};
+    this.questions = {};
     this.emit({ type: 'closed' });
     this.scheduleReconnect();
   }

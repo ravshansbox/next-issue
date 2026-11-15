@@ -244,6 +244,11 @@ export function createExtension(options: Options) {
         onQuestions(event.questions);
       } else if (event.type === 'error' && event.root === root && asked !== 'refresh') {
         tell(cannotNote(asked, event.message));
+      } else if (event.type === 'closed') {
+        baseline = true;
+        waiting = undefined;
+        ui?.setStatus(STATUS_KEY, undefined);
+        ui?.setStatus(QUESTIONS_KEY, undefined);
       }
     };
 

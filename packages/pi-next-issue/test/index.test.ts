@@ -521,6 +521,39 @@ test('a user sees the run of this repository in the footer in the dim colour of 
   assert.deepEqual(widgets, []);
 });
 
+test('a user whose worker goes away mid-run sees the run and the questions count cleared from the footer', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  const { pi, emit, status, waiting } = host();
+  extension(pi as never);
+  await emit('session_start');
+  fake.update('/repo', running({ issues: [working(7, { startedAt: Date.now() })] }));
+  fake.reply({ type: 'questions', root: '/repo', questions: [question(4)] });
+  await until(() => status.at(-1)?.includes('#7') === true);
+  await until(() => waiting.at(-1) === '<dim>1 question waiting</dim>');
+  await fake.close();
+  await until(() => status.at(-1) === undefined && waiting.at(-1) === undefined);
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  assert.equal(status.at(-1), undefined);
+  assert.equal(waiting.at(-1), undefined);
+});
+
+test('a user whose worker comes back after it went away sees its run in the footer again', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  const { pi, emit, status, notes } = host();
+  extension(pi as never);
+  await emit('session_start');
+  fake.update('/repo', running({ issues: [working(7)] }));
+  await until(() => status.at(-1)?.includes('#7') === true);
+  await fake.close();
+  await until(() => status.at(-1) === undefined);
+  const back = await worker(path);
+  back.update('/repo', running({ issues: [working(8)] }));
+  await until(() => status.at(-1)?.includes('#8') === true);
+  assert.deepEqual(notes, []);
+});
+
 test('a user of an rpc client sees the footer status without colour codes', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
