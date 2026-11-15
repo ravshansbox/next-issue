@@ -30,6 +30,8 @@ test('a missing file gives the defaults', async () => {
   assert.equal(config.setupTimeoutMinutes, 15);
   assert.equal(config.commandTimeoutMinutes, 10);
   assert.equal(config.diffMaxChars, 60000);
+  assert.deepEqual(config.checks, []);
+  assert.equal(config.checksTimeoutMinutes, 30);
   assert.deepEqual(config.models, {});
   assert.equal(config.labels.hunt, 'source:hunt');
 });
@@ -133,6 +135,22 @@ test('a field of the wrong type stops the run', async () => {
   );
 });
 
+test('a user who sets checks gets the commands in order', async () => {
+  const config = await parse({ checks: ['npm run lint', 'npm test'], checksTimeoutMinutes: 5 });
+  assert.deepEqual(config.checks, ['npm run lint', 'npm test']);
+  assert.equal(config.checksTimeoutMinutes, 5);
+});
+
+test('a user who sets checks to something other than a list of commands gets an error that names the field', async () => {
+  for (const checks of ['npm test', [''], [3], null]) {
+    await assert.rejects(parse({ checks }), /checks must be a list of commands that are not empty/);
+  }
+  await assert.rejects(
+    parse({ checksTimeoutMinutes: 0 }),
+    /checksTimeoutMinutes must be a whole number from 1 to 35791/,
+  );
+});
+
 test('a user who sets agent in the file gets an unknown field error', async () => {
   await assert.rejects(parse({ agent: 'claude' }), /unknown field: agent/);
 });
@@ -199,6 +217,7 @@ test('writeDefaultConfig writes a file that gives the defaults', async () => {
   assert.deepEqual(await loadConfig(dir), await loadConfig(await root()));
   assert.match(await readFile(path, 'utf8'), /\n$/);
   assert.equal(JSON.parse(await readFile(path, 'utf8')).agent, undefined);
+  assert.deepEqual(JSON.parse(await readFile(path, 'utf8')).checks, []);
   assert.deepEqual(JSON.parse(await readFile(path, 'utf8')).models, {
     implementer: null,
     reviewer: null,

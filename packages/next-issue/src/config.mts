@@ -2,6 +2,7 @@ import { mkdir, readFile, rename } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
   CONFIG_FILE,
+  commands,
   OLD_CONFIG_FILE,
   record,
   rejectUnknown,
@@ -30,6 +31,9 @@ export type Config = {
   diffMaxChars: number;
   keepRunDays: number;
   setupCommand?: string;
+  /** Commands that must pass in the worktree before a change is pushed to the base. */
+  checks: string[];
+  checksTimeoutMinutes: number;
   models: {
     implementer?: string;
     reviewer?: string;
@@ -63,6 +67,8 @@ const DEFAULTS: Config = {
   logMaxChars: 20000,
   diffMaxChars: 60000,
   keepRunDays: 7,
+  checks: [],
+  checksTimeoutMinutes: 30,
   models: {},
   labels: {
     ready: 'status:todo',
@@ -76,7 +82,12 @@ const DEFAULTS: Config = {
 };
 
 function defaults(): Config {
-  return { ...DEFAULTS, models: { ...DEFAULTS.models }, labels: { ...DEFAULTS.labels } };
+  return {
+    ...DEFAULTS,
+    checks: [...DEFAULTS.checks],
+    models: { ...DEFAULTS.models },
+    labels: { ...DEFAULTS.labels },
+  };
 }
 
 const FIELDS: string[] = [...Object.keys(DEFAULTS), 'setupCommand'];
@@ -100,6 +111,7 @@ const WHOLE_FIELDS: Array<[keyof Config, number, number?]> = [
   ['logMaxChars', 1],
   ['diffMaxChars', 1],
   ['keepRunDays', 0],
+  ['checksTimeoutMinutes', 1, MAX_MINUTES],
 ];
 
 const MODEL_ROLES = ['implementer', 'reviewer', 'fixer'] as const;
@@ -195,6 +207,9 @@ function parseConfig(value: unknown): Config {
   }
   if (file.setupCommand !== undefined) {
     config.setupCommand = text(file.setupCommand, 'setupCommand', false);
+  }
+  if (file.checks !== undefined) {
+    config.checks = commands(file.checks, 'checks');
   }
   if (file.models !== undefined) {
     config.models = parseModels(file.models);

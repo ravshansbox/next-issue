@@ -59,6 +59,11 @@ issues working in parallel.
 - A red CI run on the base branch goes to the fixer, from the check budget,
   and its fix lands like any other change. When the fixer cannot fix it, the
   harness reverts the change and hands the issue to a person.
+- To keep the base red less often, the config field `checks` adds a local
+  gate: after the base is merged into the branch and before the push, the
+  harness runs each command in the worktree. A failure goes to the fixer from
+  the same check budget, and nothing is pushed until every command passes.
+  The change still gets one CI run, on the base branch.
 - A conflict in the rebase goes to the fixer, as a merge conflict does today.
 - Hand-overs and the answers to them move from the pull request to the issue.
 - The pi extension stops sending `merge`, and the `questions` message of the
