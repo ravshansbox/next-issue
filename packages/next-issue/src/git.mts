@@ -72,7 +72,7 @@ export function branchName(issue: number): string {
 }
 
 export async function isDirty(cwd: string): Promise<boolean> {
-  const status = await git(cwd, ['status', '--porcelain']);
+  const status = await git(cwd, ['status', '--porcelain', '--untracked-files=normal']);
   return status.length > 0;
 }
 

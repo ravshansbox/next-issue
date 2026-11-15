@@ -256,6 +256,38 @@ test('saveEdits commits the tracked and untracked edits the fixer left, so a lat
   assert.equal(await saveEdits(path, 'nothing left'), false);
 });
 
+test('a user whose git config hides untracked files still gets a new file of the reviewer thrown away', async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  await git(path, 'config', 'status.showUntrackedFiles', 'no');
+  const head = await revision(path);
+  await writeFile(join(path, 'scratch.test.mts'), 'scratch\n');
+  assert.equal(await discardChanges(path, head), true);
+  assert.equal(existsSync(join(path, 'scratch.test.mts')), false);
+});
+
+test('a user whose git config hides untracked files gets an implementer change that only adds a new file committed', async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  await git(path, 'config', 'status.showUntrackedFiles', 'no');
+  await git(path, 'config', 'user.name', 't');
+  await git(path, 'config', 'user.email', 't@t');
+  await writeFile(join(path, 'new.txt'), 'a new file\n');
+  assert.equal(await commitAll(path, 'feat: add a new file'), true);
+  assert.equal(await git(path, 'show', 'HEAD:new.txt'), 'a new file');
+});
+
+test('a user whose git config hides untracked files still gets a new file of a disputing fixer saved', async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  await git(path, 'config', 'status.showUntrackedFiles', 'no');
+  await git(path, 'config', 'user.name', 't');
+  await git(path, 'config', 'user.email', 't@t');
+  await writeFile(join(path, 'new.txt'), 'a new file\n');
+  assert.equal(await saveEdits(path, 'the edits of the fixer'), true);
+  assert.equal(await git(path, 'show', 'HEAD:new.txt'), 'a new file');
+});
+
 test('disputeBranches lists the dispute branches of an issue only', async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
