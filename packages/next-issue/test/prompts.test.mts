@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { capDiff, fixPrompt, implementPrompt, reviewPrompt } from '../src/prompts.mts';
+import {
+  capDiff,
+  fixPrompt,
+  hookPrompt,
+  huntPrompt,
+  implementPrompt,
+  reviewPrompt,
+} from '../src/prompts.mts';
 import { ISSUE } from './harness.mts';
 
 test('capDiff keeps a diff that fits', () => {
@@ -216,6 +223,25 @@ test('the implementer and every fixer kind are told the engineering rules', () =
   }
 });
 
+test('each editing and reviewing agent is told that the harness owns the workflow rules of AGENTS.md', () => {
+  const prompts = [
+    implementPrompt(ISSUE, []),
+    hookPrompt(ISSUE, [], 'implementer', 'hook output'),
+    fixPrompt(ISSUE, [], 'The reviewer requested changes.', 'the findings', [], 'review'),
+    reviewPrompt(ISSUE, [], 'diff', []),
+  ];
+  for (const prompt of prompts) {
+    assert.match(
+      prompt,
+      /The harness owns the issue, the worktree, the branch, git, the commit, the push and the checks\. The workflow rules of `AGENTS\.md` about these do not apply to you\./,
+    );
+    assert.match(
+      prompt,
+      /The other rules of `AGENTS\.md`, such as code conventions and test style, still apply\./,
+    );
+  }
+});
+
 test('the reviewer checks the engineering rules and asks for the evidence of each finding', () => {
   const prompt = reviewPrompt(ISSUE, [], 'diff', []);
   assert.match(prompt, /updates the documentation/);
@@ -234,4 +260,17 @@ test('the reviewer checks the engineering rules and asks for the evidence of eac
       /Give the file and line, or the command output, that supports each finding\./,
     );
   }
+});
+
+test('the hunter is told that the harness owns the worktree, git and the checks and still files issues with gh', () => {
+  const prompt = huntPrompt(undefined, 'status:todo', '', 1, 'owner/repo');
+  assert.match(
+    prompt,
+    /The harness owns the worktree, git and the checks\. The workflow rules of `AGENTS\.md` about these do not apply to you\./,
+  );
+  assert.match(
+    prompt,
+    /The other rules of `AGENTS\.md`, such as code conventions and test style, still apply\./,
+  );
+  assert.match(prompt, /gh issue create --repo owner\/repo/);
 });
