@@ -1002,14 +1002,14 @@ test('a user sees each running issue with the open-issue count of the latest fet
       }),
       now,
     ),
-    '#12/7 · implement · 3 tools · 41s | #13/7 · review fix 2/5 · 1 tools',
+    '#12 · 7 issues · implement · 3 tools · 41s | #13 · 7 issues · review fix 2/5 · 1 tools',
   );
   assert.equal(
     formatStatus(
       progress({ open: 1, issues: [working(225, { stage: 'implement', tools: 0 })] }),
       now,
     ),
-    '#225/1 · implement · 0 tools',
+    '#225 · 1 issue · implement · 0 tools',
   );
 });
 
