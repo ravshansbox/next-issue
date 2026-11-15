@@ -32,7 +32,7 @@ Run `/next-issue answer` to go through the waiting questions one at a time. Each
 
 - **Retry**: takes the `needsHuman` label off the issue, so the next run resumes it.
 - **Retry with guidance**: asks for text, posts it as a comment on the issue, where the worker reads it, then takes the `needsHuman` label off.
-- **Give up**: takes the `needsHuman` label off the issue and adds the `skip` label. Pi compares label names without case, as GitHub does, so it uses a `Status:Blocked` the repository already has. Pi creates the `skip` label first when the repository does not have it. When it cannot create the label, it shows an error that names the label and leaves the issue labels as they were.
+- **Give up**: takes the `needsHuman` label off the issue and adds the `skip` label. Pi compares label names without case, as GitHub does, so it uses a `Status:Blocked` the repository already has. Pi creates the `skip` label first when the repository does not have it. When it cannot create the label, it shows an error that names the label and leaves the issue labels as they were. When the issue halted a run with a commit on the base whose checks nobody read, Give up also lets the next runs land other issues again, see [Stops for a loop](../next-issue/README.md#stops-for-a-loop).
 
 To drop an issue for good, close it on GitHub instead. The next run removes its saved state, branches and worktree, see [Retry an issue that waits for a person](../next-issue/README.md#retry-an-issue-that-waits-for-a-person).
 

@@ -119,6 +119,25 @@ test('a user whose run halted on a checks error gets no other issue landed by th
   assert.equal(third.landed.length, 1);
 });
 
+test('a user who gives up on an issue halted on a checks error gets the next run to release its block and land another issue', async (t) => {
+  const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
+  first.context.ports.waitForBaseChecks = async () => {
+    throw new Error('gh: API rate limit exceeded');
+  };
+  assert.equal((await first.run()).reason, 'checks error');
+  assert.match(first.comments.at(-1) ?? '', /or a person gives it up with the skip label/);
+  const root = first.context.repo.root;
+  const given = await harness(t, { root, issue: { ...ISSUE, labels: ['status:blocked'] } });
+  assert.equal((await given.run()).outcome, 'skipped');
+  assert.ok(given.events.some((record) => record['kind'] === 'land.released'));
+  const state = await given.state();
+  assert.equal(state?.halted, undefined);
+  assert.deepEqual(state?.landed, ['2']);
+  const other = await harness(t, { root, issue: OTHER });
+  assert.equal((await other.run()).outcome, 'done');
+  assert.equal(other.landed.length, 1);
+});
+
 test('a user whose run halted on a push unknown gets no other issue landed by the next run until the halted push is settled', async (t) => {
   const first = await harness(t, { pushLandsAndFails: true, baseFetchFails: true });
   assert.equal((await first.run()).reason, 'push unknown');

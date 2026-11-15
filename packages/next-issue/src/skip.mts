@@ -8,7 +8,8 @@ import { stopNow } from './handover.mts';
 import type { Context, IssueReport } from './job.mts';
 import { hasLabel } from './labels.mts';
 import type { Recorder } from './observe.mts';
-import type { IssueState } from './state.mts';
+import { type IssueState, writeState } from './state.mts';
+import { heldOnBase } from './unsettled.mts';
 
 type Skip = 'stop-label' | 'not-ready' | 'in-flight';
 
@@ -52,6 +53,13 @@ export async function skipReport(
   const skip = skipReason(issue, context.config, saved !== undefined, answered);
   if (skip !== undefined) {
     log.event('issue.skip', { title: issue.title, reason: skip });
+    if (saved?.halted === true && hasLabel(issue.labels, context.config.labels.skip)) {
+      try {
+        await release(context, log, saved);
+      } catch (error) {
+        return readError(log, issue, saved, error, started);
+      }
+    }
     return skipped(issue);
   }
   if (saved !== undefined) {
@@ -68,6 +76,16 @@ export async function skipReport(
     return skipped(issue);
   }
   return undefined;
+}
+
+/**
+ * A person gave up on a halted issue: it never resumes to check the base while it has the skip label, so its halt
+ * stops blocking the landings of other issues. The state keeps what is on the base for a later resume.
+ */
+async function release(context: Context, log: Recorder, saved: IssueState): Promise<void> {
+  delete saved.halted;
+  await writeState(context.repo, saved);
+  log.event('land.released', { held: heldOnBase(saved, context.base) });
 }
 
 async function hasAnswer(
