@@ -123,3 +123,13 @@ test('a watcher sees each hand-over of an issue handed over in two passes', () =
     { issue: 4, outcome: 'needs-human' },
   ]);
 });
+
+test('a watcher sees whether the run hunts, and events keep that field', () => {
+  assert.equal(startProgress(true).hunting, true);
+  assert.equal(startProgress(false).hunting, false);
+  const progress = [
+    { kind: 'issue.start', issue: 12, ts: '2026-11-02T10:00:00.000Z' },
+    { kind: 'issue.end', issue: 12, outcome: 'done' },
+  ].reduce(applyEvent, startProgress(true));
+  assert.equal(progress.hunting, true);
+});

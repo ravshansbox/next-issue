@@ -1,5 +1,6 @@
 import type { Args } from './args.mts';
 import type { Issue } from './github.mts';
+import { type HuntSwitch, huntSwitch } from './hunt-switch.mts';
 import type { IssueReport } from './job.mts';
 import { handled, type Loop, type LoopResult, runIssues } from './loop.mts';
 
@@ -14,6 +15,7 @@ export type Watch = Loop & {
   wait: (minutes: number) => Promise<boolean>;
   passEnd: (reports: IssueReport[]) => Promise<void>;
   hunter?: Hunter;
+  hunting?: HuntSwitch;
 };
 
 const BACK_OFF_MINUTES = [1, 2, 3, 5, 10];
@@ -31,6 +33,7 @@ export async function watchIssues(
       ? undefined
       : huntIssues(
           watch.hunter,
+          watch.hunting ?? huntSwitch(true),
           running,
           failed,
           claims,
@@ -81,8 +84,19 @@ function claimAlarm(): ClaimAlarm {
   };
 }
 
+function aborted(signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve();
+    } else {
+      signal.addEventListener('abort', () => resolve(), { once: true });
+    }
+  });
+}
+
 async function huntIssues(
   hunter: Hunter,
+  hunting: HuntSwitch,
   running: Set<number>,
   failed: ReadonlySet<number>,
   claims: ClaimAlarm,
@@ -91,23 +105,31 @@ async function huntIssues(
 ): Promise<void> {
   let step = 0;
   while (!stopped()) {
+    if (!hunting.on()) {
+      await aborted(AbortSignal.any([signal, hunting.changed()]));
+      step = 0;
+      continue;
+    }
     const ready = await hunter.ready(running, failed).catch(() => undefined);
     if (stopped()) {
       return;
     }
     claims.take();
     const waiting = ready?.filter((issue) => !running.has(issue.number)).length;
-    if (waiting !== undefined && waiting < hunter.cap) {
+    if (waiting !== undefined && waiting < hunter.cap && hunting.on()) {
       if (await hunter.hunt(hunter.cap - waiting)) {
         step = 0;
         continue;
       }
     }
-    if (claims.take() || stopped()) {
+    if (claims.take() || stopped() || !hunting.on()) {
       continue;
     }
-    await hunter.wait(backOffMinutes(step), AbortSignal.any([signal, claims.signal()]));
-    if (!claims.take()) {
+    const changed = hunting.changed();
+    await hunter.wait(backOffMinutes(step), AbortSignal.any([signal, claims.signal(), changed]));
+    if (changed.aborted) {
+      step = 0;
+    } else if (!claims.take()) {
       step += 1;
     }
   }

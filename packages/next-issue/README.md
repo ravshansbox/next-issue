@@ -772,6 +772,8 @@ With `--hunt`, which turns on `--watch`, the harness runs a hunter agent at the 
 
 With `huntCap` at 1 and no ready issue, a hunt files at most one issue. The hunter ends its reply with one `issue:` line for each issue it filed, or one `issue: none` line; a url that is not an issue of the repository of `remote` does not count as filed. When the `remote` url holds an old owner or name that GitHub redirects after a rename or transfer, the harness asks GitHub for the new one, so an issue url with the new name counts too. The run log holds one `hunt.issue` event with the `url` for each, or one with `none`. A hunt that fails writes a `hunt.error` event and the watch goes on. The hunter then waits before the next hunt, with a `hunt.wait` event and the same back-off, so a failure, or a hunt that files nothing, that repeats waits 1, 2, 3, 5, 10, then 10 minutes, and the back-off goes back to 1 minute after a hunt that files at least one issue. The next pass claims the new issues like any other. At the first `Ctrl-C` the hunter stops after its current hunt, and the watch ends once the hunt and the running issues end. A first `Ctrl-C` during the watch wait tells you so while a hunt runs, and the third press stops the hunter at once. The hunter stops too when the watch ends for another reason.
 
+In a run of the `serve` worker, a client can switch hunting on or off while the run goes on, with no restart, for example with `/next-issue hunt on` in the pi extension, see [Worker](#worker). This works only for runs of the worker, not for a command-line run.
+
 ## Worker
 
 `next-issue serve` runs one worker for the repository it is run in. The
@@ -799,7 +801,7 @@ affect another. The worker:
   with `another worker is running`. A worker that stops removes the lock file
   only while it still holds the lock, and the socket file only while it is
   still the socket it bound;
-- refuses a `start`, `stop` or `questions` message whose `root` is not
+- refuses a `start`, `stop`, `hunt` or `questions` message whose `root` is not
   the exact path of its repository with an `error` message, and starts or
   stops nothing;
 - runs at most one run at a time. A client starts it with
@@ -838,6 +840,19 @@ affect another. The worker:
   issue ends as `stopped` with its state and labels kept; the worker keeps
   running. A later point than one already asked for changes nothing, and an
   earlier one replaces it. An unknown `after` gets an `error` message;
+- switches hunting of a run on or off when a client sends
+  `{ "type": "hunt", "root": "<path>", "on": true | false }`. The run keeps its
+  issues, worktrees and progress, and nothing restarts. Every watching run has
+  a hunter: a run started with `--hunt` starts with hunting on, and one
+  started with `--watch` alone starts with it off. Off lets a hunt that is
+  going finish, so the issues it files stay, and starts no new hunt. On wakes
+  the hunter at once, with no back-off wait. A run that does not watch
+  (`--once`, or `--max` without `--watch`) refuses on with an `error` message
+  that says why, and goes on unchanged. With no run going, the message gets
+  an `error` and starts nothing. The setting lasts for the run only: a new run
+  takes it from its own flags. Only runs of the worker can switch; a
+  command-line run keeps what `--hunt` gave it. The progress of each run
+  carries `hunting`, `true` while hunting is on;
 - exits, and removes its socket and lock files, when no run is going and no
   client is connected, or when no client connects in the 30 seconds after it
   starts;

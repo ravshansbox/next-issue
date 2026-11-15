@@ -112,6 +112,93 @@ test('a client that starts a run with --hunt gets a run that hunts and watches',
   assert.equal(fake.calls[0]!.args.max, 3);
 });
 
+const huntingIs = (on: boolean) => (value: WorkerMessage) =>
+  value.type === 'runs' && value.runs['/repo']?.hunting === on;
+
+test('a client that switches hunting off and on during a run with --hunt sees the run keep its issues and the hunting field follow, with no restart', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo', args: ['--hunt'] });
+  await client.next(huntingIs(true));
+  const controls = fake.controls();
+  assert.equal(controls.hunting?.on(), true);
+  controls.onEvent!({ kind: 'issue.start', issue: 7, ts: '2026-11-02T10:00:00.000Z' });
+  client.send({ type: 'hunt', root: '/repo', on: false });
+  const off = await client.next(huntingIs(false));
+  assert.equal(controls.hunting?.on(), false);
+  assert.equal(off.type === 'runs' && off.runs['/repo']!.status, 'running');
+  assert.deepEqual(
+    off.type === 'runs' && off.runs['/repo']!.issues.map((entry) => entry.issue),
+    [7],
+  );
+  const changed = controls.hunting!.changed();
+  client.send({ type: 'hunt', root: '/repo', on: true });
+  await client.next(huntingIs(true));
+  assert.equal(changed.aborted, true);
+  assert.equal(controls.hunting?.on(), true);
+  assert.equal(fake.calls.length, 1);
+  assert.equal(controls.interrupts.afterIssue(), false);
+});
+
+test('a client that starts a run with --watch alone sees hunting off, and can switch it on', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo', args: ['--watch'] });
+  await client.next(huntingIs(false));
+  assert.equal(fake.controls().hunting?.on(), false);
+  client.send({ type: 'hunt', root: '/repo', on: true });
+  await client.next(huntingIs(true));
+  assert.equal(fake.controls().hunting?.on(), true);
+});
+
+test('a client that switches hunting on for a run that does not watch gets an error that says why, and the run goes on unchanged', async (t) => {
+  for (const args of [['--once'], ['--max', '2'], []]) {
+    const fake = fakeRuns();
+    const { socketPath } = await worker(t, fake);
+    const client = await connect(t, socketPath);
+    client.send({ type: 'start', root: '/repo', args });
+    await client.next(huntingIs(false));
+    client.send({ type: 'hunt', root: '/repo', on: true });
+    assert.deepEqual(await client.next((value) => value.type === 'error'), {
+      type: 'error',
+      root: '/repo',
+      message:
+        'the run does not watch for issues, so it cannot hunt: start a run with --watch or --hunt',
+    });
+    assert.equal(fake.controls().hunting?.on(), false);
+    const another = await connect(t, socketPath);
+    const runs = await another.next(runsOf);
+    assert.equal(runs.type === 'runs' && runs.runs['/repo']?.hunting, false);
+    assert.equal(runs.type === 'runs' && runs.runs['/repo']?.status, 'running');
+  }
+});
+
+test('a client that switches hunting with no run going gets an error and no run starts', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'hunt', root: '/repo', on: true });
+  assert.deepEqual(await client.next((value) => value.type === 'error'), {
+    type: 'error',
+    root: '/repo',
+    message: 'no run is going in this repository',
+  });
+  assert.equal(fake.calls.length, 0);
+  client.send({ type: 'start', root: '/repo', args: ['--hunt'] });
+  await client.next(huntingIs(true));
+  fake.finish();
+  await client.next((value) => value.type === 'runs' && value.runs['/repo']?.status === 'finished');
+  client.send({ type: 'hunt', root: '/repo', on: false });
+  assert.deepEqual(await client.next((value) => value.type === 'error'), {
+    type: 'error',
+    root: '/repo',
+    message: 'no run is going in this repository',
+  });
+  assert.equal(fake.calls.length, 1);
+});
+
 test('a client that starts a run with a command or a flag that start does not take gets an error and no run starts', async (t) => {
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
@@ -247,6 +334,7 @@ test('a client that sends start, stop or questions for another repository gets a
     { type: 'start', root: '/repo/' },
     { type: 'stop', root: '/other', after: 'now' },
     { type: 'questions', root: '/other' },
+    { type: 'hunt', root: '/other', on: true },
   ] as const) {
     client.send(value);
     assert.deepEqual(await client.next((reply) => reply.type === 'error'), {
@@ -280,6 +368,8 @@ test('a client that sends a malformed message gets no reply, no run starts and t
     { type: 'stop' },
     { type: 'questions' },
     { type: 'questions', root: '/repo', id: 5 },
+    { type: 'hunt', root: '/repo' },
+    { type: 'hunt', root: '/repo', on: 'yes' },
   ]) {
     client.send(value as never);
   }

@@ -7,14 +7,24 @@ import { shared } from './src/clients.ts';
 import { errorText } from './src/errors.ts';
 import { must } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
-import type { Progress, Question } from './src/protocol.ts';
-import { parseStopArgs, requestStart, requestStop, startRun, statusOf } from './src/run.ts';
+import { going, type Progress, type Question } from './src/protocol.ts';
+import {
+  huntRun,
+  parseHuntArgs,
+  parseStopArgs,
+  requestHunt,
+  requestStart,
+  requestStop,
+  startRun,
+  statusOf,
+} from './src/run.ts';
 import {
   type Action,
   cannotNote,
   formatQuestions,
   formatStatus,
   handledNotes,
+  huntingNote,
   type Note,
   questionNotes,
   statusNote,
@@ -33,7 +43,11 @@ const STATUS_KEY = 'next-issue';
 const QUESTIONS_KEY = 'next-issue-questions';
 const RENDER_MS = 1000;
 const QUESTIONS_MS = 60_000;
-const SUBCOMMANDS: Action[] = ['start', 'stop', 'answer'];
+const SUBCOMMANDS: Action[] = ['start', 'stop', 'answer', 'hunt'];
+const HUNT_VALUES = [
+  { value: 'on', description: 'Hunt for bugs in the going run' },
+  { value: 'off', description: 'Start no new hunt in the going run, and let a going hunt finish' },
+];
 const START_FLAGS = [
   { flag: '--once', insert: '--once', description: 'Stop after the first handled issue' },
   { flag: '--max', insert: '--max ', argument: '<n>', description: 'Handle at most n issues' },
@@ -67,6 +81,7 @@ const USAGE = [
   '/next-issue stop [--after issue|round|now]',
   '                           stop the run of this repository after the running issues (issue, the default), after the current round (round), or at once (now)',
   '/next-issue answer         answer the waiting questions',
+  '/next-issue hunt on|off    switch hunting of the going run of this repository on or off, with no restart',
 ].join('\n');
 
 function completions(prefix: string) {
@@ -75,6 +90,12 @@ function completions(prefix: string) {
       value: name,
       label: name,
     }));
+  }
+  if (prefix.startsWith('hunt ')) {
+    const partial = prefix.slice('hunt '.length);
+    return HUNT_VALUES.filter(({ value }) => value.startsWith(partial)).map(
+      ({ value, description }) => ({ value: `hunt ${value}`, label: value, description }),
+    );
   }
   if (!prefix.startsWith('start ')) {
     return [];
@@ -121,7 +142,10 @@ export function createExtension(options: Options) {
     let unsubscribe: (() => void) | undefined;
     let handled = 0;
     let status: Progress['status'] | undefined;
+    let hunting: boolean | undefined;
     let baseline = false;
+    // The worker answers a refused request with an error that does not name it.
+    let asked: Action = 'start';
 
     const clientOf = (root: string) => shared(options.client, root);
 
@@ -131,6 +155,7 @@ export function createExtension(options: Options) {
     const remember = (progress: Progress | undefined) => {
       handled = progress?.handled.length ?? 0;
       status = progress?.status;
+      hunting = progress?.hunting;
     };
 
     const dim = (text: string) => (coloured && ui !== undefined ? ui.theme.fg('dim', text) : text);
@@ -173,6 +198,11 @@ export function createExtension(options: Options) {
     };
 
     const announce = (progress: Progress) => {
+      const wasGoing = status === 'running' || status === 'stopping';
+      if (wasGoing && going(progress) && hunting !== undefined && progress.hunting !== hunting) {
+        tell(huntingNote(progress.hunting));
+      }
+      hunting = progress.hunting;
       if (progress.status === status) {
         return;
       }
@@ -211,7 +241,7 @@ export function createExtension(options: Options) {
       } else if (event.type === 'questions' && event.root === root) {
         onQuestions(event.questions);
       } else if (event.type === 'error' && event.root === root) {
-        tell(cannotNote('start', event.message));
+        tell(cannotNote(asked, event.message));
       }
     };
 
@@ -287,7 +317,24 @@ export function createExtension(options: Options) {
       }),
       async execute(_toolCallId, params, signal, _onUpdate, ctx) {
         const { client, root, progress } = await connect(ctx);
+        asked = going(progress) ? 'hunt' : 'start';
         return startRun(client, root, progress, params.args ?? [], signal);
+      },
+    });
+
+    pi.registerTool({
+      name: 'next_issue_hunt',
+      label: 'Switch next-issue hunting',
+      description:
+        'Switch hunting for bugs on or off for the going next-issue run of this repository, with no restart: the run keeps its issues. Off lets a hunt that is going finish and starts no new one. A run that does not watch (started with --once, or --max without --watch) cannot hunt. Fails when no run is going.',
+      promptSnippet: 'Switch hunting of the going next-issue run on or off',
+      parameters: Type.Object({
+        on: Type.Boolean({ description: 'true to hunt, false to stop hunting' }),
+      }),
+      async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+        const { client, root, progress } = await connect(ctx);
+        asked = 'hunt';
+        return huntRun(client, root, progress, params.on, signal);
       },
     });
 
@@ -305,7 +352,7 @@ export function createExtension(options: Options) {
     });
 
     pi.registerCommand('next-issue', {
-      description: `"start [flags]" starts working through the GitHub issues of this repository, with flags from ${FLAGS}. "stop [--after issue|round|now]" stops the run after the running issues (the default), after the current round, or at once. "answer" answers the waiting questions`,
+      description: `"start [flags]" starts working through the GitHub issues of this repository, with flags from ${FLAGS}. "stop [--after issue|round|now]" stops the run after the running issues (the default), after the current round, or at once. "answer" answers the waiting questions. "hunt on|off" switches hunting of the going run`,
       getArgumentCompletions: (prefix) => {
         const matches = completions(prefix);
         return matches.length === 0 ? null : matches;
@@ -323,12 +370,17 @@ export function createExtension(options: Options) {
         };
         try {
           const after = subcommand === 'stop' ? parseStopArgs(flags) : undefined;
+          const on = subcommand === 'hunt' ? parseHuntArgs(flags) : undefined;
           const { client, root, progress } = await connect(ctx);
           if (subcommand === 'answer') {
             await answerAll(ctx.ui, options.gh, client, root);
           } else if (after !== undefined) {
             notify(requestStop(client, root, progress, after));
+          } else if (on !== undefined) {
+            asked = 'hunt';
+            notify(requestHunt(client, root, progress, on));
           } else {
+            asked = going(progress) ? 'hunt' : 'start';
             notify(requestStart(client, root, progress, flags));
           }
         } catch (error) {

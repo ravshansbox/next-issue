@@ -17,11 +17,13 @@ import { checkSocketPath, workerPaths } from './worker-paths.mts';
 import {
   active,
   endStatus,
+  huntRefusal,
   newRun,
   requestStop,
   type Run,
   runControls,
   runsMessage,
+  setHunting,
   startRefusal,
   stopPoint,
 } from './worker-run.mts';
@@ -101,7 +103,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       send(socket, { type: 'error', root, message: message(error) });
       return;
     }
-    const run = newRun(startProgress());
+    const run = newRun(startProgress(args.hunt), args.watch);
     runs.set(root, run);
     const update = (next: Progress): void => {
       run.progress = next;
@@ -133,6 +135,17 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     }
   };
 
+  const hunt = (socket: WebSocket, root: string, on: boolean): void => {
+    const run = runs.get(root);
+    const refusal = huntRefusal(run, on);
+    if (refusal !== undefined) {
+      send(socket, { type: 'error', root, message: refusal });
+      return;
+    }
+    setHunting(run!, on);
+    broadcast(sockets, runs);
+  };
+
   const receive = (socket: WebSocket, value: ClientMessage): void => {
     if (value.type === 'hello') {
       if (isNewer(value.version, options.version)) {
@@ -149,6 +162,8 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       start(socket, value.root, value.args ?? []);
     } else if (value.type === 'stop') {
       stop(socket, value.root, value.after);
+    } else if (value.type === 'hunt') {
+      hunt(socket, value.root, value.on);
     } else if (value.type === 'questions') {
       void sendQuestions(value.root, () => [socket], value.id);
     }

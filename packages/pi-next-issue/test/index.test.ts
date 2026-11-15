@@ -16,7 +16,7 @@ import {
 type Handler = (event: unknown, ctx: unknown) => unknown;
 type ToolResult = {
   content: Array<{ type: string; text: string }>;
-  details: { started?: boolean; root: string };
+  details: { started?: boolean; hunting?: boolean; root: string };
 };
 type ToolExecute = (
   toolCallId: string,
@@ -92,6 +92,8 @@ function host(mode = 'tui', cwd = '/repo', answers: Array<string | undefined> = 
   const start = (signal?: AbortSignal, params: unknown = {}) =>
     tools.get('next_issue_start')!('call', params, signal, undefined, ctx);
   const report = () => tools.get('next_issue_status')!('call', {}, undefined, undefined, ctx);
+  const hunt = (params: unknown, signal?: AbortSignal) =>
+    tools.get('next_issue_hunt')!('call', params, signal, undefined, ctx);
   return {
     pi,
     ctx,
@@ -106,6 +108,7 @@ function host(mode = 'tui', cwd = '/repo', answers: Array<string | undefined> = 
     complete,
     start,
     report,
+    hunt,
   };
 }
 
@@ -331,7 +334,7 @@ test('a model that calls next_issue_status sees the run of this repository and e
   const result = await report();
   assert.equal(
     result.content[0]?.text,
-    '#191 · implement · 12 tools\n#190 done\n#189 needs a human\n#188 failed',
+    '#191 · implement · 12 tools\nhunting off\n#190 done\n#189 needs a human\n#188 failed',
   );
 });
 
@@ -423,6 +426,7 @@ test('a user sees a note per handled issue and a note when the run finishes, wit
   fake.update('/repo', running({ handled: [{ issue: 7, outcome: 'done' }] }));
   fake.update('/repo', {
     status: 'finished',
+    hunting: false,
     issues: [],
     handled: [
       { issue: 7, outcome: 'done' },
@@ -443,6 +447,7 @@ test('a user who opens pi after a run has finished sees its summary in the foote
   const fake = await worker(path);
   fake.runs['/repo'] = {
     status: 'finished',
+    hunting: false,
     issues: [],
     handled: [{ issue: 8, outcome: 'needs-human' }],
   };
@@ -543,7 +548,7 @@ test('a user who runs /next-issue start while a run is going is told so and noth
   const { pi, emit, command, notes } = host();
   extension(pi as never);
   await emit('session_start');
-  await command('start --hunt');
+  await command('start --watch');
   assert.deepEqual(notes, [
     'A run of /repo is going already, so nothing started: #7 · implement · 3 tools. It picks up new issues by itself.',
   ]);
@@ -580,7 +585,7 @@ test('a user who runs /next-issue with no argument or an unknown one sees the us
 test('a user who runs /next-issue start after a run has stopped starts a new run', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
-  fake.runs['/repo'] = { status: 'stopped', issues: [], handled: [] };
+  fake.runs['/repo'] = { status: 'stopped', hunting: false, issues: [], handled: [] };
   const { pi, emit, command } = host();
   extension(pi as never);
   await emit('session_start');
@@ -838,7 +843,7 @@ test('a user whose worker socket path is too long for the system sees an error t
 const now = 1_000_000;
 
 function progress(fields: Partial<Progress>): Progress {
-  return { status: 'running', issues: [], handled: [], ...fields };
+  return { status: 'running', hunting: false, issues: [], handled: [], ...fields };
 }
 
 test('a user sees each running issue with its stage, tool count and time spent in the footer', () => {
@@ -957,7 +962,8 @@ test('a user who types /next-issue followed by nothing or a start of a subcomman
   const { pi, complete } = host();
   extension(pi as never);
   const item = (value: string) => ({ value, label: value });
-  assert.deepEqual(complete(''), [item('start'), item('stop'), item('answer')]);
+  assert.deepEqual(complete(''), [item('start'), item('stop'), item('answer'), item('hunt')]);
+  assert.deepEqual(complete('h'), [item('hunt')]);
   assert.deepEqual(complete('st'), [item('start'), item('stop')]);
   assert.deepEqual(complete('an'), [item('answer')]);
   assert.equal(complete('x'), null);
@@ -1367,4 +1373,211 @@ test('a user sees why the questions could not be read', async () => {
   await emit('session_start');
   await command('answer');
   assert.ok(notes.includes('next-issue cannot answer: gh failed'));
+});
+
+test('a user who runs /next-issue hunt on or off while a run is going asks the worker to switch hunting', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({ issues: [working(7)] });
+  const { pi, emit, command, notes } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command('hunt on');
+  await command(' hunt  off ');
+  await until(() => fake.received.filter((message) => message.type === 'hunt').length === 2);
+  assert.deepEqual(
+    fake.received.filter((message) => message.type === 'hunt'),
+    [
+      { type: 'hunt', root: '/repo', on: true },
+      { type: 'hunt', root: '/repo', on: false },
+    ],
+  );
+  assert.deepEqual(notes, []);
+});
+
+test('a user who runs /next-issue hunt with no value or an unknown one sees an error and nothing is sent', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running();
+  const { pi, emit, command, notes } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command('hunt');
+  await command('hunt yes');
+  await command('hunt on now');
+  assert.deepEqual(notes, [
+    'next-issue cannot hunt: hunt takes on or off',
+    'next-issue cannot hunt: hunt takes on or off, not yes',
+    'next-issue cannot hunt: hunt does not take now',
+  ]);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(
+    fake.received.some((message) => message.type === 'hunt'),
+    false,
+  );
+});
+
+test('a user who runs /next-issue hunt on with no run going is told so and nothing is sent', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  const { pi, emit, command, notes } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command('hunt on');
+  assert.deepEqual(notes, ['No run of /repo is going.']);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(
+    fake.received.some((message) => message.type === 'hunt'),
+    false,
+  );
+});
+
+test('a user whose worker refuses to switch hunting on sees why', async () => {
+  const { path, extension } = setup();
+  const fake = await startFakeWorker(path, '1.0.0', (self, message) => {
+    if (message.type === 'hunt') {
+      self.reply({ type: 'error', root: message.root, message: 'the run does not watch' });
+    }
+  });
+  workers.push(fake);
+  fake.runs['/repo'] = running();
+  const { pi, emit, command, notes } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command('hunt on');
+  await until(() => notes.length > 0);
+  assert.deepEqual(notes, ['next-issue cannot hunt: the run does not watch']);
+});
+
+test('a user sees a note when hunting of the going run turns on or off, and the footer shows it', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({ hunting: false });
+  const { pi, emit, notes, status } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await until(() => status.at(-1) === 'looking for issues');
+  fake.update('/repo', running({ hunting: true }));
+  await until(() => status.at(-1) === 'looking for issues · hunting');
+  fake.update('/repo', running({ hunting: false }));
+  await until(() => notes.length === 2);
+  assert.deepEqual(notes, ['next-issue: hunting on', 'next-issue: hunting off']);
+});
+
+test('a user who types /next-issue hunt followed by a space is offered on and off', () => {
+  const { extension } = setup();
+  const { pi, complete } = host();
+  extension(pi as never);
+  const on = { value: 'hunt on', label: 'on', description: 'Hunt for bugs in the going run' };
+  const off = {
+    value: 'hunt off',
+    label: 'off',
+    description: 'Start no new hunt in the going run, and let a going hunt finish',
+  };
+  assert.deepEqual(complete('hunt '), [on, off]);
+  assert.deepEqual(complete('hunt of'), [off]);
+  assert.equal(complete('hunt on '), null);
+});
+
+function huntWorker(path: string) {
+  return startFakeWorker(path, '1.0.0', (self, message) => {
+    if (message.type !== 'hunt') {
+      return;
+    }
+    if (self.runs[message.root]?.status !== 'running') {
+      self.reply({ type: 'error', root: message.root, message: 'no run is going' });
+    } else {
+      self.update(message.root, { ...self.runs[message.root]!, hunting: message.on });
+    }
+  });
+}
+
+test('a model that calls next_issue_hunt switches hunting of the going run and gets the new setting', async () => {
+  const { path, extension } = setup();
+  const fake = await huntWorker(path);
+  workers.push(fake);
+  fake.runs['/repo'] = running({ hunting: false });
+  const { pi, emit, hunt } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const on = await hunt({ on: true });
+  assert.deepEqual(on.details, { hunting: true, root: '/repo' });
+  assert.equal(on.content[0]?.text, 'Hunting is on for the run of /repo.');
+  const off = await hunt({ on: false });
+  assert.deepEqual(off.details, { hunting: false, root: '/repo' });
+  assert.equal(
+    off.content[0]?.text,
+    'Hunting is off for the run of /repo. A hunt that is going finishes, and no new hunt starts.',
+  );
+  assert.deepEqual(
+    fake.received.filter((message) => message.type === 'hunt'),
+    [
+      { type: 'hunt', root: '/repo', on: true },
+      { type: 'hunt', root: '/repo', on: false },
+    ],
+  );
+});
+
+test('a model that calls next_issue_hunt gets the error when the worker refuses or no run is going', async () => {
+  const { path, extension } = setup();
+  const fake = await startFakeWorker(path, '1.0.0', (self, message) => {
+    if (message.type === 'hunt') {
+      self.reply({ type: 'error', root: message.root, message: 'the run does not watch' });
+    }
+  });
+  workers.push(fake);
+  const { pi, emit, hunt } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await assert.rejects(hunt({ on: true }), /no run of \/repo is going/);
+  fake.update('/repo', running());
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  await assert.rejects(hunt({ on: true }), /the run does not watch/);
+});
+
+test('a model that calls next_issue_start with --hunt while a run is going turns hunting on and says so', async () => {
+  const { path, extension } = setup();
+  const fake = await huntWorker(path);
+  workers.push(fake);
+  fake.runs['/repo'] = running({ hunting: false, issues: [working(7, { stage: 'implement' })] });
+  const { pi, emit, start } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const result = await start(undefined, { args: ['--hunt'] });
+  assert.deepEqual(result.details, { started: false, hunting: true, root: '/repo' });
+  assert.equal(
+    result.content[0]?.text,
+    'A run of /repo is going already, so nothing started: #7 · implement · 0 tools. It picks up new issues by itself. Turned hunting on.',
+  );
+  assert.deepEqual(
+    fake.received.filter((message) => message.type === 'start' || message.type === 'hunt'),
+    [{ type: 'hunt', root: '/repo', on: true }],
+  );
+});
+
+test('a user who runs /next-issue start --hunt while a run is going asks it to hunt and nothing starts', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({ issues: [working(7, { stage: 'implement', tools: 3 })] });
+  const { pi, emit, command, notes } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command('start --hunt');
+  assert.deepEqual(notes, [
+    'A run of /repo is going already, so nothing started: #7 · implement · 3 tools. It picks up new issues by itself. Turning hunting on.',
+  ]);
+  await until(() => fake.received.some((message) => message.type === 'hunt'));
+  assert.deepEqual(
+    fake.received.filter((message) => message.type === 'start' || message.type === 'hunt'),
+    [{ type: 'hunt', root: '/repo', on: true }],
+  );
+});
+
+test('a user sees whether a going run hunts in the footer', () => {
+  assert.equal(formatStatus(progress({ hunting: true }), now), 'looking for issues · hunting');
+  assert.equal(
+    formatStatus(progress({ hunting: true, issues: [working(4, { stage: 'implement' })] }), now),
+    '#4 · implement · 0 tools · hunting',
+  );
+  assert.equal(formatStatus(progress({ hunting: false }), now), 'looking for issues');
 });

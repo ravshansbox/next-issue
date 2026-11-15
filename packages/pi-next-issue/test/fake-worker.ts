@@ -58,7 +58,7 @@ export async function startFakeWorker(
 }
 
 export function running(fields: Partial<Progress> = {}): Progress {
-  return { status: 'running', issues: [], handled: [], ...fields };
+  return { status: 'running', hunting: false, issues: [], handled: [], ...fields };
 }
 
 export function working(issue: number, fields: Partial<IssueProgress> = {}): IssueProgress {

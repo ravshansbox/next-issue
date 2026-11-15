@@ -8,6 +8,7 @@ import { runRepo } from '../src/run.mts';
 import { runsDir } from '../src/state.mts';
 import type { Outcome } from '../src/job.mts';
 import { exitCode } from '../src/loop.mts';
+import { huntSwitch } from '../src/hunt-switch.mts';
 import { type Watch, watchIssues } from '../src/watch.mts';
 import { installGh } from './fake-gh.mts';
 import { ARGS, issue, report } from './loop-harness.mts';
@@ -720,4 +721,138 @@ test('a user who watches with --hunt sees passes that each skip an issue during 
   };
   await watchIssues(ARGS, fake);
   assert.deepEqual(waits, [1, 2, 3, 5, 10, 10, 10]);
+});
+
+test('a user who turns hunting on for a watch that started with it off sees the hunter start at once while the issue runs', async () => {
+  const fake = watcher([['done']]);
+  const toggle = huntSwitch(false);
+  fake.hunting = toggle;
+  const steps: string[] = [];
+  const hunted = deferred();
+  fake.hunter = {
+    cap: 1,
+    ready: async () => {
+      steps.push('ready');
+      return [];
+    },
+    hunt: async () => {
+      steps.push('hunt');
+      toggle.set(false);
+      hunted.resolve();
+      return true;
+    },
+    wait: async () => {
+      steps.push('wait');
+    },
+  };
+  const process = fake.process;
+  fake.process = async (target, claimed) => {
+    await sleep(20);
+    steps.push('on');
+    toggle.set(true);
+    await hunted.promise;
+    return process(target, claimed);
+  };
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(steps, ['on', 'ready', 'hunt']);
+  assert.deepEqual(fake.processed, [1]);
+});
+
+test('a user who turns hunting off during a hunt sees that hunt finish with its result and no new hunt start', async () => {
+  const fake = watcher([['done'], ['done']]);
+  const toggle = huntSwitch(true);
+  fake.hunting = toggle;
+  const steps: string[] = [];
+  const hunted = deferred();
+  fake.hunter = {
+    cap: 1,
+    ready: async () => {
+      steps.push('ready');
+      return [];
+    },
+    hunt: async () => {
+      steps.push('hunt start');
+      toggle.set(false);
+      await sleep(10);
+      steps.push('hunt end');
+      hunted.resolve();
+      return true;
+    },
+    wait: async () => {
+      steps.push('wait');
+    },
+  };
+  const process = fake.process;
+  fake.process = async (target, claimed) => {
+    await hunted.promise;
+    await sleep(20);
+    return process(target, claimed);
+  };
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(steps, ['ready', 'hunt start', 'hunt end']);
+  assert.deepEqual(fake.processed, [1, 1]);
+});
+
+test('a user who turns hunting off and on during a hunter back-off sees the hunter hunt again at once, with the back-off back at 1 minute', async () => {
+  const fake = watcher([['done']]);
+  const toggle = huntSwitch(true);
+  fake.hunting = toggle;
+  const steps: string[] = [];
+  const waiting = deferred();
+  const done = deferred();
+  let hunts = 0;
+  fake.hunter = {
+    cap: 1,
+    ready: async () => [],
+    hunt: async () => {
+      hunts += 1;
+      steps.push('hunt failed');
+      return false;
+    },
+    wait: async (minutes, signal) => {
+      steps.push(`wait ${minutes}`);
+      if (hunts === 1) {
+        waiting.resolve();
+      } else {
+        done.resolve();
+      }
+      await new Promise((resolve) => signal.addEventListener('abort', resolve, { once: true }));
+      steps.push('wait end');
+    },
+  };
+  const process = fake.process;
+  fake.process = async (target) => {
+    await waiting.promise;
+    toggle.set(false);
+    toggle.set(true);
+    await done.promise;
+    return process(target);
+  };
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(steps, [
+    'hunt failed',
+    'wait 1',
+    'wait end',
+    'hunt failed',
+    'wait 1',
+    'wait end',
+  ]);
+});
+
+test('a user whose watch ends while hunting is off sees the hunter never read the ready issues', async () => {
+  const fake = watcher([['done']]);
+  fake.hunting = huntSwitch(false);
+  const steps: string[] = [];
+  fake.hunter = {
+    cap: 1,
+    ready: async () => {
+      steps.push('ready');
+      return [];
+    },
+    hunt: async () => true,
+    wait: async () => undefined,
+  };
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(steps, []);
+  assert.deepEqual(fake.processed, [1]);
 });

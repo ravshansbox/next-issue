@@ -13,6 +13,7 @@ export type IssueProgress = {
 
 export type Progress = {
   status: RunStatus;
+  hunting: boolean;
   issues: IssueProgress[];
   handled: Handled[];
   open?: number;
@@ -36,7 +37,8 @@ export type ClientMessage =
   | { type: 'hello'; version: string }
   | { type: 'start'; root: string; args?: string[] }
   | { type: 'stop'; root: string; after?: StopPoint }
-  | { type: 'questions'; root: string; id?: string };
+  | { type: 'questions'; root: string; id?: string }
+  | { type: 'hunt'; root: string; on: boolean };
 
 export type WorkerMessage =
   | { type: 'hello'; version: string }

@@ -1,5 +1,6 @@
 import { type RunChildren, runChildren, stopRunChildren } from './children.mts';
 import { wakeableSleep } from './durations.mts';
+import { type HuntToggle, huntSwitch } from './hunt-switch.mts';
 import type { Interrupts } from './interrupt.mts';
 import type { Fields } from './observe.mts';
 import { applyEvent } from './progress.mts';
@@ -11,10 +12,12 @@ export type Run = {
   stop?: StopPoint;
   children: RunChildren;
   wake?: () => void;
+  watching: boolean;
+  hunting: HuntToggle;
 };
 
-export function newRun(progress: Progress): Run {
-  return { progress, children: runChildren() };
+export function newRun(progress: Progress, watching = false): Run {
+  return { progress, children: runChildren(), watching, hunting: huntSwitch(progress.hunting) };
 }
 
 export function active(run: Run | undefined): boolean {
@@ -70,6 +73,21 @@ export function requestStop(run: Run | undefined, after: StopPoint): boolean {
   return true;
 }
 
+export function huntRefusal(run: Run | undefined, on: boolean): string | undefined {
+  if (run === undefined || !active(run)) {
+    return 'no run is going in this repository';
+  }
+  if (on && !run.watching) {
+    return 'the run does not watch for issues, so it cannot hunt: start a run with --watch or --hunt';
+  }
+  return undefined;
+}
+
+export function setHunting(run: Run, on: boolean): void {
+  run.hunting.set(on);
+  run.progress = { ...run.progress, hunting: on };
+}
+
 function runInterrupts(run: Run): Interrupts {
   return {
     afterIssue: () => run.stop !== undefined,
@@ -85,6 +103,7 @@ export function runControls(
 ): RunControls {
   return {
     interrupts: runInterrupts(run),
+    hunting: run.hunting,
     onEvent: (record) => {
       update(applyEvent(run.progress, record));
       if (endsIssue(record)) {

@@ -16,7 +16,11 @@ export async function statusOf(client: WorkerClient, root: string) {
   if (progress === undefined) {
     return report(`no run of ${root}`, { root });
   }
-  const lines = [formatStatus(progress, Date.now()), ...progress.handled.map(handledNote)];
+  const lines = [
+    formatStatus(progress, Date.now()),
+    ...(going(progress) ? [`hunting ${progress.hunting === true ? 'on' : 'off'}`] : []),
+    ...progress.handled.map(handledNote),
+  ];
   return report(lines.join('\n'), { root });
 }
 
@@ -36,7 +40,15 @@ export async function startRun(
   signal: AbortSignal | undefined,
 ) {
   if (going(progress)) {
-    return report(goingAlready(root, progress), { started: false, root });
+    if (!turnsHuntingOn(progress, args)) {
+      return report(goingAlready(root, progress), { started: false, root });
+    }
+    await switchHunting(client, root, true, signal, 'next_issue_start');
+    return report(`${goingAlready(root, progress)} Turned hunting on.`, {
+      started: false,
+      hunting: true,
+      root,
+    });
   }
   const accepting = accepted(client, root, signal);
   sendStart(client, root, args);
@@ -51,9 +63,72 @@ export function requestStart(
   args: string[],
 ): Note | undefined {
   if (going(progress)) {
-    return { text: goingAlready(root, progress), level: 'info' };
+    if (!turnsHuntingOn(progress, args)) {
+      return { text: goingAlready(root, progress), level: 'info' };
+    }
+    client.send({ type: 'hunt', root, on: true });
+    return { text: `${goingAlready(root, progress)} Turning hunting on.`, level: 'info' };
   }
   sendStart(client, root, args);
+  return undefined;
+}
+
+function turnsHuntingOn(progress: Progress, args: string[]): boolean {
+  return args.includes('--hunt') && progress.hunting !== true;
+}
+
+async function switchHunting(
+  client: WorkerClient,
+  root: string,
+  on: boolean,
+  signal: AbortSignal | undefined,
+  tool: string,
+): Promise<void> {
+  const accepting = accepted(client, root, signal, (next) => next?.hunting === on, tool);
+  client.send({ type: 'hunt', root, on });
+  await accepting;
+}
+
+export async function huntRun(
+  client: WorkerClient,
+  root: string,
+  progress: Progress | undefined,
+  on: boolean,
+  signal: AbortSignal | undefined,
+) {
+  if (!going(progress)) {
+    throw new Error(`no run of ${root} is going`);
+  }
+  await switchHunting(client, root, on, signal, 'next_issue_hunt');
+  const text = on
+    ? `Hunting is on for the run of ${root}.`
+    : `Hunting is off for the run of ${root}. A hunt that is going finishes, and no new hunt starts.`;
+  return report(text, { hunting: on, root });
+}
+
+export function parseHuntArgs(args: string[]): boolean {
+  const [value, ...rest] = args;
+  if (value !== 'on' && value !== 'off') {
+    throw new Error(
+      value === undefined ? 'hunt takes on or off' : `hunt takes on or off, not ${value}`,
+    );
+  }
+  if (rest[0] !== undefined) {
+    throw new Error(`hunt does not take ${rest[0]}`);
+  }
+  return value === 'on';
+}
+
+export function requestHunt(
+  client: WorkerClient,
+  root: string,
+  progress: Progress | undefined,
+  on: boolean,
+): Note | undefined {
+  if (!going(progress)) {
+    return { text: `No run of ${root} is going.`, level: 'info' };
+  }
+  client.send({ type: 'hunt', root, on });
   return undefined;
 }
 

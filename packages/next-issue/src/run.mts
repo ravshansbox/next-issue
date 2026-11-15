@@ -13,6 +13,7 @@ import { checkGitVersion } from './git-version.mts';
 import { defaultBranch } from './github.mts';
 import { hunter } from './hunt.mts';
 import type { Interrupts } from './interrupt.mts';
+import { type HuntSwitch, huntSwitch } from './hunt-switch.mts';
 import type { Context, IssueReport } from './job.mts';
 import { lock, lockHolder } from './lock.mts';
 import { exitCode, type Loop, type LoopResult, runIssues } from './loop.mts';
@@ -30,6 +31,8 @@ export type RunControls = {
   interrupts: Interrupts;
   print?: (summary: RunSummary) => Promise<void>;
   onEvent?: (record: Fields) => void;
+  // The worker passes a switch that its clients turn on and off; a command-line run keeps --hunt.
+  hunting?: HuntSwitch;
 };
 
 export async function runLocked(root: string, args: Args, controls: RunControls): Promise<number> {
@@ -96,7 +99,7 @@ async function handle(
   };
   const print = controls.print ?? (async () => undefined);
   const { reports, stoppedAt, error } = args.watch
-    ? await watchRun(args, loop, context, interrupts, print)
+    ? await watchRun(args, loop, context, controls, print)
     : await runIssues(args, loop);
   recordLoopEnd(recorder, stoppedAt, error);
 
@@ -107,25 +110,27 @@ async function handle(
   return error === undefined ? exitCode(reports) : 1;
 }
 
-function watchRun(
+export function watchRun(
   args: Args,
   loop: Loop,
   context: Context,
-  interrupts: Interrupts,
+  controls: RunControls,
   print: (summary: RunSummary) => Promise<void>,
 ): Promise<LoopResult> {
   const { recorder } = context;
+  const { interrupts } = controls;
   let passStart = recorder.summary();
-  const hunting = args.hunt ? hunter(context) : undefined;
+  const hunt = hunter(context);
   return watchIssues(args, {
     ...loop,
     wait: (minutes) => {
       recorder.event('watch.wait', { minutes }, 'quiet');
       passStart = recorder.summary();
-      return interrupts.sleep(minutesToMs(minutes), () => hunting?.busy() === true);
+      return interrupts.sleep(minutesToMs(minutes), () => hunt.busy());
     },
     passEnd: (issues) => print({ ...recorder.summary(passStart), issues }),
-    ...(hunting === undefined ? {} : { hunter: hunting }),
+    hunter: hunt,
+    hunting: controls.hunting ?? huntSwitch(args.hunt),
   });
 }
 

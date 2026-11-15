@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { going, type Question } from './protocol.ts';
+import { going, type Progress, type Question } from './protocol.ts';
 import { CLOSED, type WorkerClient } from './worker.ts';
 
 export function accepted(
   client: WorkerClient,
   root: string,
   signal: AbortSignal | undefined,
+  done: (progress: Progress | undefined) => boolean = going,
+  tool = 'next_issue_start',
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     const finish = (error?: Error) => {
@@ -17,13 +19,13 @@ export function accepted(
         reject(error);
       }
     };
-    const abort = () => finish(new Error('next_issue_start was cancelled'));
+    const abort = () => finish(new Error(`${tool} was cancelled`));
     const stop = client.subscribe((event) => {
       if (event.type === 'error' && event.root === root) {
         finish(new Error(event.message));
       } else if (event.type === 'closed') {
         finish(new Error(CLOSED));
-      } else if (event.type === 'runs' && going(event.runs[root])) {
+      } else if (event.type === 'runs' && done(event.runs[root])) {
         finish();
       }
     });

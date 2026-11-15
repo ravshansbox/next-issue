@@ -6,8 +6,8 @@ const TOOL_LINE_MAX = 80;
 
 const NOT_STAGES = new Set(['issue.start', 'agent.start', 'run.start']);
 
-export function startProgress(): Progress {
-  return { status: 'running', issues: [], handled: [] };
+export function startProgress(hunting = false): Progress {
+  return { status: 'running', hunting, issues: [], handled: [] };
 }
 
 function toolLine(record: Fields): string {

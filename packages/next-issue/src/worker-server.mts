@@ -24,6 +24,9 @@ function isClientMessage(value: unknown): value is ClientMessage {
   if (typeof value['root'] !== 'string') {
     return false;
   }
+  if (value['type'] === 'hunt') {
+    return typeof value['on'] === 'boolean';
+  }
   if (value['type'] === 'questions') {
     return value['id'] === undefined || typeof value['id'] === 'string';
   }
