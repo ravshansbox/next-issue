@@ -26,40 +26,36 @@ Turn the problem of the user into one GitHub issue, or a split of linked issues 
 
    When `labels.ready` is empty (`""`), add no label, since the worker then claims every open issue. Skip the label commands.
 
-   Then create the issue without showing the body first, and without a label, so that no run claims it before its blockers are linked:
+   Then create the issue without showing the body first, and without a label. Pass every blocker with `--blocked-by`, so the issue carries its blocker links from the moment it exists and no run can claim it before its blockers, whatever `labels.ready` is:
 
    ```bash
-   gh issue create --repo <repo> --title "<title>" --body-file <file>
+   gh issue create --repo <repo> --title "<title>" --body-file <file> --blocked-by <blockers>
    ```
 
-7. Link each blocker:
+   `<blockers>` is the comma-separated list of the numbers of the issues it depends on. Leave out `--blocked-by <blockers>` when the issue has no blocker. When gh does not know `--blocked-by` (it needs GitHub CLI 2.94.0 or later), do not create the issue: ask the user to upgrade gh.
 
-   ```bash
-   gh issue edit --repo <repo> <number> --add-blocked-by <blocker>
-   ```
-
-8. Only after every blocker is linked, add the ready label, unless `labels.ready` is empty. Add no label other than `<ready>`:
+7. Only once the issue exists with every blocker linked, add the ready label, unless `labels.ready` is empty. Add no label other than `<ready>`:
 
    ```bash
    gh issue edit --repo <repo> <number> --add-label "<ready>"
    ```
 
-   For a confirmed split, repeat steps 5 to 8 for each issue of the split, in order. Link each one to the issues of the split it depends on before you add its ready label.
+   For a confirmed split, repeat steps 5 to 7 for each issue of the split, in order. Create each one with `--blocked-by` the issues of the split it depends on, so it is linked before you add its ready label.
 
-9. Give the user the issue url, or each url of a split. Ask once: a) start a run, b) leave it, c) change the issue.
-10. When the user picks c, make the change on GitHub and ask again. Write the new body into the temporary file and run:
+8. Give the user the issue url, or each url of a split. Ask once: a) start a run, b) leave it, c) change the issue.
+9. When the user picks c, make the change on GitHub and ask again. Write the new body into the temporary file and run:
 
-    ```bash
-    gh issue edit --repo <repo> <number> --body-file <file>
-    ```
+   ```bash
+   gh issue edit --repo <repo> <number> --body-file <file>
+   ```
 
-    To change the title, run:
+   To change the title, run:
 
-    ```bash
-    gh issue edit --repo <repo> <number> --title "<title>"
-    ```
+   ```bash
+   gh issue edit --repo <repo> <number> --title "<title>"
+   ```
 
-11. Only when the user picks a, call the `next_issue_start` tool, and tell the user what it reports.
+10. Only when the user picks a, call the `next_issue_start` tool, and tell the user what it reports.
 
 Once the issue exists, do not implement it in this session. The next-issue worker does the work. Once the user picks a or b, do not ask about a run again.
 

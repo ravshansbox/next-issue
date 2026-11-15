@@ -32,9 +32,22 @@ test('an agent who creates an issue with the create-issue skill adds the ready l
   assert.doesNotMatch(skill, /gh issue create[^\n]*--label/);
   assert.match(
     skill,
-    /--add-blocked-by <blocker>[\s\S]*gh issue edit --repo <repo> <number> --add-label "<ready>"/,
+    /--blocked-by <blockers>[\s\S]*gh issue edit --repo <repo> <number> --add-label "<ready>"/,
   );
-  assert.match(skill, /repeat steps 5 to 8 for each issue of the split/);
+  assert.match(skill, /repeat steps 5 to 7 for each issue of the split/);
+});
+
+test('an agent who creates an issue with blockers passes them to gh issue create, so the issue never exists unblocked', async () => {
+  const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
+  assert.match(
+    skill,
+    /gh issue create --repo <repo> --title "<title>" --body-file <file> --blocked-by <blockers>\n/,
+  );
+  assert.doesNotMatch(skill, /--add-blocked-by/);
+  assert.doesNotMatch(skill, /no run claims it before its blockers are linked/);
+  assert.match(readme, /gh issue create --body-file --blocked-by/);
+  assert.doesNotMatch(readme, /--add-blocked-by/);
 });
 
 test('a user who reads the pi-next-issue README learns that the create-issue skill adds the ready label after the blocker links', async () => {
@@ -62,7 +75,10 @@ test('an agent who finds no labels.ready, or no config file, uses status:todo as
 test('an agent who finds labels.ready empty creates the issue with no label', async () => {
   const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
   assert.match(skill, /When `labels\.ready` is empty \(`""`\), add no label/);
-  assert.match(skill, /gh issue create --repo <repo> --title "<title>" --body-file <file>\n/);
+  assert.match(
+    skill,
+    /gh issue create --repo <repo> --title "<title>" --body-file <file>( --blocked-by <blockers>)?\n/,
+  );
 });
 
 test('an agent who creates an issue in a repository without the ready label creates the label first', async () => {
@@ -94,7 +110,7 @@ test('a user who asks pi for a change in a repository with .next-issue/config.js
 test('an agent who creates an issue with the create-issue skill links it to the open issues it depends on', async () => {
   const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
   assert.match(skill, /gh issue list/);
-  assert.match(skill, /gh issue edit --repo <repo> <number> --add-blocked-by <blocker>/);
+  assert.match(skill, /--blocked-by <blockers>/);
 });
 
 test('an agent who finds a change too big for one atomic commit proposes a split of linked issues for the user to confirm', async () => {
