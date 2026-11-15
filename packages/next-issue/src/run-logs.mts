@@ -8,7 +8,8 @@ export async function runLogs(
   failed: Array<{ heading: string; runId: string | undefined }>,
   maxChars: number,
 ): Promise<string> {
-  const share = Math.max(1, Math.floor(maxChars / Math.max(1, failed.length)));
+  const withLog = failed.filter(({ runId }) => runId !== undefined).length;
+  const share = Math.max(1, Math.floor(maxChars / Math.max(1, withLog)));
   const parts: string[] = [];
   for (const { heading, runId } of failed) {
     parts.push(heading);

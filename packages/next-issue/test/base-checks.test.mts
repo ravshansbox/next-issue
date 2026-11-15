@@ -41,7 +41,7 @@ case "$*" in
   "api --paginate repos/acme/tool/commits/${sha}/status?per_page=100 --jq "*) n=$(cat "$d/status-reads" 2>/dev/null || echo 0); echo $((n + 1)) > "$d/status-reads"; f="$d/status.$n"; [ -f "$f" ] || f="$d/status.last"; cat "$f"; exit 0 ;;
 esac
 case "$1 $2" in
-  "run view") echo "boom in $3" ;;
+  "run view") if [ -f "$d/log" ]; then cat "$d/log"; else echo "boom in $3"; fi ;;
   "run rerun") [ "$4" = "--failed" ] || { echo "unexpected: $*" >&2; exit 1; }; echo "$3" >> "$(dirname "$0")/reruns" ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
@@ -339,6 +339,33 @@ test('failedBaseLogs names the failed checks from other CI services with their l
   assert.match(report, /## build\nhttps:\/\/ci\.example\/1/);
   assert.match(report, /## ci\/jenkins\nhttps:\/\/ci\.example\/2/);
   assert.doesNotMatch(report, /lint/);
+});
+
+test('failedBaseLogs gives the one failed run the whole log budget when external checks failed next to it', async (t) => {
+  const dir = await fakeRunsGh(
+    t,
+    [{ databaseId: 1, name: 'CI', status: 'completed', conclusion: 'failure' }],
+    [],
+    {
+      checkRuns: [
+        { name: 'deploy', status: 'completed', conclusion: 'failure', app: 'vercel', url: '' },
+        { name: 'bot', status: 'completed', conclusion: 'failure', app: 'bot', url: '' },
+      ],
+      statuses: [[{ name: 'ci/jenkins', state: 'failure', url: '' }]],
+    },
+  );
+  const log = `${'a'.repeat(30)}real error${'b'.repeat(60)}`;
+  await writeFile(join(dir, 'log'), log);
+  const report = await failedBaseLogs(
+    { owner: 'acme', name: 'tool', root: dir },
+    'abc',
+    'main',
+    100,
+  );
+  assert.ok(report.includes(log), report);
+  assert.match(report, /## deploy/);
+  assert.match(report, /## bot/);
+  assert.match(report, /## ci\/jenkins/);
 });
 
 const ISSUE_RUNS = [
