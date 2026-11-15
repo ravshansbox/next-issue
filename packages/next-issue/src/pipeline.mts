@@ -100,7 +100,7 @@ function startState(
     return newState(issue.number, branchName(issue.number));
   }
   const { pendingHandOver: _pending, ...rest } = saved;
-  return context.reset || handedOver ? resetState(saved) : rest;
+  return context.reset || handedOver ? resetState(saved, handedOver) : rest;
 }
 
 async function work(

@@ -146,9 +146,10 @@ export function newState(issue: number, branch: string): IssueState {
   return { issue, phase: 'claimed', branch, ciFixes: 0, reviewRounds: 0, reviewLog: [] };
 }
 
-export function resetState(state: IssueState): IssueState {
+/** Drops the budgets and findings; a hand-over (`handedOver`) also cancels an approval. */
+export function resetState(state: IssueState, handedOver = false): IssueState {
   const { handedOver: _handedOver, pendingHandOver: _pending, ...rest } = state;
-  const phase = rest.phase === 'approved' ? 'review' : rest.phase;
+  const phase = handedOver && rest.phase === 'approved' ? 'review' : rest.phase;
   return { ...rest, phase, ciFixes: 0, commitFixes: 0, reviewRounds: 0, reviewLog: [] };
 }
 

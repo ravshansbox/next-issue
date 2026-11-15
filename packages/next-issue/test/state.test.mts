@@ -134,6 +134,18 @@ test('resetState drops the budgets and keeps the resume point', () => {
   });
 });
 
+test('resetState keeps an approval unless the issue was handed over', () => {
+  const approved = { ...STATE, phase: 'approved' as const };
+  assert.deepEqual(resetState({ ...approved, commitFixes: 1 }), {
+    ...approved,
+    ciFixes: 0,
+    commitFixes: 0,
+    reviewRounds: 0,
+    reviewLog: [],
+  });
+  assert.equal(resetState(approved, true).phase, 'review');
+});
+
 test('dropState takes the state away and accepts a state that is not there', async () => {
   const target = await repo();
   await writeState(target, STATE);
