@@ -181,3 +181,49 @@ test('the review fixer is told to quote the failing output of a test for a behav
   const review = fixPrompt(ISSUE, [], 'The reviewer requested changes.', 'x', [], 'review');
   assert.match(review, /quote its failing output in your final message/);
 });
+
+test('the implementer and every fixer kind are told the engineering rules', () => {
+  const prompts = [
+    implementPrompt(ISSUE, []),
+    ...(['review', 'checks', 'local', 'conflict'] as const).map((kind) =>
+      fixPrompt(ISSUE, [], 'The reason.', 'the detail', [], kind),
+    ),
+  ];
+  for (const prompt of prompts) {
+    assert.match(
+      prompt,
+      /Update the documentation when you change behaviour or add or remove a feature\./,
+    );
+    assert.match(prompt, /Remove the tests of a feature or behaviour that you remove\./);
+    assert.match(prompt, /Test behaviour that a user can observe/);
+    assert.match(prompt, /names the actor, the action and the observable outcome/);
+    assert.match(
+      prompt,
+      /Reuse existing code and patterns, stay consistent with the repository and pick the simpler option\./,
+    );
+    assert.match(
+      prompt,
+      /Check an API, a command or a url in the repository or its dependencies before you use it\. Do not invent one\./,
+    );
+  }
+});
+
+test('the reviewer checks the engineering rules and asks for the evidence of each finding', () => {
+  const prompt = reviewPrompt(ISSUE, [], 'diff', []);
+  assert.match(prompt, /updates the documentation/);
+  assert.match(prompt, /removes the tests of a removed feature/);
+  assert.match(prompt, /names the actor, the action and the observable outcome/);
+  assert.match(prompt, /reuses existing code and patterns/);
+  assert.match(prompt, /invented API, command or url/);
+  assert.match(
+    prompt,
+    /A missing documentation update or a test that is not observable is a finding\./,
+  );
+  const later = reviewPrompt(ISSUE, [], 'diff', ['Round 1:\n- x']);
+  for (const each of [prompt, later]) {
+    assert.match(
+      each,
+      /Give the file and line, or the command output, that supports each finding\./,
+    );
+  }
+});

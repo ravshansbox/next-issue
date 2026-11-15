@@ -3,6 +3,14 @@ import { ISSUE_SECTIONS } from './issue-format.mts';
 import type { ReviewRound } from './state.mts';
 import { paragraphs } from './text.mts';
 
+const ENGINEERING_RULES = [
+  'Update the documentation when you change behaviour or add or remove a feature.',
+  'Remove the tests of a feature or behaviour that you remove.',
+  'Test behaviour that a user can observe, not internals. Give each test a description that names the actor, the action and the observable outcome.',
+  'Reuse existing code and patterns, stay consistent with the repository and pick the simpler option.',
+  'Check an API, a command or a url in the repository or its dependencies before you use it. Do not invent one.',
+].join('\n');
+
 const COMMIT_RULES = [
   'Do not run git, gh or any push command. The harness commits for you.',
   'End your final message with one line in the form `commit: <conventional commit subject>`.',
@@ -33,6 +41,7 @@ export function implementPrompt(issue: Issue, comments: string[], reply: string[
     replyBlock(reply),
     '## Rules',
     'Read the repository conventions first. Keep the change minimal and focused on the issue.',
+    ENGINEERING_RULES,
     'Add or update tests when the repository has a test suite.',
     'For a behaviour change, write the test first and run it before the change. Then quote its failing output in your final message.',
     COMMIT_RULES,
@@ -76,6 +85,10 @@ function reviewScope(earlier: string[]): string {
     ? [
         'Check correctness, scope, repository conventions and test cover.',
         'Raise a finding when a behaviour change has no failing run of its test in the reply of the implementer.',
+        'Check that the change updates the documentation when it changes behaviour or adds or removes a feature, and that it removes the tests of a removed feature or behaviour.',
+        'Check that each test checks behaviour that a user can observe, and that its description names the actor, the action and the observable outcome.',
+        'Check that the change reuses existing code and patterns, stays consistent with the repository and picks the simpler option, and that it uses no invented API, command or url.',
+        'A missing documentation update or a test that is not observable is a finding.',
       ].join('\n')
     : [
         'This is a later round. Judge two things only:',
@@ -110,6 +123,7 @@ export function reviewPrompt(
     'The worktree is ready to use. Do not change a file. Do not write with git or gh, and do not check out another commit or branch.',
     'The harness discards each change that you make, so a change is only lost work.',
     reviewScope(earlier),
+    'Give the file and line, or the command output, that supports each finding. A guess is not a finding.',
     'Mark a finding blocking only for a wrong result, a missing part of the issue, a regression or a broken convention.',
     'End your final message with the result as a json block in a ```json fence, in the form {"summary": "<short summary>", "findings": [{"severity": "blocking" or "minor", "detail": "<what is wrong and where>"}]}.',
     'Give one entry per finding, and an empty list when nothing is wrong. The findings decide the outcome, so a problem that you leave out counts as no problem.',
@@ -179,6 +193,7 @@ export function fixPrompt(
     replyBlock(reply),
     '## Rules',
     'Fix the cause, not the symptom. Keep the change minimal.',
+    ENGINEERING_RULES,
     KIND_RULES[kind],
     COMMIT_RULES,
   ]);

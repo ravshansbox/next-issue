@@ -283,6 +283,18 @@ Every agent prompt holds the body of the issue and the comments of users with wr
 
 The list lives in `src/issue-format.mts`. The `create-issue` skill of [`@ravshansbox/pi-next-issue`](../pi-next-issue) writes an issue in this format, and a contract test fails when its template and the list disagree. The harness does not reject an issue without the format.
 
+## Rules for the agents
+
+The implementer and the fixer get these rules in their prompt, and the first reviewer checks them:
+
+- update the documentation for a change of behaviour or a feature that is added or removed;
+- remove the tests of a feature or behaviour that is removed;
+- test behaviour that a user can observe, and give each test a description that names the actor, the action and the observable outcome;
+- reuse existing code and patterns, stay consistent with the repository and pick the simpler option;
+- check an API, a command or a url in the repository or its dependencies before using it, and invent none.
+
+The reviewer rates a missing documentation update or a test that is not observable as a finding. In every round, it gives the file and line, or the command output, that supports each finding. Personal style rules, such as spelling, code comments or binding names, belong in the `AGENTS.md` of each repository.
+
 ## Stops for a loop
 
 The harness hands the issue to a person, with the `status:needs-human` label,
