@@ -35,6 +35,7 @@ if [ "$2" = view ]; then
   [ -n "$RELEASED" ]
 else
   echo "gh $*" >> "$LOG"
+  if [ "${*: -1}" = - ]; then cat >> "$LOG"; fi
 fi
 EOF
   chmod +x "$bin/npm" "$bin/gh"
@@ -44,11 +45,17 @@ EOF
   git -C "$repo" config user.name test
   git -C "$repo" config user.email test@example.com
   git -C "$repo" add .
-  git -C "$repo" commit --quiet -m first
+  git -C "$repo" commit --quiet -m 'feat: start'
+  start=$(git -C "$repo" rev-parse --short HEAD)
 }
 
 repair() {
-  (cd "$repo" && PATH="$bin:$PATH" LOG="$log" HELD="$1" RELEASED="$2" REFUSED="${3:-}" BROKEN="${4:-}" "$script") > /dev/null 2>&1 || true
+  (
+    cd "$repo"
+    export GITHUB_REPOSITORY=owner/repo
+    if [ -n "${UNNAMED:-}" ]; then unset GITHUB_REPOSITORY; fi
+    PATH="$bin:$PATH" LOG="$log" HELD="$1" RELEASED="$2" REFUSED="${3:-}" BROKEN="${4:-}" "$script"
+  ) > /dev/null 2>&1 || true
 }
 
 check() {
@@ -68,7 +75,12 @@ repair first ''
 check 'the release job publishes only the package that npm lacks at the last tag version and makes the missing release' "npm ci
 npm version --no-git-tag-version --allow-same-version --workspaces 1.2.0
 npm publish -w packages/second
-gh release create v1.2.0 --title v1.2.0 --generate-notes"
+gh release create v1.2.0 --title v1.2.0 --notes-file -
+## Features
+
+- feat: start ($start)
+
+**Full Changelog**: https://github.com/owner/repo/commits/v1.2.0"
 
 setup
 git -C "$repo" tag v1.2.0
@@ -77,7 +89,12 @@ check 'the release job publishes every package when nothing of the last tag reac
 npm version --no-git-tag-version --allow-same-version --workspaces 1.2.0
 npm publish -w packages/first
 npm publish -w packages/second
-gh release create v1.2.0 --title v1.2.0 --generate-notes"
+gh release create v1.2.0 --title v1.2.0 --notes-file -
+## Features
+
+- feat: start ($start)
+
+**Full Changelog**: https://github.com/owner/repo/commits/v1.2.0"
 
 setup
 git -C "$repo" tag v1.2.0
@@ -91,7 +108,12 @@ repair first '' second
 check 'the release job counts a package that npm refuses as previously published as held and makes the missing release' "npm ci
 npm version --no-git-tag-version --allow-same-version --workspaces 1.2.0
 npm publish -w packages/second
-gh release create v1.2.0 --title v1.2.0 --generate-notes"
+gh release create v1.2.0 --title v1.2.0 --notes-file -
+## Features
+
+- feat: start ($start)
+
+**Full Changelog**: https://github.com/owner/repo/commits/v1.2.0"
 
 setup
 git -C "$repo" tag v1.2.0
@@ -99,6 +121,27 @@ repair first '' '' second
 check 'the release job stops before the release when a publish fails for another reason' "npm ci
 npm version --no-git-tag-version --allow-same-version --workspaces 1.2.0
 npm publish -w packages/second"
+
+setup
+git -C "$repo" tag v1.1.0
+git -C "$repo" commit --quiet --allow-empty -m 'fix: mend'
+mend=$(git -C "$repo" rev-parse --short HEAD)
+git -C "$repo" tag v1.2.0
+git -C "$repo" commit --quiet --allow-empty -m 'feat: later'
+repair "first
+second" ''
+check 'the release job makes the missing release with the notes from the tag before it' "gh release create v1.2.0 --title v1.2.0 --notes-file -
+## Fixes
+
+- fix: mend ($mend)
+
+**Full Changelog**: https://github.com/owner/repo/compare/v1.1.0...v1.2.0"
+
+setup
+git -C "$repo" tag v1.2.0
+UNNAMED=yes repair "first
+second" ''
+check 'the release job makes no release when the notes fail' ''
 
 setup
 repair '' ''

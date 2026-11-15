@@ -945,7 +945,9 @@ Releases are automatic and need no pull request. Push a
 [conventional commit](https://www.conventionalcommits.org/) to `main`. The
 workflow reads the commits since the last tag and picks the bump: `feat` gives a
 minor, `fix` gives a patch, and a `!` mark or a `BREAKING CHANGE` body gives a
-major. Any other type releases nothing.
+major. Any other type releases nothing. The notes of the GitHub release list the
+subject and short hash of each breaking, `feat` and `fix` commit since the
+previous tag, grouped by type, and end with the compare link from that tag.
 
 The release is the `release` job of the `ci` workflow, and it runs only after
 the `check` job of the same commit passes. A commit that fails the typecheck,

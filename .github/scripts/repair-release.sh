@@ -6,6 +6,7 @@ if [ -z "$last" ]; then
   exit 0
 fi
 version=${last#v}
+scripts=$(cd "$(dirname "$0")" && pwd)
 root=$(pwd)
 tree=$(mktemp -d)
 trap 'git -C "$root" worktree remove --force "$tree"' EXIT
@@ -37,5 +38,6 @@ if [ "${#missing[@]}" -gt 0 ]; then
 fi
 
 if ! gh release view "$last" > /dev/null 2>&1; then
-  gh release create "$last" --title "$last" --generate-notes
+  notes=$("$scripts/release-notes.sh" "$last")
+  gh release create "$last" --title "$last" --notes-file - <<<"$notes"
 fi

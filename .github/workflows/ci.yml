@@ -21,6 +21,7 @@ jobs:
       - run: npm run build
       - run: .github/scripts/repair-release.test.sh
       - run: .github/scripts/check-npm.test.sh
+      - run: .github/scripts/release-notes.test.sh
 
   release:
     needs: check
@@ -81,4 +82,5 @@ jobs:
           git tag "$tag"
           git push origin "$tag"
           npm publish --workspaces
-          gh release create "$tag" --title "$tag" --generate-notes
+          notes=$(.github/scripts/release-notes.sh "$tag")
+          gh release create "$tag" --title "$tag" --notes-file - <<<"$notes"
