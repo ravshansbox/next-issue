@@ -107,7 +107,9 @@ the run handles one issue. For each issue:
    heading, or adds that heading at the end of the body when it has none.
    When that read or body edit fails, the harness records a
    `questions.body-failed` event in the run log and still hands the issue over
-   with the questions in the comment.
+   with the questions in the comment. It also keeps the questions in the state
+   of the issue, so the implementer of the run that resumes the issue finds
+   them next to the answer of a person, not in the issue body.
 5. Let the reviewer agent judge the diff, at most `diffMaxChars` of it. The
    reviewer reads files and runs commands in the worktree, so it can prove a
    finding with the tests or the type check. The harness then throws away every
@@ -763,8 +765,11 @@ resumes the issue, it reads the comments posted after its last
 access to the repository count, for the hand-over comment too. A comment that
 starts with one of the headings of the harness never counts as an answer. The
 implementer and every fixer of that run get them in their prompt, under the
-heading `Answer of a person to the hand-over`. A short reply such as "ready,
-take it" is enough. With no such comment, the run resumes with no guidance.
+heading `Answer of a person to the hand-over`. When the questions of the
+implementer did not reach the issue body, the implementer also gets them under
+that heading, before the answer, or alone when no comment answers them. A short
+reply such as "ready, take it" is enough. With no such comment, the run resumes
+with no guidance.
 
 The `--reset` flag does the same for any issue that the run handles, whether or
 not it was handed over. It touches only an issue that the run handles, so the

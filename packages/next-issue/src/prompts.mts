@@ -1,5 +1,5 @@
 import type { Issue } from './github.mts';
-import { ISSUE_SECTIONS } from './issue-format.mts';
+import { ISSUE_SECTIONS, numbered } from './issue-format.mts';
 import type { ReviewRound } from './state.mts';
 import { paragraphs } from './text.mts';
 
@@ -39,21 +39,32 @@ function issueBlock(issue: Issue, comments: string[]): string {
   ]);
 }
 
-function replyBlock(reply: string[]): string {
-  return reply.length > 0
-    ? [
-        '## Answer of a person to the hand-over',
-        'The last run handed the issue to a person. A person with write access to the repository answered as below. Follow this guidance.',
-        reply.join('\n\n'),
-      ].join('\n\n')
-    : '';
+function replyBlock(reply: string[], questions: string[] = []): string {
+  if (reply.length === 0 && questions.length === 0) {
+    return '';
+  }
+  return paragraphs([
+    '## Answer of a person to the hand-over',
+    reply.length > 0
+      ? 'The last run handed the issue to a person. A person with write access to the repository answered as below. Follow this guidance.'
+      : 'The last run handed the issue to a person. No person with write access to the repository answered in a comment.',
+    questions.length > 0
+      ? `The implementer of the last run asked these questions:\n\n${numbered(questions)}`
+      : '',
+    reply.join('\n\n'),
+  ]);
 }
 
-export function implementPrompt(issue: Issue, comments: string[], reply: string[] = []): string {
+export function implementPrompt(
+  issue: Issue,
+  comments: string[],
+  reply: string[] = [],
+  questions: string[] = [],
+): string {
   return paragraphs([
     'You are the implementer. Solve the issue below in this worktree.',
     issueBlock(issue, comments),
-    replyBlock(reply),
+    replyBlock(reply, questions),
     '## Rules',
     'Read the repository conventions first. Keep the change minimal and focused on the issue.',
     QUESTION_RULES,

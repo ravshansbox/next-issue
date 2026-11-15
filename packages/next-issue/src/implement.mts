@@ -12,9 +12,15 @@ export async function implement(job: Run): Promise<Round> {
   const { context, issue, log, state, worktree, comments, reply } = job;
   const before = await context.ports.revision(worktree);
   const result = await log.step('implement', {}, () =>
-    runRole(job, 'implementer', implementPrompt(issue, comments, reply), CODING),
+    runRole(
+      job,
+      'implementer',
+      implementPrompt(issue, comments, reply, state.unpostedQuestions),
+      CODING,
+    ),
   );
   state.implementerReply = result.text;
+  delete state.unpostedQuestions;
   const questions = parseQuestions(result.text);
   if (questions.length > 0) {
     return askQuestions(job, before, questions);
@@ -32,7 +38,7 @@ export async function implement(job: Run): Promise<Round> {
 }
 
 async function askQuestions(job: Run, before: string, questions: string[]): Promise<Round> {
-  const { context, issue, log, worktree, branch } = job;
+  const { context, issue, log, state, worktree, branch } = job;
   const { repo, ports } = context;
   await ports.discardChanges(worktree, before, branch);
   try {
@@ -40,6 +46,7 @@ async function askQuestions(job: Run, before: string, questions: string[]): Prom
     await ports.editIssueBody(repo, issue.number, withOpenQuestions(fresh.body, questions));
   } catch (error) {
     log.event('questions.body-failed', { error: message(error) }, 'quiet');
+    state.unpostedQuestions = questions;
   }
   return escalateAndFinish(
     job,

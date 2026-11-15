@@ -19,6 +19,7 @@ export type IssueState = {
   title?: string;
   changeTitle?: string;
   implementerReply?: string;
+  unpostedQuestions?: string[];
   fixerReply?: string;
   ciFixes: number;
   commitFixes?: number;
@@ -82,8 +83,8 @@ function isOptional(value: unknown, type: 'boolean' | 'number' | 'string'): bool
   return value === undefined || typeof value === type;
 }
 
-function isLanded(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((sha) => typeof sha === 'string');
+function isStrings(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
 }
 
 function isReviewRound(value: unknown): value is ReviewRound {
@@ -114,10 +115,11 @@ function isState(value: unknown): value is IssueState {
     isOptional(value.title, 'string') &&
     isOptional(value.changeTitle, 'string') &&
     isOptional(value.implementerReply, 'string') &&
+    (value.unpostedQuestions === undefined || isStrings(value.unpostedQuestions)) &&
     isOptional(value.fixerReply, 'string') &&
     typeof value.ciFixes === 'number' &&
     isOptional(value.commitFixes, 'number') &&
-    (value.landed === undefined || isLanded(value.landed)) &&
+    (value.landed === undefined || isStrings(value.landed)) &&
     isOptional(value.pushing, 'string') &&
     isOptional(value.reverting, 'string') &&
     isOptional(value.squashing, 'string') &&

@@ -283,3 +283,53 @@ test('an implementer whose reply holds only a placeholder question line gets its
   assert.match(target.messages[0]!, /^feat: add a flag\n/);
   assert.deepEqual(target.bodies, []);
 });
+
+const ANSWERED = [
+  {
+    author: 'bot',
+    body: `next-issue needs help: The implementer has questions about the issue.\n\n${ASKED}`,
+  },
+  { author: 'owner', body: '1. b, 2. a' },
+];
+
+async function resumedImplementer(
+  t: Parameters<typeof harness>[0],
+  fail: 'editIssueBody' | undefined,
+  thread = ANSWERED,
+): Promise<string> {
+  const target = await harness(t, {
+    implementerText: [QUESTIONS],
+    fresh: ISSUE,
+    fail,
+  });
+  assert.equal((await target.run()).reason, 'questions');
+  const next = await harness(t, {
+    issue: { ...ISSUE, body: target.bodies[0]?.body ?? ISSUE.body, labels: [] },
+    saved: (await target.state())!,
+    thread,
+    writers: ['owner', 'bot'],
+  });
+  await next.run();
+  return next.prompts.find((entry) => entry.role === 'implementer')!.prompt;
+}
+
+test('a person who answers questions that reached only the hand-over comment gets the questions and the answer into the prompt of the next implementer', async (t) => {
+  const prompt = await resumedImplementer(t, 'editIssueBody');
+  assert.match(
+    prompt,
+    new RegExp(
+      `## Answer of a person to the hand-over[\\s\\S]*${ASKED.replace(/[.?()-]/g, '\\$&')}[\\s\\S]*@owner: 1\\. b, 2\\. a`,
+    ),
+  );
+});
+
+test('a person who answers questions that reached the issue body gets the answer into the prompt of the next implementer without the questions repeated', async (t) => {
+  const prompt = await resumedImplementer(t, undefined);
+  assert.match(prompt, /@owner: 1\. b, 2\. a/);
+  assert.equal(prompt.split('Which name?').length, 2);
+});
+
+test('a person who resumes questions that reached only the hand-over comment without answering them gets the questions into the prompt of the next implementer', async (t) => {
+  const prompt = await resumedImplementer(t, 'editIssueBody', ANSWERED.slice(0, 1));
+  assert.match(prompt, /## Answer of a person to the hand-over[\s\S]*Which name\?/);
+});
