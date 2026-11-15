@@ -162,6 +162,28 @@ test('an implementer that asks questions hands the issue to a person with the qu
   assert.equal(target.pushes, 0);
 });
 
+test('a user whose issue body cannot be edited still gets the implementer questions in the hand-over comment, the needs-human label and the failed edit in the run log', async (t) => {
+  const target = await harness(t, {
+    implementerText: [QUESTIONS],
+    fresh: ISSUE,
+    fail: 'editIssueBody',
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'questions');
+  assert.equal(target.labels.at(-1)!.label, 'status:needs-human');
+  assert.equal(
+    target.issueNotes.at(-1)!.body,
+    `next-issue needs help: The implementer has questions about the issue.\n\n${ASKED}`,
+  );
+  assert.deepEqual(
+    target.events
+      .filter((event) => event.kind === 'questions.body-failed')
+      .map((event) => event.error),
+    ['the port broke'],
+  );
+});
+
 test('a user whose implementer asks questions finds them under a new Open questions heading at the end of the issue body as GitHub holds it', async (t) => {
   const target = await harness(t, {
     implementerText: [QUESTIONS],

@@ -1,5 +1,6 @@
 import { parseCommitSubject, parseQuestions } from './agent-reply.mts';
 import { CODING } from './agents.mts';
+import { message } from './errors.mts';
 import { commitWork } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
 import { numbered, withOpenQuestions } from './issue-format.mts';
@@ -31,11 +32,15 @@ export async function implement(job: Run): Promise<Round> {
 }
 
 async function askQuestions(job: Run, before: string, questions: string[]): Promise<Round> {
-  const { context, issue, worktree, branch } = job;
+  const { context, issue, log, worktree, branch } = job;
   const { repo, ports } = context;
   await ports.discardChanges(worktree, before, branch);
   const fresh = await ports.viewIssue(repo, issue.number);
-  await ports.editIssueBody(repo, issue.number, withOpenQuestions(fresh.body, questions));
+  try {
+    await ports.editIssueBody(repo, issue.number, withOpenQuestions(fresh.body, questions));
+  } catch (error) {
+    log.event('questions.body-failed', { error: message(error) }, 'quiet');
+  }
   return escalateAndFinish(
     job,
     `The implementer has questions about the issue.\n\n${numbered(questions)}`,
