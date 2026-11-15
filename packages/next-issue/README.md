@@ -683,6 +683,14 @@ issue to the next. The implementer and the fixer may add a short note to it, and
 the prompt asks them to keep only what still holds. The reviewer and the hunter
 only read it.
 
+Every agent also reads each `AGENTS.md` that pi finds, such as the one in your
+home folder and the one in the repository. The other rules there, such as code
+conventions and test style, still apply. But the harness owns the issue, the
+worktree, the branch, git, the commit, the push and the checks, and the prompt
+says so: a workflow rule in `AGENTS.md` about these, such as "push to main" or
+"watch ci", does not apply to the agent. The hunter still files its issues with
+`gh issue create`.
+
 ## Retry an issue that waits for a person
 
 When the implementer makes no change, the hand-over comment holds its full

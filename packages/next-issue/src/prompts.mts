@@ -3,7 +3,16 @@ import { ISSUE_SECTIONS } from './issue-format.mts';
 import type { ReviewRound } from './state.mts';
 import { paragraphs } from './text.mts';
 
+const OTHER_RULES =
+  'The other rules of `AGENTS.md`, such as code conventions and test style, still apply.';
+
+const HARNESS_RULES = [
+  'The harness owns the issue, the worktree, the branch, git, the commit, the push and the checks. The workflow rules of `AGENTS.md` about these do not apply to you.',
+  OTHER_RULES,
+].join('\n');
+
 const COMMIT_RULES = [
+  HARNESS_RULES,
   'Do not run git, gh or any push command. The harness commits for you.',
   'End your final message with one line in the form `commit: <conventional commit subject>`.',
 ].join('\n');
@@ -109,6 +118,7 @@ export function reviewPrompt(
     'Read files and run commands to prove what you say: the tests, the type check or the linter.',
     'The worktree is ready to use. Do not change a file. Do not write with git or gh, and do not check out another commit or branch.',
     'The harness discards each change that you make, so a change is only lost work.',
+    HARNESS_RULES,
     reviewScope(earlier),
     'Mark a finding blocking only for a wrong result, a missing part of the issue, a regression or a broken convention.',
     'End your final message with the result as a json block in a ```json fence, in the form {"summary": "<short summary>", "findings": [{"severity": "blocking" or "minor", "detail": "<what is wrong and where>"}]}.',
@@ -220,6 +230,8 @@ export function huntPrompt(
     '## Rules',
     [
       'Run no test suite and no build. Change no file. Do not commit or push.',
+      'The harness owns the worktree, git and the checks. The workflow rules of `AGENTS.md` about these do not apply to you.',
+      OTHER_RULES,
       `File up to ${issues}, your most serious findings first. File nothing when you find no real problem.`,
       `Before you file an issue, search the open and closed issues for a duplicate, for example with \`gh issue list --repo ${repository} --state all --search "<words>"\`. Do not file a finding when a duplicate exists.`,
       `File each issue with \`gh issue create --repo ${repository}${label} --title "<conventional commit subject>" --body-file -\`.`,
