@@ -1,5 +1,5 @@
 import { budgetUse, refundBudget, refundOnKill } from './budget.mts';
-import { refuseWhenStopped, runStopped } from './children.mts';
+import { evenWhenStopped, refuseWhenStopped, runStopped } from './children.mts';
 import { minutesToMs } from './durations.mts';
 import { succeeded } from './exec.mts';
 import { escalateCheckFix, type Fix, fixRound } from './fix.mts';
@@ -19,6 +19,7 @@ const COMMENT_OUTPUT_CHARS = 3000;
 export async function localChecks(job: Run): Promise<Finished | boolean> {
   const { context, log, worktree } = job;
   const { config, ports } = context;
+  const head = await ports.revision(worktree);
   for (const command of config.checks) {
     const result = await log.step('check', { cmd: command }, () =>
       ports.runCheck(
@@ -28,6 +29,7 @@ export async function localChecks(job: Run): Promise<Finished | boolean> {
         config.logMaxChars,
       ),
     );
+    await evenWhenStopped(() => ports.discardChanges(worktree, head));
     // A stop kills the command, so its failure is no finding: the next run checks again.
     refuseWhenStopped();
     log.event(

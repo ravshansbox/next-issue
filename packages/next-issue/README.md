@@ -161,7 +161,10 @@ the run handles one issue. For each issue:
    `merge conflict`. When `checks` lists commands, the harness then runs
    each one in the worktree, in order, with `bash -c` and stderr merged
    into stdout, each for at most `checksTimeoutMinutes`. Their output goes
-   to the run log (`check.output`, and `check.fail` for a failure). A
+   to the run log (`check.output`, and `check.fail` for a failure). After
+   each command, the harness resets the worktree to the commit it checked
+   and removes untracked files that git does not ignore, so a file that a
+   command writes never lands on the base. A
    command that fails or does not finish stops the landing before the push:
    the fixer gets the command and the tail of its output (at most
    `logMaxChars`) from the check budget, `maxCiFixes`, and its fix is

@@ -2,84 +2,11 @@ import assert from 'node:assert/strict';
 import { chmod, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
-import type { AgentRequest } from '../src/agents.mts';
-import { commitAll } from '../src/git-commit.mts';
-import { pushToBase, revertOnBase, squashOnto } from '../src/git-land.mts';
-import { abortMerge, commitMerge, startMerge } from '../src/git-merge.mts';
-import {
-  diff,
-  discardChanges,
-  isDirty,
-  isLanded,
-  latestSubject,
-  revision,
-  saveEdits,
-  setAside,
-} from '../src/git.mts';
-import type { Recorder } from '../src/observe.mts';
-import { addWorktree, findWorktree, removeWorktree } from '../src/worktree.mts';
+import { commitMerge } from '../src/git-merge.mts';
 import { clones, git } from './clones.mts';
 import { type Harness, harness } from './harness.mts';
+import { type Files, pushBase, remoteMain, useGit, writeFiles } from './real-git.mts';
 import { tempDir } from './temp-dir.mts';
-
-const REAL_GIT = {
-  abortMerge,
-  addWorktree,
-  commitAll,
-  commitMerge,
-  diff,
-  discardChanges,
-  findWorktree,
-  isDirty,
-  isLanded,
-  latestSubject,
-  pushToBase,
-  removeWorktree,
-  revertOnBase,
-  revision,
-  saveEdits,
-  setAside,
-  squashOnto,
-  startMerge,
-};
-
-type Files = Record<string, string>;
-
-async function writeFiles(cwd: string, files: Files): Promise<void> {
-  for (const [name, text] of Object.entries(files)) {
-    await writeFile(join(cwd, name), text);
-  }
-}
-
-async function pushBase(other: string, files: Files): Promise<void> {
-  await git(other, 'fetch', '-q', 'origin');
-  await git(other, 'reset', '-q', '--hard', 'origin/main');
-  await writeFiles(other, files);
-  await git(other, 'add', '-A');
-  await git(other, 'commit', '-q', '-m', 'base');
-  await git(other, 'push', '-q', 'origin', 'main');
-}
-
-function useGit(
-  target: Harness,
-  fixer: (worktree: string, call: number) => Promise<unknown>,
-): void {
-  const { ports } = target.context;
-  const fake = ports.runAgent;
-  let calls = 0;
-  Object.assign(ports, {
-    ...REAL_GIT,
-    runAgent: async (recorder: Recorder, request: AgentRequest) => {
-      if (request.name === 'fixer') {
-        calls += 1;
-        await fixer(request.cwd, calls);
-      } else {
-        await writeFile(join(request.cwd, `${request.name}.txt`), `${request.name}\n`);
-      }
-      return fake(recorder, request);
-    },
-  });
-}
 
 type Stop = { fix: Files; base: Files; conflictFixer?: Files; hook?: boolean };
 
@@ -128,11 +55,6 @@ async function resume(t: TestContext, root: string, resolved: Files): Promise<Ha
   const resumed = await harness(t, { root });
   useGit(resumed, (worktree) => writeFiles(worktree, resolved));
   return resumed;
-}
-
-async function remoteMain(other: string): Promise<string> {
-  await git(other, 'fetch', '-q', 'origin');
-  return git(other, 'rev-parse', 'origin/main');
 }
 
 test('a user who stops the run while the fixer resolves a conflict of a fix for main, and whose base then moves, gets only the fix landed by the next run with the new base commit kept', async (t) => {
