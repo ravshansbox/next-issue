@@ -237,6 +237,57 @@ test('a user who stops a run now while a pi agent runs gets no agent reply, only
   await assert.rejects(running, { message: 'The run stopped.' });
 });
 
+async function slowExtension(root: string, event: 'session_start' | 'input'): Promise<void> {
+  await mkdir(join(root, 'extensions'), { recursive: true });
+  const result = event === 'input' ? "{ action: 'continue' }" : 'undefined';
+  await writeFile(
+    join(root, 'extensions', 'slow.ts'),
+    `export default function (pi) {
+  pi.on('${event}', async () => {
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    return ${result};
+  });
+}
+`,
+  );
+}
+
+for (const [event, window] of [
+  ['session_start', 'its extensions bind'],
+  ['input', 'its prompt preflight runs'],
+] as const) {
+  test(`a user who stops a run now while ${window} gets no agent turn, only a stopped run`, async () => {
+    let turns = 0;
+    const { recorder, request } = await fakePi([
+      () => {
+        turns += 1;
+        return fauxAssistantMessage('done');
+      },
+    ]);
+    await slowExtension(request.cwd, event);
+    const children = runChildren();
+    const running = withRunChildren(children, () => runAgent(recorder, request));
+    setTimeout(() => stopRunChildren(children), 200);
+    await assert.rejects(running, { message: 'The run stopped.' });
+    assert.equal(turns, 0);
+  });
+
+  test(`a user whose agent times out while ${window} gets no agent turn, only a timeout`, async () => {
+    let turns = 0;
+    const { recorder, request } = await fakePi([
+      () => {
+        turns += 1;
+        return fauxAssistantMessage('done');
+      },
+    ]);
+    await slowExtension(request.cwd, event);
+    await assert.rejects(runAgent(recorder, { ...request, timeoutMs: 200 }), {
+      message: 'The coder agent did not finish in 200 ms.',
+    });
+    assert.equal(turns, 0);
+  });
+}
+
 async function assertFailedUsage(
   recorder: Recorder,
   request: { name: string; model: string },

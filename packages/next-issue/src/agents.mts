@@ -74,15 +74,31 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
   log.event('agent.start', { model: request.model, timeoutMs: request.timeoutMs });
   const session = await openSession(recorder, log, request, agentDir);
 
-  const timer = deadline(request.timeoutMs, () => void session.abort());
+  // pi drops an abort that comes before its run starts (during bindExtensions or the prompt
+  // preflight), so remember it and abort again once the run is active, before its first turn.
+  let ended = false;
+  const end = (): void => {
+    ended = true;
+    void session.abort();
+  };
+  const timer = deadline(request.timeoutMs, end);
   const unsubscribe = session.subscribe((event) => observe(log, event));
-  const release = onStop(() => void session.abort());
+  const release = onStop(end);
   try {
     refuseWhenStopped();
     await session.bindExtensions({});
     let result: AgentResult;
     try {
-      await session.prompt(request.prompt, { expandPromptTemplates: false });
+      if (!ended) {
+        await session.prompt(request.prompt, {
+          expandPromptTemplates: false,
+          preflightResult: (disposition) => {
+            if (disposition === 'started' && ended) {
+              void session.abort();
+            }
+          },
+        });
+      }
     } finally {
       // A call that times out, fails or is stopped has spent tokens too.
       result = sessionResult(recorder, request, session, started);
