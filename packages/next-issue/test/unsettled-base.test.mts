@@ -138,6 +138,53 @@ test('a user who gives up on an issue halted on a checks error gets the next run
   assert.equal(other.landed.length, 1);
 });
 
+async function haltOnChecksError(t: Parameters<typeof harness>[0]): Promise<string> {
+  const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
+  first.context.ports.waitForBaseChecks = async () => {
+    throw new Error('gh: API rate limit exceeded');
+  };
+  assert.equal((await first.run()).reason, 'checks error');
+  return first.context.repo.root;
+}
+
+test('a user whose halted issue was deleted gets the next run to release its block and land another issue', async (t) => {
+  const root = await haltOnChecksError(t);
+  const other = await harness(t, { root, issue: OTHER, open: [OTHER] });
+  other.context.ports.viewIssue = async () => {
+    throw new Error(
+      'gh issue view 7 failed with code 1: GraphQL: Could not resolve to an issue or pull request with the number of 7. (repository.issue)',
+    );
+  };
+  await pendingIssues(other.context);
+  assert.ok(
+    other.events.some(
+      (record) =>
+        record['kind'] === 'land.released' &&
+        record['issue'] === 7 &&
+        record['reason'] === 'issue not found',
+    ),
+  );
+  const state = await readState(other.context.repo, 7);
+  assert.equal(state?.halted, undefined);
+  assert.deepEqual(state?.landed, ['2']);
+  assert.equal((await other.run()).outcome, 'done');
+  assert.equal(other.landed.length, 1);
+});
+
+test('a user whose halted issue cannot be read during a network outage gets no other issue landed by that run', async (t) => {
+  const root = await haltOnChecksError(t);
+  const other = await harness(t, { root, issue: OTHER, open: [OTHER] });
+  other.context.ports.viewIssue = async () => {
+    throw new Error('gh issue view 7 failed with code 1: error connecting to api.github.com');
+  };
+  await pendingIssues(other.context);
+  assert.ok(!other.events.some((record) => record['kind'] === 'land.released'));
+  assert.equal((await readState(other.context.repo, 7))?.halted, true);
+  const blocked = await other.run();
+  assert.equal(blocked.reason, 'base unchecked');
+  assert.deepEqual(other.landed, []);
+});
+
 test('a user whose run halted on a push unknown gets no other issue landed by the next run until the halted push is settled', async (t) => {
   const first = await harness(t, { pushLandsAndFails: true, baseFetchFails: true });
   assert.equal((await first.run()).reason, 'push unknown');

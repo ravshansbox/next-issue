@@ -1,8 +1,14 @@
-import { message } from './errors.mts';
+import { errorMatches, message } from './errors.mts';
 import type { Issue } from './github.mts';
 import type { Context } from './job.mts';
-import { readState, savedIssues } from './state.mts';
-import { blocksLanding } from './unsettled.mts';
+import { type IssueState, readState, savedIssues, writeState } from './state.mts';
+import { blocksLanding, heldOnBase } from './unsettled.mts';
+
+/**
+ * What `gh issue view` says for an issue that was deleted or moved to another repository. Its GraphQL
+ * `repository.issue` lookup does not follow a transfer (only REST does), so a moved issue fails like a deleted one.
+ */
+const ISSUE_GONE = /Could not resolve to an issue or pull request|HTTP 404/;
 
 export async function pendingIssues(context: Context): Promise<Issue[]> {
   const { repo, config, ports } = context;
@@ -62,9 +68,27 @@ async function savedIssue(
     }
     return { open, issue: { ...issue, closed: true } };
   } catch (error) {
-    context.recorder
-      .scope({ issue: number })
-      .event('issue.unreadable', { error: message(error) }, 'quiet');
+    const log = context.recorder.scope({ issue: number });
+    log.event('issue.unreadable', { error: message(error) }, 'quiet');
+    if (saved !== 'broken' && errorMatches(error, ISSUE_GONE)) {
+      await releaseGone(context, saved);
+    }
     return { open: false };
   }
+}
+
+/**
+ * A halted issue that was deleted or moved never resumes or gets the skip label, so its halt would block every
+ * landing for good: drop it like a given-up issue. The state keeps what is on the base. A passing read failure
+ * (a network error) keeps the halt.
+ */
+async function releaseGone(context: Context, saved: IssueState): Promise<void> {
+  if (!blocksLanding(saved, context.base)) {
+    return;
+  }
+  delete saved.halted;
+  await writeState(context.repo, saved);
+  context.recorder
+    .scope({ issue: saved.issue })
+    .event('land.released', { held: heldOnBase(saved, context.base), reason: 'issue not found' });
 }

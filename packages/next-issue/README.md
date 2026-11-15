@@ -348,7 +348,12 @@ keeps the commits, so taking the `skip` label off later resumes the issue
 and checks them. Such a resume is not held back
 by another halted issue while it only checks its commit already on the
 base; a fix it has to land waits like any other change. The hand-over
-comment says so.
+comment says so. A halted issue that was deleted or moved to another
+repository can no longer be answered or given up, so the next run that gets
+a not-found error when it reads the issue releases it the same way: it drops
+the halt from the state, keeps the commits and logs a `land.released` event
+with the reason `issue not found`. Any other read error (for example a
+network error) keeps the block for that run.
 
 The fixer sees the findings of all earlier rounds, not only the last one, with
 its own disputes next to them. From round two, the reviewer judges only the
