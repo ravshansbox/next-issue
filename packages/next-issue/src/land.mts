@@ -139,7 +139,9 @@ async function pushChange(job: Run): Promise<Finished | string> {
     const sha = await ports.revision(worktree);
     // A halt saved before nothing of this issue was left on the base must not block once this push lands.
     releaseSettled(state);
+    const halted = state.halted;
     state.pushing = sha;
+    state.halted = true;
     await writeState(repo, state);
     const pushed = await log.step(
       'land',
@@ -155,7 +157,6 @@ async function pushChange(job: Run): Promise<Finished | string> {
     );
     if (pushed === undefined) {
       job.mainBroken = true;
-      state.halted = true;
       return escalateAndFinish(
         job,
         `The push to ${base} failed and the fetch of ${base} failed too, so the harness cannot tell whether the commit landed. ${HALT_NOTE}`,
@@ -165,7 +166,8 @@ async function pushChange(job: Run): Promise<Finished | string> {
     state.pushing = undefined;
     if (pushed) {
       state.landed = [...(state.landed ?? []), sha];
-      state.halted = true;
+    } else if (halted !== true) {
+      delete state.halted;
     }
     await writeState(repo, state);
     if (pushed) {

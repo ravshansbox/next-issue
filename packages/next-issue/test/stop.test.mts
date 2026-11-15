@@ -87,6 +87,60 @@ test('a user who stops a run now while it waits for the checks of a landed commi
   assert.equal(next.landed.length, 1);
 });
 
+test('a user who stops a run now while a push to main lands gets no other issue landed by the next run until the stopped issue reads the checks of that commit', async (t) => {
+  const first = await harness(t, { pushLandsAndStops: true });
+  assert.equal((await first.run()).outcome, 'stopped');
+  const root = first.context.repo.root;
+  const older = await harness(t, { root, issue: { ...ISSUE, number: 5 } });
+  const blocked = await older.run();
+  assert.equal(blocked.outcome, 'stopped');
+  assert.equal(blocked.reason, 'base unchecked');
+  assert.deepEqual(older.landed, []);
+  const resumed = await harness(t, {
+    root,
+    issue: { ...ISSUE, labels: ['status:in-review'] },
+    baseMoved: true,
+  });
+  assert.equal((await resumed.run()).outcome, 'done');
+  assert.deepEqual(resumed.baseWaits, ['2']);
+  const next = await harness(t, { root, issue: { ...ISSUE, number: 5 } });
+  assert.equal((await next.run()).outcome, 'done');
+  assert.equal(next.landed.length, 1);
+});
+
+test('a user who stops a run now while a push to main fails to land gets the stopped issue pushed again and an older approved issue landed after it', async (t) => {
+  const first = await harness(t, { pushLandsAndStops: true });
+  assert.equal((await first.run()).outcome, 'stopped');
+  const root = first.context.repo.root;
+  const resumed = await harness(t, { root, issue: { ...ISSUE, labels: ['status:in-review'] } });
+  assert.equal((await resumed.run()).outcome, 'done');
+  assert.equal(resumed.landed.length, 1);
+  const older = await harness(t, { root, issue: { ...ISSUE, number: 5 } });
+  assert.equal((await older.run()).outcome, 'done');
+  assert.equal(older.landed.length, 1);
+});
+
+test('a user who stops a run now while a push to main lands, and stops the resumed issue again while it waits for the checks of that commit, gets no other issue landed by the run after', async (t) => {
+  const first = await harness(t, { pushLandsAndStops: true });
+  assert.equal((await first.run()).outcome, 'stopped');
+  const root = first.context.repo.root;
+  const resumed = await harness(t, {
+    root,
+    issue: { ...ISSUE, labels: ['status:in-review'] },
+    baseMoved: true,
+  });
+  resumed.context.ports.waitForBaseChecks = async () => {
+    resumed.stopNow();
+    throw new Error('The run stopped.');
+  };
+  assert.equal((await resumed.run()).outcome, 'stopped');
+  const older = await harness(t, { root, issue: { ...ISSUE, number: 5 } });
+  const blocked = await older.run();
+  assert.equal(blocked.outcome, 'stopped');
+  assert.equal(blocked.reason, 'base unchecked');
+  assert.deepEqual(older.landed, []);
+});
+
 test('a user who stops a run now while it reverts a landed commit whose checks failed gets the next run to land an older approved issue', async (t) => {
   const first = await harness(t, {
     verdicts: [APPROVE, APPROVE],

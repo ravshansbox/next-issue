@@ -48,6 +48,7 @@ async function settlePush(job: Run): Promise<void> {
   }
   if (await ports.isOnBase(worktree, base, config.remote, sha)) {
     state.landed = [...(state.landed ?? []), sha];
+    state.halted = true;
   }
   state.pushing = undefined;
   releaseSettled(state);

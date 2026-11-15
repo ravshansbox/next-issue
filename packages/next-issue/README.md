@@ -388,16 +388,16 @@ A halt that leaves a commit on the base, or a push or revert that may be on
 it, with checks nobody awaited (`checks error`, `push unknown`,
 `main checks timeout`, `main checks cancelled`, an error or a failed setup
 on such a resume before the base is checked, or a stop or kill while the run
-waits for the checks of a commit it landed) is saved in the state file of
-its issue. A stopped issue resumes in the next run; any other waits for a
-person, so later runs skip it. Either way, no later run lands another change
-meanwhile: an issue that reaches the landing ends `stopped` with the reason
-`base unchecked`, keeps its state, branch and labels, and the run claims no
-more issues; the log holds a `land.blocked` event with the waiting issues.
-Runs take such a halted issue before the others, and a running one still
-resumes, so an older issue that reaches the landing first does not keep it
-from checking the base. Once a person answers or
-takes the label off, the issue resumes, checks the base and waits for the
+pushes a change to the base or waits for the checks of a commit it landed) is
+saved in the state file of its issue. A stopped issue resumes in the next
+run; any other waits for a person, so later runs skip it. Either way, no
+later run lands another change meanwhile: an issue that reaches the landing
+ends `stopped` with the reason `base unchecked`, keeps its state, branch and
+labels, and the run claims no more issues; the log holds a `land.blocked`
+event with the waiting issues. Runs take such a halted issue before the
+others, and a running one still resumes, so an older issue that reaches the
+landing first does not keep it from checking the base. Once a person answers
+or takes the label off, the issue resumes, checks the base and waits for the
 checks of its commit; when those are known (the issue is done, or its
 commits are reverted or found not on the base), the issue drops the halt
 from its state and the next run lands the held issues again. A later
