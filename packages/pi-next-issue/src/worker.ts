@@ -1,3 +1,4 @@
+import { createConnection } from 'node:net';
 import WebSocket from 'ws';
 import { errorText } from './errors.ts';
 import {
@@ -36,6 +37,12 @@ function checkSocketPath(path: string, platform = process.platform): void {
       `the socket path ${path} is too long for this system: ${length} bytes, at most ${size - 1}`,
     );
   }
+}
+
+// A `ws+unix://` URL percent-encodes the path and cuts it at `#`, `?` and `:`, so the socket
+// is dialled by its real path and the URL only names the request.
+function dial(socketPath: string): WebSocket {
+  return new WebSocket('ws://localhost/', { createConnection: () => createConnection(socketPath) });
 }
 
 function parseMessage(text: string): WorkerMessage | undefined {
@@ -203,7 +210,7 @@ export class WorkerClient {
 
   private open(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const socket = new WebSocket(`ws+unix://${this.options.socketPath}:/`);
+      const socket = dial(this.options.socketPath);
       let hello = false;
       socket.once('error', (error) => {
         if (!hello) {

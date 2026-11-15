@@ -39,6 +39,15 @@ test('a client that connects gets the worker version and the runs', async (t) =>
   assert.deepEqual(await client.next(runsOf), { type: 'runs', runs: {} });
 });
 
+for (const folder of ['My Проекты app', 'a#b?c:d']) {
+  test(`a client that connects to a worker in a folder named ${folder} gets the runs`, async (t) => {
+    const fake = fakeRuns();
+    const { socketPath } = await worker(t, fake, '2.0.0', noQuestions, folder);
+    const client = await connect(t, socketPath);
+    assert.deepEqual(await client.next(runsOf), { type: 'runs', runs: {} });
+  });
+}
+
 test('only the user who starts the worker can open its socket file', async (t) => {
   const { socketPath } = await worker(t, fakeRuns());
   assert.equal((await stat(socketPath)).mode & 0o777, 0o600);

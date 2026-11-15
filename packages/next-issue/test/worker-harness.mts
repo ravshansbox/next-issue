@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { createConnection } from 'node:net';
+import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { TestContext } from 'node:test';
 import { WebSocket } from 'ws';
@@ -19,7 +21,10 @@ export type Client = {
 const nextTimeoutMs = 3000;
 
 export async function connect(t: TestContext, socketPath: string): Promise<Client> {
-  const socket = new WebSocket(`ws+unix://${socketPath}:/`);
+  // A `ws+unix://` URL would percent-encode the path and cut it at `#`, `?` and `:`.
+  const socket = new WebSocket('ws://localhost/', {
+    createConnection: () => createConnection(socketPath),
+  });
   const seen: WorkerMessage[] = [];
   const waiters: (() => void)[] = [];
   socket.on('message', (data) => {
@@ -98,8 +103,10 @@ export async function worker(
   fake: Fake,
   version = '2.0.0',
   questions: ListQuestions = noQuestions,
+  folder?: string,
 ) {
-  const dir = await tempDir();
+  const dir = folder === undefined ? await tempDir() : join(await tempDir(), folder);
+  await mkdir(dir, { recursive: true });
   const paths = {
     root: '/repo',
     socketPath: join(dir, 'w.sock'),
