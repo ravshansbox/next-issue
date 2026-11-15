@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { IssueReport } from '../src/job.mts';
+import { runIssues } from '../src/loop.mts';
+import { pendingIssues } from '../src/pending.mts';
 import { processIssue } from '../src/pipeline.mts';
-import { writeState } from '../src/state.mts';
-import { APPROVE, harness, ISSUE, SAVED } from './harness.mts';
+import { readState, writeState } from '../src/state.mts';
+import { APPROVE, type Harness, harness, ISSUE, SAVED } from './harness.mts';
 
 const IN_REVIEW = { ...ISSUE, labels: ['status:in-review'] };
 
@@ -190,3 +193,80 @@ test('a user whose resume with a landed commit failed its setup gets no other is
   assert.equal((await second.run()).reason, 'base unchecked');
   assert.deepEqual(second.landed, []);
 });
+
+const OLDER = { ...ISSUE, number: 5, createdAt: '2025-12-01T00:00:00Z' };
+
+async function runLoop(target: Harness, concurrency: number): Promise<IssueReport[]> {
+  const { context } = target;
+  const { reports } = await runIssues(
+    { once: false },
+    {
+      issues: () => pendingIssues(context),
+      process: (issue, claimed) => processIssue(context, issue, claimed),
+      stop: () => false,
+      concurrency,
+    },
+  );
+  return reports;
+}
+
+for (const concurrency of [1, 2]) {
+  test(`a user who answers a halted issue while an older issue is held back by it gets the halted commit checked and the older issue landed (concurrency ${concurrency})`, async (t) => {
+    const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
+    first.context.ports.waitForBaseChecks = async () => {
+      throw new Error('gh: API rate limit exceeded');
+    };
+    assert.equal((await first.run()).reason, 'checks error');
+    const root = first.context.repo.root;
+    await writeState(first.context.repo, {
+      ...SAVED,
+      issue: 5,
+      branch: 'issue-5',
+      phase: 'approved',
+    });
+    const answered = { ...ISSUE, labels: [] };
+    let blocked = (): void => undefined;
+    const landBlocked = new Promise<void>((resolve) => {
+      blocked = resolve;
+    });
+    const next = await harness(t, {
+      root,
+      open: [answered, OLDER],
+      baseMoved: true,
+      config: { concurrency },
+      onEvent: (record) => {
+        if (record['kind'] === 'land.blocked') {
+          blocked();
+        }
+      },
+    });
+    if (concurrency > 1) {
+      // The older issue reaches the landing lock first, while the halted commit is still unchecked: #7's resume
+      // waits before its landing step, outside the repo and landing locks, until #5 is blocked.
+      const discardChanges = next.context.ports.discardChanges;
+      next.context.ports.discardChanges = async (...args) => {
+        if (args[2] === '7') {
+          await landBlocked;
+        }
+        return discardChanges(...args);
+      };
+    }
+    const reports = await runLoop(next, concurrency);
+    const seven = reports.find((report) => report.issue === 7);
+    assert.equal(seven?.outcome, 'done');
+    assert.deepEqual(next.baseWaits.slice(0, 1), ['2']);
+    assert.equal(await readState(next.context.repo, 7), undefined);
+    const five = reports.find((report) => report.issue === 5);
+    if (concurrency === 1) {
+      assert.equal(five?.outcome, 'done');
+      assert.equal(next.landed.length, 1);
+      return;
+    }
+    assert.equal(five?.reason, 'base unchecked');
+    assert.deepEqual(next.landed, []);
+    const later = await harness(t, { root, open: [OLDER] });
+    const again = await runLoop(later, concurrency);
+    assert.equal(again[0]?.outcome, 'done');
+    assert.equal(later.landed.length, 1);
+  });
+}

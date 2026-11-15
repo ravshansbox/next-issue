@@ -56,14 +56,14 @@ function inLandingLock(job: Run, work: () => Promise<Finished>): Promise<Finishe
 
 /** Runs a step that lands a change, unless an earlier run halted with a commit on the base whose checks nobody read. */
 async function unblocked(job: Run, work: () => Promise<Finished>): Promise<Finished> {
-  const { context, log } = job;
+  const { log } = job;
   const unchecked = await uncheckedIssues(job);
   if (unchecked.length === 0) {
     return work();
   }
-  // Landing now would build on a commit whose checks nobody read.
+  // Landing now would build on a commit whose checks nobody read. The run claims no more issues, but it does not
+  // set `context.halted`: a blocking issue already running must still resume and check its commit on the base.
   log.event('land.blocked', { issues: unchecked }, 'quiet');
-  context.halted = true;
   const held = await holdBack(job, 'base unchecked');
   return { ...held, report: { ...held.report, halt: true } };
 }

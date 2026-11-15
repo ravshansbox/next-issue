@@ -2,6 +2,7 @@ import { message } from './errors.mts';
 import type { Issue } from './github.mts';
 import type { Context } from './job.mts';
 import { readState, savedIssues } from './state.mts';
+import { blocksLanding } from './unsettled.mts';
 
 export async function pendingIssues(context: Context): Promise<Issue[]> {
   const { repo, config, ports } = context;
@@ -10,7 +11,8 @@ export async function pendingIssues(context: Context): Promise<Issue[]> {
   const issues = await ports.openIssues(repo, config.issueLimit, labels);
   const listed = new Set(issues.map((issue) => issue.number));
   let openCount = issues.length;
-  for (const number of await savedIssues(repo)) {
+  const saved = await savedIssues(repo);
+  for (const number of saved) {
     if (listed.has(number)) {
       continue;
     }
@@ -23,7 +25,25 @@ export async function pendingIssues(context: Context): Promise<Issue[]> {
     }
   }
   context.recorder.event('issues', { open: openCount }, 'quiet');
-  return issues.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const blocking = await blockingIssues(context, saved);
+  // An issue that blocks every landing goes first, so its resume can lift the block before an older issue reaches the landing.
+  return issues.sort(
+    (a, b) =>
+      Number(blocking.has(b.number)) - Number(blocking.has(a.number)) ||
+      a.createdAt.localeCompare(b.createdAt),
+  );
+}
+
+async function blockingIssues(context: Context, saved: number[]): Promise<Set<number>> {
+  const { repo, base } = context;
+  const blocking = new Set<number>();
+  for (const number of saved) {
+    const state = await readState(repo, number).catch(() => undefined);
+    if (state !== undefined && blocksLanding(state, base)) {
+      blocking.add(number);
+    }
+  }
+  return blocking;
 }
 
 async function savedIssue(

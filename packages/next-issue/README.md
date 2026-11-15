@@ -321,8 +321,10 @@ on such a resume before the base is checked) is saved in the state file of
 its issue. The issue waits for a person, so later runs skip it, but no
 later run lands another change meanwhile: an issue that reaches the
 landing ends `stopped` with the reason `base unchecked`, keeps its state,
-branch and labels, and halts that run too; the log holds a
-`land.blocked` event with the waiting issues. Once a person answers or
+branch and labels, and the run claims no more issues; the log holds a
+`land.blocked` event with the waiting issues. Runs take such a halted issue
+before the others, and a running one still resumes, so an older issue that
+reaches the landing first does not keep it from checking the base. Once a person answers or
 takes the label off, the issue resumes, checks the base and waits for the
 checks of its commit; when those are known (the issue is done, or its
 commits are reverted or found not on the base), the next run lands the
