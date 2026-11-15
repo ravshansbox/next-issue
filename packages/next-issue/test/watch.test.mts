@@ -297,7 +297,7 @@ test('a user who watches with --hunt sees the hunter hunt while an issue runs', 
   const hunting = hunter(fake, [[]]);
   holdIssues(fake, hunting.idle);
   await watchIssues(ARGS, fake);
-  assert.deepEqual(hunting.steps, ['hunt', 'wait 1']);
+  assert.deepEqual(hunting.steps, ['hunt', 'wait 1', 'wait 2']);
   assert.deepEqual(fake.processed, [1]);
 });
 
@@ -306,7 +306,15 @@ test('a user who watches with --hunt sees the hunter hunt only while fewer than 
   const hunting = hunter(fake, [[7], [7, 8], [7, 8], [8]], 2);
   holdIssues(fake, hunting.idle);
   await watchIssues(ARGS, fake);
-  assert.deepEqual(hunting.steps, ['hunt', 'wait 1', 'wait 2', 'hunt', 'wait 1']);
+  assert.deepEqual(hunting.steps, [
+    'hunt',
+    'wait 1',
+    'wait 2',
+    'wait 3',
+    'hunt',
+    'wait 1',
+    'wait 2',
+  ]);
 });
 
 test('a user who watches with --hunt sees the running issues left out of the ready count', async () => {
@@ -325,7 +333,7 @@ test('a user who watches with --hunt sees the running issues left out of the rea
     return process(target);
   };
   await watchIssues(ARGS, fake);
-  assert.deepEqual(hunting.steps, ['hunt', 'wait 1']);
+  assert.deepEqual(hunting.steps, ['hunt', 'wait 1', 'wait 2']);
   assert.deepEqual(hunting.counts, [1]);
 });
 
@@ -369,6 +377,14 @@ test('a user who watches with --hunt sees the hunter told which issues failed ea
   };
   await watchIssues(ARGS, fake);
   assert.deepEqual(seen[0], [1]);
+});
+
+test('a user who watches with --hunt and whose filed issues do not count as ready sees the hunter wait before each next hunt', async () => {
+  const fake = watcher([['done']]);
+  const hunting = hunter(fake, [[], []]);
+  holdIssues(fake, hunting.idle);
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(hunting.steps, ['hunt', 'wait 1', 'hunt', 'wait 1', 'wait 2']);
 });
 
 test('a user who watches with --hunt sees each hunt asked to file up to huntCap less the ready issues that are not running', async () => {
@@ -492,9 +508,10 @@ test('a user who watches with --hunt sees the hunter wait with the back-off afte
     'hunt failed',
     'wait 2',
     'hunt',
-    'hunt failed',
     'wait 1',
+    'hunt failed',
     'wait 2',
+    'wait 3',
   ]);
 });
 
@@ -511,9 +528,10 @@ test('a user who watches with --hunt sees the hunter wait with the back-off afte
     'hunt none',
     'wait 3',
     'hunt',
-    'hunt none',
     'wait 1',
+    'hunt none',
     'wait 2',
+    'wait 3',
   ]);
 });
 

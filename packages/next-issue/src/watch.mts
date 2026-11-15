@@ -123,7 +123,6 @@ async function huntIssues(
     if (waiting !== undefined && waiting < hunter.cap && hunting.on()) {
       if (await hunter.hunt(hunter.cap - waiting)) {
         step = 0;
-        continue;
       }
     }
     if (claims.take() || stopped() || !hunting.on()) {
