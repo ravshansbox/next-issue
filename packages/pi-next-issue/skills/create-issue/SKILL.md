@@ -67,6 +67,6 @@ Once the issue exists, do not implement it in this session. The next-issue worke
 
 - Problem: what is wrong or missing, and who it affects.
 - Context and findings: what you found in the code and the docs, with paths.
-- Acceptance criteria: a list of checks that show the issue is done, each one observable.
+- Acceptance criteria: a list of checks that show the issue is done, each one observable. Write each check as a plain bullet (`- `), not a task-list checkbox (`- [ ]`), since nothing ticks the boxes.
 - Out of scope: what the issue does not cover.
 - Open questions: empty when the issue is created.
