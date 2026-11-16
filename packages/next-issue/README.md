@@ -160,8 +160,13 @@ the run handles one issue. For each issue:
    harness undoes the merge and hands the issue to a person with the reason
    `merge conflict`. When `checks` lists commands, the harness then runs
    the setup command again in the worktree, so the checks use the
-   dependencies of the merged base. A setup that fails or does not finish
-   in `setupTimeoutMinutes` stops the landing before the push and hands the
+   dependencies of the merged base. It runs the setup after it makes the
+   change one commit, and adds what the setup writes, unless git ignores
+   it, to that commit without hooks. Every check runs on that commit, and
+   the base gets the same files that the checks passed on. A change that
+   the base already holds is an `empty change` before the setup runs. A
+   setup that fails or does not finish in `setupTimeoutMinutes` keeps the
+   merged commit, stops the landing before the push and hands the
    issue to a person with the reason `setup failed` or `setup timeout`. The
    harness then runs each command in `checks` in the worktree, in order,
    with `bash -c` and stderr merged into stdout, each for at most

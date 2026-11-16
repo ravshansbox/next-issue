@@ -140,6 +140,15 @@ export async function saveEdits(cwd: string, commitMessage: string): Promise<boo
   return true;
 }
 
+/** Adds every edit in the worktree to the last commit, with no hooks. */
+export async function amendEdits(cwd: string): Promise<void> {
+  if (!(await isDirty(cwd))) {
+    return;
+  }
+  await git(cwd, ['add', '-A']);
+  await git(cwd, ['commit', '--amend', '--no-edit', '--no-verify']);
+}
+
 export async function setAside(cwd: string, target: string, branch: string): Promise<void> {
   await git(cwd, ['branch', branch]);
   if (await isDirty(cwd)) {

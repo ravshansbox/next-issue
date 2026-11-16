@@ -5,6 +5,7 @@ import { commitAll } from '../src/git-commit.mts';
 import { pushToBase, revertOnBase, squashOnto } from '../src/git-land.mts';
 import { abortMerge, commitMerge, startMerge } from '../src/git-merge.mts';
 import {
+  amendEdits,
   diff,
   discardChanges,
   isDirty,
@@ -21,6 +22,7 @@ import type { Harness } from './harness.mts';
 
 const REAL_GIT = {
   abortMerge,
+  amendEdits,
   addWorktree,
   commitAll,
   commitMerge,

@@ -42,6 +42,64 @@ test('a user whose base gains a dependency after the setup gets the dependency i
   ]);
 });
 
+test('a user whose setup before the local checks writes a tracked file gets every check run on that file and the file landed', async (t) => {
+  const { repo, other } = await clones();
+  await git(repo.root, 'config', 'user.name', 't');
+  await git(repo.root, 'config', 'user.email', 't@t');
+  const target = await harness(t, {
+    root: repo.root,
+    config: {
+      setupCommand: 'cat deps.txt > sums.txt 2>/dev/null || : > sums.txt',
+      checks: ['grep -q left-pad sums.txt', 'grep -q left-pad sums.txt'],
+    },
+  });
+  useGit(target, async () => {});
+  const { ports } = target.context;
+  let setups = 0;
+  ports.runSetup = async (command, cwd, timeoutMs) => {
+    const result = await PORTS.runSetup(command, cwd, timeoutMs);
+    setups += 1;
+    if (setups === 1) {
+      await pushBase(other, { 'deps.txt': 'left-pad\n' });
+    }
+    return result;
+  };
+  ports.runCheck = PORTS.runCheck;
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.equal(report.ciFixes, 0);
+  const landed = await remoteMain(other);
+  assert.equal(await git(other, 'show', `${landed}:sums.txt`), 'left-pad');
+});
+
+test('a user whose base already holds the change and whose setup writes a tracked file gets the issue handed over as an empty change and nothing landed', async (t) => {
+  const { repo, other } = await clones();
+  await git(repo.root, 'config', 'user.name', 't');
+  await git(repo.root, 'config', 'user.email', 't@t');
+  const target = await harness(t, {
+    root: repo.root,
+    config: { setupCommand: 'if [ -f implementer.txt ]; then date >> a.txt; fi', checks: ['true'] },
+  });
+  useGit(target, async () => {});
+  const { ports } = target.context;
+  let setups = 0;
+  let before = '';
+  ports.runSetup = async (command, cwd, timeoutMs) => {
+    const result = await PORTS.runSetup(command, cwd, timeoutMs);
+    setups += 1;
+    if (setups === 1) {
+      await pushBase(other, { 'implementer.txt': 'implementer\n' });
+      before = await remoteMain(other);
+    }
+    return result;
+  };
+  ports.runCheck = PORTS.runCheck;
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'empty change');
+  assert.equal(await remoteMain(other), before);
+});
+
 for (const [timedOut, reason, note] of [
   [false, 'setup failed', /setup command failed in the worktree before the local checks/],
   [true, 'setup timeout', /setup command did not finish in 15 minutes before the local checks/],
@@ -59,6 +117,7 @@ for (const [timedOut, reason, note] of [
     assert.equal(report.outcome, 'needs-human');
     assert.equal(report.reason, reason);
     assert.equal(setups, 2);
+    assert.deepEqual(target.mergeAborts, []);
     assert.deepEqual(target.checks, []);
     assert.equal(target.pushes, 0);
     assert.match(target.comments.at(-1) ?? '', note);

@@ -27,6 +27,7 @@ export async function localChecks(job: Run): Promise<Finished | boolean> {
   if (setup !== undefined) {
     return setup;
   }
+  await ports.amendEdits(worktree);
   const head = await ports.revision(worktree);
   for (const command of config.checks) {
     const result = await log.step('check', { cmd: command }, () =>

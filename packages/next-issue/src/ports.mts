@@ -5,6 +5,7 @@ import { commitAll } from './git-commit.mts';
 import { pushToBase, reapplyRevert, revertOnBase, squashOnto } from './git-land.mts';
 import { abortMerge, commitMerge, startMerge } from './git-merge.mts';
 import {
+  amendEdits,
   changedFiles,
   deleteBranch,
   diff,
@@ -59,6 +60,7 @@ async function runCheck(
 
 export const PORTS = {
   abortMerge,
+  amendEdits,
   addWorktree,
   canWrite,
   changedFiles,
