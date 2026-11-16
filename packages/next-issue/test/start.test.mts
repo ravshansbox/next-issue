@@ -9,6 +9,7 @@ import { lockHolder, stopWorker } from '../src/lock.mts';
 import { must } from '../src/exec.mts';
 import { type RunRepo, startWorker } from '../src/serve.mts';
 import { packageVersion } from '../src/version.mts';
+import { rejoinRun } from '../src/worker-client.mts';
 import { workerPaths } from '../src/worker-paths.mts';
 import { tempDir } from './temp-dir.mts';
 import { connect, fakeRuns, noQuestions } from './worker-harness.mts';
@@ -317,22 +318,35 @@ test('a user who runs start with --force sees the run go as without it', async (
   assert.equal(await started.exited, 0);
 });
 
-test('a user who runs start while an older worker has a watch run going sees start refused and the watch run go on', async (t) => {
+test('a user who runs start while an older worker has a watch run going sees start refused with the coming update, and the run go on in the newer worker after its running issues', async (t) => {
   const root = await repository();
+  const path = process.env.PATH;
+  process.env.PATH = (await idleGh()).PATH;
+  t.after(async () => {
+    process.env.PATH = path;
+    await stopWorker(workerPaths(root));
+  });
   const fake = fakeRuns();
-  await fakeWorker(t, root, fake.runRepo, '0.0.0-old');
+  const older = await fakeWorker(t, root, fake.runRepo, '0.0.0-old');
   const other = await connect(t, workerPaths(root).socketPath);
   other.send({ type: 'start', root, args: ['--watch', 'on'] });
   await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'running');
   const started = startCommand(t, root, []);
   assert.equal(await started.exited, 1);
-  assert.match(started.stderr(), /a run is going in this repository already/);
-  const observer = await connect(t, workerPaths(root).socketPath);
-  const runs = await observer.next((value) => value.type === 'runs');
-  assert.equal(runs.type === 'runs' && runs.runs[root]?.status, 'running');
-  assert.equal(runs.type === 'runs' && runs.runs[root]?.upgrade, undefined);
-  assert.equal(fake.controls().interrupts.afterIssue(), false);
+  const version = await packageVersion();
+  assert.match(
+    started.stderr(),
+    new RegExp(
+      `a run is going in this repository already; the worker updates to ${version.replaceAll('.', '\\.')} after the running issues`,
+    ),
+  );
   fake.finish();
+  await older.closed;
+  const newer = await rejoinRun(root);
+  assert.ok(newer);
+  t.after(() => newer.close());
+  assert.equal(newer.version, version);
+  assert.equal(newer.runs[root]?.watching, true);
 });
 
 async function upgradingStart(

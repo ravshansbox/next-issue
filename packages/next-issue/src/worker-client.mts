@@ -91,7 +91,7 @@ function open(socketPath: string, version?: string): Promise<Connection> {
       } else if (message.type === 'runs') {
         ready = true;
         clearTimeout(timer);
-        if (version !== undefined && !Object.values(message.runs).some(going)) {
+        if (version !== undefined) {
           socket.send(JSON.stringify({ type: 'hello', version, launch: ownLaunch() }));
         }
         resolve({

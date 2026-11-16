@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { Args } from './args.mts';
 import { NOTES, onPresses } from './interrupt.mts';
-import type { ClientMessage, Progress, Upgrade, WorkerMessage } from './protocol.mts';
+import {
+  type ClientMessage,
+  isNewer,
+  type Progress,
+  type Upgrade,
+  type WorkerMessage,
+} from './protocol.mts';
 import { formatSummary } from './summary.mts';
 import { packageVersion } from './version.mts';
 import { CLOSED, type Connection, going, reachWorker, rejoinRun } from './worker-client.mts';
@@ -31,10 +37,15 @@ function firstNote(message: Extract<WorkerMessage, { type: 'stopping' }>): strin
 }
 
 export async function startInWorker(root: string, args: Args, argv: string[]): Promise<number> {
-  const connection = await reachWorker(root, await packageVersion());
+  const version = await packageVersion();
+  const connection = await reachWorker(root, version);
   if (going(connection.runs[root])) {
     connection.close();
-    throw new Error(RUN_GOING);
+    throw new Error(
+      isNewer(version, connection.version)
+        ? `${RUN_GOING}; the worker updates to ${version} after the running issues`
+        : RUN_GOING,
+    );
   }
   const out = output();
   const code = await follow(connection, root, args, argv, out);
