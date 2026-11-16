@@ -2209,12 +2209,9 @@ test('a user with a newer extension whose watching run stops for an upgrade sees
   const { pi, emit, notes, status, report } = host();
   extension(pi as never);
   await emit('session_start');
-  await until(() => status.at(-1) === '#7 · stopping to upgrade the worker to 2.0.0');
+  await until(() => status.at(-1) === '#7 · upgrading to 2.0.0');
   assert.deepEqual(notes, ['next-issue: worker 1.0.0 upgrades to 2.0.0 after the running issues']);
-  assert.match(
-    (await report()).content[0]!.text,
-    /^#7 · stopping to upgrade the worker to 2\.0\.0\n/,
-  );
+  assert.match((await report()).content[0]!.text, /^#7 · upgrading to 2\.0\.0\n/);
   old.update('/repo', { ...old.runs['/repo']!, status: 'stopped', issues: [] });
   await until(() => status.at(-1) === undefined);
   await old.close();
@@ -2249,7 +2246,7 @@ test('a user with a newer extension whose upgrading run a person turned watching
   const { pi, emit, status } = host();
   extension(pi as never);
   await emit('session_start');
-  await until(() => status.at(-1) === '#7 · stopping to upgrade the worker to 2.0.0');
+  await until(() => status.at(-1) === '#7 · upgrading to 2.0.0');
   const { upgrade: _dropped, ...run } = old.runs['/repo']!;
   old.update('/repo', { ...run, watching: false });
   await until(() => status.at(-1) === '#7 · stopping');

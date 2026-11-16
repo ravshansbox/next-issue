@@ -108,7 +108,7 @@ export function formatStatus(progress: Progress, now: number): string {
     case 'stopping': {
       const issues = running.map((item) => `#${item.issue}`);
       const upgrade = progress.upgrade;
-      return `${issues.length === 0 ? '#?' : issues.join(' ')} · stopping${upgrade === undefined ? '' : ` to upgrade the worker to ${upgrade.to}`}`;
+      return `${issues.length === 0 ? '#?' : issues.join(' ')} · ${upgrade === undefined ? 'stopping' : `upgrading to ${upgrade.to}`}`;
     }
     case 'stopped':
     case 'finished':
