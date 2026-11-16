@@ -38,8 +38,7 @@
     "lint:fix": "oxlint --fix",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "prepack": "npm run build",
-    "prepublishOnly": "npm run typecheck && npm test"
+    "prepack": "npm run build"
   },
   "devDependencies": {
     "@earendil-works/pi-ai": "^1.5.2",

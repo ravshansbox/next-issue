@@ -1093,6 +1093,24 @@ earlier commit that runs after it does not, as it repairs the tag before its
 own commit. To repair a release without a new commit,
 run the `ci` workflow by hand; after the checks pass, the release job only
 repairs and does nothing else.
+The publish runs no typecheck and no tests, as the `check` job has run them.
+So a failing test cannot stop a publish after the tag push. To publish by hand
+from a clone, run the checks of the `check` job first, then publish:
+
+```bash
+npm ci
+npm run typecheck
+npm run lint
+npm run format:check
+npm test
+npm run build
+.github/scripts/release-bump.test.sh
+.github/scripts/repair-release.test.sh
+.github/scripts/check-npm.test.sh
+.github/scripts/release-notes.test.sh
+npm publish --workspaces
+```
+
 The job uses the npm that comes with Node 24 and never installs another one.
 Trusted publishing needs npm 11.5.1 or later, so the job stops with an error
 before anything else when the bundled npm is older.
