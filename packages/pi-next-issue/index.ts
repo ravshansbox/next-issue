@@ -54,7 +54,6 @@ const STATUS_KEY = 'next-issue';
 const QUESTIONS_KEY = 'next-issue-questions';
 const RENDER_MS = 1000;
 const QUESTIONS_MS = 60_000;
-const DASHBOARD = 'dashboard';
 const REFRESH = 'refresh';
 const STOP_CHOICES: Array<{ value: StopPoint; description: string }> = [
   { value: 'issue', description: 'Stop after the running issues' },
@@ -392,8 +391,12 @@ export function createExtension(options: Options) {
 
     pi.registerCommand('next-issue', {
       description:
-        'Open the next-issue menu: start, stop or refresh the run of this repository, switch its watching or hunting, or open its dashboard',
+        'Open the next-issue dashboard of this repository, or without the terminal UI a menu to start, stop or refresh its run, or switch its watching or hunting',
       handler: async (_args, ctx) => {
+        if (ctx.mode === 'tui') {
+          await openDashboard(ctx);
+          return;
+        }
         const picked = await pickAction(ctx);
         if (picked !== undefined) {
           await act(picked, ctx);
@@ -405,10 +408,7 @@ export function createExtension(options: Options) {
       const root = await options.root(ctx.cwd).catch(() => undefined);
       const client = root === undefined ? undefined : clientOf(root);
       await client?.attach();
-      const choices: Record<string, string> = {
-        ...menuChoices(root === undefined ? undefined : client?.runs[root]),
-        Dashboard: DASHBOARD,
-      };
+      const choices = menuChoices(root === undefined ? undefined : client?.runs[root]);
       const choice = await ctx.ui.select('next-issue', Object.keys(choices));
       const picked = choice === undefined ? undefined : choices[choice];
       if (picked !== 'stop') {
@@ -440,10 +440,6 @@ export function createExtension(options: Options) {
     };
 
     const openDashboard = async (ctx: ExtensionContext) => {
-      if (ctx.mode !== 'tui') {
-        ctx.ui.notify('next-issue dashboard needs the terminal UI', 'error');
-        return;
-      }
       const root = await options.root(ctx.cwd).catch(() => undefined);
       const client = root === undefined ? undefined : clientOf(root);
       await client?.attach();
@@ -487,10 +483,6 @@ export function createExtension(options: Options) {
     };
 
     const act = async (args: string, ctx: ExtensionContext) => {
-      if (args === DASHBOARD) {
-        await openDashboard(ctx);
-        return;
-      }
       const [subcommand, value] = args.split(' ') as [Action, string | undefined];
       const notify = (note: Note | undefined) => {
         if (note !== undefined) {

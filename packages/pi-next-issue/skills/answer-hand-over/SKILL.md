@@ -98,7 +98,7 @@ Help the user understand why the worker handed an issue over, then answer the ha
 
 10. After a retry, with or without guidance, call the `next_issue_refresh` tool, with no question first. When it reports that it asked the run, tell the user that the going run was asked to check for issues now. Ask no question.
 
-    When it reports that no run is going, ask only whether to start a run. On yes, call the `next_issue_start` tool, and tell the user what it reports. The run does one pass; Watch on in the `/next-issue` menu keeps it watching for new issues. On no, do nothing.
+    When it reports that no run is going, ask only whether to start a run. On yes, call the `next_issue_start` tool, and tell the user what it reports. The run does one pass; Watch on in `/next-issue` keeps it watching for new issues. On no, do nothing.
 
     When it reports that the going run does not watch for new issues, ask only whether to turn watching on. On yes, call the `next_issue_watch` tool with `on` set to `true`, then the `next_issue_refresh` tool, and tell the user what they report. On no, do nothing.
 
