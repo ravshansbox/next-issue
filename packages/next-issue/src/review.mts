@@ -2,7 +2,7 @@ import { REVIEWING } from './agents.mts';
 import { runStopped } from './children.mts';
 import { budgetUse, refundBudget, refundOnKill, spendBudget } from './budget.mts';
 import { message } from './errors.mts';
-import { fixRound, type Unfixed } from './fix.mts';
+import { type Fix, fixRound, type Unfixed } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
 import { ROUND_CONTINUE, type Round, type Run, runRole, setStatus } from './job.mts';
 import { landApproved } from './land.mts';
@@ -70,7 +70,24 @@ async function changesRequestedRound(job: Run, open: Finding[], earlier: string[
   state.reviewLog.push({ round: state.reviewRounds, findings });
   await writeState(job.context.repo, state);
 
-  const fix = await fixRound(job, 'The reviewer requested changes.', findings, earlier, 'review');
+  const forget = (): void => {
+    state.reviewLog.pop();
+  };
+  let fix: Fix;
+  try {
+    fix = await refundOnKill(
+      job,
+      'reviewRounds',
+      () => fixRound(job, 'The reviewer requested changes.', findings, earlier, 'review'),
+      forget,
+    );
+  } catch (error) {
+    if (runStopped()) {
+      forget();
+      await refundBudget(job, 'reviewRounds');
+    }
+    throw error;
+  }
   if (!fix.committed) {
     return unfixedRound(job, fix);
   }

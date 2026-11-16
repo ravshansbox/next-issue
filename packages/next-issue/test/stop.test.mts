@@ -250,6 +250,30 @@ test('a user who stops a run now during the reviewer of the last review round ge
   assert.deepEqual(target.closed, [7]);
 });
 
+test('a user who stops a run now while the review fixer of the round before the last runs gets the round given back, and the next run reviews the fixed change in the last round', async (t) => {
+  const config = { maxReviewRounds: 2 };
+  const first = await harness(t, {
+    config,
+    verdicts: [changes('Rename it.')],
+    stopNowDuring: 'fixer',
+  });
+  assert.equal((await first.run()).outcome, 'stopped');
+  const saved = (await first.state())!;
+  assert.equal(saved.reviewRounds, 0);
+  assert.deepEqual(saved.reviewLog, []);
+  const target = await harness(t, {
+    saved,
+    issue: { ...ISSUE, labels: ['status:in-review'] },
+    config,
+    verdicts: [changes('Rename it.'), APPROVE],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.notEqual(report.reason, 'review budget');
+  assert.deepEqual(roles(target), ['reviewer', 'fixer', 'reviewer']);
+  assert.deepEqual(target.closed, [7]);
+});
+
 test('a user who stops a run now while the fixer of the failed checks on main runs gets the check fix given back, and the next run fixes them with no revert or hand-over', async (t) => {
   const config = { maxCiFixes: 1 };
   const first = await harness(t, { config, baseChecks: ['fail'], stopNowDuring: 'fixer' });
@@ -612,6 +636,14 @@ test('a user who presses Ctrl-C three times in a command-line run while the fixe
   const first = await harness(t, { baseChecks: ['fail'], hangDuring: 'fixer' });
   await pressCtrlCThrice(t, first);
   assert.equal((await first.state())?.ciFixes, 0);
+});
+
+test('a user who presses Ctrl-C three times in a command-line run while the review fixer runs finds the review round given back in the state file', async (t) => {
+  const first = await harness(t, { verdicts: [changes('Rename it.')], hangDuring: 'fixer' });
+  await pressCtrlCThrice(t, first);
+  const saved = (await first.state())!;
+  assert.equal(saved.reviewRounds, 0);
+  assert.deepEqual(saved.reviewLog, []);
 });
 
 test('a user who presses Ctrl-C three times in a command-line run while the logs of the failed checks on main are read finds the check fix given back in the state file', async (t) => {

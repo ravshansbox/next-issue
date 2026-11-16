@@ -42,9 +42,11 @@ export async function refundOnKill<T>(
   job: Run,
   budget: Budget,
   body: () => Promise<T>,
+  undo?: () => void,
 ): Promise<T> {
   const { context, state } = job;
   const forget = onKill(() => {
+    undo?.();
     state[budget] = Math.max(0, state[budget] - 1);
     writeStateNow(context.repo, state);
   });
