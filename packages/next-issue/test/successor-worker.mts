@@ -8,12 +8,15 @@ const started = await startWorker({
   ...paths,
   version: process.argv[2] ?? '2.1.0',
   questions: async () => [],
-  runRepo: (_root, _args, controls) =>
+  runRepo: (_root, args, controls) =>
     new Promise((resolve) => {
       const timer = setInterval(() => {
         if (controls.interrupts.afterIssue()) {
           clearInterval(timer);
-          resolve(0);
+          controls.output?.(
+            `stopped: watching ${args.watch ? 'on' : 'off'}, hunting ${args.hunt ? 'on' : 'off'}\n`,
+          );
+          resolve(Number(process.argv[3] ?? '0'));
         }
       }, 20);
     }),

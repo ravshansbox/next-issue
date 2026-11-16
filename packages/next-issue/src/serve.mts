@@ -136,13 +136,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     }
   };
 
-  const start = (
-    refuse: Refuse,
-    root: string,
-    argv: string[],
-    resume: boolean,
-    command: boolean,
-  ): void => {
+  const start = (refuse: Refuse, root: string, argv: string[], resume: boolean): void => {
     const refusal = startRefusal(runs.get(root), restart !== undefined);
     if (refusal !== undefined) {
       if (!resume) {
@@ -157,7 +151,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       refuse(message(error));
       return;
     }
-    const run = newRun({ ...startProgress(args.hunt), watching: args.watch }, command);
+    const run = newRun({ ...startProgress(args.hunt), watching: args.watch });
     runs.set(root, run);
     const update = (next: Progress): void => {
       run.progress = next;
@@ -252,7 +246,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     } else if (value.root !== options.root) {
       refuse(`the worker serves ${options.root} only`);
     } else if (value.type === 'start') {
-      start(refuse, value.root, value.args ?? [], value.resume === true, value.command === true);
+      start(refuse, value.root, value.args ?? [], value.resume === true);
     } else if (value.type === 'stop') {
       stop(socket, refuse, value.root, value.after, value.id);
     } else if (value.type === 'hunt') {

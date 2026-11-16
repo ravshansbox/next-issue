@@ -79,7 +79,6 @@ export type ClientMessage =
       root: string;
       args?: string[];
       resume?: boolean;
-      command?: boolean;
       id?: string;
     }
   | { type: 'stop'; root: string; after?: StopPoint; id?: string }

@@ -76,22 +76,22 @@ type Fake = {
   runRepo: RunRepo;
   calls: { root: string; args: Args }[];
   controls: () => RunControls;
-  finish: () => void;
+  finish: (code?: number) => void;
 };
 
 export function fakeRuns(): Fake {
   const calls: { root: string; args: Args }[] = [];
   let controls: RunControls | undefined;
-  let finish: () => void = () => undefined;
+  let finish: (code: number) => void = () => undefined;
   return {
     calls,
     controls: () => controls!,
-    finish: () => finish(),
+    finish: (code = 0) => finish(code),
     runRepo: (root, args, given) => {
       calls.push({ root, args });
       controls = given;
       return new Promise((resolve) => {
-        finish = () => resolve(0);
+        finish = resolve;
       });
     },
   };

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { onStop } from '../src/children.mts';
-import { stopWorker } from '../src/lock.mts';
+import { lockHolder, stopWorker } from '../src/lock.mts';
 import { must } from '../src/exec.mts';
 import { type RunRepo, startWorker } from '../src/serve.mts';
 import { packageVersion } from '../src/version.mts';
@@ -13,6 +13,7 @@ import { workerPaths } from '../src/worker-paths.mts';
 import { tempDir } from './temp-dir.mts';
 import { connect, fakeRuns, noQuestions } from './worker-harness.mts';
 
+const SUCCESSOR = fileURLToPath(new URL('successor-worker.mts', import.meta.url));
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
 
 async function repository(remote = true): Promise<string> {
@@ -334,25 +335,69 @@ test('a user who runs start while an older worker has a watch run going sees sta
   fake.finish();
 });
 
-test('a user whose start run watches while a newer client connects sees the run keep its flags and go on, and start exit only when it ends', async (t) => {
+async function upgradingStart(
+  t: TestContext,
+  successorCode: string,
+): Promise<{ root: string; started: Started; finish: (code?: number) => void }> {
   const root = await repository();
   const fake = fakeRuns();
-  const worker = await fakeWorker(t, root, fake.runRepo);
+  await fakeWorker(t, root, fake.runRepo);
+  t.after(async () => {
+    const holder = await lockHolder(workerPaths(root).lockPath);
+    if (holder !== undefined && holder !== process.pid) {
+      process.kill(holder, 'SIGKILL');
+    }
+  });
   const started = startCommand(t, root, ['--hunt', 'on']);
   await until(() => fake.calls.length === 1, 'the run to start');
   const newer = await connect(t, workerPaths(root).socketPath);
-  newer.send({ type: 'hello', version: '999.0.0' });
-  newer.send({ type: 'questions', root, id: 'after' });
-  await newer.next((value) => value.type === 'questions' && value.id === 'after');
-  const observer = await connect(t, workerPaths(root).socketPath);
-  const runs = await observer.next((value) => value.type === 'runs');
-  assert.equal(runs.type === 'runs' && runs.runs[root]?.status, 'running');
-  assert.equal(runs.type === 'runs' && runs.runs[root]?.upgrade, undefined);
-  assert.equal(fake.controls().interrupts.afterIssue(), false);
+  newer.send({
+    type: 'hello',
+    version: '999.0.0',
+    launch: { command: process.execPath, args: [SUCCESSOR, '999.0.0', successorCode] },
+  });
+  await newer.next((value) => value.type === 'runs' && value.runs[root]?.upgrade !== undefined);
+  await newer.close();
+  return { root, started, finish: fake.finish };
+}
+
+test('a user whose start run watches while a newer client connects sees the run go on in the newer worker with its flags, one update note, Ctrl-C still stop it, and start exit with its final code', async (t) => {
+  const { started, finish } = await upgradingStart(t, '3');
+  finish();
+  await until(() => started.stderr().includes('updated'), 'the update note');
   assert.equal(started.child.exitCode, null);
-  assert.equal(fake.calls[0]!.args.watch, true);
-  assert.equal(fake.calls[0]!.args.hunt, true);
-  fake.finish();
-  assert.equal(await started.exited, 0);
-  await worker.closed;
+  started.child.kill('SIGINT');
+  assert.equal(await started.exited, 3, started.stderr());
+  assert.doesNotMatch(started.stderr(), /next-issue failed:/);
+  assert.match(started.stderr(), /stopped: watching on, hunting on\n/);
+  const version = await packageVersion();
+  assert.deepEqual(
+    started
+      .stderr()
+      .split('\n')
+      .filter((line) => line.includes('updated')),
+    [`next-issue: the worker was updated from ${version} to 999.0.0`],
+  );
+});
+
+test('a user whose start run had an issue that needed a person before an update sees start exit with 1 after the run ends with 0 on the newer worker', async (t) => {
+  const { started, finish } = await upgradingStart(t, '0');
+  finish(1);
+  await until(() => started.stderr().includes('updated'), 'the update note');
+  started.child.kill('SIGINT');
+  assert.equal(await started.exited, 1, started.stderr());
+  assert.doesNotMatch(started.stderr(), /next-issue failed:/);
+});
+
+test('a user who presses Ctrl-C while start moves to the newer worker sees the run stop there after its running issues', async (t) => {
+  const { root, started, finish } = await upgradingStart(t, '3');
+  finish();
+  for (let left = 200; (await lockHolder(workerPaths(root).lockPath)) === process.pid; left -= 1) {
+    assert.ok(left > 0, 'timed out waiting for the newer worker');
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  started.child.kill('SIGINT');
+  assert.equal(await started.exited, 3, started.stderr());
+  assert.match(started.stderr(), /Stopping after the running issues/);
+  assert.match(started.stderr(), /stopped: watching on, hunting on\n/);
 });

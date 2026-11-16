@@ -226,6 +226,20 @@ export async function resumeOnSuccessor(root: string, how: Launch, args: string[
   }
 }
 
+export async function rejoinRun(root: string): Promise<Connection | undefined> {
+  const { socketPath } = workerPaths(root);
+  const deadline = Date.now() + START_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const found = await tryOpen(socketPath);
+    if (found !== undefined && going(found.runs[root])) {
+      return found;
+    }
+    found?.close();
+    await delay(POLL_MS);
+  }
+  return undefined;
+}
+
 export function findWorker(root: string): Promise<Connection | undefined> {
   const { socketPath } = workerPaths(root);
   checkSocketPath(socketPath);

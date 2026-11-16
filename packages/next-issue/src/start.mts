@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import type { Args } from './args.mts';
 import { NOTES, onPresses } from './interrupt.mts';
-import type { WorkerMessage } from './protocol.mts';
+import type { ClientMessage, Progress, Upgrade, WorkerMessage } from './protocol.mts';
 import { formatSummary } from './summary.mts';
 import { packageVersion } from './version.mts';
-import { CLOSED, type Connection, going, reachWorker } from './worker-client.mts';
+import { CLOSED, type Connection, going, reachWorker, rejoinRun } from './worker-client.mts';
 
 const RUN_GOING = 'a run is going in this repository already';
 
@@ -38,13 +38,12 @@ export async function startInWorker(root: string, args: Args, argv: string[]): P
   }
   const out = output();
   const code = await follow(connection, root, args, argv, out);
-  connection.close();
   await out.flushed();
   return code;
 }
 
 function follow(
-  connection: Connection,
+  first: Connection,
   root: string,
   args: Args,
   argv: string[],
@@ -52,15 +51,27 @@ function follow(
 ): Promise<number> {
   const id = randomUUID();
   const stopId = randomUUID();
+  let connection = first;
+  let latest: Progress | undefined;
+  let upgradeEnd: number | undefined;
+  let earlierCode = 0;
+  const held: ClientMessage[] = [];
+  const send = (message: ClientMessage): void => {
+    if (upgradeEnd === undefined) {
+      connection.send(message);
+    } else {
+      held.push(message);
+    }
+  };
   return new Promise((resolve) => {
     const stopListening = onPresses((presses) => {
       if (presses === 1) {
-        connection.send({ type: 'stop', root, after: 'issue', id: stopId });
+        send({ type: 'stop', root, after: 'issue', id: stopId });
       } else if (presses === 2) {
         out.print(process.stderr, `${NOTES.round}\n`);
-        connection.send({ type: 'stop', root, after: 'round' });
+        send({ type: 'stop', root, after: 'round' });
       } else {
-        connection.send({ type: 'stop', root, after: 'now' });
+        send({ type: 'stop', root, after: 'now' });
       }
     });
     let settled = false;
@@ -68,7 +79,8 @@ function follow(
       if (!settled) {
         settled = true;
         stopListening();
-        resolve(code);
+        connection.close();
+        resolve(Math.max(code, earlierCode));
       }
     };
     const fail = (text: string): void => {
@@ -77,7 +89,10 @@ function follow(
       }
       settle(1);
     };
-    connection.listen((message) => {
+    const onMessage = (message: WorkerMessage): void => {
+      if (message.type === 'runs') {
+        latest = message.runs[root];
+      }
       if (!('root' in message) || message.root !== root) {
         return;
       }
@@ -91,14 +106,54 @@ function follow(
         fail(message.message);
       } else if (message.type === 'end' && message.error !== undefined) {
         fail(message.error);
+      } else if (message.type === 'end' && latest?.upgrade !== undefined) {
+        upgradeEnd = message.code;
       } else if (message.type === 'end') {
         if (!args.watch && message.summary !== undefined) {
           out.print(process.stdout, formatSummary(message.summary));
         }
         settle(message.code);
       }
-    });
-    void connection.closed.then(() => fail(CLOSED));
-    connection.send({ type: 'start', root, args: argv, command: true, id });
+    };
+    const rejoin = async (upgrade: Upgrade): Promise<void> => {
+      const found = await rejoinRun(root).catch(() => undefined);
+      if (found === undefined) {
+        fail(`${CLOSED}, and the run did not go on in the newer worker`);
+        return;
+      }
+      if (settled) {
+        found.close();
+        return;
+      }
+      out.print(
+        process.stderr,
+        `next-issue: the worker was updated from ${upgrade.from} to ${upgrade.to}\n`,
+      );
+      earlierCode = Math.max(earlierCode, upgradeEnd ?? 0);
+      upgradeEnd = undefined;
+      latest = found.runs[root];
+      follows(found);
+      for (const message of held.splice(0)) {
+        found.send(message);
+      }
+    };
+    const closed = (): void => {
+      if (upgradeEnd === undefined) {
+        fail(CLOSED);
+      } else if (latest?.error !== undefined) {
+        fail(latest.error);
+      } else if (latest?.upgrade === undefined) {
+        settle(upgradeEnd);
+      } else {
+        void rejoin(latest.upgrade);
+      }
+    };
+    const follows = (next: Connection): void => {
+      connection = next;
+      next.listen(onMessage);
+      void next.closed.then(closed);
+    };
+    follows(first);
+    first.send({ type: 'start', root, args: argv, id });
   });
 }
