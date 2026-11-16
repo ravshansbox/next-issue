@@ -260,11 +260,40 @@ export class WorkerClient {
     if (this.socket !== socket) {
       return;
     }
+    const upgraded = this.outdated
+      ? Object.entries(this.runs).filter(
+          ([, progress]) => progress.upgrade !== undefined && progress.status !== 'failed',
+        )
+      : [];
     this.socket = undefined;
     this.runs = {};
     this.questions = {};
     this.emit({ type: 'closed' });
-    this.scheduleReconnect();
+    if (upgraded.length > 0 && this.listeners.size > 0) {
+      void this.resume(upgraded);
+    } else {
+      this.scheduleReconnect();
+    }
+  }
+
+  private async resume(upgraded: [string, Progress][]): Promise<void> {
+    try {
+      await this.ensure();
+    } catch (error) {
+      for (const [root] of upgraded) {
+        this.emit({ type: 'error', root, message: errorText(error) });
+      }
+      return;
+    }
+    for (const [root, progress] of upgraded) {
+      if (!going(this.runs[root])) {
+        const args = [
+          ...(progress.watching === true ? ['--watch'] : []),
+          ...(progress.hunting ? ['--hunt'] : []),
+        ];
+        this.send({ type: 'start', root, args, resume: true });
+      }
+    }
   }
 
   private receive(message: WorkerMessage): void {

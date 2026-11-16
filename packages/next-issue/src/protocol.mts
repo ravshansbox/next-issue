@@ -11,10 +11,13 @@ export type IssueProgress = {
   startedAt?: number;
 };
 
+export type Upgrade = { from: string; to: string };
+
 export type Progress = {
   status: RunStatus;
   hunting: boolean;
   watching?: boolean;
+  upgrade?: Upgrade;
   issues: IssueProgress[];
   handled: Handled[];
   open?: number;
@@ -36,7 +39,7 @@ export type StopPoint = (typeof STOP_POINTS)[number];
 
 export type ClientMessage =
   | { type: 'hello'; version: string }
-  | { type: 'start'; root: string; args?: string[] }
+  | { type: 'start'; root: string; args?: string[]; resume?: boolean }
   | { type: 'stop'; root: string; after?: StopPoint }
   | { type: 'questions'; root: string; id?: string }
   | { type: 'hunt'; root: string; on: boolean }

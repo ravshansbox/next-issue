@@ -4,7 +4,13 @@ import { type Toggle, onOff } from './switch.mts';
 import type { Interrupts } from './interrupt.mts';
 import type { Fields } from './observe.mts';
 import { applyEvent } from './progress.mts';
-import { type Progress, STOP_POINTS, type StopPoint, type WorkerMessage } from './protocol.mts';
+import {
+  type Progress,
+  STOP_POINTS,
+  type StopPoint,
+  type Upgrade,
+  type WorkerMessage,
+} from './protocol.mts';
 import { type Refresher, refresher } from './refresh.mts';
 import type { RunControls } from './run.mts';
 
@@ -78,6 +84,22 @@ export function requestStop(run: Run | undefined, after: StopPoint): boolean {
     stopRunChildren(run.children);
   }
   run.progress = { ...run.progress, status: 'stopping' };
+  return true;
+}
+
+export function requestUpgrade(run: Run, upgrade: Upgrade): boolean {
+  if (!run.watching.on() || run.stop !== undefined || !requestStop(run, 'issue')) {
+    return false;
+  }
+  run.progress = { ...run.progress, upgrade };
+  return true;
+}
+
+export function dropUpgrade(run: Run | undefined): boolean {
+  if (run?.progress.upgrade === undefined) {
+    return false;
+  }
+  run.progress = { ...run.progress, upgrade: undefined };
   return true;
 }
 

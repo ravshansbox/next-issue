@@ -30,6 +30,7 @@ import {
   questionNotes,
   statusNote,
   switchNote,
+  upgradeNote,
 } from './src/status.ts';
 import { lockHolder } from './src/lock.ts';
 import { spawnWorker, workerPaths } from './src/spawn-worker.ts';
@@ -126,6 +127,7 @@ export function createExtension(options: Options) {
     let status: Progress['status'] | undefined;
     let hunting: boolean | undefined;
     let watching: boolean | undefined;
+    let upgrading = false;
     let baseline = false;
     // The worker answers a refused request with an error that does not name it.
     // A refresh is best effort, so an error that answers it is not shown.
@@ -141,6 +143,7 @@ export function createExtension(options: Options) {
       status = progress?.status;
       hunting = progress?.hunting;
       watching = progress?.watching;
+      upgrading = progress?.upgrade !== undefined;
     };
 
     const dim = (text: string) => (coloured && ui !== undefined ? ui.theme.fg('dim', text) : text);
@@ -195,6 +198,10 @@ export function createExtension(options: Options) {
       }
       watching = progress.watching;
       hunting = progress.hunting;
+      if (progress.upgrade !== undefined && !upgrading) {
+        tell(upgradeNote(progress.upgrade));
+      }
+      upgrading = progress.upgrade !== undefined;
       if (progress.status === status) {
         return;
       }

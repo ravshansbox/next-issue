@@ -16,10 +16,12 @@ import { keepLogTrimmed, LOG_CHECK_MS } from './worker-log.mts';
 import { checkSocketPath, workerPaths } from './worker-paths.mts';
 import {
   active,
+  dropUpgrade,
   endStatus,
   newRun,
   requestRefresh,
   requestStop,
+  requestUpgrade,
   type Run,
   runControls,
   runsMessage,
@@ -71,7 +73,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     socket: '',
   };
   const runs = new Map<string, Run>();
-  let restart = false;
+  let restart: string | undefined;
 
   const server = createServer();
   const sockets = new WebSocketServer({ server });
@@ -87,15 +89,23 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     await shutdown(server, sockets, owned);
   });
   const closeWhenIdle = (): void => {
-    if ((restart || sockets.clients.size === 0) && !busy()) {
+    if ((restart !== undefined || sockets.clients.size === 0) && !busy()) {
       void close();
     }
   };
 
-  const start = (socket: WebSocket, root: string, argv: string[]): void => {
-    const refusal = startRefusal(runs.get(root), restart);
+  const upgradeBetweenIssues = (run: Run): void => {
+    if (restart !== undefined && requestUpgrade(run, { from: options.version, to: restart })) {
+      broadcast(sockets, runs);
+    }
+  };
+
+  const start = (socket: WebSocket, root: string, argv: string[], resume: boolean): void => {
+    const refusal = startRefusal(runs.get(root), restart !== undefined);
     if (refusal !== undefined) {
-      send(socket, { type: 'error', root, message: refusal });
+      if (!resume) {
+        send(socket, { type: 'error', root, message: refusal });
+      }
       return;
     }
     let args: Args;
@@ -132,7 +142,11 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     const point = stopPoint(after);
     if (point === undefined) {
       send(socket, { type: 'error', root, message: `stop does not take --after ${String(after)}` });
-    } else if (requestStop(runs.get(root), point)) {
+      return;
+    }
+    const run = runs.get(root);
+    const dropped = dropUpgrade(run);
+    if (requestStop(run, point) || dropped) {
       broadcast(sockets, runs);
     }
   };
@@ -151,6 +165,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     }
     set(run!, on);
     broadcast(sockets, runs);
+    upgradeBetweenIssues(run!);
   };
 
   const receive = (socket: WebSocket, value: ClientMessage): void => {
@@ -159,7 +174,8 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
         throw new Error('a hello message needs its version as a string');
       }
       if (isNewer(value.version, options.version)) {
-        restart = true;
+        restart ??= value.version;
+        runs.forEach(upgradeBetweenIssues);
         closeWhenIdle();
       }
     } else if (value.root !== options.root) {
@@ -169,7 +185,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
         message: `the worker serves ${options.root} only`,
       });
     } else if (value.type === 'start') {
-      start(socket, value.root, value.args ?? []);
+      start(socket, value.root, value.args ?? [], value.resume === true);
     } else if (value.type === 'stop') {
       stop(socket, value.root, value.after);
     } else if (value.type === 'hunt') {

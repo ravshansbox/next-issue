@@ -1049,9 +1049,77 @@ test('a worker that meets a newer client closes once no run is going', async (t)
     root: '/repo',
     message: 'the worker is restarting, try again soon',
   });
+  assert.equal(fake.controls().interrupts.afterIssue(), false);
   fake.finish();
   await started.closed;
   await client.closed;
+});
+
+const upgrading = (value: WorkerMessage) =>
+  value.type === 'runs' && value.runs['/repo']?.upgrade !== undefined;
+
+test('a worker that meets a newer client during a watching run stops it after the running issues for an upgrade, and closes once it ends', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath, worker: started } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo', args: ['--hunt'] });
+  await client.next(huntingIs(true));
+  const controls = fake.controls();
+  controls.onEvent!({ kind: 'issue.start', issue: 7, ts: '2026-11-02T10:00:00.000Z' });
+  client.send({ type: 'hello', version: '2.1.0' });
+  const asked = await client.next(upgrading);
+  assert.equal(asked.type === 'runs' && asked.runs['/repo']!.status, 'stopping');
+  assert.deepEqual(asked.type === 'runs' && asked.runs['/repo']!.upgrade, {
+    from: '2.0.0',
+    to: '2.1.0',
+  });
+  assert.equal(controls.interrupts.afterIssue(), true);
+  assert.equal(controls.interrupts.afterRound(), false);
+  fake.finish();
+  await started.closed;
+  await client.closed;
+});
+
+test('a worker that meets a newer client and then sees watching turn on stops the run after the running issues for an upgrade', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo' });
+  await client.next(watchingIs(false));
+  client.send({ type: 'hello', version: '2.1.0' });
+  client.send({ type: 'watch', root: '/repo', on: true });
+  await client.next(upgrading);
+  assert.equal(fake.controls().interrupts.afterIssue(), true);
+});
+
+test('a person who stops a run that stops for an upgrade sees the upgrade dropped from its progress', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath, worker: started } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo', args: ['--watch'] });
+  await client.next(watchingIs(true));
+  client.send({ type: 'hello', version: '2.1.0' });
+  await client.next(upgrading);
+  client.send({ type: 'stop', root: '/repo' });
+  const dropped = await client.next(
+    (value) => value.type === 'runs' && value.runs['/repo']?.upgrade === undefined,
+  );
+  assert.equal(dropped.type === 'runs' && dropped.runs['/repo']!.status, 'stopping');
+  fake.finish();
+  await started.closed;
+});
+
+test('a client that resumes a run while a run is going gets no error and no second run starts', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo', args: ['--watch'], resume: true });
+  await client.next(watchingIs(true));
+  client.send({ type: 'start', root: '/repo', args: ['--watch'], resume: true });
+  client.send({ type: 'questions', root: '/repo', id: 'after' });
+  const first = await client.next((value) => value.type === 'error' || answered('after')(value));
+  assert.equal(first.type, 'questions');
+  assert.equal(fake.calls.length, 1);
 });
 
 test('a worker that meets an older or equal client keeps running', async (t) => {

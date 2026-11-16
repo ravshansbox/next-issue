@@ -1,4 +1,4 @@
-import type { Handled, IssueProgress, Progress, Question } from './protocol.ts';
+import type { Handled, IssueProgress, Progress, Question, Upgrade } from './protocol.ts';
 
 function duration(ms: number): string {
   const seconds = Math.max(0, Math.floor(ms / 1000));
@@ -30,6 +30,9 @@ export function handledNote(item: Handled): string {
 export type Note = { text: string; level: 'info' | 'warning' | 'error' };
 
 export function statusNote(progress: Progress): Note | undefined {
+  if (progress.status === 'stopped' && progress.upgrade !== undefined) {
+    return undefined;
+  }
   if (progress.status === 'finished' || progress.status === 'stopped') {
     return { text: `next-issue ${progress.status}`, level: 'info' };
   }
@@ -47,6 +50,13 @@ export function cannotNote(action: Action, message: string): Note {
 
 export function switchNote(name: 'watching' | 'hunting', on: boolean): Note {
   return { text: `next-issue: ${name} ${on ? 'on' : 'off'}`, level: 'info' };
+}
+
+export function upgradeNote(upgrade: Upgrade): Note {
+  return {
+    text: `next-issue: worker ${upgrade.from} upgrades to ${upgrade.to} after the running issues`,
+    level: 'info',
+  };
 }
 
 export function handledNotes(progress: Progress, from: number): Note[] {
@@ -93,7 +103,8 @@ export function formatStatus(progress: Progress, now: number): string {
     }
     case 'stopping': {
       const issues = running.map((item) => `#${item.issue}`);
-      return `${issues.length === 0 ? '#?' : issues.join(' ')} · stopping`;
+      const upgrade = progress.upgrade;
+      return `${issues.length === 0 ? '#?' : issues.join(' ')} · stopping${upgrade === undefined ? '' : ` to upgrade the worker to ${upgrade.to}`}`;
     }
     case 'stopped':
     case 'finished':

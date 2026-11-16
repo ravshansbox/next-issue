@@ -1043,7 +1043,14 @@ affect another. The worker:
 - waits up to 5 seconds for the lock when a worker that is closing still
   holds it;
 - closes once no run is going when a client with a newer version connects, so
-  that the client can start the newer worker;
+  that the client can start the newer worker. A run that watches is stopped
+  between issues for that, as `stop` with `issue` does: it claims nothing new,
+  and its running issues and its current hunt finish. Its progress then holds
+  `"upgrade": { "from": "<worker version>", "to": "<client version>" }`. A
+  stop by a person drops that field, so no client starts the run again. A run
+  that does not watch is left alone. Meanwhile the worker refuses every start
+  with `the worker is restarting, try again soon`. A `start` with
+  `"resume": true` gets no error when the worker refuses it;
 - stops every agent and command and exits on `SIGTERM`, `SIGHUP` or `SIGINT`, and
   removes its socket and lock files;
 - keeps `.next-issue/worker.log`, where the extension writes the output of
