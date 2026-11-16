@@ -16,7 +16,7 @@ test('an implementer that changes nothing hands the issue to a person', async (t
   const target = await harness(t, { commits: [false] });
   const report = await target.run();
   assert.equal(report.reason, 'no implementation commit');
-  assert.equal(target.pushes, 0);
+  assert.deepEqual(target.landed, []);
 });
 
 test('a user whose issue is handed over because the implementer made no change sees the reply of the implementer after the note', async (t) => {
@@ -159,7 +159,7 @@ test('an implementer that asks questions hands the issue to a person with the qu
   );
   assert.deepEqual(target.messages, []);
   assert.equal(target.head(), '0');
-  assert.equal(target.pushes, 0);
+  assert.deepEqual(target.landed, []);
 });
 
 test('a user whose issue body cannot be edited still gets the implementer questions in the hand-over comment, the needs-human label and the failed edit in the run log', async (t) => {

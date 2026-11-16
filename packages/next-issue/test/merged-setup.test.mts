@@ -173,7 +173,7 @@ for (const [timedOut, reason, note] of [
     assert.equal(setups, 2);
     assert.deepEqual(target.mergeAborts, []);
     assert.deepEqual(target.checks, []);
-    assert.equal(target.pushes, 0);
+    assert.deepEqual(target.landed, []);
     assert.match(target.comments.at(-1) ?? '', note);
     assert.ok(roles(target).includes('implementer'));
   });

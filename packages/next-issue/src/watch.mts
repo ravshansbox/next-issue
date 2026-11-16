@@ -157,6 +157,9 @@ async function watchPasses(
       new Set(failed),
     );
     addReports(reports, pass.reports);
+    if (pass.crash !== undefined) {
+      return { ...pass, reports };
+    }
     recordFailures(failed, pass.reports);
     if (handled(pass.reports) > 0) {
       await watch.passEnd(pass.reports);

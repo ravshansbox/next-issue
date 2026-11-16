@@ -24,7 +24,7 @@ test('a user who asks to stop during the implementation gets the run stopped bef
   const report = await target.run();
   assert.equal(report.outcome, 'stopped');
   assert.deepEqual(roles(target), ['implementer']);
-  assert.equal(target.pushes, 0);
+  assert.deepEqual(target.landed, []);
   assert.equal((await target.state())?.phase, 'implemented');
   assert.equal(target.labels.at(-1)?.label, 'status:in-progress');
 });
@@ -180,7 +180,7 @@ test('a user who stops a run now while it reverts a landed commit whose checks f
   const blocked = await older.run();
   assert.equal(blocked.outcome, 'stopped');
   assert.equal(blocked.reason, 'base unchecked');
-  assert.equal(older.pushes, 0);
+  assert.deepEqual(older.landed, []);
   const resumed = await harness(t, {
     root,
     issue: { ...ISSUE, labels: ['status:in-review'] },
@@ -199,7 +199,7 @@ test('a user who stops a run now during the implementation gets the issue stoppe
   const target = await harness(t, { stopNowDuring: 'implementer' });
   const report = await target.run();
   assert.equal(report.outcome, 'stopped');
-  assert.equal(target.pushes, 0);
+  assert.deepEqual(target.landed, []);
   assert.deepEqual(target.comments, []);
   assert.equal((await target.state())?.handedOver, undefined);
   assert.equal(target.labels.at(-1)?.label, 'status:in-progress');
@@ -303,7 +303,7 @@ test('a user who stops a run now while the fixer of the failed checks on main ru
   const blocked = await older.run();
   assert.equal(blocked.outcome, 'stopped');
   assert.equal(blocked.reason, 'base unchecked');
-  assert.equal(older.pushes, 0);
+  assert.deepEqual(older.landed, []);
   const resumed = await harness(t, {
     root,
     issue: { ...ISSUE, labels: ['status:in-review'] },
@@ -539,7 +539,6 @@ test('a user who stops a run now after GitHub applied the done label, before the
   assert.deepEqual(target.deleted, ['7']);
   assert.equal(await target.context.ports.findWorktree(target.context.repo, '7'), undefined);
   assert.deepEqual(roles(target), []);
-  assert.equal(target.pushes, 0);
   assert.deepEqual(target.landed, []);
   assert.deepEqual(target.reverts, []);
   assert.deepEqual(target.comments, []);
@@ -575,7 +574,6 @@ test('a user who stops a run now after the issue is closed, before its state fil
   assert.deepEqual(target.closed, []);
   assert.deepEqual(target.labels, []);
   assert.deepEqual(roles(target), []);
-  assert.equal(target.pushes, 0);
   assert.deepEqual(target.landed, []);
   assert.deepEqual(target.reverts, []);
   assert.deepEqual(target.comments, []);

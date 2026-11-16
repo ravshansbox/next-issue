@@ -9,7 +9,12 @@ export type Loop = {
   concurrency?: number;
 };
 
-export type LoopResult = { reports: IssueReport[]; stoppedAt?: number; error?: unknown };
+export type LoopResult = {
+  reports: IssueReport[];
+  stoppedAt?: number;
+  error?: unknown;
+  crash?: { failure: unknown };
+};
 
 type Settled = { issue: number; report?: IssueReport; failure?: unknown };
 
@@ -53,21 +58,20 @@ export async function runIssues(
       claiming = false;
     }
   }
-  if (crash !== undefined) {
-    throw crash.failure;
-  }
-  return loopResult(reports, stoppedAt, error);
+  return loopResult(reports, stoppedAt, error, crash);
 }
 
 function loopResult(
   reports: IssueReport[],
   stoppedAt: number | undefined,
   error: unknown,
+  crash: { failure: unknown } | undefined,
 ): LoopResult {
   return {
     reports,
     ...(stoppedAt === undefined ? {} : { stoppedAt }),
     ...(error === undefined ? {} : { error }),
+    ...(crash === undefined ? {} : { crash }),
   };
 }
 

@@ -136,7 +136,7 @@ No person checks a change before it lands. To replace those checks, [ADR 0004](h
 Every run has an id, `<timestamp>`, and writes these under `.next-issue/runs/`:
 
 - `<id>.jsonl` — one JSON object per event, with `ts`, `runId`, `kind`, and the `issue`, `role` or `round` in scope;
-- `<id>.summary.json` — token totals per agent role, event counts, and one report per issue with the outcome, the reason and the budgets used (in a watch run, an issue skipped in several passes gets one report, and an issue handled in more than one pass keeps a report for each);
+- `<id>.summary.json` — token totals per agent role, event counts, and one report per issue with the outcome, the reason and the budgets used (in a watch run, an issue skipped in several passes gets one report, and an issue handled in more than one pass keeps a report for each; when an issue crashes the run, the file still holds the reports of the issues that finished);
 - `<id>/sessions/` — the full pi session of each agent call, with every message, tool call and tool result. The session id in a `usage` event is part of the file name.
 
 At the start of a run, the harness deletes the files and folders under `.next-issue/runs/` that are older than `keepRunDays`. The age of a folder is the time since the last change to it or to anything inside it, so the sessions of a long run stay while it still writes them. Set the field to `0` to keep them all.

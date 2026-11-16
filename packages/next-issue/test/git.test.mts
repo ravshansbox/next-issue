@@ -14,7 +14,6 @@ import {
   isDirty,
   latestSubject,
   parseRemote,
-  push,
   repoRoot,
   revision,
   saveEdits,
@@ -52,7 +51,7 @@ test('a user whose remote names an ssh host alias gets the real host of that ali
   const bin = await tempDir();
   await writeFile(
     join(bin, 'ssh'),
-    '#!/bin/sh\n[ "$1 $2" = "-G github-work" ] || exit 1\necho "user git"\necho "hostname github.example.com"\n',
+    '#!/bin/sh\n[ "$1 $2 $3" = "-G -- github-work" ] || exit 1\necho "user git"\necho "hostname github.example.com"\n',
     { mode: 0o755 },
   );
   const path = process.env.PATH;
@@ -83,7 +82,7 @@ test('a user whose ssh alias resolves to ssh.github.com gets gh calls on github.
   const bin = await tempDir();
   await writeFile(
     join(bin, 'ssh'),
-    '#!/bin/sh\n[ "$1 $2" = "-G gh-443" ] || exit 1\necho "user git"\necho "hostname ssh.github.com"\necho "port 443"\n',
+    '#!/bin/sh\n[ "$1 $2 $3" = "-G -- gh-443" ] || exit 1\necho "user git"\necho "hostname ssh.github.com"\necho "port 443"\n',
     { mode: 0o755 },
   );
   const path = process.env.PATH;
@@ -125,21 +124,6 @@ test('latestSubject gives the subject of the newest commit ahead of the base, an
   await commit(repo.root, 'b.txt');
   await commit(repo.root, 'c.txt');
   assert.equal(await latestSubject(repo.root, 'main', 'origin'), 'c.txt');
-});
-
-test('push with force replaces a remote branch that the base reset left behind', async () => {
-  const { repo } = await clones();
-  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
-  await commit(path, 'old.txt');
-  await push(path, 'origin', '3');
-  await git(path, 'reset', '-q', '--hard', 'origin/main');
-  const fixed = await commit(path, 'fix.txt');
-  await assert.rejects(push(path, 'origin', '3'));
-  await push(path, 'origin', '3', true);
-  assert.equal(
-    await git(repo.root, 'ls-remote', 'origin', 'refs/heads/3'),
-    `${fixed}\trefs/heads/3`,
-  );
 });
 
 test('discardChanges puts back a tracked file and removes a new one', async () => {
@@ -211,33 +195,6 @@ test('setAside moves a commit of the fixer to another branch and leaves nothing 
   assert.equal(await git(path, 'rev-parse', '3-dispute-1'), disputed);
   assert.equal(existsSync(join(path, 'fixer.txt')), false);
   assert.equal(await commitAll(path, 'a later fix'), false);
-});
-
-test('setAside moves a commit of the fixer that the fixer edited after and keeps both in the worktree', async () => {
-  const { repo } = await clones();
-  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
-  const head = await revision(path);
-  const disputed = await commit(path, 'fixer.txt');
-  await writeFile(join(path, 'a.txt'), 'the fixer left this\n');
-  await setAside(path, head, '3-dispute-1');
-  assert.equal(await revision(path), head);
-  assert.equal(await git(path, 'rev-parse', '3-dispute-1'), disputed);
-  assert.equal(await readFile(join(path, 'a.txt'), 'utf8'), 'the fixer left this\n');
-  assert.equal(await readFile(join(path, 'fixer.txt'), 'utf8'), 'fixer.txt\n');
-});
-
-test('setAside moves a commit of the fixer whose file the fixer then edited again', async () => {
-  const { repo } = await clones();
-  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
-  const head = await revision(path);
-  await writeFile(join(path, 'a.txt'), 'the fixer committed this\n');
-  await git(path, 'commit', '-q', '-am', 'fixer commit');
-  const disputed = await revision(path);
-  await writeFile(join(path, 'a.txt'), 'the fixer left this\n');
-  await setAside(path, head, '3-dispute-1');
-  assert.equal(await revision(path), head);
-  assert.equal(await git(path, 'rev-parse', '3-dispute-1'), disputed);
-  assert.equal(await readFile(join(path, 'a.txt'), 'utf8'), 'the fixer left this\n');
 });
 
 test('saveEdits commits the tracked and untracked edits the fixer left, so a later checkout cannot lose them', async () => {

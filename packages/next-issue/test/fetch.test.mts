@@ -3,7 +3,6 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import { must } from '../src/exec.mts';
-import { push } from '../src/git.mts';
 import { pushToBase } from '../src/git-land.mts';
 import { startMerge } from '../src/git-merge.mts';
 import { addWorktree } from '../src/worktree.mts';
@@ -53,17 +52,15 @@ test('the harness lands issue 3 while it sets up the worktree of issue 4, and bo
   assert.equal(await git(added.path, 'log', '-1', '--format=%s'), 'c.txt');
 });
 
-test('the harness pushes issue 3 and lands it while it sets up the worktree of issue 4, and every push and fetch succeeds', async (t) => {
-  const { repo, other } = await clones();
+test('the harness pushes issue 3 to main while it sets up the worktree of issue 4, and the push and the fetch both succeed', async (t) => {
+  const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   await commit(path, 'b.txt');
   await refuseOverlappingFetches(t);
-  const [, landed, added] = await Promise.all([
-    push(path, 'origin', '3'),
+  const [landed, added] = await Promise.all([
     pushToBase(path, 'origin', 'main'),
     addWorktree(repo, 4, '4', 'main', 'origin', false),
   ]);
   assert.equal(landed.pushed, true);
-  assert.ok(await git(other, 'ls-remote', 'origin', 'refs/heads/3'));
   assert.ok(added.path);
 });

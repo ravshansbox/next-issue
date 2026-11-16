@@ -11,7 +11,6 @@ test('a clean run implements, reviews and finishes', async (t) => {
   assert.equal(report.reviewRounds, 1);
   assert.equal(report.ciFixes, 0);
   assert.deepEqual(roles(target), ['implementer', 'reviewer']);
-  assert.equal(target.pushes, 0);
   assert.deepEqual(target.landed, ['2']);
   assert.deepEqual(target.closed, [7]);
   assert.equal(await target.state(), undefined);

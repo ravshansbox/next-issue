@@ -1,4 +1,4 @@
-import { must, optionalFlag, run, succeeded } from './exec.mts';
+import { must, run, succeeded } from './exec.mts';
 import { oneAtATime } from './lock.mts';
 import { lines } from './text.mts';
 
@@ -42,7 +42,7 @@ async function sshHost(url: string, host: string): Promise<string> {
   if (host === 'github.com' || /^https?:/.test(url.trim())) {
     return host;
   }
-  const result = await run('ssh', ['-G', host]).catch(() => undefined);
+  const result = await run('ssh', ['-G', '--', host]).catch(() => undefined);
   const resolved = /^hostname[^\S\r\n]+(\S+)$/m.exec(result?.stdout ?? '')?.[1];
   return result !== undefined && succeeded(result) && resolved !== undefined
     ? githubHost(resolved)
@@ -147,10 +147,6 @@ export async function saveSetupOutput(cwd: string): Promise<void> {
 
 export async function setAside(cwd: string, target: string, branch: string): Promise<void> {
   await git(cwd, ['branch', branch]);
-  if (await isDirty(cwd)) {
-    await git(cwd, ['reset', '--soft', target]);
-    return;
-  }
   await discardChanges(cwd, target);
 }
 
@@ -161,17 +157,6 @@ export async function disputeBranches(repo: Repo, branch: string): Promise<strin
     `refs/heads/${branch}-dispute-*`,
   ]);
   return lines(list);
-}
-
-export async function push(
-  cwd: string,
-  remote: string,
-  branch: string,
-  force = false,
-): Promise<void> {
-  await oneFetchAtATime(() =>
-    git(cwd, ['push', '-u', ...optionalFlag(force, '--force'), remote, branch]),
-  );
 }
 
 export async function fetchBase(cwd: string, base: string, remote: string): Promise<string> {
@@ -185,11 +170,6 @@ export function oneFetchAtATime<T>(work: () => Promise<T>): Promise<T> {
 
 export function gitFetch(cwd: string, args: string[]): Promise<string> {
   return oneFetchAtATime(() => git(cwd, ['fetch', ...args]));
-}
-
-export async function resetToBase(cwd: string, base: string, remote: string): Promise<void> {
-  const target = await fetchBase(cwd, base, remote);
-  await git(cwd, ['reset', '--hard', target]);
 }
 
 export async function latestSubject(

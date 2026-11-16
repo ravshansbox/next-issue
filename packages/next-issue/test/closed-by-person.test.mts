@@ -39,7 +39,7 @@ function assertCleanedUp(target: Harness, reports: IssueReport[]): void {
   assert.deepEqual(target.labels, []);
   assert.deepEqual(target.comments, []);
   assert.deepEqual(target.closed, []);
-  assert.equal(target.pushes, 0);
+  assert.deepEqual(target.landed, []);
   assert.deepEqual(target.reverts, []);
   assert.deepEqual(target.events.reduce(applyEvent, startProgress()).handled, []);
 }

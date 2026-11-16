@@ -50,7 +50,6 @@
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^1.5.2",
-    "typebox": "^1.4.7",
     "ws": "^8.23.0"
   }
 }

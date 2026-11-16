@@ -102,13 +102,16 @@ async function handle(
     concurrency: config.concurrency,
   };
   const print = controls.print ?? (async () => undefined);
-  const { reports, stoppedAt, error } =
+  const { reports, stoppedAt, error, crash } =
     args.watch || controls.watching !== undefined
       ? await watchRun(args, loop, context, controls, print)
       : await runIssues(args, loop);
   recordLoopEnd(recorder, stoppedAt, error);
 
   const summary = await endRun(recorder, reports);
+  if (crash !== undefined) {
+    throw crash.failure;
+  }
   if (!args.watch) {
     await print(summary);
   }

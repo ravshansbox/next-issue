@@ -158,8 +158,6 @@ export type Harness = {
   setups: string[];
   /** Each local check command run, with the head it ran on. */
   checks: Array<{ command: string; head: string }>;
-  pushes: number;
-  forcedPushes: number;
   baseMerges: number;
   mergeAborts: string[];
   deleted: string[];
@@ -171,7 +169,6 @@ export type Harness = {
   baseWaits: string[];
   reruns: string[];
   reopened: number[];
-  resets: number;
   branches: string[];
   starts: boolean[];
   asides: Array<{ target: string; branch: string }>;
@@ -237,8 +234,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     discards: 0,
     setups: [],
     checks: [],
-    pushes: 0,
-    forcedPushes: 0,
     baseMerges: 0,
     mergeAborts: [],
     deleted: [],
@@ -250,7 +245,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     baseWaits: [],
     reruns: [],
     reopened: [],
-    resets: 0,
     branches: [],
     starts: [],
     asides: [],
@@ -418,21 +412,12 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       state.mergeAborts.push(target);
       head = Number(target);
     },
-    push: async (_worktree, _remote, _branch, force) => {
-      state.pushes += 1;
-      if (force === true) {
-        state.forcedPushes += 1;
-      }
-    },
     removeWorktree: async () => {
       removed = true;
       return true;
     },
     reopenIssue: async (_repo, number) => {
       state.reopened.push(number);
-    },
-    resetToBase: async () => {
-      state.resets += 1;
     },
     rerunFailedCi: async (_repo, sha, _branch, started = () => undefined) => {
       if (rerunDone.has(sha)) {

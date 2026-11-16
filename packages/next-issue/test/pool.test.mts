@@ -138,20 +138,24 @@ test('a user with concurrency 2 whose issue is skipped while another runs does n
   assert.equal((await result).reports.length, 2);
 });
 
-test('a user with concurrency 2 whose issue throws gets the error once the other running issue ends', async () => {
+test('a user with concurrency 2 whose issue throws gets the error and the other report once the other running issue ends', async () => {
   const fake = pool([1, 2, 3], 2);
   const failure = new Error('boom');
   const process = fake.process;
   fake.process = (target) => (target.number === 1 ? Promise.reject(failure) : process(target));
-  let caught: unknown;
-  const result = runIssues(ARGS, fake).catch((error: unknown) => {
-    caught = error;
+  let ended = false;
+  const result = runIssues(ARGS, fake).finally(() => {
+    ended = true;
   });
   await settle();
-  assert.equal(caught, undefined);
+  assert.equal(ended, false);
   assert.deepEqual(fake.started, [2]);
   await fake.finish(2, 'done');
-  await result;
-  assert.equal(caught, failure);
+  const end = await result;
+  assert.equal(end.crash?.failure, failure);
+  assert.deepEqual(
+    end.reports.map((entry) => entry.issue),
+    [2],
+  );
   assert.deepEqual(fake.started, [2]);
 });

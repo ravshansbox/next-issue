@@ -14,7 +14,7 @@ test('a user whose implementer finds the issue already done on the base and whos
   assert.equal(report.outcome, 'done');
   assert.deepEqual(target.closed, [7]);
   assert.equal(target.labels.at(-1)!.label, 'status:done');
-  assert.equal(target.pushes, 0);
+  assert.deepEqual(target.landed, []);
   assert.equal(
     target.issueNotes.at(-1)!.body,
     '### Already done\n\nsrc/flag.mts already reads the flag at line 12.\n\nReview: Good.',
