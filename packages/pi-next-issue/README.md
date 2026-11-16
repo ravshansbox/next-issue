@@ -37,7 +37,7 @@ The footer shows each running issue with the number of open issues at the latest
 
 `local fix`, `conflict fix` and `checks fix` share one limit, `maxCiFixes`, from the [config](../next-issue/README.md).
 
-Other lines read, for example, `looking for issues`, `finished: 2 done` or `stopped: 1 done, 1 needs a human`. After a run ends, it keeps the last summary. In the terminal, it uses the dim colour of the theme, like the rest of the footer. A note appears when an issue is done, needs a human or fails while pi is open. Pi does not repeat the notes of a run that ended before it opened.
+Other lines read, for example, `looking for issues` or `#12 · stopping`. When a run finishes or stops, the line is cleared. When a run fails, it shows the error, for example `failed: gh failed`. In the terminal, it uses the dim colour of the theme, like the rest of the footer. A note appears when an issue is done, needs a human or fails while pi is open. Pi does not repeat the notes of a run that ended before it opened.
 
 ## Answer questions
 

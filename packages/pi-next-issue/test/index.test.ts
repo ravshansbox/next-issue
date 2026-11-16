@@ -655,7 +655,7 @@ test('a user of an rpc client sees the footer status without colour codes', asyn
   await until(() => painted.at(-1) === '#7 · review 1 · 3 tools');
 });
 
-test('a user sees a note per handled issue and a note when the run finishes, with the summary in the footer', async () => {
+test('a user sees a note per handled issue and a note when the run finishes, and the run line cleared from the footer', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
   const { pi, emit, notes, status } = host();
@@ -679,10 +679,47 @@ test('a user sees a note per handled issue and a note when the run finishes, wit
     'next-issue: #8 needs a human',
     'next-issue finished',
   ]);
-  assert.equal(status.at(-1), 'finished: 1 done, 1 needs a human');
+  assert.equal(status.at(-1), undefined);
 });
 
-test('a user who opens pi after a run has finished sees its summary in the footer and no notes', async () => {
+test('a user whose run stops while pi is open sees a note and the run line cleared from the footer', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  const { pi, emit, notes, status } = host();
+  extension(pi as never);
+  await emit('session_start');
+  fake.update('/repo', running({ issues: [working(7)] }));
+  await until(() => status.at(-1)?.includes('#7') === true);
+  fake.update('/repo', {
+    status: 'stopped',
+    hunting: false,
+    issues: [],
+    handled: [{ issue: 7, outcome: 'done' }],
+  });
+  await until(() => notes.includes('next-issue stopped'));
+  assert.equal(status.at(-1), undefined);
+});
+
+test('a user whose run fails while pi is open sees the error in the footer', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  const { pi, emit, notes, status } = host();
+  extension(pi as never);
+  await emit('session_start');
+  fake.update('/repo', running({ issues: [working(7)] }));
+  await until(() => status.at(-1)?.includes('#7') === true);
+  fake.update('/repo', {
+    status: 'failed',
+    hunting: false,
+    issues: [],
+    handled: [],
+    error: 'gh failed',
+  });
+  await until(() => notes.includes('next-issue failed: gh failed'));
+  assert.equal(status.at(-1), 'failed: gh failed');
+});
+
+test('a user who opens pi after a run has finished sees no run line in the footer and no notes', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
   fake.runs['/repo'] = {
@@ -695,8 +732,40 @@ test('a user who opens pi after a run has finished sees its summary in the foote
   extension(pi as never);
   await emit('session_start');
   await until(() => status.length > 0);
-  assert.equal(status.at(-1), 'finished: 0 done, 1 needs a human');
+  assert.equal(status.at(-1), undefined);
   assert.deepEqual(notes, []);
+});
+
+test('a user who opens pi after a run has stopped sees no run line in the footer and no notes', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = {
+    status: 'stopped',
+    hunting: false,
+    issues: [],
+    handled: [{ issue: 8, outcome: 'done' }],
+  };
+  const { pi, emit, notes, status } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await until(() => status.length > 0);
+  assert.equal(status.at(-1), undefined);
+  assert.deepEqual(notes, []);
+});
+
+test('a model that calls next_issue_status after a run has stopped sees the run and each handled issue with its outcome', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = {
+    status: 'stopped',
+    hunting: false,
+    issues: [],
+    handled: [{ issue: 8, outcome: 'needs-human' }],
+  };
+  const { pi, report } = host();
+  extension(pi as never);
+  const result = await report();
+  assert.equal(result.content[0]?.text, 'stopped: 0 done, 1 needs a human\n#8 needs a human');
 });
 
 test('a user who runs /next-issue stop while a run is going asks the worker to stop it', async () => {
@@ -1167,7 +1236,7 @@ test('a user sees each running issue with the open-issue count of the latest fet
   );
 });
 
-test('a user sees a finished or stopped run summed up by outcome in the footer', () => {
+test('a model sees a finished or stopped run summed up by outcome in the run status', () => {
   const handled = [
     { issue: 1, outcome: 'done' as const },
     { issue: 2, outcome: 'needs-human' as const },

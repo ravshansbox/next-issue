@@ -162,7 +162,8 @@ export function createExtension(options: Options) {
       if (ui === undefined || progress === undefined) {
         return;
       }
-      ui.setStatus(STATUS_KEY, dim(formatStatus(progress, Date.now())));
+      const ended = progress.status === 'finished' || progress.status === 'stopped';
+      ui.setStatus(STATUS_KEY, ended ? undefined : dim(formatStatus(progress, Date.now())));
     };
 
     const paintQuestions = () => {
