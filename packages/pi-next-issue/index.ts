@@ -41,7 +41,7 @@ import {
 import { lockHolder } from './src/lock.ts';
 import { issueDetail } from './src/detail.ts';
 import { pastRuns } from './src/past.ts';
-import { spawnWorker, workerPaths } from './src/spawn-worker.ts';
+import { spawnWorker, workerLaunch, workerPaths } from './src/spawn-worker.ts';
 import { WorkerClient, type WorkerEvent } from './src/worker.ts';
 
 export type Options = {
@@ -100,6 +100,7 @@ const fromMachine: Options = {
     new WorkerClient({
       socketPath: workerPaths(root).socketPath,
       version: packageVersion(),
+      launch: workerLaunch(packageVersion()),
       spawnWorker: (version, onExit) => spawnWorker(root, version, onExit),
       lockHolder: () => lockHolder(workerPaths(root).lockPath),
     }),

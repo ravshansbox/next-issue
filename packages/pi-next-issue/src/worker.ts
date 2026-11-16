@@ -6,6 +6,7 @@ import {
   type ClientMessage,
   going,
   isNewer,
+  type Launch,
   type Progress,
   type Question,
   type Upcoming,
@@ -22,6 +23,7 @@ export type Request = Extract<
 export type WorkerOptions = {
   socketPath: string;
   version: string;
+  launch?: Launch;
   spawnWorker: (version: string, onExit: (reason: string) => void) => void;
   lockHolder?: () => Promise<number | undefined>;
   startTimeoutMs?: number;
@@ -326,7 +328,8 @@ export class WorkerClient {
         this.receive(message);
       });
       socket.once('open', () => {
-        socket.send(JSON.stringify({ type: 'hello', version: this.options.version }));
+        const { version, launch } = this.options;
+        socket.send(JSON.stringify({ type: 'hello', version, launch }));
       });
       socket.once('close', () => {
         clearTimeout(timer);
@@ -344,7 +347,10 @@ export class WorkerClient {
     }
     const upgraded = this.outdated
       ? Object.entries(this.runs).filter(
-          ([, progress]) => progress.upgrade !== undefined && progress.status !== 'failed',
+          ([, progress]) =>
+            progress.upgrade !== undefined &&
+            progress.upgrade.resumes !== true &&
+            progress.status !== 'failed',
         )
       : [];
     this.socket = undefined;

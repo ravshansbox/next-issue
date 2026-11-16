@@ -1,9 +1,13 @@
 import { spawn } from 'node:child_process';
 import { closeSync, mkdirSync, openSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import type { Launch } from './protocol.ts';
 
-export function workerArgs(version: string): string[] {
-  return ['-y', `next-issue@${version === '0.0.0' ? 'latest' : version}`, 'serve'];
+export function workerLaunch(version: string): Launch {
+  return {
+    command: 'npx',
+    args: ['-y', `next-issue@${version === '0.0.0' ? 'latest' : version}`, 'serve'],
+  };
 }
 
 export function workerPaths(root: string): {
@@ -51,5 +55,6 @@ export function spawnLogged(
 }
 
 export function spawnWorker(root: string, version: string, onExit: (reason: string) => void): void {
-  spawnLogged(root, 'npx', workerArgs(version), onExit);
+  const { command, args } = workerLaunch(version);
+  spawnLogged(root, command, args, onExit);
 }

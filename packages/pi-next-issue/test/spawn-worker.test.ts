@@ -2,15 +2,21 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { spawnLogged, workerArgs, workerPaths } from '../src/spawn-worker.ts';
+import { spawnLogged, workerLaunch, workerPaths } from '../src/spawn-worker.ts';
 import { tempFolder } from './temp-folder.ts';
 
 test('the extension starts the worker release that matches its own version', () => {
-  assert.deepEqual(workerArgs('1.2.3'), ['-y', 'next-issue@1.2.3', 'serve']);
+  assert.deepEqual(workerLaunch('1.2.3'), {
+    command: 'npx',
+    args: ['-y', 'next-issue@1.2.3', 'serve'],
+  });
 });
 
 test('the extension run from a source checkout starts the latest worker release', () => {
-  assert.deepEqual(workerArgs('0.0.0'), ['-y', 'next-issue@latest', 'serve']);
+  assert.deepEqual(workerLaunch('0.0.0'), {
+    command: 'npx',
+    args: ['-y', 'next-issue@latest', 'serve'],
+  });
 });
 
 test('the extension keeps the worker socket and log of a repository in its .next-issue folder', () => {

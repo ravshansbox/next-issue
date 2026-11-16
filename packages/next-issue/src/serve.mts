@@ -8,12 +8,13 @@ import { stopChildren, withRunChildren } from './children.mts';
 import { message } from './errors.mts';
 import { lock } from './lock.mts';
 import { startProgress } from './progress.mts';
-import { type ClientMessage, isNewer, type Progress } from './protocol.mts';
+import { type ClientMessage, isNewer, type Launch, type Progress } from './protocol.mts';
 import { type ListQuestions, listQuestions, questionSender, send } from './questions.mts';
 import { runRepo, type RunControls } from './run.mts';
 import type { RunSummary } from './summary.mts';
 import { type ListUpcoming, listUpcoming, sendUpcoming } from './upcoming.mts';
 import { packageVersion } from './version.mts';
+import { resumeOnSuccessor } from './worker-client.mts';
 import { keepLogTrimmed, LOG_CHECK_MS } from './worker-log.mts';
 import { checkSocketPath, workerPaths } from './worker-paths.mts';
 import {
@@ -38,12 +39,14 @@ import {
   broadcast,
   closer,
   fileId,
+  isLaunch,
   listen,
   type Owned,
   parseMessage,
   removeOwned,
   sendAll,
   shutdown,
+  stopListening,
   type Worker,
 } from './worker-server.mts';
 
@@ -79,6 +82,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   };
   const runs = new Map<string, Run>();
   let restart: string | undefined;
+  let successor: Launch | undefined;
 
   const server = createServer();
   const sockets = new WebSocketServer({ server });
@@ -89,9 +93,28 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   const busy = (): boolean => [...runs.values()].some(active);
 
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
+  const handOver = async (how: Launch, run: Run): Promise<void> => {
+    const listening = stopListening(server);
+    removeOwned(owned);
+    try {
+      await resumeOnSuccessor(options.root, how, resumeArgs(run));
+    } catch (error) {
+      const reason = `the worker could not start next-issue ${restart}: ${message(error)}`;
+      process.stderr.write(`next-issue: ${reason}\n`);
+      run.progress = { ...run.progress, status: 'failed', error: reason };
+      broadcast(sockets, runs);
+    }
+    await shutdown(server, sockets, owned, listening);
+  };
+
   const { closed, close } = closer(async () => {
     clearTimeout(idleTimer);
-    await shutdown(server, sockets, owned);
+    const run = runs.get(options.root);
+    if (successor !== undefined && run !== undefined && upgradedRun(run)) {
+      await handOver(successor, run);
+    } else {
+      await shutdown(server, sockets, owned);
+    }
   });
   const closeWhenIdle = (): void => {
     if ((restart !== undefined || sockets.clients.size === 0) && !busy()) {
@@ -100,7 +123,15 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   };
 
   const upgradeBetweenIssues = (run: Run): void => {
-    if (restart !== undefined && requestUpgrade(run, { from: options.version, to: restart })) {
+    if (restart === undefined) {
+      return;
+    }
+    const upgrade = {
+      from: options.version,
+      to: restart,
+      ...(successor === undefined ? {} : { resumes: true }),
+    };
+    if (requestUpgrade(run, upgrade)) {
       broadcast(sockets, runs);
     }
   };
@@ -207,8 +238,14 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       if (typeof value.version !== 'string') {
         throw new Error('a hello message needs its version as a string');
       }
+      if (value.launch !== undefined && !isLaunch(value.launch)) {
+        throw new Error('a hello message needs its launch as a command and a list of args');
+      }
       if (isNewer(value.version, options.version)) {
-        restart ??= value.version;
+        if (restart === undefined) {
+          restart = value.version;
+          successor = value.launch;
+        }
         runs.forEach(upgradeBetweenIssues);
         closeWhenIdle();
       }
@@ -261,6 +298,14 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
 }
 
 type Refuse = (text: string) => void;
+
+function upgradedRun(run: Run): boolean {
+  return run.progress.upgrade !== undefined && run.progress.status === 'stopped';
+}
+
+function resumeArgs(run: Run): string[] {
+  return ['--watch', 'on', '--hunt', run.progress.hunting ? 'on' : 'off'];
+}
 
 function refuser(socket: WebSocket, value: ClientMessage, served: string): Refuse {
   const root = value.type === 'hello' ? served : value.root;

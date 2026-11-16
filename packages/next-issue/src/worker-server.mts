@@ -2,7 +2,7 @@ import { rmSync, statSync } from 'node:fs';
 import type { Server } from 'node:http';
 import type { WebSocketServer } from 'ws';
 import type { HeldLock } from './lock.mts';
-import type { ClientMessage, WorkerMessage } from './protocol.mts';
+import type { ClientMessage, Launch, WorkerMessage } from './protocol.mts';
 import { send } from './questions.mts';
 import { type Run, runsMessage } from './worker-run.mts';
 
@@ -12,6 +12,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isStringArray(value: unknown): boolean {
   return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+export function isLaunch(value: unknown): value is Launch {
+  return isRecord(value) && typeof value['command'] === 'string' && isStringArray(value['args']);
 }
 
 function isClientMessage(value: unknown): value is ClientMessage {
@@ -72,6 +76,10 @@ function whenClosed(close: (done: () => void) => void): Promise<void> {
   return new Promise((resolve) => close(() => resolve()));
 }
 
+export function stopListening(server: Server): Promise<void> {
+  return whenClosed((done) => server.close(done));
+}
+
 export type Owned = { socketPath: string; lockPath: string; lock: HeldLock; socket: string };
 
 export function fileId(path: string): string {
@@ -92,12 +100,13 @@ export async function shutdown(
   server: Server,
   sockets: WebSocketServer,
   owned: Owned,
+  listening?: Promise<void>,
 ): Promise<void> {
   for (const socket of sockets.clients) {
     socket.terminate();
   }
   await whenClosed((done) => sockets.close(done));
-  await whenClosed((done) => server.close(done));
+  await (listening ?? stopListening(server));
   removeOwned(owned);
 }
 

@@ -5,7 +5,7 @@ import type { Socket } from 'node:net';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { WebSocketServer } from 'ws';
-import { workerPaths } from '../src/spawn-worker.ts';
+import { workerLaunch, workerPaths } from '../src/spawn-worker.ts';
 import { WorkerClient, type WorkerEvent } from '../src/worker.ts';
 import { type FakeWorker, running, socketPath, startFakeWorker, until } from './fake-worker.ts';
 
@@ -90,6 +90,48 @@ test('several pi sessions with a newer extension whose watching run stops for an
     events.some((event) => event.type === 'error'),
     false,
   );
+});
+
+test('a pi session with a newer extension whose watching run stops for an upgrade that the worker resumes itself tells it how to start the newer worker, and starts no worker and no run once it closes', async (t) => {
+  const path = socketPath();
+  const old = await startFakeWorker(path, '1.0.0', (self, message) => {
+    if (message.type === 'hello' && message.version === '2.0.0') {
+      self.update('/repo', {
+        ...self.runs['/repo']!,
+        status: 'stopping',
+        upgrade: { from: '1.0.0', to: '2.0.0', resumes: true },
+      });
+    }
+  });
+  old.runs['/repo'] = running({ watching: true });
+  const spawns: string[] = [];
+  const launch = workerLaunch('2.0.0');
+  const client = new WorkerClient({
+    socketPath: path,
+    version: '2.0.0',
+    launch,
+    spawnWorker: (version) => spawns.push(version),
+    startTimeoutMs: 2000,
+    reconnectMs: 50,
+  });
+  client.subscribe(() => {});
+  t.after(() => client.close());
+  await client.attach();
+  await until(() => client.runs['/repo']?.upgrade !== undefined);
+  assert.deepEqual(
+    old.received.filter((message) => message.type === 'hello'),
+    [
+      {
+        type: 'hello',
+        version: '2.0.0',
+        launch: { command: 'npx', args: ['-y', 'next-issue@2.0.0', 'serve'] },
+      },
+    ],
+  );
+  old.update('/repo', { ...old.runs['/repo']!, status: 'stopped' });
+  await old.close();
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.deepEqual(spawns, []);
 });
 
 test('a pi session that attaches, reaches and ensures the worker at the same time opens one connection to it', async (t) => {

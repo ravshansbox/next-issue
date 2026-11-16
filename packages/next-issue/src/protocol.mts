@@ -11,7 +11,9 @@ export type IssueProgress = {
   startedAt?: number;
 };
 
-export type Upgrade = { from: string; to: string };
+export type Upgrade = { from: string; to: string; resumes?: boolean };
+
+export type Launch = { command: string; args: string[] };
 
 export type Progress = {
   status: RunStatus;
@@ -71,7 +73,7 @@ export const STOP_POINTS = ['issue', 'round', 'now'] as const;
 export type StopPoint = (typeof STOP_POINTS)[number];
 
 export type ClientMessage =
-  | { type: 'hello'; version: string }
+  | { type: 'hello'; version: string; launch?: Launch }
   | {
       type: 'start';
       root: string;

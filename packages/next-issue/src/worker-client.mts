@@ -5,7 +5,13 @@ import { dirname } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { WebSocket } from 'ws';
 import { lockHolder } from './lock.mts';
-import { type ClientMessage, isNewer, type Progress, type WorkerMessage } from './protocol.mts';
+import {
+  type ClientMessage,
+  isNewer,
+  type Launch,
+  type Progress,
+  type WorkerMessage,
+} from './protocol.mts';
 import { checkSocketPath, workerPaths } from './worker-paths.mts';
 
 export type Connection = {
@@ -41,6 +47,10 @@ function parse(text: string): WorkerMessage | undefined {
   } catch {
     return undefined;
   }
+}
+
+function ownLaunch(): Launch {
+  return { command: process.execPath, args: [...process.execArgv, process.argv[1]!, 'serve'] };
 }
 
 function open(socketPath: string, version?: string): Promise<Connection> {
@@ -82,7 +92,7 @@ function open(socketPath: string, version?: string): Promise<Connection> {
         ready = true;
         clearTimeout(timer);
         if (version !== undefined && !Object.values(message.runs).some(going)) {
-          socket.send(JSON.stringify({ type: 'hello', version }));
+          socket.send(JSON.stringify({ type: 'hello', version, launch: ownLaunch() }));
         }
         resolve({
           version: workerVersion,
@@ -113,7 +123,7 @@ async function tryOpen(socketPath: string, version?: string): Promise<Connection
 
 async function waitForHolder(
   paths: ReturnType<typeof workerPaths>,
-  version: string,
+  version: string | undefined,
 ): Promise<Connection | undefined> {
   const deadline = Date.now() + HOLDER_GRACE_MS;
   for (;;) {
@@ -130,7 +140,7 @@ async function waitForHolder(
 
 async function waitForStart(
   paths: ReturnType<typeof workerPaths>,
-  version: string,
+  version: string | undefined,
   exited: () => string | undefined,
 ): Promise<Connection> {
   const deadline = Date.now() + START_TIMEOUT_MS;
@@ -150,14 +160,14 @@ async function waitForStart(
   }
 }
 
-async function launch(root: string, version: string): Promise<Connection> {
+async function launch(root: string, version: string | undefined, how: Launch): Promise<Connection> {
   const paths = workerPaths(root);
   const held = await waitForHolder(paths, version);
   if (held !== undefined) {
     return held;
   }
   let exited: string | undefined;
-  spawnServe(root, (reason) => {
+  spawnServe(root, how, (reason) => {
     exited ??= reason;
   });
   return waitForStart(paths, version, () => exited);
@@ -167,12 +177,51 @@ export async function reachWorker(root: string, version: string): Promise<Connec
   const { socketPath } = workerPaths(root);
   checkSocketPath(socketPath);
   for (let tries = 1; ; tries += 1) {
-    const found = (await tryOpen(socketPath, version)) ?? (await launch(root, version));
+    const found =
+      (await tryOpen(socketPath, version)) ?? (await launch(root, version, ownLaunch()));
     const busy = Object.values(found.runs).some(going);
     if (!isNewer(version, found.version) || busy || tries >= UPGRADE_TRIES) {
       return found;
     }
     await Promise.race([found.closed, delay(ANSWER_TIMEOUT_MS)]);
+    found.close();
+  }
+}
+
+function startedRun(found: Connection, root: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error('the newer worker did not start the run')),
+      ANSWER_TIMEOUT_MS,
+    );
+    const settle = (error?: Error): void => {
+      clearTimeout(timer);
+      if (error === undefined) {
+        resolve();
+      } else {
+        reject(error);
+      }
+    };
+    found.listen((message) => {
+      if (message.type === 'runs' && going(message.runs[root])) {
+        settle();
+      } else if (message.type === 'error' && message.root === root) {
+        settle(new Error(message.message));
+      }
+    });
+    void found.closed.then(() => settle(new Error(CLOSED)));
+  });
+}
+
+export async function resumeOnSuccessor(root: string, how: Launch, args: string[]): Promise<void> {
+  const { socketPath } = workerPaths(root);
+  const found = (await tryOpen(socketPath)) ?? (await launch(root, undefined, how));
+  try {
+    if (!going(found.runs[root])) {
+      found.send({ type: 'start', root, args, resume: true });
+      await startedRun(found, root);
+    }
+  } finally {
     found.close();
   }
 }
@@ -187,12 +236,12 @@ function exitText(code: number | null, signal: NodeJS.Signals | null): string {
   return signal === null ? `exit code ${code}` : `signal ${signal}`;
 }
 
-function spawnServe(root: string, onExit: (reason: string) => void): void {
+function spawnServe(root: string, how: Launch, onExit: (reason: string) => void): void {
   const { logPath } = workerPaths(root);
   mkdirSync(dirname(logPath), { recursive: true });
   const log = openSync(logPath, 'a');
   try {
-    const child = spawn(process.execPath, [...process.execArgv, process.argv[1]!, 'serve'], {
+    const child = spawn(how.command, how.args, {
       cwd: root,
       detached: true,
       stdio: ['ignore', log, log],
