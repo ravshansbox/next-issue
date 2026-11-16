@@ -164,6 +164,13 @@ async function startRun(
     },
     'quiet',
   );
+  if (config.labels.ready.length === 0) {
+    recorder.event(
+      'labels.ready.empty',
+      { note: 'labels.ready is empty, so every open issue can be claimed' },
+      'quiet',
+    );
+  }
   return {
     repo,
     config,

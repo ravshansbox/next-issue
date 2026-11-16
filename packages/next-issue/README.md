@@ -747,7 +747,8 @@ The names in `labels.ready`, `inProgress`, `inReview`, `done`, `needsHuman`,
 stop the run with an error that names both fields.
 
 An empty `labels.ready` turns the ready requirement off. The harness then
-claims every open issue that no other label holds back.
+claims every open issue that no other label holds back. A run then writes a
+`labels.ready.empty` warning to the log at start.
 
 The harness compares the labels on an issue with the configured names without
 case, as GitHub does, so `Status:Todo` counts as `status:todo`.
