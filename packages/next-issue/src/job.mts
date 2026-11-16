@@ -45,6 +45,8 @@ export type Run = {
   started: number;
   mainBroken: boolean;
   repairing: boolean;
+  /** The dispute branches that hold the edits a fixer left behind in this run. */
+  asides: string[];
 };
 
 export type Finished = { done: true; report: IssueReport };

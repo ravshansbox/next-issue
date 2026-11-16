@@ -22,7 +22,13 @@ import { UnsettledBase } from './unsettled.mts';
 export async function escalateAndFinish(job: Run, note: string, reason: string): Promise<Finished> {
   const reverted = await revertFailedFix(job);
   try {
-    await handOver(job.context, job.log, job.issue.number, job.state, `${note}${reverted}`);
+    await handOver(
+      job.context,
+      job.log,
+      job.issue.number,
+      job.state,
+      `${note}${savedIn(job.asides)}${reverted}`,
+    );
   } catch (error) {
     if (!job.mainBroken || runStopped()) {
       throw error;
@@ -35,6 +41,16 @@ export async function escalateAndFinish(job: Run, note: string, reason: string):
     };
   }
   return { done: true, report: await finish(job, 'needs-human', reason) };
+}
+
+function savedIn(asides: string[]): string {
+  const branches = asides.map((aside) => `\`${aside}\``);
+  if (branches.length < 2) {
+    return branches.length === 0
+      ? ''
+      : ` The fixer left a change behind; it is saved in the branch ${branches[0]}.`;
+  }
+  return ` The fixer left changes behind; they are saved in the branches ${branches.slice(0, -1).join(', ')} and ${branches.at(-1)}.`;
 }
 
 export async function finishDone(job: Run): Promise<Finished> {
@@ -68,6 +84,7 @@ export async function finishClosing(
     started,
     mainBroken: false,
     repairing: false,
+    asides: [],
   };
   return (await finishDone(job)).report;
 }
@@ -155,7 +172,10 @@ export async function finish(job: Run, outcome: Outcome, reason?: string): Promi
   if (halt) {
     context.halted = true;
   }
-  return { ...jobReport(job, outcome, reason), ...(halt ? { halt: true } : {}) };
+  return {
+    ...jobReport(job, outcome, reason),
+    ...(halt ? { halt: true } : {}),
+  };
 }
 
 async function deleteBranches(context: Context, log: Recorder, branch: string): Promise<void> {

@@ -22,8 +22,6 @@ export type Unfixed = {
   unrelated?: string;
   resolved?: string;
   stray?: boolean;
-  /** The dispute branch that holds the change the fixer left behind. */
-  aside?: string;
 };
 
 export type Fix = { committed: true } | Unfixed;
@@ -35,7 +33,6 @@ export function escalateCheckFix(
   unrelated: string | undefined,
   checks: string,
   after = '',
-  aside?: string,
 ): Promise<Finished> {
   if (unrelated === undefined) {
     return escalateAndFinish(
@@ -46,15 +43,9 @@ export function escalateCheckFix(
   }
   return escalateAndFinish(
     job,
-    `The ${checks} fail for a reason this change did not cause: ${unrelated}${savedIn(aside)}${after}`,
+    `The ${checks} fail for a reason this change did not cause: ${unrelated}${after}`,
     'unrelated failure',
   );
-}
-
-export function savedIn(aside: string | undefined): string {
-  return aside === undefined
-    ? ''
-    : ` The fixer left a change behind; it is saved in the branch \`${aside}\`.`;
 }
 
 export async function fixRound(
@@ -139,6 +130,7 @@ async function disputedFix(
   }
   const aside = `${branch}-dispute-${disputed.slice(0, 7)}`;
   await ports.setAside(worktree, before, aside);
+  job.asides.push(aside);
   log.event('fix.aside', { branch: aside, saved }, 'quiet');
   return disputedNote(job, reason, note, { stray: true, aside });
 }

@@ -106,7 +106,7 @@ async function failedCheck(
     throw error;
   }
   if (!fix.committed) {
-    return escalateCheckFix(job, fix.unrelated, `local checks (\`${command}\`)`, '', fix.aside);
+    return escalateCheckFix(job, fix.unrelated, `local checks (\`${command}\`)`);
   }
   return false;
 }

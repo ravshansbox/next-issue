@@ -490,7 +490,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
         return false;
       }
       state.saves += 1;
-      head += 1;
+      head += state.saves;
       return true;
     },
     setAside: async (_worktree, target, branch) => {

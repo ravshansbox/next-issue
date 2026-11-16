@@ -40,6 +40,7 @@ export async function openJob(
     started,
     mainBroken: false,
     repairing: false,
+    asides: [],
   };
 }
 

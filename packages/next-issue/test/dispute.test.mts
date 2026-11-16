@@ -195,3 +195,65 @@ test('a check fixer that reports an unrelated failure on main and leaves nothing
   assert.deepEqual(target.asides, []);
   assert.doesNotMatch(target.comments.at(-1)!, /dispute|left a change/);
 });
+
+const REFUSED = {
+  fixerWrites: true,
+  baseChecks: ['fail' as const],
+  baseLogs: 'not ok 3 - /home/runner/work/tool/tool/test/local-checks.test.mts:126:5',
+  changedFiles: ['test/local-checks.test.mts'],
+  fixerText: 'unrelated: local-checks.test.mts is a known flaky test',
+};
+
+test('a check fixer whose unrelated claim is refused after it leaves edits gets a hand-over at the end of the budget that names the dispute branch', async (t) => {
+  const target = await harness(t, { ...REFUSED, config: { maxCiFixes: 1 } });
+  const report = await target.run();
+  assert.equal(report.reason, 'check budget');
+  assert.deepEqual(target.asides, [{ target: '2', branch: '7-dispute-3' }]);
+  assert.match(
+    target.comments.at(-1)!,
+    /The fixer left a change behind; it is saved in the branch `7-dispute-3`\./,
+  );
+});
+
+test('a check fixer whose unrelated claims are refused in two rounds gets a hand-over that names the dispute branch of each round', async (t) => {
+  const target = await harness(t, { ...REFUSED, config: { maxCiFixes: 2 } });
+  await target.run();
+  assert.deepEqual(
+    target.asides.map((aside) => aside.branch),
+    ['7-dispute-3', '7-dispute-4'],
+  );
+  assert.match(
+    target.comments.at(-1)!,
+    /The fixer left changes behind; they are saved in the branches `7-dispute-3` and `7-dispute-4`\./,
+  );
+});
+
+test('a check fixer whose unrelated claim is refused after it leaves edits gets a hand-over that names the dispute branch when the next round adds no commit', async (t) => {
+  const target = await harness(t, {
+    ...REFUSED,
+    fixerText: [REFUSED.fixerText, 'I looked but changed nothing.'],
+    commits: [true, false],
+    config: { maxCiFixes: 2 },
+  });
+  const report = await target.run();
+  assert.equal(report.reason, 'no fix commit');
+  assert.match(
+    target.comments.at(-1)!,
+    /The fixer added no commit for the failed checks on main\..* The fixer left a change behind; it is saved in the branch `7-dispute-3`\./,
+  );
+});
+
+test('a check fixer whose unrelated claim is refused after it leaves edits gets a hand-over that names the dispute branch when its later fix fails the checks too', async (t) => {
+  const target = await harness(t, {
+    ...REFUSED,
+    baseChecks: ['fail', 'fail'],
+    fixerText: [REFUSED.fixerText, 'commit: fix: repair the test'],
+    config: { maxCiFixes: 2 },
+  });
+  const report = await target.run();
+  assert.equal(report.reason, 'check budget');
+  assert.match(
+    target.comments.at(-1)!,
+    /The fixer left a change behind; it is saved in the branch `7-dispute-3`\./,
+  );
+});
