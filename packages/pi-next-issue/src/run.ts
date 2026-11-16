@@ -28,30 +28,43 @@ export async function statusOf(client: WorkerClient, root: string) {
 }
 
 function goingAlready(root: string, progress: Progress): string {
-  return `A run of ${root} is going already, so nothing started: ${formatStatus(progress, Date.now())}. Asked it to check for new issues now.`;
+  const asked =
+    progress.status === 'stopping'
+      ? 'It is stopping, so it was not asked to check for new issues.'
+      : 'Asked it to check for new issues now.';
+  return `A run of ${root} is going already, so nothing started: ${formatStatus(progress, Date.now())}. ${asked}`;
 }
 
 // Best effort: a worker that knows no refresh ignores it or answers with an error. So it goes
 // last, after any request whose answer counts.
-function sendRefresh(client: WorkerClient, root: string): void {
-  client.request({ type: 'refresh', root });
+function sendRefresh(client: WorkerClient, root: string, progress: Progress): void {
+  if (progress.status !== 'stopping') {
+    client.request({ type: 'refresh', root });
+  }
 }
 
 export async function refreshRun(client: WorkerClient, root: string) {
   await client.attach();
-  if (!client.connected || !going(client.runs[root])) {
+  const progress = client.runs[root];
+  if (!client.connected || !going(progress)) {
     return report(`No run of ${root} is going, so nothing was asked.`, {
       refreshed: false,
       root,
     });
   }
-  if (client.runs[root]?.watching === false) {
+  if (progress.status === 'stopping') {
+    return report(
+      `The run of ${root} is stopping, so it would ignore the request and nothing was asked.`,
+      { refreshed: false, root },
+    );
+  }
+  if (progress.watching === false) {
     return report(
       `The run of ${root} does not watch for new issues, so it would ignore the request and nothing was asked.`,
       { refreshed: false, root },
     );
   }
-  sendRefresh(client, root);
+  client.request({ type: 'refresh', root });
   return report(`Asked the run of ${root} to check for new issues now.`, {
     refreshed: true,
     root,
@@ -65,7 +78,7 @@ export async function startRun(
   signal: AbortSignal | undefined,
 ) {
   if (going(progress)) {
-    sendRefresh(client, root);
+    sendRefresh(client, root, progress);
     return report(goingAlready(root, progress), { started: false, root });
   }
   await accepted(client, root, client.request({ type: 'start', root }), signal);
@@ -78,7 +91,7 @@ export function requestStart(
   progress: Progress | undefined,
 ): Note | undefined {
   if (going(progress)) {
-    sendRefresh(client, root);
+    sendRefresh(client, root, progress);
     return { text: goingAlready(root, progress), level: 'info' };
   }
   client.request({ type: 'start', root });

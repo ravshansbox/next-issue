@@ -329,6 +329,26 @@ test('a model that calls next_issue_start while a run is going starts nothing an
   );
 });
 
+test('a model that calls next_issue_start while the going run is stopping starts nothing, sends no refresh and is told the run was not asked', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({ status: 'stopping', watching: true, issues: [working(7)] });
+  const { pi, emit, start } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const result = await start();
+  assert.deepEqual(result.details, { started: false, root: '/repo' });
+  assert.equal(
+    result.content[0]?.text,
+    'A run of /repo is going already, so nothing started: #7 · stopping. It is stopping, so it was not asked to check for new issues.',
+  );
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(
+    fake.received.filter((message) => ['start', 'stop', 'refresh'].includes(message.type)),
+    [],
+  );
+});
+
 function refusingRefresh(path: string) {
   return startFakeWorker(path, '1.0.0', (self, message) => {
     if (message.type === 'refresh') {
@@ -535,6 +555,26 @@ test('a model that calls next_issue_refresh while the going run does not watch i
   assert.equal(
     result.content[0]?.text,
     'The run of /repo does not watch for new issues, so it would ignore the request and nothing was asked.',
+  );
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(
+    fake.received.filter((message) => ['start', 'stop', 'refresh'].includes(message.type)),
+    [],
+  );
+});
+
+test('a model that calls next_issue_refresh while the going run is stopping is told the run would ignore it and nothing is asked', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({ status: 'stopping', watching: true, issues: [working(7)] });
+  const { pi, emit, refresh } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const result = await refresh();
+  assert.deepEqual(result.details, { refreshed: false, root: '/repo' });
+  assert.equal(
+    result.content[0]?.text,
+    'The run of /repo is stopping, so it would ignore the request and nothing was asked.',
   );
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert.deepEqual(
@@ -1082,6 +1122,31 @@ test('a user who picks Refresh on the Active tab of a going run asks it to check
   await until(() => fake.received.some((message) => message.type === 'refresh'));
   await until(() => hosted.notes.length > 0);
   assert.deepEqual(hosted.notes, ['Asked the run of /repo to check for new issues now.']);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user who picks Refresh on the Active tab of a stopping run is told it would ignore it and nothing is sent', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({ status: 'stopping', watching: true, hunting: true });
+  const hosted = host();
+  extension(hosted.pi as never);
+  await hosted.emit('session_start');
+  const { overlay, opened } = await openDashboard(hosted);
+  for (let index = 0; index < 5; index += 1) {
+    overlay.press('down');
+  }
+  assert.match(overlay.screen(), /> Refresh/);
+  overlay.press('enter');
+  await until(() => hosted.notes.length > 0);
+  assert.deepEqual(hosted.notes, [
+    'The run of /repo is stopping, so it would ignore the request and nothing was asked.',
+  ]);
+  assert.deepEqual(
+    fake.received.filter((message) => message.type === 'refresh'),
+    [],
+  );
   overlay.press('escape');
   await opened;
 });

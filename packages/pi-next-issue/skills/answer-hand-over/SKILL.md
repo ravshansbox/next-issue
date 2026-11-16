@@ -100,6 +100,8 @@ Help the user understand why the worker handed an issue over, then answer the ha
 
     When it reports that no run is going, ask only whether to start a run. On yes, call the `next_issue_start` tool, and tell the user what it reports. The run does one pass; Watch on in `/next-issue` keeps it watching for new issues. On no, do nothing.
 
+    When it reports that the going run is stopping, tell the user that the stopping run will not claim the issue. Ask no question.
+
     When it reports that the going run does not watch for new issues, ask only whether to turn watching on. On yes, call the `next_issue_watch` tool with `on` set to `true`, then the `next_issue_refresh` tool, and tell the user what they report. On no, do nothing.
 
 11. Ask whether to answer another waiting issue. On yes, go back to step 3.
