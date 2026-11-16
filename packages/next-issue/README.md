@@ -218,7 +218,13 @@ the run handles one issue. For each issue:
    and commit status whose name is in `ignoredChecks`: it does not wait for
    it, its result does not fail the checks and its logs do not go to the
    fixer. With `ignoredChecks` set, the harness judges each workflow run by
-   its other jobs, so a run whose only failed job is ignored passes. A
+   its other jobs, so a run whose only failed job is ignored passes when
+   every other job passes. When an ignored job fails and GitHub cancels
+   another job of the same run, for example through the default
+   `strategy.fail-fast` of a matrix, that job never finished: the harness
+   hands the issue to a person with the reason `main checks cut short` and
+   halts, and the issue stays open. Set `fail-fast: false` on a matrix
+   with an ignored job to avoid this. A
    failed or errored commit status, or a workflow run or check run that
    ends with `failure`, `timed_out` or
    `action_required`, fails the checks. The harness does not rerun a
@@ -409,8 +415,8 @@ review.
 
 A halt that leaves a commit on the base, or a push or revert that may be on
 it, with checks nobody awaited (`checks error`, `push unknown`,
-`main checks timeout`, `main checks cancelled`, an error or a failed setup
-on such a resume before the base is checked, or a stop or kill while the run
+`main checks timeout`, `main checks cancelled`, `main checks cut short`, an
+error or a failed setup on such a resume before the base is checked, or a stop or kill while the run
 pushes a change to the base, waits for the checks of a commit it landed, or
 fixes the failed checks of that commit before the fix lands or the revert of
 that commit ends) is
@@ -669,30 +675,30 @@ because no pull request is opened.
 }
 ```
 
-| Field                   | Default            | Effect                                                                                                                                                                                                    |
-| ----------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `remote`                | `origin`           | The git remote for the repository and the branches                                                                                                                                                        |
-| `issueLimit`            | `100`              | The maximum number of open issues to read. With `labels.ready` set, only issues with the ready, in-progress or in-review label count                                                                      |
-| `concurrency`           | `1`                | The most issues that a run handles at the same time                                                                                                                                                       |
-| `huntCap`               | `1`                | With `--hunt`, the hunter hunts only while fewer ready issues than this wait besides the running ones                                                                                                     |
-| `maxCiFixes`            | `5`                | The budget for check fixes per issue                                                                                                                                                                      |
-| `maxCommitFixes`        | `10`               | The budget for fixes of a commit that a git hook stopped, per issue                                                                                                                                       |
-| `maxReviewRounds`       | `5`                | The budget for review rounds per issue                                                                                                                                                                    |
-| `checkIntervalSeconds`  | `15`               | The time between two check states, at most `2147483`                                                                                                                                                      |
-| `checkGraceSeconds`     | `60`               | The time to wait for the first check to show, and for more checks after they all pass; the grace ends at the `checkTimeoutMinutes` limit, where checks that all pass, or no checks, still count as a pass |
-| `checkTimeoutMinutes`   | `60`               | The limit for one check wait, at most `35791`                                                                                                                                                             |
-| `agentTimeoutMinutes`   | `30`               | The limit for one agent call, at most `35791`                                                                                                                                                             |
-| `setupTimeoutMinutes`   | `15`               | The limit for the setup command, at most `35791`                                                                                                                                                          |
-| `commandTimeoutMinutes` | `10`               | The limit for one `git` or `gh` command, at most `35791`                                                                                                                                                  |
-| `logMaxChars`           | `20000`            | The maximum length of the failed job logs, shared between the failed GitHub Actions runs (failed external checks are listed by name and link only)                                                        |
-| `diffMaxChars`          | `60000`            | The maximum length of the diff that the reviewer reads                                                                                                                                                    |
-| `keepRunDays`           | `7`                | The number of days to keep the run files; `0` keeps them all                                                                                                                                              |
-| `checks`                | `[]`               | Shell commands that must pass in the worktree, in order, before an approved change is pushed; a failure goes to the fixer                                                                                 |
-| `checksTimeoutMinutes`  | `30`               | The limit for one command in `checks`, at most `35791`                                                                                                                                                    |
-| `ignoredChecks`         | `[]`               | Names of GitHub Actions jobs, check runs and commit statuses, such as `release`, that the checks on the base branch do not wait for and whose failure does not count                                      |
-| `setupCommand`          | from the lock file | A shell command to run in a new worktree, before the implementer, and after each merge of the base before the `checks`                                                                                    |
-| `models`                | `null` per role    | The pi model per agent role, as `provider/model`: `implementer`, `reviewer`, `fixer`                                                                                                                      |
-| `labels`                | see above          | The names of the labels that the harness reads and sets                                                                                                                                                   |
+| Field                   | Default            | Effect                                                                                                                                                                                                          |
+| ----------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `remote`                | `origin`           | The git remote for the repository and the branches                                                                                                                                                              |
+| `issueLimit`            | `100`              | The maximum number of open issues to read. With `labels.ready` set, only issues with the ready, in-progress or in-review label count                                                                            |
+| `concurrency`           | `1`                | The most issues that a run handles at the same time                                                                                                                                                             |
+| `huntCap`               | `1`                | With `--hunt`, the hunter hunts only while fewer ready issues than this wait besides the running ones                                                                                                           |
+| `maxCiFixes`            | `5`                | The budget for check fixes per issue                                                                                                                                                                            |
+| `maxCommitFixes`        | `10`               | The budget for fixes of a commit that a git hook stopped, per issue                                                                                                                                             |
+| `maxReviewRounds`       | `5`                | The budget for review rounds per issue                                                                                                                                                                          |
+| `checkIntervalSeconds`  | `15`               | The time between two check states, at most `2147483`                                                                                                                                                            |
+| `checkGraceSeconds`     | `60`               | The time to wait for the first check to show, and for more checks after they all pass; the grace ends at the `checkTimeoutMinutes` limit, where checks that all pass, or no checks, still count as a pass       |
+| `checkTimeoutMinutes`   | `60`               | The limit for one check wait, at most `35791`                                                                                                                                                                   |
+| `agentTimeoutMinutes`   | `30`               | The limit for one agent call, at most `35791`                                                                                                                                                                   |
+| `setupTimeoutMinutes`   | `15`               | The limit for the setup command, at most `35791`                                                                                                                                                                |
+| `commandTimeoutMinutes` | `10`               | The limit for one `git` or `gh` command, at most `35791`                                                                                                                                                        |
+| `logMaxChars`           | `20000`            | The maximum length of the failed job logs, shared between the failed GitHub Actions runs (failed external checks are listed by name and link only)                                                              |
+| `diffMaxChars`          | `60000`            | The maximum length of the diff that the reviewer reads                                                                                                                                                          |
+| `keepRunDays`           | `7`                | The number of days to keep the run files; `0` keeps them all                                                                                                                                                    |
+| `checks`                | `[]`               | Shell commands that must pass in the worktree, in order, before an approved change is pushed; a failure goes to the fixer                                                                                       |
+| `checksTimeoutMinutes`  | `30`               | The limit for one command in `checks`, at most `35791`                                                                                                                                                          |
+| `ignoredChecks`         | `[]`               | Names of GitHub Actions jobs, check runs and commit statuses, such as `release`, that the checks on the base branch do not wait for and whose failure does not count, unless it makes GitHub cancel another job |
+| `setupCommand`          | from the lock file | A shell command to run in a new worktree, before the implementer, and after each merge of the base before the `checks`                                                                                          |
+| `models`                | `null` per role    | The pi model per agent role, as `provider/model`: `implementer`, `reviewer`, `fixer`                                                                                                                            |
+| `labels`                | see above          | The names of the labels that the harness reads and sets                                                                                                                                                         |
 
 The hunter adds `labels.hunt` to each issue it files, so you can tell those
 issues apart from your own and filter them.

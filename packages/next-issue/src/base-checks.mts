@@ -45,6 +45,8 @@ const AWAITS_APPROVAL = 'action_required';
 
 const FAILED_CONCLUSIONS = new Set(['failure', 'timed_out', 'startup_failure', AWAITS_APPROVAL]);
 
+const CUT = 'cut';
+
 function jsonLines<T>(raw: string): T[] {
   return raw
     .split('\n')
@@ -98,7 +100,12 @@ async function withoutIgnored(
   if (!kept.every(completedJob)) {
     return { ...run, status: 'in_progress', conclusion: '', jobs: kept };
   }
-  const judged = { ...run, status: 'completed', conclusion: jobsConclusion(kept), jobs: kept };
+  const judged = {
+    ...run,
+    status: 'completed',
+    conclusion: jobsConclusion(kept, run.conclusion !== 'cancelled' && jobs.some(failedRun)),
+    jobs: kept,
+  };
   if (run.status !== 'completed' && rerunnable(judged)) {
     return { ...run, status: 'in_progress', conclusion: '', jobs: kept };
   }
@@ -109,11 +116,14 @@ function completedJob(job: Job): boolean {
   return job.status === 'completed';
 }
 
-function jobsConclusion(jobs: Job[]): string {
-  if (jobs.some(failedRun)) {
+function jobsConclusion(kept: Job[], anyFailed: boolean): string {
+  if (kept.some(failedRun)) {
     return 'failure';
   }
-  return jobs.some((job) => job.conclusion === 'cancelled') ? 'cancelled' : 'success';
+  if (!kept.some((job) => job.conclusion === 'cancelled')) {
+    return 'success';
+  }
+  return anyFailed ? CUT : 'cancelled';
 }
 
 async function externalChecks(repo: Repo, sha: string, ignored: string[]): Promise<Check[]> {
@@ -191,7 +201,10 @@ function baseState(runs: BaseRun[], external: Check[]): CheckState {
   if (checks.some(failedRun)) {
     return 'fail';
   }
-  return checks.some((entry) => entry.conclusion === 'cancelled') ? 'cancelled' : 'pass';
+  if (checks.some((entry) => entry.conclusion === 'cancelled')) {
+    return 'cancelled';
+  }
+  return checks.some((entry) => entry.conclusion === CUT) ? 'cut' : 'pass';
 }
 
 export function waitForBaseChecks(

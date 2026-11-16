@@ -4,7 +4,15 @@ import { minutesToMs, secondsToMs } from './durations.mts';
 import { asError } from './errors.mts';
 import { type Clock, type Polling, pause, REAL_CLOCK } from './poll.mts';
 
-export type CheckState = 'pass' | 'fail' | 'pending' | 'none' | 'timeout' | 'moved' | 'cancelled';
+export type CheckState =
+  | 'pass'
+  | 'fail'
+  | 'pending'
+  | 'none'
+  | 'timeout'
+  | 'moved'
+  | 'cancelled'
+  | 'cut';
 
 const READ_TRIES = 3;
 

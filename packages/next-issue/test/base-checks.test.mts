@@ -22,7 +22,11 @@ function jsonLines(items: unknown[]): string {
 }
 
 function pushRuns(runs: unknown[]): unknown[] {
-  return runs.map((entry) => ({ event: 'push', branch: 'main', ...(entry as object) }));
+  return runs.map((entry) => ({
+    event: 'push',
+    branch: 'main',
+    ...(entry as object),
+  }));
 }
 
 async function fakeRunsGh(
@@ -65,7 +69,12 @@ const BASE_WAIT = { intervalSeconds: 1, graceMs: 0, timeoutMs: 10_000 };
 test('waitForBaseChecks passes when every run on the commit ends without a failure or a cancel', async (t) => {
   const dir = await fakeRunsGh(t, [
     { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'success' },
-    { databaseId: 2, name: 'Deploy', status: 'completed', conclusion: 'success' },
+    {
+      databaseId: 2,
+      name: 'Deploy',
+      status: 'completed',
+      conclusion: 'success',
+    },
     { databaseId: 3, name: 'Docs', status: 'completed', conclusion: 'skipped' },
   ]);
   assert.equal(
@@ -88,7 +97,12 @@ test('waitForBaseChecks reports cancelled when every run on the commit was cance
 test('waitForBaseChecks reports cancelled when the CI run on the commit was cancelled and another workflow succeeded', async (t) => {
   const dir = await fakeRunsGh(t, [
     { databaseId: 1, name: 'ci', status: 'completed', conclusion: 'cancelled' },
-    { databaseId: 2, name: 'release', status: 'completed', conclusion: 'success' },
+    {
+      databaseId: 2,
+      name: 'release',
+      status: 'completed',
+      conclusion: 'success',
+    },
   ]);
   assert.equal(
     await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
@@ -109,7 +123,12 @@ test('waitForBaseChecks fails as soon as one run on the commit fails', async (t)
 
 test('waitForBaseChecks fails when a workflow run on the commit ends waiting for someone to approve it', async (t) => {
   const dir = await fakeRunsGh(t, [
-    { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'action_required' },
+    {
+      databaseId: 1,
+      name: 'CI',
+      status: 'completed',
+      conclusion: 'action_required',
+    },
     { databaseId: 2, name: 'Docs', status: 'completed', conclusion: 'success' },
   ]);
   assert.equal(
@@ -122,12 +141,36 @@ test('rerunFailedBase reruns a failed workflow run and leaves one that waits for
   const dir = await fakeRunsGh(
     t,
     [
-      { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'action_required', attempt: 1 },
-      { databaseId: 2, name: 'Lint', status: 'completed', conclusion: 'failure', attempt: 1 },
+      {
+        databaseId: 1,
+        name: 'CI',
+        status: 'completed',
+        conclusion: 'action_required',
+        attempt: 1,
+      },
+      {
+        databaseId: 2,
+        name: 'Lint',
+        status: 'completed',
+        conclusion: 'failure',
+        attempt: 1,
+      },
     ],
     [
-      { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'action_required', attempt: 1 },
-      { databaseId: 2, name: 'Lint', status: 'queued', conclusion: '', attempt: 2 },
+      {
+        databaseId: 1,
+        name: 'CI',
+        status: 'completed',
+        conclusion: 'action_required',
+        attempt: 1,
+      },
+      {
+        databaseId: 2,
+        name: 'Lint',
+        status: 'queued',
+        conclusion: '',
+        attempt: 2,
+      },
     ],
   );
   const repo = { owner: 'acme', name: 'tool', root: dir };
@@ -148,7 +191,13 @@ function passedRuns(count: number): unknown[] {
 test('waitForBaseChecks fails when the commit has more than 20 runs and one beyond the first 20 fails', async (t) => {
   const dir = await fakeRunsGh(t, [
     ...passedRuns(20),
-    { databaseId: 21, name: 'Release', status: 'completed', conclusion: 'failure', attempt: 1 },
+    {
+      databaseId: 21,
+      name: 'Release',
+      status: 'completed',
+      conclusion: 'failure',
+      attempt: 1,
+    },
   ]);
   assert.equal(
     await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
@@ -157,7 +206,12 @@ test('waitForBaseChecks fails when the commit has more than 20 runs and one beyo
 });
 
 test('rerunFailedBase and failedBaseLogs cover a failed run beyond the first 20 runs on the commit', async (t) => {
-  const failed = { databaseId: 21, name: 'Release', status: 'completed', conclusion: 'failure' };
+  const failed = {
+    databaseId: 21,
+    name: 'Release',
+    status: 'completed',
+    conclusion: 'failure',
+  };
   const dir = await fakeRunsGh(
     t,
     [...passedRuns(20), { ...failed, attempt: 1 }],
@@ -267,7 +321,13 @@ test('waitForBaseChecks passes when every run and every commit status on the com
     [],
     {
       checkRuns: [
-        { name: 'CI job', status: 'in_progress', conclusion: null, app: 'github-actions', url: '' },
+        {
+          name: 'CI job',
+          status: 'in_progress',
+          conclusion: null,
+          app: 'github-actions',
+          url: '',
+        },
       ],
       statuses: [[{ name: 'ci/jenkins', state: 'success', url: '' }]],
     },
@@ -282,12 +342,36 @@ test('rerunFailedBase reruns the failed jobs of the failed runs on the commit on
   const dir = await fakeRunsGh(
     t,
     [
-      { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'failure', attempt: 1 },
-      { databaseId: 2, name: 'Docs', status: 'completed', conclusion: 'success', attempt: 1 },
+      {
+        databaseId: 1,
+        name: 'CI',
+        status: 'completed',
+        conclusion: 'failure',
+        attempt: 1,
+      },
+      {
+        databaseId: 2,
+        name: 'Docs',
+        status: 'completed',
+        conclusion: 'success',
+        attempt: 1,
+      },
     ],
     [
-      { databaseId: 1, name: 'CI', status: 'queued', conclusion: '', attempt: 2 },
-      { databaseId: 2, name: 'Docs', status: 'completed', conclusion: 'success', attempt: 1 },
+      {
+        databaseId: 1,
+        name: 'CI',
+        status: 'queued',
+        conclusion: '',
+        attempt: 2,
+      },
+      {
+        databaseId: 2,
+        name: 'Docs',
+        status: 'completed',
+        conclusion: 'success',
+        attempt: 1,
+      },
     ],
   );
   const sent: string[] = [];
@@ -358,8 +442,20 @@ test('failedBaseLogs gives the one failed run the whole log budget when external
     [],
     {
       checkRuns: [
-        { name: 'deploy', status: 'completed', conclusion: 'failure', app: 'vercel', url: '' },
-        { name: 'bot', status: 'completed', conclusion: 'failure', app: 'bot', url: '' },
+        {
+          name: 'deploy',
+          status: 'completed',
+          conclusion: 'failure',
+          app: 'vercel',
+          url: '',
+        },
+        {
+          name: 'bot',
+          status: 'completed',
+          conclusion: 'failure',
+          app: 'bot',
+          url: '',
+        },
       ],
       statuses: [[{ name: 'ci/jenkins', state: 'failure', url: '' }]],
     },
@@ -379,7 +475,13 @@ test('failedBaseLogs gives the one failed run the whole log budget when external
 });
 
 const ISSUE_RUNS = [
-  { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'success', attempt: 1 },
+  {
+    databaseId: 1,
+    name: 'CI',
+    status: 'completed',
+    conclusion: 'success',
+    attempt: 1,
+  },
   {
     databaseId: 2,
     name: 'Triage',
@@ -435,7 +537,13 @@ test('a user whose landed commit has a passed push run and a failed issues run g
 });
 
 const OTHER_REF_RUNS = [
-  { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'success', attempt: 1 },
+  {
+    databaseId: 1,
+    name: 'CI',
+    status: 'completed',
+    conclusion: 'success',
+    attempt: 1,
+  },
   {
     databaseId: 2,
     name: 'Release',
@@ -472,7 +580,13 @@ test('waitForBaseChecks passes when the push run of the base branch passes, what
 
 test('waitForBaseChecks fails when the push run of the base branch fails', async (t) => {
   const dir = await fakeRunsGh(t, [
-    { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'failure', attempt: 1 },
+    {
+      databaseId: 1,
+      name: 'CI',
+      status: 'completed',
+      conclusion: 'failure',
+      attempt: 1,
+    },
   ]);
   assert.equal(
     await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
@@ -489,7 +603,9 @@ test('rerunFailedBase and failedBaseLogs leave out a failed push run of a tag or
 
 test('a user whose landed commit has a passed push run on the base branch and a failed push run on a tag gets the issue closed and done', async (t) => {
   const target = await harness(t, { config: { checkGraceSeconds: 0 } });
-  await fakeRunsGh(t, OTHER_REF_RUNS.slice(0, 2), OTHER_REF_RUNS.slice(0, 2), { sha: '2' });
+  await fakeRunsGh(t, OTHER_REF_RUNS.slice(0, 2), OTHER_REF_RUNS.slice(0, 2), {
+    sha: '2',
+  });
   target.context.ports.waitForBaseChecks = waitForBaseChecks;
   target.context.ports.rerunFailedBase = rerunFailedBase;
   target.context.ports.failedBaseLogs = failedBaseLogs;
@@ -673,7 +789,13 @@ const FAILED_CI = {
   conclusion: 'failure',
   attempt: 1,
 };
-const QUEUED_CI = { databaseId: 1, name: 'CI', status: 'queued', conclusion: '', attempt: 2 };
+const QUEUED_CI = {
+  databaseId: 1,
+  name: 'CI',
+  status: 'queued',
+  conclusion: '',
+  attempt: 2,
+};
 const PASSED_CI = {
   databaseId: 1,
   name: 'CI',
@@ -764,7 +886,11 @@ const RUNNING_E2E = {
   conclusion: '',
   attempt: 1,
 };
-const FAILED_E2E = { ...RUNNING_E2E, status: 'completed', conclusion: 'failure' };
+const FAILED_E2E = {
+  ...RUNNING_E2E,
+  status: 'completed',
+  conclusion: 'failure',
+};
 const QUEUED_E2E = { ...RUNNING_E2E, status: 'queued', attempt: 2 };
 
 test(
@@ -826,11 +952,19 @@ test(
 );
 
 test('a user whose landed commit fails only a check from another CI service gets the log saying no workflow run was rerun before the fixer', async (t) => {
-  const target = await harness(t, { config: { checkGraceSeconds: 0, checkIntervalSeconds: 1 } });
+  const target = await harness(t, {
+    config: { checkGraceSeconds: 0, checkIntervalSeconds: 1 },
+  });
   await fakeRunsGh(t, [], [], {
     sha: '2',
     checkRuns: [
-      { name: 'buildkite', status: 'completed', conclusion: 'failure', app: 'buildkite', url: '' },
+      {
+        name: 'buildkite',
+        status: 'completed',
+        conclusion: 'failure',
+        app: 'buildkite',
+        url: '',
+      },
     ],
   });
   target.context.ports.waitForBaseChecks = waitForBaseChecks;
@@ -853,13 +987,25 @@ const RELEASE_FAILED_CI = {
 };
 const RELEASE_FAILED_JOBS = {
   1: [
-    { databaseId: 11, name: 'check', status: 'completed', conclusion: 'success' },
-    { databaseId: 12, name: 'release', status: 'completed', conclusion: 'failure' },
+    {
+      databaseId: 11,
+      name: 'check',
+      status: 'completed',
+      conclusion: 'success',
+    },
+    {
+      databaseId: 12,
+      name: 'release',
+      status: 'completed',
+      conclusion: 'failure',
+    },
   ],
 };
 
 test('waitForBaseChecks passes when the only failed job of a workflow run is in the ignored checks', async (t) => {
-  const dir = await fakeRunsGh(t, [RELEASE_FAILED_CI], [], { jobs: RELEASE_FAILED_JOBS });
+  const dir = await fakeRunsGh(t, [RELEASE_FAILED_CI], [], {
+    jobs: RELEASE_FAILED_JOBS,
+  });
   const repo = { owner: 'acme', name: 'tool', root: dir };
   assert.equal(await waitForBaseChecks(repo, 'abc', 'main', BASE_WAIT, [], ['release']), 'pass');
   assert.equal(await waitForBaseChecks(repo, 'abc', 'main', BASE_WAIT, [], []), 'fail');
@@ -868,13 +1014,31 @@ test('waitForBaseChecks passes when the only failed job of a workflow run is in 
 test('waitForBaseChecks does not wait for an ignored job that still runs once every other job passed', async (t) => {
   const dir = await fakeRunsGh(
     t,
-    [{ databaseId: 1, name: 'ci', status: 'in_progress', conclusion: '', attempt: 1 }],
+    [
+      {
+        databaseId: 1,
+        name: 'ci',
+        status: 'in_progress',
+        conclusion: '',
+        attempt: 1,
+      },
+    ],
     [],
     {
       jobs: {
         1: [
-          { databaseId: 11, name: 'check', status: 'completed', conclusion: 'success' },
-          { databaseId: 12, name: 'release', status: 'waiting', conclusion: '' },
+          {
+            databaseId: 11,
+            name: 'check',
+            status: 'completed',
+            conclusion: 'success',
+          },
+          {
+            databaseId: 12,
+            name: 'release',
+            status: 'waiting',
+            conclusion: '',
+          },
         ],
       },
     },
@@ -886,11 +1050,26 @@ test('waitForBaseChecks does not wait for an ignored job that still runs once ev
 test('waitForBaseChecks keeps waiting for a running workflow run whose listed jobs have all finished', async (t) => {
   const dir = await fakeRunsGh(
     t,
-    [{ databaseId: 1, name: 'ci', status: 'in_progress', conclusion: '', attempt: 1 }],
+    [
+      {
+        databaseId: 1,
+        name: 'ci',
+        status: 'in_progress',
+        conclusion: '',
+        attempt: 1,
+      },
+    ],
     [],
     {
       jobs: {
-        1: [{ databaseId: 11, name: 'check', status: 'completed', conclusion: 'success' }],
+        1: [
+          {
+            databaseId: 11,
+            name: 'check',
+            status: 'completed',
+            conclusion: 'success',
+          },
+        ],
       },
     },
   );
@@ -912,8 +1091,18 @@ test('waitForBaseChecks fails when a job outside the ignored checks fails next t
   const dir = await fakeRunsGh(t, [RELEASE_FAILED_CI], [], {
     jobs: {
       1: [
-        { databaseId: 11, name: 'check', status: 'completed', conclusion: 'failure' },
-        { databaseId: 12, name: 'release', status: 'completed', conclusion: 'failure' },
+        {
+          databaseId: 11,
+          name: 'check',
+          status: 'completed',
+          conclusion: 'failure',
+        },
+        {
+          databaseId: 12,
+          name: 'release',
+          status: 'completed',
+          conclusion: 'failure',
+        },
       ],
     },
   });
@@ -924,8 +1113,20 @@ test('waitForBaseChecks fails when a job outside the ignored checks fails next t
 test('waitForBaseChecks leaves out a check run and a commit status whose names are in the ignored checks', async (t) => {
   const dir = await fakeRunsGh(t, [], [], {
     checkRuns: [
-      { name: 'deploy', status: 'completed', conclusion: 'failure', app: 'vercel', url: '' },
-      { name: 'build', status: 'completed', conclusion: 'success', app: 'circleci', url: '' },
+      {
+        name: 'deploy',
+        status: 'completed',
+        conclusion: 'failure',
+        app: 'vercel',
+        url: '',
+      },
+      {
+        name: 'build',
+        status: 'completed',
+        conclusion: 'success',
+        app: 'circleci',
+        url: '',
+      },
     ],
     statuses: [[{ name: 'ci/jenkins', state: 'pending', url: '' }]],
   });
@@ -937,7 +1138,9 @@ test('waitForBaseChecks leaves out a check run and a commit status whose names a
 });
 
 test('rerunFailedBase and failedBaseLogs leave out a run whose only failed job is in the ignored checks', async (t) => {
-  const dir = await fakeRunsGh(t, [RELEASE_FAILED_CI], [], { jobs: RELEASE_FAILED_JOBS });
+  const dir = await fakeRunsGh(t, [RELEASE_FAILED_CI], [], {
+    jobs: RELEASE_FAILED_JOBS,
+  });
   const repo = { owner: 'acme', name: 'tool', root: dir };
   assert.equal(await failedBaseLogs(repo, 'abc', 'main', 1000, ['release']), '');
   assert.deepEqual(await rerunFailedBase(repo, 'abc', 'main', () => {}, ['release']), []);
@@ -947,12 +1150,28 @@ test('failedBaseLogs gives the logs of the failed jobs outside the ignored check
   const dir = await fakeRunsGh(t, [RELEASE_FAILED_CI], [], {
     jobs: {
       1: [
-        { databaseId: 11, name: 'check', status: 'completed', conclusion: 'failure' },
-        { databaseId: 12, name: 'release', status: 'completed', conclusion: 'failure' },
+        {
+          databaseId: 11,
+          name: 'check',
+          status: 'completed',
+          conclusion: 'failure',
+        },
+        {
+          databaseId: 12,
+          name: 'release',
+          status: 'completed',
+          conclusion: 'failure',
+        },
       ],
     },
     checkRuns: [
-      { name: 'deploy', status: 'completed', conclusion: 'failure', app: 'vercel', url: '' },
+      {
+        name: 'deploy',
+        status: 'completed',
+        conclusion: 'failure',
+        app: 'vercel',
+        url: '',
+      },
     ],
   });
   const report = await failedBaseLogs(
@@ -970,7 +1189,12 @@ test('failedBaseLogs gives the logs of the failed jobs outside the ignored check
 for (const ignoredChecks of [['release'], []]) {
   test(`a user whose landed commit fails only the release job ${ignoredChecks.length > 0 ? 'with release in ignoredChecks gets the issue closed and done' : 'with no ignoredChecks gets the fixer and no close'}`, async (t) => {
     const target = await harness(t, {
-      config: { checkGraceSeconds: 0, checkIntervalSeconds: 1, maxCiFixes: 0, ignoredChecks },
+      config: {
+        checkGraceSeconds: 0,
+        checkIntervalSeconds: 1,
+        maxCiFixes: 0,
+        ignoredChecks,
+      },
     });
     await fakeRunsGh(t, [RELEASE_FAILED_CI], [{ ...RELEASE_FAILED_CI, attempt: 2 }], {
       sha: '2',
@@ -993,9 +1217,74 @@ for (const ignoredChecks of [['release'], []]) {
   });
 }
 
-const TEST_FAILED = { databaseId: 11, name: 'test', status: 'completed', conclusion: 'failure' };
-const RELEASE_RUNNING = { databaseId: 12, name: 'release', status: 'in_progress', conclusion: '' };
-const RELEASE_PASSED = { ...RELEASE_RUNNING, status: 'completed', conclusion: 'success' };
+for (const [runConclusion, reason, comment] of [
+  [
+    'failure',
+    'main checks cut short',
+    /needs help: A job in `ignoredChecks` failed on main and GitHub cancelled another job of its workflow run before it finished/,
+  ],
+  [
+    'cancelled',
+    'main checks cancelled',
+    /needs help: The checks on main were cancelled before they finished/,
+  ],
+] as const) {
+  test(`a user whose ignored matrix job fails while a kept one is cancelled in a run that ends ${runConclusion} gets a hand-over with ${reason}`, async (t) => {
+    const target = await harness(t, {
+      config: {
+        checkGraceSeconds: 0,
+        checkIntervalSeconds: 1,
+        ignoredChecks: ['test (windows-latest)'],
+      },
+    });
+    await fakeRunsGh(t, [{ ...RELEASE_FAILED_CI, conclusion: runConclusion }], [], {
+      sha: '2',
+      jobs: {
+        1: [
+          {
+            databaseId: 11,
+            name: 'test (ubuntu-latest)',
+            status: 'completed',
+            conclusion: 'cancelled',
+          },
+          {
+            databaseId: 12,
+            name: 'test (windows-latest)',
+            status: 'completed',
+            conclusion: 'failure',
+          },
+        ],
+      },
+    });
+    target.context.ports.waitForBaseChecks = waitForBaseChecks;
+    target.context.ports.rerunFailedBase = rerunFailedBase;
+    target.context.ports.failedBaseLogs = failedBaseLogs;
+    const report = await target.run();
+    assert.equal(report.outcome, 'needs-human');
+    assert.equal(report.reason, reason);
+    assert.equal(report.halt, true);
+    assert.match(target.comments.at(-1)!, comment);
+    assert.deepEqual(target.reverts, []);
+  });
+}
+
+const TEST_FAILED = {
+  databaseId: 11,
+  name: 'test',
+  status: 'completed',
+  conclusion: 'failure',
+};
+const RELEASE_RUNNING = {
+  databaseId: 12,
+  name: 'release',
+  status: 'in_progress',
+  conclusion: '',
+};
+const RELEASE_PASSED = {
+  ...RELEASE_RUNNING,
+  status: 'completed',
+  conclusion: 'success',
+};
 const RUNNING_RUN = {
   databaseId: 1,
   name: 'ci',
