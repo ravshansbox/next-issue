@@ -256,8 +256,11 @@ the run handles one issue. For each issue:
    was rerun, a run that waits for approval, a check from another CI
    service) waits until every check has finished, so a workflow run that
    fails later, even after the first rerun started, still gets its own
-   rerun before any fixer. A rerun that GitHub refuses because the run
-   is already running counts as started. When at least one run restarted
+   rerun before any fixer. A workflow run whose kept job failed while a
+   job in `ignoredChecks` still runs gets its rerun only once the whole
+   run has finished on GitHub, as GitHub refuses to rerun a running run.
+   A rerun that GitHub refuses because the run is already running counts
+   as started. When at least one run restarted
    and a later rerun or read fails, the event carries the error and the
    harness still waits for the checks again, counting each restarted run as
    running until a later attempt of it completes, so the fixer never runs

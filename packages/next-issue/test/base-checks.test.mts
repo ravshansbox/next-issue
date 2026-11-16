@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { failedBaseLogs, rerunFailedBase, waitForBaseChecks } from '../src/base-checks.mts';
 import { pollChecks } from '../src/check-poll.mts';
+import type { Config } from '../src/config.mts';
 import { fakeClock } from './fake-clock.mts';
 import { installGh } from './fake-gh.mts';
 import { harness } from './harness.mts';
@@ -582,19 +583,41 @@ for (const [checks, state] of [
 }
 
 type RerunPlan = {
+  before?: unknown[][];
   runs: unknown[];
   after: unknown[][];
   afterErrors?: Record<number, string>;
   refuse?: Record<number, string>;
 };
 
+type PlannedRun = { databaseId: number; status: string; jobs?: unknown[] };
+
+async function writeRuns(dir: string, file: string, runs: unknown[]): Promise<void> {
+  const planned = runs as PlannedRun[];
+  await writeFile(
+    join(dir, file),
+    jsonLines(pushRuns(planned.map((run) => ({ ...run, jobs: undefined })))),
+  );
+  for (const { databaseId, status, jobs } of planned) {
+    if (jobs) {
+      await writeFile(join(dir, `${file}.jobs.${databaseId}`), jsonLines(jobs));
+    }
+    if (status !== 'completed') {
+      await writeFile(join(dir, `${file}.running.${databaseId}`), '');
+    }
+  }
+}
+
 async function fakeRerunGh(t: TestContext, plan: RerunPlan): Promise<string> {
   const dir = await tempDir();
-  await writeFile(join(dir, 'runs'), jsonLines(pushRuns(plan.runs)));
-  for (const [index, reply] of plan.after.entries()) {
-    await writeFile(join(dir, `after.${index}`), jsonLines(pushRuns(reply)));
+  await writeRuns(dir, 'runs', plan.runs);
+  for (const [index, reply] of (plan.before ?? []).entries()) {
+    await writeRuns(dir, `before.${index}`, reply);
   }
-  await writeFile(join(dir, 'after.last'), jsonLines(pushRuns(plan.after.at(-1) ?? [])));
+  for (const [index, reply] of plan.after.entries()) {
+    await writeRuns(dir, `after.${index}`, reply);
+  }
+  await writeRuns(dir, 'after.last', plan.after.at(-1) ?? []);
   for (const [index, error] of Object.entries(plan.afterErrors ?? {})) {
     await writeFile(join(dir, `after-error.${index}`), error);
   }
@@ -605,16 +628,22 @@ async function fakeRerunGh(t: TestContext, plan: RerunPlan): Promise<string> {
 d="$(dirname "$0")"
 case "$*" in
   "api --paginate repos/acme/tool/actions/runs?head_sha=2&per_page=100 --jq "*)
-    if [ ! -f "$d/reruns" ]; then cat "$d/runs"; exit 0; fi
+    if [ ! -f "$d/reruns" ]; then
+      n=$(cat "$d/before-reads" 2>/dev/null || echo 0); echo $((n + 1)) > "$d/before-reads"
+      f="$d/before.$n"; [ -f "$f" ] || f="$d/runs"; echo "$f" > "$d/current"; cat "$f"; exit 0
+    fi
     n=$(cat "$d/after-reads" 2>/dev/null || echo 0); echo $((n + 1)) > "$d/after-reads"
     if [ -f "$d/after-error.$n" ]; then cat "$d/after-error.$n" >&2; exit 1; fi
-    f="$d/after.$n"; [ -f "$f" ] || f="$d/after.last"; cat "$f"; exit 0 ;;
+    f="$d/after.$n"; [ -f "$f" ] || f="$d/after.last"; echo "$f" > "$d/current"; cat "$f"; exit 0 ;;
+  "api --paginate repos/acme/tool/actions/runs/"*"/jobs?filter=latest&per_page=100 --jq "*) id="\${3#repos/acme/tool/actions/runs/}"; id="\${id%%/*}"; cat "$(cat "$d/current").jobs.$id" 2>/dev/null; exit 0 ;;
   "api --paginate repos/acme/tool/commits/2/check-runs?per_page=100 --jq "*) exit 0 ;;
   "api --paginate repos/acme/tool/commits/2/status?per_page=100 --jq "*) exit 0 ;;
 esac
 case "$1 $2" in
   "run view") echo "boom in $3" ;;
-  "run rerun") touch "$d/reruns"; if [ -f "$d/refuse.$3" ]; then cat "$d/refuse.$3" >&2; exit 1; fi; echo "$3" >> "$d/rerun-ids" ;;
+  "run rerun")
+    if [ -f "$(cat "$d/current").running.$3" ]; then echo "run $3 cannot be rerun; This workflow is already running" >&2; exit 1; fi
+    touch "$d/reruns"; if [ -f "$d/refuse.$3" ]; then cat "$d/refuse.$3" >&2; exit 1; fi; echo "$3" >> "$d/rerun-ids" ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `;
@@ -622,8 +651,10 @@ esac
   return dir;
 }
 
-async function rerunHarness(t: TestContext, plan: RerunPlan) {
-  const target = await harness(t, { config: { checkGraceSeconds: 0, checkIntervalSeconds: 1 } });
+async function rerunHarness(t: TestContext, plan: RerunPlan, config: Partial<Config> = {}) {
+  const target = await harness(t, {
+    config: { checkGraceSeconds: 0, checkIntervalSeconds: 1, ...config },
+  });
   const dir = await fakeRerunGh(t, plan);
   const fixerReads: string[] = [];
   target.context.ports.waitForBaseChecks = waitForBaseChecks;
@@ -961,3 +992,61 @@ for (const ignoredChecks of [['release'], []]) {
     }
   });
 }
+
+const TEST_FAILED = { databaseId: 11, name: 'test', status: 'completed', conclusion: 'failure' };
+const RELEASE_RUNNING = { databaseId: 12, name: 'release', status: 'in_progress', conclusion: '' };
+const RELEASE_PASSED = { ...RELEASE_RUNNING, status: 'completed', conclusion: 'success' };
+const RUNNING_RUN = {
+  databaseId: 1,
+  name: 'ci',
+  status: 'in_progress',
+  conclusion: '',
+  attempt: 1,
+};
+
+test(
+  'a user whose landed commit fails a kept job while an ignored job still runs gets the failure rerun once the run finishes and the issue done, not a timeout hand-over',
+  { timeout: 120_000 },
+  async (t) => {
+    const failing = { ...RUNNING_RUN, jobs: [TEST_FAILED, RELEASE_RUNNING] };
+    const { target, dir } = await rerunHarness(
+      t,
+      {
+        before: [[failing], [failing], [failing]],
+        runs: [
+          {
+            ...RUNNING_RUN,
+            status: 'completed',
+            conclusion: 'failure',
+            jobs: [TEST_FAILED, RELEASE_PASSED],
+          },
+        ],
+        after: [
+          [
+            {
+              ...RUNNING_RUN,
+              status: 'queued',
+              attempt: 2,
+              jobs: [{ ...TEST_FAILED, status: 'queued', conclusion: '' }, RELEASE_PASSED],
+            },
+          ],
+          [
+            {
+              ...RUNNING_RUN,
+              status: 'completed',
+              conclusion: 'success',
+              attempt: 2,
+              jobs: [{ ...TEST_FAILED, conclusion: 'success' }, RELEASE_PASSED],
+            },
+          ],
+        ],
+      },
+      { checkTimeoutMinutes: 1, ignoredChecks: ['release'] },
+    );
+    const report = await target.run();
+    assert.equal(report.outcome, 'done');
+    assert.equal(await readFile(join(dir, 'rerun-ids'), 'utf8'), '1\n');
+    assert.equal((await target.state())?.halted, undefined);
+    assert.deepEqual(target.reverts, []);
+  },
+);
