@@ -59,7 +59,7 @@ export async function runLocked(root: string, args: Args, controls: RunControls)
 }
 
 export async function runRepo(root: string, args: Args, controls: RunControls): Promise<number> {
-  const config = await loadConfig(root);
+  const config = await loadConfig(root, { sortFile: true });
   return withDefaultTimeout(minutesToMs(config.commandTimeoutMinutes), () =>
     runWithConfig(root, args, controls, config),
   );

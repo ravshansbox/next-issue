@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { CONFIG_FILE } from '../src/config-fields.mts';
 import { type Config, loadConfig, managedLabels, writeDefaultConfig } from '../src/config.mts';
+import { keysSorted } from './sorted-keys.mts';
 import { tempDir } from './temp-dir.mts';
 
 async function parse(value: unknown): Promise<Config> {
@@ -245,6 +246,22 @@ test('writeDefaultConfig writes a file that gives the defaults', async () => {
     reviewer: null,
     fixer: null,
   });
+});
+
+test('a user who runs init finds the keys of the config file sorted at every level', async () => {
+  const path = await writeDefaultConfig(await root(), false);
+  const written = JSON.parse(await readFile(path, 'utf8'));
+  assert.ok(keysSorted(written));
+  assert.deepEqual(Object.keys(written.labels), [
+    'done',
+    'hunt',
+    'inProgress',
+    'inReview',
+    'needsHuman',
+    'ready',
+    'skip',
+  ]);
+  assert.deepEqual(Object.keys(written.models), ['fixer', 'implementer', 'reviewer']);
 });
 
 test('writeDefaultConfig keeps an existing file without force', async () => {
