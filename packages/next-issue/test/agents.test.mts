@@ -249,6 +249,16 @@ test('the harness gets the last text, the tool calls and the model of a pi agent
   assert.ok(result.usage.total > 0);
 });
 
+test('a verbose run prints the text of a pi agent to the output of its recorder', async () => {
+  const { request } = await fakePi([fauxAssistantMessage('agent says hello')]);
+  let output = '';
+  const recorder = await Recorder.create(request.cwd, 'verbose', undefined, undefined, (text) => {
+    output += text;
+  });
+  await runAgent(recorder, request);
+  assert.match(output, /agent says hello/);
+});
+
 test('the harness records a usage event without a cost for a pi agent', async () => {
   const { recorder, request } = await fakePi([fauxAssistantMessage('done')]);
   const result = await runAgent(recorder, request);

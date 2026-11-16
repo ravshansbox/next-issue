@@ -201,7 +201,7 @@ function observe(log: Recorder, event: AgentSessionEvent, cwd: string): void {
     event.assistantMessageEvent.type === 'text_delta' &&
     log.level === 'verbose'
   ) {
-    process.stderr.write(event.assistantMessageEvent.delta);
+    log.print(event.assistantMessageEvent.delta);
   }
 }
 

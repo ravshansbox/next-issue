@@ -11,6 +11,7 @@ import { startProgress } from './progress.mts';
 import { type ClientMessage, isNewer, type Progress } from './protocol.mts';
 import { type ListQuestions, listQuestions, questionSender, send } from './questions.mts';
 import { runRepo, type RunControls } from './run.mts';
+import type { RunSummary } from './summary.mts';
 import { type ListUpcoming, listUpcoming, sendUpcoming } from './upcoming.mts';
 import { packageVersion } from './version.mts';
 import { keepLogTrimmed, LOG_CHECK_MS } from './worker-log.mts';
@@ -40,6 +41,7 @@ import {
   type Owned,
   parseMessage,
   removeOwned,
+  sendAll,
   shutdown,
   type Worker,
 } from './worker-server.mts';
@@ -124,18 +126,35 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       broadcast(sockets, runs);
     };
     broadcast(sockets, runs);
+    let summary: RunSummary | undefined;
     withRunChildren(run.children, () =>
-      options.runRepo(
-        root,
-        args,
-        runControls(run, update, () =>
+      options.runRepo(root, args, {
+        ...runControls(run, update, () =>
           outsideRuns(() => void sendQuestions(root, () => sockets.clients)),
         ),
-      ),
+        output: (text) => {
+          process.stderr.write(text);
+          sendAll(sockets, { type: 'output', root, text });
+        },
+        ended: (ended) => {
+          summary = ended;
+        },
+      }),
     )
       .then(
-        () => update({ ...run.progress, status: endStatus(run) }),
-        (error: unknown) => update({ ...run.progress, status: 'failed', error: message(error) }),
+        (code) => {
+          update({ ...run.progress, status: endStatus(run) });
+          sendAll(sockets, {
+            type: 'end',
+            root,
+            code,
+            ...(summary === undefined ? {} : { summary }),
+          });
+        },
+        (error: unknown) => {
+          update({ ...run.progress, status: 'failed', error: message(error) });
+          sendAll(sockets, { type: 'end', root, code: 1, error: message(error) });
+        },
       )
       .finally(closeWhenIdle);
   };

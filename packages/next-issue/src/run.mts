@@ -31,6 +31,8 @@ export type RunControls = {
   interrupts: Interrupts;
   print?: (summary: RunSummary) => Promise<void>;
   onEvent?: (record: Fields) => void;
+  output?: (text: string) => void;
+  ended?: (summary: RunSummary) => void;
   // The worker passes a switch that its clients turn on and off; a command-line run keeps --hunt.
   hunting?: Switch;
   // The worker passes a switch that its clients turn on and off; a command-line run keeps --watch.
@@ -73,7 +75,13 @@ async function runWithConfig(
 ): Promise<number> {
   await checkGitVersion();
   const repo = await detectRepo(root, config.remote);
-  const recorder = await Recorder.create(repo.root, args.level, controls.onEvent);
+  const recorder = await Recorder.create(
+    repo.root,
+    args.level,
+    controls.onEvent,
+    undefined,
+    controls.output,
+  );
   try {
     const pruned = await pruneRuns(repo.root, config.keepRunDays);
     if (pruned > 0) {
@@ -112,6 +120,7 @@ async function handle(
   if (crash !== undefined) {
     throw crash.failure;
   }
+  controls.ended?.(summary);
   if (!args.watch) {
     await print(summary);
   }

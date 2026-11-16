@@ -24,6 +24,33 @@ export type Progress = {
   error?: string;
 };
 
+export type Usage = {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  total: number;
+};
+
+export type RunSummary = {
+  runId: string;
+  logFile: string;
+  roles: Record<string, Usage & { calls: number; ms: number }>;
+  counts: Record<string, number>;
+  total: Usage;
+  issues: {
+    issue: number;
+    outcome: 'done' | 'needs-human' | 'skipped' | 'error' | 'stopped';
+    reason?: string;
+    ciFixes: number;
+    reviewRounds: number;
+    ms: number;
+    halt?: boolean;
+    handedOver?: boolean;
+    blocked?: boolean;
+  }[];
+};
+
 export type Question = {
   issue: number;
   title: string;
@@ -60,6 +87,8 @@ export type WorkerMessage =
   | { type: 'questions-error'; root: string; message: string; id?: string }
   | ({ type: 'upcoming'; root: string } & Upcoming)
   | { type: 'upcoming-error'; root: string; message: string }
+  | { type: 'output'; root: string; text: string }
+  | { type: 'end'; root: string; code: number; summary?: RunSummary; error?: string }
   | { type: 'error'; root: string; message: string; id?: string };
 
 export function going(progress: Progress | undefined): progress is Progress {

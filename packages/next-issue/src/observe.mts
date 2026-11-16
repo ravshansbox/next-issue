@@ -29,11 +29,19 @@ class Sink {
   readonly level: Level;
   readonly file: string;
   private readonly listener: ((record: Fields) => void) | undefined;
+  readonly output: (text: string) => void;
   /** Set once the run log fails: the run goes on, and its events reach only the listener. */
   private failed = false;
 
-  constructor(stream: Writable, level: Level, file: string, listener?: (record: Fields) => void) {
+  constructor(
+    stream: Writable,
+    level: Level,
+    file: string,
+    listener: ((record: Fields) => void) | undefined,
+    output: (text: string) => void,
+  ) {
     this.stream = stream;
+    this.output = output;
     this.level = level;
     this.file = file;
     this.listener = listener;
@@ -46,7 +54,7 @@ class Sink {
       return;
     }
     this.failed = true;
-    process.stderr.write(
+    this.output(
       `next-issue: the run log ${this.file} cannot be written (${message(error)}); the run goes on without it\n`,
     );
   }
@@ -99,12 +107,13 @@ export class Recorder {
     level: Level,
     listener?: (record: Fields) => void,
     open: (file: string) => Writable = (file) => createWriteStream(file, { flags: 'a' }),
+    output: (text: string) => void = (text) => process.stderr.write(text),
   ): Promise<Recorder> {
     const runId = new Date().toISOString().replace(/[:.]/g, '-');
     const dir = runsDir(root);
     await mkdir(dir, { recursive: true });
     const file = join(dir, `${runId}.jsonl`);
-    const sink = new Sink(open(file), level, file, listener);
+    const sink = new Sink(open(file), level, file, listener, output);
     return new Recorder(sink, {}, runId);
   }
 
@@ -143,8 +152,12 @@ export class Recorder {
     };
     this.sink.write(record);
     if (VISIBILITY[this.sink.level] >= VISIBILITY[visibility]) {
-      process.stderr.write(render(record));
+      this.sink.output(render(record));
     }
+  }
+
+  print(text: string): void {
+    this.sink.output(text);
   }
 
   usage(role: string, usage: Usage, ms: number, fields: Fields = {}): void {

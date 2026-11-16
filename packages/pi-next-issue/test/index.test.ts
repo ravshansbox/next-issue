@@ -714,6 +714,23 @@ test('a user sees a note per handled issue and a note when the run finishes, and
   assert.equal(status.at(-1), undefined);
 });
 
+test('a user whose worker sends run output and the run end sees only the run notes and no error', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  const { pi, emit, notes, status } = host();
+  extension(pi as never);
+  await emit('session_start');
+  fake.update('/repo', running({ issues: [working(7)] }));
+  await until(() => status.length > 0);
+  fake.reply({ type: 'output', root: '/repo', text: '10:00:00 #7 issue.start\n' });
+  fake.update('/repo', { status: 'finished', hunting: false, issues: [], handled: [] });
+  fake.reply({ type: 'end', root: '/repo', code: 0 });
+  await until(() => notes.includes('next-issue finished'));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(notes, ['next-issue finished']);
+  assert.equal(status.at(-1), undefined);
+});
+
 test('a user whose run stops while pi is open sees a note and the run line cleared from the footer', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);

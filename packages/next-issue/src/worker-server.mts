@@ -2,7 +2,7 @@ import { rmSync, statSync } from 'node:fs';
 import type { Server } from 'node:http';
 import type { WebSocketServer } from 'ws';
 import type { HeldLock } from './lock.mts';
-import type { ClientMessage } from './protocol.mts';
+import type { ClientMessage, WorkerMessage } from './protocol.mts';
 import { send } from './questions.mts';
 import { type Run, runsMessage } from './worker-run.mts';
 
@@ -44,7 +44,10 @@ export function parseMessage(text: string): ClientMessage | undefined {
 }
 
 export function broadcast(sockets: WebSocketServer, runs: Map<string, Run>): void {
-  const value = runsMessage(runs);
+  sendAll(sockets, runsMessage(runs));
+}
+
+export function sendAll(sockets: WebSocketServer, value: WorkerMessage): void {
   for (const socket of sockets.clients) {
     send(socket, value);
   }
