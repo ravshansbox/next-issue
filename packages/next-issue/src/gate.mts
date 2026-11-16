@@ -208,7 +208,7 @@ function refusedNote(refused: string | undefined): string {
     : ` The last fixer called the failure unrelated, but the failed logs name \`${refused}\`, a file of this change, so the failure is not unrelated.`;
 }
 
-/** The first file of the change that the logs name, by its path or by a tail of its path that keeps a folder. */
+/** The first file of the change that the logs name, by its path or by a tail of its path that keeps a folder and has no folder before it. */
 function namedFile(logs: string, files: string[]): string | undefined {
   return files.find((file) => {
     const parts = file.split('/');
@@ -217,7 +217,9 @@ function namedFile(logs: string, files: string[]): string | undefined {
         ? [file]
         : parts.slice(0, -1).map((_, index) => parts.slice(index).join('/'));
     return tails.some((tail) =>
-      new RegExp(`(?<![\\w.-])${escapeRegExp(tail)}(?![\\w.-])`).test(logs),
+      new RegExp(
+        `(?<![\\w.${tail === file ? '' : '/'}-])${escapeRegExp(tail)}(?![\\w.-])`,
+      ).test(logs),
     );
   });
 }

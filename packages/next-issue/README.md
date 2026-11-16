@@ -368,10 +368,12 @@ and comments the reason on the issue, when:
   `<n>` branch when the issue is done. For the checks on the base, a failure
   in a file that the change added or changed is never unrelated: when the
   failed logs name such a file (by its path, or by a tail of its path that
-  keeps a folder), the harness refuses the claim and gives the fixer another
-  round from `maxCiFixes`, with a note that names the file. A later hand-over
-  comment of the same run, such as for a fix that fails its checks too or
-  fails to land, still names the dispute branch of each refused round;
+  keeps a folder and has no folder before it, so `packages/a/src/index.ts`
+  does not name `packages/b/src/index.ts`), the harness refuses the claim
+  and gives the fixer another round from `maxCiFixes`, with a note that
+  names the file. A later hand-over comment of the same run, such as for a
+  fix that fails its checks too or fails to land, still names the dispute
+  branch of each refused round;
 - a fixer disputes or settles the findings and leaves a change behind, either
   in the worktree or in a commit of its own. A dispute carries a reason, not a
   diff, and a retry of the issue cleans the worktree before the next review,

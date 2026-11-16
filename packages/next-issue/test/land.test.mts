@@ -256,6 +256,39 @@ test('a user whose fixer calls a failure in a test file that the change added un
   assert.deepEqual(target.reverts, []);
 });
 
+test('a user whose fixer calls a failure unrelated when the failed logs name a tail of a changed file with no folder before it gets the claim refused and another fix round', async (t) => {
+  const target = await harness(t, {
+    baseChecks: ['fail', 'pass'],
+    baseLogs: 'error at src/index.ts:12',
+    changedFiles: ['packages/b/src/index.ts'],
+    fixerText: ['unrelated: index.ts is flaky', 'Done.\ncommit: fix: repair the index'],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.equal(report.ciFixes, 2);
+  assert.match(
+    target.prompts[3]!.prompt,
+    /the failed logs name `packages\/b\/src\/index\.ts`, a file of this change/,
+  );
+});
+
+test('a user whose fixer calls a failure unrelated when the failed logs name a file of the same tail in another folder gets the change reverted and the issue handed over', async (t) => {
+  const target = await harness(t, {
+    baseChecks: ['fail'],
+    baseLogs: 'not ok 3 - /home/runner/work/tool/tool/packages/a/src/index.ts:12:5',
+    changedFiles: ['packages/b/src/index.ts'],
+    fixerText: 'unrelated: packages/a is a known flaky test',
+  });
+  const report = await target.run();
+  assert.equal(report.reason, 'unrelated failure');
+  assert.equal(report.ciFixes, 1);
+  assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer']);
+  assert.deepEqual(
+    target.reverts.map((entry) => entry.shas),
+    [['2']],
+  );
+});
+
 test('a user whose fixer calls a failure unrelated and whose read of the changed files then fails gets the change reverted and the issue handed over', async (t) => {
   const target = await harness(t, {
     baseChecks: ['fail'],
