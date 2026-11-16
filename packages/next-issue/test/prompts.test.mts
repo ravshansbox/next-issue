@@ -285,3 +285,10 @@ test('the hunter is told that the harness owns the worktree, git and the checks 
   );
   assert.match(prompt, /gh issue create --repo owner\/repo/);
 });
+
+test('the implementer is told to end with a done line with its evidence when the base already does the issue', () => {
+  assert.match(
+    implementPrompt(ISSUE, []),
+    /already does all that the issue asks, make no change and end your final message with one line in the form `done: <evidence/,
+  );
+});

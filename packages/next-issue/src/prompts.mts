@@ -31,6 +31,11 @@ const QUESTION_RULES = [
   'The harness then hands the issue to a person with your questions.',
 ].join('\n');
 
+const DONE_RULE = [
+  'When the base branch already does all that the issue asks, make no change and end your final message with one line in the form `done: <evidence that the base already does it, with files and lines>`.',
+  'A reviewer checks that claim. When it agrees, the harness closes the issue as done.',
+].join('\n');
+
 function issueBlock(issue: Issue, comments: string[]): string {
   return paragraphs([
     `# Issue #${issue.number}: ${issue.title}`,
@@ -68,6 +73,7 @@ export function implementPrompt(
     '## Rules',
     'Read the repository conventions first. Keep the change minimal and focused on the issue.',
     QUESTION_RULES,
+    DONE_RULE,
     ENGINEERING_RULES,
     'Add or update tests when the repository has a test suite.',
     'For a behaviour change, write the test first and run it before the change. Then quote its failing output in your final message.',
@@ -156,6 +162,21 @@ export function reviewPrompt(
     'End your final message with the result as a json block in a ```json fence, in the form {"summary": "<short summary>", "findings": [{"severity": "blocking" or "minor", "detail": "<what is wrong and where>"}]}.',
     'Give one entry per finding, and an empty list when nothing is wrong. The findings decide the outcome, so a problem that you leave out counts as no problem.',
   ].join('\n\n');
+}
+
+export function donePrompt(issue: Issue, comments: string[], evidence: string): string {
+  return paragraphs([
+    'You are the reviewer. The implementer made no change and says that the issue below is already done on the base branch. Judge whether that is true.',
+    issueBlock(issue, comments),
+    `## Evidence of the implementer\n${evidence}`,
+    '## Rules',
+    'The worktree holds the base branch. Check each part of the issue against it. Read files and run commands to prove what you say.',
+    'Do not change a file. Do not write with git or gh, and do not check out another commit or branch.',
+    HARNESS_RULES,
+    'Raise a blocking finding for each part of the issue that the base branch does not do. Give the file and line, or the command output, that supports each finding.',
+    'End your final message with the result as a json block in a ```json fence, in the form {"summary": "<short summary>", "findings": [{"severity": "blocking" or "minor", "detail": "<what is missing and where>"}]}.',
+    'Give an empty list when the issue is already done. A blocking finding keeps the issue open and hands it to a person.',
+  ]);
 }
 
 export type FixKind = 'checks' | 'local' | 'review' | 'conflict';

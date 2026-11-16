@@ -103,6 +103,19 @@ the run handles one issue. For each issue:
    and the newest of them gives the subject of the landed commit. A lost state
    file does not count, since an issue with no saved state resets its local
    branch (step 3).
+   When the base already does all that the issue asks, the implementer makes
+   no change and ends its reply with a `done: <evidence>` line. If the branch
+   is not ahead of the base, a reviewer then checks that claim against the
+   base. When it raises no blocking finding, the harness comments
+   `### Already done` with the evidence and the summary of the reviewer, adds
+   `status:done` and closes the issue as completed, and the issue ends as
+   `done`. Otherwise it hands the issue to a person with the reason
+   `already done disputed`, and the comment holds the evidence and the
+   findings of the reviewer. A reply with a `question:` line asks the
+   questions instead. To close a parent issue once its sub-issues land, mark
+   it as blocked by each sub-issue and give it the `status:todo` label: it
+   waits while a sub-issue is open (step 1), then the implementer finds it
+   already done and the harness closes it.
    The implementer checks the issue first. When the scope, the expected
    behaviour or the acceptance criteria are ambiguous, it makes no change and
    asks instead of guessing, with each question on its own

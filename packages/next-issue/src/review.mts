@@ -8,7 +8,7 @@ import { ROUND_CONTINUE, type Round, type Run, runRole, setStatus } from './job.
 import { landApproved } from './land.mts';
 import { capDiff, history, reviewPrompt } from './prompts.mts';
 import { writeState } from './state.mts';
-import { fitComment } from './text.mts';
+import { COMMENT_CUT, fitComment } from './text.mts';
 import {
   blockingFindings,
   type Finding,
@@ -18,8 +18,6 @@ import {
   parseVerdict,
   type Verdict,
 } from './verdict.mts';
-
-const CUT = '\n\nThis comment was too long for GitHub and was cut.';
 
 export async function reviewRound(job: Run): Promise<Round> {
   const { context, issue, state } = job;
@@ -54,7 +52,11 @@ export async function reviewRound(job: Run): Promise<Round> {
   const { round, limit } = budgetUse(job, 'reviewRounds');
   const open = openFindings(verdict, round >= limit);
   recordVerdict(job, verdict, open);
-  await ports.commentOnIssue(repo, issue.number, fitComment(formatVerdict(verdict, open), CUT));
+  await ports.commentOnIssue(
+    repo,
+    issue.number,
+    fitComment(formatVerdict(verdict, open), COMMENT_CUT),
+  );
 
   if (open.length === 0) {
     state.phase = 'approved';
@@ -199,7 +201,7 @@ async function unfixedRound(job: Run, fix: Unfixed): Promise<Round> {
   await ports.commentOnIssue(
     repo,
     issue.number,
-    fitComment(`### Fixer: ${heading}\n\n${note}`, CUT),
+    fitComment(`### Fixer: ${heading}\n\n${note}`, COMMENT_CUT),
   );
   return ROUND_CONTINUE;
 }

@@ -14,6 +14,11 @@ export function parseResolved(text: string): string | undefined {
   return note === undefined || PLACEHOLDERS.has(note.toLowerCase()) ? undefined : note;
 }
 
+export function parseDone(text: string): string | undefined {
+  const note = lastMatch(text, /^done:[^\S\r\n]*(.+)$/gim);
+  return note === undefined || PLACEHOLDERS.has(note.toLowerCase()) ? undefined : note;
+}
+
 export function parseQuestions(text: string): string[] {
   return [...text.matchAll(/^question:[^\S\r\n]*(.+)$/gim)]
     .map((match) => match[1]!.replace(/^\d+[.)]\s*/, '').trim())

@@ -1,12 +1,20 @@
-import { parseCommitSubject, parseQuestions } from './agent-reply.mts';
-import { CODING } from './agents.mts';
+import { parseCommitSubject, parseDone, parseQuestions } from './agent-reply.mts';
+import { CODING, REVIEWING } from './agents.mts';
 import { message } from './errors.mts';
 import { commitWork } from './fix.mts';
-import { escalateAndFinish } from './handover.mts';
+import { escalateAndFinish, finishDone } from './handover.mts';
 import { numbered, withOpenQuestions } from './issue-format.mts';
-import { fallbackTitle, ROUND_CONTINUE, type Round, type Run, runRole } from './job.mts';
-import { implementPrompt } from './prompts.mts';
+import {
+  fallbackTitle,
+  type Finished,
+  ROUND_CONTINUE,
+  type Round,
+  type Run,
+  runRole,
+} from './job.mts';
+import { donePrompt, implementPrompt } from './prompts.mts';
 import { writeState } from './state.mts';
+import { blockingFindings, formatFindings, parseVerdict } from './verdict.mts';
 
 export async function implement(job: Run): Promise<Round> {
   const { context, issue, log, state, worktree, comments, reply } = job;
@@ -59,6 +67,10 @@ async function useEarlierCommit(job: Run): Promise<Round | undefined> {
   const { context, log, state, worktree } = job;
   const earlier = await context.ports.latestSubject(worktree, context.base, context.config.remote);
   if (earlier === undefined) {
+    const evidence = parseDone(state.implementerReply ?? '');
+    if (evidence !== undefined) {
+      return closeIfDone(job, evidence);
+    }
     return escalateAndFinish(
       job,
       noChangeNote(state.implementerReply ?? ''),
@@ -78,4 +90,28 @@ function noChangeNote(reply: string): string {
     return NO_CHANGE;
   }
   return `${NO_CHANGE}\n\n${text}`;
+}
+
+async function closeIfDone(job: Run, evidence: string): Promise<Finished> {
+  const { context, issue, log, worktree, comments, branch } = job;
+  const { ports } = context;
+  const before = await ports.revision(worktree);
+  const review = await log.step('review', { alreadyDone: true }, () =>
+    runRole(job, 'reviewer', donePrompt(issue, comments, evidence), REVIEWING),
+  );
+  await ports.discardChanges(worktree, before, branch);
+  const verdict = parseVerdict(review.text);
+  const blocking = verdict === undefined ? [] : blockingFindings(verdict);
+  if (verdict === undefined || blocking.length > 0) {
+    const findings =
+      verdict === undefined
+        ? 'The reviewer gave no verdict.'
+        : `The reviewer disagreed:\n\n${formatFindings(blocking)}`;
+    return escalateAndFinish(
+      job,
+      `The implementer produced no change and said the issue is already done: ${evidence}\n\n${findings}`,
+      'already done disputed',
+    );
+  }
+  return finishDone(job, `### Already done\n\n${evidence}\n\nReview: ${verdict.summary}`);
 }

@@ -16,7 +16,7 @@ import type { Fields, Recorder } from './observe.mts';
 import { revertFailedFix } from './revert.mts';
 import { logIssueError } from './skip.mts';
 import { dropState, type IssueState, type PendingHandOver, writeState } from './state.mts';
-import { fitComment } from './text.mts';
+import { COMMENT_CUT, fitComment } from './text.mts';
 import { UnsettledBase } from './unsettled.mts';
 
 export async function escalateAndFinish(job: Run, note: string, reason: string): Promise<Finished> {
@@ -53,11 +53,14 @@ function savedIn(asides: string[]): string {
   return ` The fixer left changes behind; they are saved in the branches ${branches.slice(0, -1).join(', ')} and ${branches.at(-1)}.`;
 }
 
-export async function finishDone(job: Run): Promise<Finished> {
+export async function finishDone(job: Run, note?: string): Promise<Finished> {
   const { context, issue } = job;
   if (issue.closed !== true) {
     job.state.closing = true;
     await writeState(context.repo, job.state);
+    if (note !== undefined) {
+      await context.ports.commentOnIssue(context.repo, issue.number, fitComment(note, COMMENT_CUT));
+    }
     await setStatus(context, issue.number, context.config.labels.done);
     await context.ports.closeIssue(context.repo, issue.number);
   }
