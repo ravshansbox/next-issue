@@ -12,7 +12,7 @@ import {
 } from './config-fields.mts';
 import { MAX_TIMER_MS } from './durations.mts';
 import { hasCode, message, parseJson } from './errors.mts';
-import { readTextIfPresent, replaceJson, sortKeys, unlessMissing, writeJson } from './files.mts';
+import { readTextIfPresent, unlessMissing, writeJson } from './files.mts';
 
 export type Config = {
   remote: string;
@@ -178,10 +178,7 @@ export async function rejectOldConfig(root: string): Promise<void> {
   }
 }
 
-export async function loadConfig(
-  root: string,
-  options: { sortFile?: boolean } = {},
-): Promise<Config> {
+export async function loadConfig(root: string): Promise<Config> {
   let raw: string | undefined;
   try {
     raw = await readTextIfPresent(configFile(root));
@@ -191,22 +188,9 @@ export async function loadConfig(
   if (raw === undefined) {
     return defaults();
   }
-  const file = parseJson(raw, (error) => `${CONFIG_FILE} is not valid JSON: ${message(error)}`);
-  const config = parseConfig(file);
-  if (options.sortFile === true) {
-    await sortConfigFile(root, file as Record<string, unknown>);
-  }
-  return config;
-}
-
-async function sortConfigFile(root: string, file: Record<string, unknown>): Promise<void> {
-  const sorted = sortKeys({
-    ...file,
-    ...(Array.isArray(file.ignoredChecks) && { ignoredChecks: [...file.ignoredChecks].sort() }),
-  });
-  if (JSON.stringify(sorted) !== JSON.stringify(file)) {
-    await replaceJson(configFile(root), sorted);
-  }
+  return parseConfig(
+    parseJson(raw, (error) => `${CONFIG_FILE} is not valid JSON: ${message(error)}`),
+  );
 }
 
 function parseConfig(value: unknown): Config {

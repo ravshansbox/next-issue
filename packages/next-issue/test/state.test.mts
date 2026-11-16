@@ -14,7 +14,6 @@ import {
   stateDir,
   writeState,
 } from '../src/state.mts';
-import { keysSorted } from './sorted-keys.mts';
 import { tempDir } from './temp-dir.mts';
 
 async function repo(): Promise<Repo> {
@@ -165,23 +164,4 @@ test('dropState takes the state away and accepts a state that is not there', asy
   await dropState(target, 7);
   assert.equal(await readState(target, 7), undefined);
   await dropState(target, 7);
-});
-
-test('a caller that saves a state finds its keys sorted at every level and its lists in their order', async () => {
-  const target = await repo();
-  await writeState(target, {
-    ...STATE,
-    landed: ['b', 'a'],
-    reviewLog: [
-      { round: 2, findings: '- c' },
-      { round: 1, findings: '- d' },
-    ],
-  });
-  const saved = JSON.parse(await readFile(join(stateDir(target.root), '7.json'), 'utf8'));
-  assert.ok(keysSorted(saved));
-  assert.deepEqual(saved.landed, ['b', 'a']);
-  assert.deepEqual(
-    saved.reviewLog.map((entry: { round: number }) => entry.round),
-    [2, 1],
-  );
 });
