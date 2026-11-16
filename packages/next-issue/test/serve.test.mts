@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { closeSync, createWriteStream, openSync, statSync } from 'node:fs';
+import { closeSync, openSync, statSync } from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { syncBuiltinESMExports } from 'node:module';
@@ -15,6 +15,7 @@ import type { WorkerMessage } from '../src/protocol.mts';
 import { lock, processStart } from '../src/lock.mts';
 import { startWorker } from '../src/serve.mts';
 import { workerPaths } from '../src/worker-paths.mts';
+import { fullDisk } from './full-disk.mts';
 import { tempDir } from './temp-dir.mts';
 import { connect, fakeRuns, noQuestions, runsOf, worker } from './worker-harness.mts';
 
@@ -1229,9 +1230,7 @@ test('a client of a run whose log cannot be written still sees its progress and 
   let recorder: Recorder | undefined;
   const runRepo: typeof fake.runRepo = async (root, args, controls) => {
     const dir = await tempDir();
-    recorder = await Recorder.create(dir, 'quiet', controls.onEvent, () =>
-      createWriteStream('/dev/full', { flags: 'a' }),
-    );
+    recorder = await Recorder.create(dir, 'quiet', controls.onEvent, fullDisk);
     recorder.event('issue.start', { issue: 7 }, 'verbose');
     return fake.runRepo(root, args, controls);
   };

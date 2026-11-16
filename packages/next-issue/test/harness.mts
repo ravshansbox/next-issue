@@ -1,4 +1,3 @@
-import { createWriteStream } from 'node:fs';
 import { join } from 'node:path';
 import type { TestContext } from 'node:test';
 import type { AgentRequest, AgentResult } from '../src/agents.mts';
@@ -20,6 +19,7 @@ import { applyEvent, startProgress } from '../src/progress.mts';
 import type { Progress } from '../src/protocol.mts';
 import { type IssueState, readState, writeState } from '../src/state.mts';
 import type { Verdict } from '../src/verdict.mts';
+import { fullDisk } from './full-disk.mts';
 import { tempDir } from './temp-dir.mts';
 export const ISSUE: Issue = {
   number: 7,
@@ -559,7 +559,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       state.events.push(record);
       plan.onEvent?.(record);
     },
-    plan.runLogFails === true ? () => createWriteStream('/dev/full', { flags: 'a' }) : undefined,
+    plan.runLogFails === true ? fullDisk : undefined,
   );
   t.after(() => recorder.close());
   state.context = {

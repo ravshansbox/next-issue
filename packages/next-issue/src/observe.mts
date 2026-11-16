@@ -1,4 +1,5 @@
-import { createWriteStream, type WriteStream } from 'node:fs';
+import { createWriteStream } from 'node:fs';
+import type { Writable } from 'node:stream';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { elapsedMs } from './durations.mts';
@@ -24,19 +25,14 @@ const VISIBILITY: Record<Level, number> = { quiet: 0, normal: 1, verbose: 2 };
 class Sink {
   readonly totals = new Map<string, RoleTotals>();
   readonly counts = new Map<string, number>();
-  private readonly stream: WriteStream;
+  private readonly stream: Writable;
   readonly level: Level;
   readonly file: string;
   private readonly listener: ((record: Fields) => void) | undefined;
   /** Set once the run log fails: the run goes on, and its events reach only the listener. */
   private failed = false;
 
-  constructor(
-    stream: WriteStream,
-    level: Level,
-    file: string,
-    listener?: (record: Fields) => void,
-  ) {
+  constructor(stream: Writable, level: Level, file: string, listener?: (record: Fields) => void) {
     this.stream = stream;
     this.level = level;
     this.file = file;
@@ -102,7 +98,7 @@ export class Recorder {
     root: string,
     level: Level,
     listener?: (record: Fields) => void,
-    open: (file: string) => WriteStream = (file) => createWriteStream(file, { flags: 'a' }),
+    open: (file: string) => Writable = (file) => createWriteStream(file, { flags: 'a' }),
   ): Promise<Recorder> {
     const runId = new Date().toISOString().replace(/[:.]/g, '-');
     const dir = runsDir(root);

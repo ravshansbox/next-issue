@@ -3,6 +3,7 @@ import { createWriteStream } from 'node:fs';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import { Recorder } from '../src/observe.mts';
+import { fullDisk } from './full-disk.mts';
 import { logRecords } from './log-records.mts';
 import { tempDir } from './temp-dir.mts';
 
@@ -105,8 +106,6 @@ function failingLog(t: TestContext): string[] {
   return written;
 }
 
-const full = () => createWriteStream('/dev/full', { flags: 'a' });
-
 test('a run whose log write fails keeps passing events to its listener and reports the error once', async (t) => {
   const written = failingLog(t);
   const seen: string[] = [];
@@ -114,7 +113,7 @@ test('a run whose log write fails keeps passing events to its listener and repor
     await tempDir(),
     'quiet',
     (record) => seen.push(String(record.kind)),
-    full,
+    fullDisk,
   );
   target.event('run.start', {}, 'verbose');
   await new Promise((resolve) => setTimeout(resolve, 50));
@@ -130,7 +129,7 @@ test('a run whose log write fails keeps passing events to its listener and repor
 
 test('a run whose log write fails closes its log without a throw or a hang', async (t) => {
   failingLog(t);
-  const target = await Recorder.create(await tempDir(), 'quiet', undefined, full);
+  const target = await Recorder.create(await tempDir(), 'quiet', undefined, fullDisk);
   target.event('run.start', {}, 'verbose');
   await new Promise((resolve) => setTimeout(resolve, 50));
   await target.close();
@@ -138,7 +137,7 @@ test('a run whose log write fails closes its log without a throw or a hang', asy
 
 test('a run whose log fails on its last write closes its log without a throw or a hang', async (t) => {
   failingLog(t);
-  const target = await Recorder.create(await tempDir(), 'quiet', undefined, full);
+  const target = await Recorder.create(await tempDir(), 'quiet', undefined, fullDisk);
   target.event('run.end', {}, 'verbose');
   await target.close();
 });
