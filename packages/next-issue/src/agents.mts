@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   type AgentSession,
@@ -99,7 +99,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     throw timeoutError(request);
   }
   opened = session;
-  const unsubscribe = session.subscribe((event) => observe(log, event));
+  const unsubscribe = session.subscribe((event) => observe(log, event, request.cwd));
   const release = onStop(end);
   try {
     refuseWhenStopped();
@@ -191,9 +191,9 @@ function sessionResult(
   };
 }
 
-function observe(log: Recorder, event: AgentSessionEvent): void {
+function observe(log: Recorder, event: AgentSessionEvent, cwd: string): void {
   if (event.type === 'tool_execution_start') {
-    log.event('tool', toolFields(event.toolName, event.args));
+    log.event('tool', toolFields(event.toolName, event.args, cwd));
   } else if (event.type === 'tool_execution_end' && event.isError) {
     log.event('tool.error', { tool: event.toolName }, 'quiet');
   } else if (
@@ -205,10 +205,26 @@ function observe(log: Recorder, event: AgentSessionEvent): void {
   }
 }
 
-export function toolFields(name: string, input: unknown): Fields {
-  if (name !== 'bash' || !isRecord(input)) {
+const PATH_TOOLS = new Set(['read', 'write', 'edit', 'grep', 'find', 'ls']);
+
+export function toolFields(name: string, input: unknown, cwd: string): Fields {
+  if (!isRecord(input)) {
     return { tool: name };
   }
-  const { command } = input;
-  return typeof command === 'string' ? { tool: name, command } : { tool: name };
+  const { command, path } = input;
+  if (name === 'bash' && typeof command === 'string') {
+    return { tool: name, command };
+  }
+  if (PATH_TOOLS.has(name) && typeof path === 'string') {
+    return { tool: name, path: shortPath(path, cwd) };
+  }
+  return { tool: name };
+}
+
+function shortPath(path: string, cwd: string): string {
+  const inside = relative(cwd, resolve(cwd, path));
+  if (inside === '') {
+    return '.';
+  }
+  return inside === '..' || inside.startsWith(`..${sep}`) || isAbsolute(inside) ? path : inside;
 }

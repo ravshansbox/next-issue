@@ -41,21 +41,68 @@ async function fakePi(responses: FauxResponseStep[], tokensPerSecond?: number) {
 }
 
 test('a bash call records the command', () => {
-  assert.deepEqual(toolFields('bash', { command: 'npm test' }), {
+  assert.deepEqual(toolFields('bash', { command: 'npm test' }, '/work'), {
     tool: 'bash',
     command: 'npm test',
   });
 });
 
-test('a tool that is not bash records only its name', () => {
-  assert.deepEqual(toolFields('read', { path: '/tmp/a.mts' }), { tool: 'read' });
+test('an agent that reads a file inside its folder has the path logged relative to that folder', async () => {
+  let folder = '';
+  const { recorder, request } = await fakePi([
+    () =>
+      fauxAssistantMessage([fauxToolCall('read', { path: join(folder, 'note.txt') })], {
+        stopReason: 'toolUse',
+      }),
+    fauxAssistantMessage('done'),
+  ]);
+  folder = request.cwd;
+  await runAgent(recorder, request);
+  const tool = (await logRecords(recorder)).find((record) => record.kind === 'tool')!;
+  assert.equal(tool.tool, 'read');
+  assert.equal(tool.path, 'note.txt');
+});
+
+test('an agent that calls read, write, edit, grep, find or ls has the path logged relative to its folder', () => {
+  for (const name of ['read', 'write', 'edit', 'grep', 'find', 'ls']) {
+    assert.deepEqual(toolFields(name, { path: '/work/src/a.mts' }, '/work'), {
+      tool: name,
+      path: 'src/a.mts',
+    });
+  }
+  assert.deepEqual(toolFields('read', { path: 'src/a.mts' }, '/work'), {
+    tool: 'read',
+    path: 'src/a.mts',
+  });
+  assert.deepEqual(toolFields('ls', { path: '.' }, '/work'), { tool: 'ls', path: '.' });
+});
+
+test('an agent that reads a file outside its folder has the path logged as it passed it', () => {
+  assert.deepEqual(toolFields('read', { path: '/tmp/a.mts' }, '/work'), {
+    tool: 'read',
+    path: '/tmp/a.mts',
+  });
+  assert.deepEqual(toolFields('read', { path: '../other/a.mts' }, '/work'), {
+    tool: 'read',
+    path: '../other/a.mts',
+  });
+});
+
+test('an agent tool call without a path text logs only the tool name', () => {
+  assert.deepEqual(toolFields('read', {}, '/work'), { tool: 'read' });
+  assert.deepEqual(toolFields('read', { path: 12 }, '/work'), { tool: 'read' });
+  assert.deepEqual(toolFields('mark', { path: '/work/a' }, '/work'), { tool: 'mark' });
+  assert.deepEqual(toolFields('bash', { command: 'ls', path: '/work/a' }, '/work'), {
+    tool: 'bash',
+    command: 'ls',
+  });
 });
 
 test('a bash call without command text records only its name', () => {
-  assert.deepEqual(toolFields('bash', {}), { tool: 'bash' });
-  assert.deepEqual(toolFields('bash', { command: 12 }), { tool: 'bash' });
-  assert.deepEqual(toolFields('bash', null), { tool: 'bash' });
-  assert.deepEqual(toolFields('bash', 'npm test'), { tool: 'bash' });
+  assert.deepEqual(toolFields('bash', {}, '/work'), { tool: 'bash' });
+  assert.deepEqual(toolFields('bash', { command: 12 }, '/work'), { tool: 'bash' });
+  assert.deepEqual(toolFields('bash', null, '/work'), { tool: 'bash' });
+  assert.deepEqual(toolFields('bash', 'npm test', '/work'), { tool: 'bash' });
 });
 
 test('an agent session leaves out the pi-next-issue extension and keeps the others', () => {

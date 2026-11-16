@@ -13,7 +13,13 @@ export function startProgress(hunting = false): Progress {
 function toolLine(record: Fields): string {
   const tool = String(record['tool']);
   const command = record['command'];
-  const line = typeof command === 'string' ? `${tool} ${command.split('\n')[0]}` : tool;
+  const path = record['path'];
+  const line =
+    typeof command === 'string'
+      ? `${tool} ${command.split('\n')[0]}`
+      : typeof path === 'string'
+        ? `${tool} ${path}`
+        : tool;
   return truncate(line, TOOL_LINE_MAX, '…');
 }
 

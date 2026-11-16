@@ -55,6 +55,23 @@ test('a watcher sees the tool count and the last tool with the first line of its
   assert.equal(progress.issues[0]?.lastTool, 'bash npm test');
 });
 
+test('a watcher sees the last tool with its path', () => {
+  const progress = replay([
+    { kind: 'issue.start', issue: 12, ts: '2026-11-02T10:00:00.000Z' },
+    { kind: 'tool', issue: 12, tool: 'read', path: 'src/a.mts' },
+  ]);
+  assert.equal(progress.issues[0]?.lastTool, 'read src/a.mts');
+});
+
+test('a watcher sees a long tool path cut to 80 characters', () => {
+  const progress = replay([
+    { kind: 'issue.start', issue: 12, ts: '2026-11-02T10:00:00.000Z' },
+    { kind: 'tool', issue: 12, tool: 'read', path: 'x'.repeat(200) },
+  ]);
+  assert.equal(progress.issues[0]?.lastTool?.length, 80);
+  assert.equal(progress.issues[0]?.lastTool?.endsWith('…'), true);
+});
+
 test('a watcher sees a long tool line cut to 80 characters', () => {
   const progress = replay([
     { kind: 'issue.start', issue: 12, ts: '2026-11-02T10:00:00.000Z' },
