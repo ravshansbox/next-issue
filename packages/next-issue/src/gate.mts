@@ -44,7 +44,7 @@ export async function checkGate(job: Run, sha: string): Promise<Gate> {
   if (checks === 'cut') {
     return escalateAndFinish(
       job,
-      `A job in \`ignoredChecks\` failed on ${base} and GitHub cancelled another job of its workflow run before it finished, for example through \`strategy.fail-fast\`. Rerun the cancelled job, or set \`fail-fast: false\` so an ignored job no longer cancels the others. ${HALT_NOTE}`,
+      `A job in \`ignoredChecks\` failed on ${base} and GitHub cancelled or skipped another job of its workflow run before it finished, for example through \`strategy.fail-fast\` or a \`needs\` on the ignored job. Rerun the cancelled or skipped job, or set \`fail-fast: false\` and drop the \`needs\` so an ignored job no longer stops the others. ${HALT_NOTE}`,
       'main checks cut short',
     );
   }

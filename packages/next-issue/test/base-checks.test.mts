@@ -1221,7 +1221,7 @@ for (const [runConclusion, reason, comment] of [
   [
     'failure',
     'main checks cut short',
-    /needs help: A job in `ignoredChecks` failed on main and GitHub cancelled another job of its workflow run before it finished/,
+    /needs help: A job in `ignoredChecks` failed on main and GitHub cancelled or skipped another job of its workflow run before it finished/,
   ],
   [
     'cancelled',
@@ -1267,6 +1267,38 @@ for (const [runConclusion, reason, comment] of [
     assert.deepEqual(target.reverts, []);
   });
 }
+
+test('a user whose ignored build job fails so GitHub skips the kept test job that needs it gets a hand-over with main checks cut short and no close', async (t) => {
+  const target = await harness(t, {
+    config: {
+      checkGraceSeconds: 0,
+      checkIntervalSeconds: 1,
+      ignoredChecks: ['build'],
+    },
+  });
+  await fakeRunsGh(t, [RELEASE_FAILED_CI], [], {
+    sha: '2',
+    jobs: {
+      1: [
+        { databaseId: 11, name: 'build', status: 'completed', conclusion: 'failure' },
+        { databaseId: 12, name: 'test', status: 'completed', conclusion: 'skipped' },
+      ],
+    },
+  });
+  target.context.ports.waitForBaseChecks = waitForBaseChecks;
+  target.context.ports.rerunFailedBase = rerunFailedBase;
+  target.context.ports.failedBaseLogs = failedBaseLogs;
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'main checks cut short');
+  assert.equal(report.halt, true);
+  assert.match(
+    target.comments.at(-1)!,
+    /needs help: A job in `ignoredChecks` failed on main and GitHub cancelled or skipped another job of its workflow run/,
+  );
+  assert.deepEqual(target.closed, []);
+  assert.deepEqual(target.reverts, []);
+});
 
 const TEST_FAILED = {
   databaseId: 11,

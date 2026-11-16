@@ -121,7 +121,7 @@ function jobsConclusion(kept: Job[], anyFailed: boolean): string {
     return 'failure';
   }
   if (!kept.some((job) => job.conclusion === 'cancelled')) {
-    return 'success';
+    return anyFailed && kept.some((job) => job.conclusion === 'skipped') ? CUT : 'success';
   }
   return anyFailed ? CUT : 'cancelled';
 }

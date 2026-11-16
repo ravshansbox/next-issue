@@ -224,7 +224,10 @@ the run handles one issue. For each issue:
    `strategy.fail-fast` of a matrix, that job never finished: the harness
    hands the issue to a person with the reason `main checks cut short` and
    halts, and the issue stays open. Set `fail-fast: false` on a matrix
-   with an ignored job to avoid this. A
+   with an ignored job to avoid this. The same goes when an ignored job
+   fails and another job of the same run ends `skipped`, for example
+   because it `needs` the ignored job; a skipped job in a run with no
+   failed job still passes. A
    failed or errored commit status, or a workflow run or check run that
    ends with `failure`, `timed_out` or
    `action_required`, fails the checks. The harness does not rerun a
@@ -695,7 +698,7 @@ because no pull request is opened.
 | `keepRunDays`           | `7`                | The number of days to keep the run files; `0` keeps them all                                                                                                                                                    |
 | `checks`                | `[]`               | Shell commands that must pass in the worktree, in order, before an approved change is pushed; a failure goes to the fixer                                                                                       |
 | `checksTimeoutMinutes`  | `30`               | The limit for one command in `checks`, at most `35791`                                                                                                                                                          |
-| `ignoredChecks`         | `[]`               | Names of GitHub Actions jobs, check runs and commit statuses, such as `release`, that the checks on the base branch do not wait for and whose failure does not count, unless it makes GitHub cancel another job |
+| `ignoredChecks`         | `[]`               | Names of GitHub Actions jobs, check runs and commit statuses, such as `release`, that the checks on the base branch do not wait for and whose failure does not count, unless GitHub cancels or skips another job of its run |
 | `setupCommand`          | from the lock file | A shell command to run in a new worktree, before the implementer, and after each merge of the base before the `checks`                                                                                          |
 | `models`                | `null` per role    | The pi model per agent role, as `provider/model`: `implementer`, `reviewer`, `fixer`                                                                                                                            |
 | `labels`                | see above          | The names of the labels that the harness reads and sets                                                                                                                                                         |
