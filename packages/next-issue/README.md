@@ -11,6 +11,8 @@ npx -y next-issue@latest start
 
 The harness claims the oldest open issue with the `status:todo` label and gives it its own git worktree and branch. An implementer agent does the work and the harness commits it. A reviewer agent judges the diff, and a fixer agent deals with any open finding, and the review runs again. With no open finding left, the harness rebases the change onto the base branch as one commit, pushes it there with no pull request and waits for the checks of that commit. On a red build the harness reruns the failed jobs of each failed workflow run once, and only a run that fails again goes to the fixer, whose fix lands the same way. When the checks pass, the issue is closed and gets `status:done`. When a budget runs out or the work cannot go on, the issue gets `status:needs-human` and goes to a person. Then the harness takes the next issue.
 
+The harness is built for a flow with as few people in it as possible: people write issues and answer hand-overs, and the harness does the rest. [ADR 0004](https://github.com/ravshansbox/next-issue/blob/main/docs/adr/0004-humanless-flow.md) records this principle, its accepted risks and the setup it recommends.
+
 ```mermaid
 flowchart TD
     claim[Claim the oldest status:todo issue] --> worktree[Add a worktree and branch]
@@ -568,6 +570,12 @@ on a repository where you trust the writers, or run it in a container.
 
 [ADR 0001](https://github.com/ravshansbox/next-issue/blob/main/docs/adr/0001-reviewer-isolation.md) records why the reviewer
 keeps a full shell, and which other options were considered.
+
+No person checks a change before it lands. To replace those checks,
+[ADR 0004](https://github.com/ravshansbox/next-issue/blob/main/docs/adr/0004-humanless-flow.md)
+recommends a non-empty `checks` gate, a different model for the reviewer than
+for the implementer and the fixer in `models`, and running the whole harness in
+a container.
 
 ## Observability
 
