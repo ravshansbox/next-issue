@@ -98,7 +98,13 @@ export function fallbackTitle(issue: Issue): string {
   return `fix: resolve issue #${issue.number}`;
 }
 
-export async function setStatus(context: Context, issue: number, label: string): Promise<void> {
+export async function setStatus(
+  context: Context,
+  issue: number,
+  label: string,
+  keep: string[] = [],
+): Promise<void> {
   const { repo, config, ports } = context;
-  await ports.setLabel(repo, 'issue', issue, label, managedLabels(config));
+  const remove = managedLabels(config).filter((name) => !keep.includes(name));
+  await ports.setLabel(repo, 'issue', issue, label, remove);
 }

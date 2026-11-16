@@ -819,7 +819,11 @@ that says so.
 A hand-over marks the state file as handed over once its label and comment
 reach GitHub. When either fails, or the run stops during it, the state keeps its
 budgets and findings, and a later hand-over of the issue keeps the first
-reason. To give the issue another try,
+reason. A handed-over issue carries the `status:needs-human` and `status:todo`
+labels, and the hand-over takes `status:in-progress` and `status:in-review`
+off. With an empty `labels.ready`, it carries only `status:needs-human`. The
+ready label lets a run find the issue again even when its state file is lost.
+To give the issue another try,
 take the `status:needs-human` label off, or answer the hand-over. The next run
 that claims the issue puts the budgets and the findings back to zero, clears
 the mark and keeps the branch and the step that the last run reached, so the
