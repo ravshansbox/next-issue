@@ -5,7 +5,7 @@ import { type IssueState, writeState } from './state.mts';
 import { HALT_NOTE, releaseSettled } from './unsettled.mts';
 
 export async function revertFailedFix(job: Run): Promise<string> {
-  if (!job.repairing || (job.state.landed ?? []).length === 0) {
+  if (!job.repairing || job.state.pushing !== undefined || (job.state.landed ?? []).length === 0) {
     return '';
   }
   job.repairing = false;

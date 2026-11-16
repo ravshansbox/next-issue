@@ -380,27 +380,34 @@ test('a user whose fix for main cannot be pushed and whose revert throws gets th
   assert.deepEqual((await target.state())?.landed, ['2']);
 });
 
-test('a user whose push of the fix for main reports a failure, whose fetch of the base fails and whose revert throws gets the issue handed over and the run halted', async (t) => {
-  const target = await harness(t, {
+test('a user whose push of the fix for main reports a failure and whose fetch of the base fails gets no revert pushed, the issue handed over and the fix checks awaited on resume', async (t) => {
+  const first = await harness(t, {
     baseChecks: ['fail'],
     fixerText: 'Done.\ncommit: fix: repair main',
   });
-  const ports = target.context.ports;
+  const ports = first.context.ports;
   const pushToBase = ports.pushToBase;
-  ports.pushToBase = async (...args) => (target.landed.length > 0 ? false : pushToBase(...args));
+  ports.pushToBase = async (...args) => {
+    const fix = first.landed.length > 0;
+    return (await pushToBase(...args)) && !fix;
+  };
   ports.isOnBase = async () => {
     throw new Error('fetch failed');
   };
-  revertThrows(target);
-  const report = await target.run();
+  const report = await first.run();
   assert.equal(report.outcome, 'needs-human');
   assert.equal(report.reason, 'push unknown');
   assert.equal(report.halt, true);
-  assert.match(
-    target.comments.at(-1)!,
-    /needs help: The push to main failed and the fetch of main failed too, .* The revert of the change on main failed: git: fetch failed\. The landed commits stay on main\./,
-  );
-  assert.deepEqual((await target.state())?.landed, ['2']);
+  assert.deepEqual(first.reverts, []);
+  assert.doesNotMatch(first.comments.at(-1)!, /reverted/);
+  const saved = await first.state();
+  assert.deepEqual(saved?.landed, ['2']);
+  const fix = saved?.pushing;
+  assert.equal(fix, first.landed.at(-1));
+  const target = await harness(t, { saved, issue: { ...ISSUE, labels: [] }, baseMoved: true });
+  assert.equal((await target.run()).outcome, 'done');
+  assert.deepEqual(target.reverts, []);
+  assert.deepEqual(target.baseWaits, [fix]);
 });
 
 async function fixLandingFails(t: Parameters<typeof harness>[0], options = {}) {

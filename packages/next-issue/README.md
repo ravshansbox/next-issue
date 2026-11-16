@@ -278,7 +278,9 @@ the run handles one issue. For each issue:
    lands the same way. When the fixer cannot fix them, its fix cannot land,
    an error stops the fix, or the budget runs out, the harness reverts every
    commit of the change on the base branch, pushes the revert and hands the
-   issue to a person. A revert
+   issue to a person. When the push of the fix ends as `push unknown`, the
+   harness does not revert: it hands the issue over and halts as for any
+   other `push unknown`. A revert
    push that the remote refuses, for example because the base moved, makes
    the revert again on the new base, three times at most. A failed revert
    push that the base holds after a fetch counts as landed. When that fetch
