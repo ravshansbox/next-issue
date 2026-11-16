@@ -76,12 +76,15 @@ async function baseRuns(
   return judged.filter((entry) => entry !== undefined);
 }
 
-/** Judges a workflow run by its jobs outside the ignored checks; a run with no job yet, or a running one whose listed jobs all finished, keeps its own state, as a job not listed yet may follow. A running one whose kept jobs failed waits until it finishes, as GitHub refuses to rerun a running run. */
+/** Judges a workflow run by its jobs outside the ignored checks; a run that GitHub concludes `success` keeps it, as a failed `continue-on-error` job does not fail it; a run with no job yet, or a running one whose listed jobs all finished, keeps its own state, as a job not listed yet may follow. A running one whose kept jobs failed waits until it finishes, as GitHub refuses to rerun a running run. */
 async function withoutIgnored(
   repo: Repo,
   run: BaseRun,
   ignored: string[],
 ): Promise<BaseRun | undefined> {
+  if (run.status === 'completed' && run.conclusion === 'success') {
+    return run;
+  }
   const jobs = jsonLines<Job>(
     await ghApi(
       repo,

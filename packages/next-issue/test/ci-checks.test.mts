@@ -1272,6 +1272,36 @@ test('a user whose ignored build job fails so GitHub skips the kept test job tha
   assert.deepEqual(target.reverts, []);
 });
 
+test('a user with ignoredChecks whose landed commit fails a continue-on-error job in a run that GitHub concludes success gets the issue closed and done with no rerun, fixer or hand-over', async (t) => {
+  const target = await harness(t, {
+    config: {
+      checkGraceSeconds: 0,
+      checkIntervalSeconds: 1,
+      maxCiFixes: 0,
+      ignoredChecks: ['release'],
+    },
+  });
+  const passed = { ...RELEASE_FAILED_CI, conclusion: 'success' };
+  await fakeRunsGh(t, [passed], [{ ...passed, attempt: 2 }], {
+    sha: '2',
+    jobs: {
+      1: [
+        { databaseId: 11, name: 'test', status: 'completed', conclusion: 'success' },
+        { databaseId: 12, name: 'test (experimental)', status: 'completed', conclusion: 'failure' },
+        { databaseId: 13, name: 'docs', status: 'completed', conclusion: 'skipped' },
+      ],
+    },
+  });
+  target.context.ports.waitForCiChecks = waitForCiChecks;
+  target.context.ports.rerunFailedCi = rerunFailedCi;
+  target.context.ports.failedCiLogs = failedCiLogs;
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(target.closed, [7]);
+  assert.deepEqual(target.reruns, []);
+  assert.deepEqual(target.reverts, []);
+});
+
 const TEST_FAILED = {
   databaseId: 11,
   name: 'test',
