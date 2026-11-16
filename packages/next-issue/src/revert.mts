@@ -12,14 +12,20 @@ export async function revertFailedFix(job: Run): Promise<string> {
   return revertFailedChecks(job);
 }
 
-/** Hands over a fix of failed checks; with no stop, its saved halt gives way, so the run halt alone holds back other landings. */
+/** Hands over a fix of failed checks; once the revert ends with no stop, its saved halt gives way, so the run halt alone holds back other landings. */
 export async function revertFailedChecks(job: Run): Promise<string> {
+  const reverted = await revertOrReport(job);
   const { context, state } = job;
-  if (state.halted === true && state.pushing === undefined && !runStopped()) {
+  if (
+    state.halted === true &&
+    state.pushing === undefined &&
+    state.reverting === undefined &&
+    !runStopped()
+  ) {
     delete state.halted;
     await writeState(context.repo, state);
   }
-  return revertOrReport(job);
+  return reverted;
 }
 
 export async function revertOrReport(job: Run): Promise<string> {

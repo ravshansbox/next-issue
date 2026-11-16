@@ -404,7 +404,8 @@ it, with checks nobody awaited (`checks error`, `push unknown`,
 `main checks timeout`, `main checks cancelled`, an error or a failed setup
 on such a resume before the base is checked, or a stop or kill while the run
 pushes a change to the base, waits for the checks of a commit it landed, or
-fixes the failed checks of that commit before the fix lands) is
+fixes the failed checks of that commit before the fix lands or the revert of
+that commit ends) is
 saved in the state file of its issue. A stopped issue resumes in the next
 run; any other waits for a person, so later runs skip it. Either way, no
 later run lands another change meanwhile: an issue that reaches the landing

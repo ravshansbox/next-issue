@@ -167,23 +167,32 @@ test('a user who stops a run now while a push to main lands, and stops the resum
   assert.deepEqual(older.landed, []);
 });
 
-test('a user who stops a run now while it reverts a landed commit whose checks failed gets the next run to land an older approved issue', async (t) => {
-  const first = await harness(t, {
-    verdicts: [APPROVE, APPROVE],
-    config: { maxCiFixes: 0 },
-    baseChecks: ['fail'],
-  });
+test('a user who stops a run now while it reverts a landed commit whose checks failed gets no other issue landed by the next run until the stopped issue settles the base', async (t) => {
+  const config = { maxCiFixes: 0 };
+  const first = await harness(t, { verdicts: [APPROVE, APPROVE], config, baseChecks: ['fail'] });
   first.context.ports.revertOnBase = async () => {
     first.stopNow();
     throw new Error('The run stopped.');
   };
   assert.equal((await first.run()).outcome, 'stopped');
-  const older = await harness(t, {
-    root: first.context.repo.root,
-    issue: { ...ISSUE, number: 5 },
+  const root = first.context.repo.root;
+  const older = await harness(t, { root, issue: { ...ISSUE, number: 5 } });
+  const blocked = await older.run();
+  assert.equal(blocked.outcome, 'stopped');
+  assert.equal(blocked.reason, 'base unchecked');
+  assert.equal(older.pushes, 0);
+  const resumed = await harness(t, {
+    root,
+    issue: { ...ISSUE, labels: ['status:in-review'] },
+    config,
+    baseMoved: true,
+    baseChecks: ['fail'],
   });
-  assert.equal((await older.run()).outcome, 'done');
-  assert.equal(older.landed.length, 1);
+  await resumed.run();
+  assert.equal((await resumed.state())?.halted, undefined);
+  const next = await harness(t, { root, issue: { ...ISSUE, number: 5 } });
+  assert.equal((await next.run()).outcome, 'done');
+  assert.equal(next.landed.length, 1);
 });
 
 test('a user who stops a run now during the implementation gets the issue stopped with no hand-over and the state kept', async (t) => {
