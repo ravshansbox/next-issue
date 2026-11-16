@@ -30,7 +30,7 @@ export async function pendingIssues(context: Context): Promise<Issue[]> {
       issues.push(issue);
     }
   }
-  context.recorder.event('issues', { open: openCount }, 'quiet');
+  context.recorder.event('issues', { open: openCount });
   const blocking = await blockingIssues(context, saved);
   // An issue that blocks every landing goes first, so its resume can lift the block before an older issue reaches the landing.
   return issues.sort(
@@ -69,7 +69,7 @@ async function savedIssue(
     return { open, issue: { ...issue, closed: true } };
   } catch (error) {
     const log = context.recorder.scope({ issue: number });
-    log.event('issue.unreadable', { error: message(error) }, 'quiet');
+    log.event('issue.unreadable', { error: message(error) });
     if (saved !== 'broken' && errorMatches(error, ISSUE_GONE)) {
       await releaseGone(context, saved);
     }

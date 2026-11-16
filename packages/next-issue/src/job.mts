@@ -15,7 +15,6 @@ export type Context = {
   repo: Repo;
   config: Config;
   base: string;
-  reset: boolean;
   stopAfterRound: () => boolean;
   halted: boolean;
   recorder: Recorder;

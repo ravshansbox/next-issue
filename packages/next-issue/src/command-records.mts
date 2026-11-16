@@ -5,17 +5,19 @@ import type { Recorder } from './observe.mts';
 const commandRecorder = new AsyncLocalStorage<Recorder>();
 
 setCommandObserver((record) => {
-  commandRecorder.getStore()?.event(
-    succeeded(record) ? 'command' : 'command.fail',
-    {
-      cmd: `${record.command} ${record.args.join(' ')}`,
-      code: record.code,
-      ms: record.ms,
-      stderr: record.stderr.length > 0 ? record.stderr : undefined,
-      timedOut: record.timedOut ? true : undefined,
-    },
-    succeeded(record) ? 'verbose' : 'quiet',
-  );
+  const recorder = commandRecorder.getStore();
+  const fields = {
+    cmd: `${record.command} ${record.args.join(' ')}`,
+    code: record.code,
+    ms: record.ms,
+    stderr: record.stderr.length > 0 ? record.stderr : undefined,
+    timedOut: record.timedOut ? true : undefined,
+  };
+  if (succeeded(record)) {
+    recorder?.record('command', fields);
+  } else {
+    recorder?.event('command.fail', fields);
+  }
 });
 
 export function recordCommands<T>(recorder: Recorder, work: () => Promise<T>): Promise<T> {

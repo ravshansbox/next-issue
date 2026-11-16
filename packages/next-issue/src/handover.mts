@@ -34,7 +34,7 @@ export async function escalateAndFinish(job: Run, note: string, reason: string):
       throw error;
     }
     const failure = message(error);
-    job.log.event('hand-over.error', { reason, error: failure }, 'quiet');
+    job.log.event('hand-over.error', { reason, error: failure });
     return {
       done: true,
       report: await finish(job, 'error', `${reason}; the hand-over failed: ${failure}`),
@@ -97,13 +97,13 @@ export async function dropClosed(
   issue: Issue,
   branch: string,
 ): Promise<IssueReport> {
-  log.event('issue.drop', { title: issue.title, reason: 'closed' }, 'quiet');
+  log.event('issue.drop', { title: issue.title, reason: 'closed' });
   try {
     await cleanUp(context, log, branch);
     await deleteBranches(context, log, branch);
     await dropState(context.repo, issue.number);
   } catch (error) {
-    log.event('drop.error', { error: message(error) }, 'quiet');
+    log.event('drop.error', { error: message(error) });
   }
   return {
     issue: issue.number,
@@ -116,7 +116,7 @@ export async function dropClosed(
 }
 
 export function stop(job: Run, reason?: string): IssueReport {
-  job.log.event('issue.stop', { phase: job.state.phase, reason }, 'quiet');
+  job.log.event('issue.stop', { phase: job.state.phase, reason });
   return jobReport(job, 'stopped', reason);
 }
 
@@ -126,7 +126,7 @@ export function stopNow(
   state: IssueState,
   started: number,
 ): IssueReport {
-  log.event('issue.stop', { phase: state.phase }, 'quiet');
+  log.event('issue.stop', { phase: state.phase });
   return issueReport(issue.number, 'stopped', state, started);
 }
 
@@ -186,7 +186,7 @@ async function removeOrKeep(
   remove: () => Promise<boolean>,
 ): Promise<void> {
   if (!(await oneAtATime(context.repo.root, remove))) {
-    log.event(kind, fields, 'quiet');
+    log.event(kind, fields);
   }
 }
 
@@ -201,7 +201,7 @@ async function cleanUp(context: Context, log: Recorder, branch: string): Promise
       ports.removeWorktree(repo, path),
     );
   } catch (error) {
-    log.event('worktree.error', { error: message(error) }, 'quiet');
+    log.event('worktree.error', { error: message(error) });
   }
 }
 
@@ -214,7 +214,7 @@ async function handOver(
   earlier?: PendingHandOver,
 ): Promise<void> {
   const { repo, ports, config } = context;
-  log.event('hand-over', { reason }, 'quiet');
+  log.event('hand-over', { reason });
   const { pendingHandOver: _pending, ...rest } = state;
   // Once the label is on, the issue is taken back from a close (`finishDone`) it may have reached.
   const { closing: _closing, ...taken } = rest;
@@ -279,7 +279,7 @@ export async function claimedError(
     await handOver(context, log, issue.number, state, handOverReason(error, reason), earlier);
     handedOver = true;
   } catch (failure) {
-    log.event('hand-over.error', { error: message(failure) }, 'quiet');
+    log.event('hand-over.error', { error: message(failure) });
   }
   // The issue ends (and the waiting questions go out) only once the hand-over is done.
   logIssueError(log, error, started);

@@ -16,17 +16,12 @@ import {
   type Usage,
 } from './usage.mts';
 
-export type Level = 'quiet' | 'normal' | 'verbose';
-
 export type Fields = Record<string, unknown>;
-
-const VISIBILITY: Record<Level, number> = { quiet: 0, normal: 1, verbose: 2 };
 
 class Sink {
   readonly totals = new Map<string, RoleTotals>();
   readonly counts = new Map<string, number>();
   private readonly stream: Writable;
-  readonly level: Level;
   readonly file: string;
   private readonly listener: ((record: Fields) => void) | undefined;
   readonly output: (text: string) => void;
@@ -35,14 +30,12 @@ class Sink {
 
   constructor(
     stream: Writable,
-    level: Level,
     file: string,
     listener: ((record: Fields) => void) | undefined,
     output: (text: string) => void,
   ) {
     this.stream = stream;
     this.output = output;
-    this.level = level;
     this.file = file;
     this.listener = listener;
     // With no listener, a failed open or write (`ENOSPC`, `EIO`, `EMFILE`) would crash the process.
@@ -104,7 +97,6 @@ export class Recorder {
 
   static async create(
     root: string,
-    level: Level,
     listener?: (record: Fields) => void,
     open: (file: string) => Writable = (file) => createWriteStream(file, { flags: 'a' }),
     output: (text: string) => void = (text) => process.stderr.write(text),
@@ -113,7 +105,7 @@ export class Recorder {
     const dir = runsDir(root);
     await mkdir(dir, { recursive: true });
     const file = join(dir, `${runId}.jsonl`);
-    const sink = new Sink(open(file), level, file, listener, output);
+    const sink = new Sink(open(file), file, listener, output);
     return new Recorder(sink, {}, runId);
   }
 
@@ -133,15 +125,16 @@ export class Recorder {
     return `${this.runStem}.summary.json`;
   }
 
-  get level(): Level {
-    return this.sink.level;
-  }
-
   scope(fields: Fields): Recorder {
     return new Recorder(this.sink, { ...this.base, ...fields }, this.runId);
   }
 
-  event(kind: string, fields: Fields = {}, visibility: Level = 'normal'): void {
+  event(kind: string, fields: Fields = {}): void {
+    this.sink.output(render(this.record(kind, fields)));
+  }
+
+  /** Writes the event to the run log only, not to the console. */
+  record(kind: string, fields: Fields = {}): Fields {
     this.sink.count(kind);
     const record = {
       ts: new Date().toISOString(),
@@ -151,9 +144,7 @@ export class Recorder {
       ...fields,
     };
     this.sink.write(record);
-    if (VISIBILITY[this.sink.level] >= VISIBILITY[visibility]) {
-      this.sink.output(render(record));
-    }
+    return record;
   }
 
   print(text: string): void {
@@ -167,17 +158,13 @@ export class Recorder {
 
   async step<T>(kind: string, fields: Fields, run: () => Promise<T>): Promise<T> {
     const started = Date.now();
-    this.event(`${kind}.start`, fields, 'verbose');
+    this.record(`${kind}.start`, fields);
     try {
       const result = await run();
       this.event(`${kind}.end`, { ...fields, ms: elapsedMs(started) });
       return result;
     } catch (error) {
-      this.event(
-        `${kind}.error`,
-        { ...fields, ms: elapsedMs(started), error: message(error) },
-        'quiet',
-      );
+      this.event(`${kind}.error`, { ...fields, ms: elapsedMs(started), error: message(error) });
       throw error;
     }
   }

@@ -81,9 +81,9 @@ function assertBefore(order: string[], first: string, then: string): void {
   );
 }
 
-async function runLoop(target: Harness, max?: number): Promise<IssueReport[]> {
+async function runLoop(target: Harness): Promise<IssueReport[]> {
   const { context } = target;
-  const { reports } = await runIssues(max === undefined ? {} : { max }, {
+  const { reports } = await runIssues({
     issues: () => pendingIssues(context),
     process: (issue, claimed, slot) => processIssue(context, issue, claimed, slot),
     stop: () => false,
@@ -137,17 +137,6 @@ test('a user with concurrency 1 whose landed issue needs the fixer after failed 
   assertBefore(target.order, 'implementer #8', 'fixer #7');
   assertBefore(target.order, 'fixer #7', 'implementer #9');
   assert.equal(target.most, 1);
-});
-
-test('a user with concurrency 1 and --max 1 whose issue waits for its checks gets no other issue claimed', async (t) => {
-  const target = await watched(t, { open: [A, B], verdicts: [APPROVE, APPROVE] });
-  holdChecks(target, () => delay(100));
-  const reports = await runLoop(target, 1);
-  assert.deepEqual(
-    reports.map((report) => report.issue),
-    [7],
-  );
-  assert.deepEqual(target.order, ['implementer #7', 'reviewer #7', 'checks 1', 'checks end 1']);
 });
 
 test('a user with concurrency 1 whose landed issue halts the run gets the issue waiting to land stopped with run halted', async (t) => {

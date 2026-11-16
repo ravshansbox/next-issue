@@ -82,7 +82,6 @@ export type Plan = {
   fixerText?: string | string[];
   implementerText?: string[];
   saved?: IssueState;
-  reset?: boolean;
   reviewerWrites?: boolean;
   reviewerCommits?: boolean;
   fixerWrites?: boolean;
@@ -549,7 +548,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
 
   const recorder = await Recorder.create(
     root,
-    'quiet',
     (record) => {
       state.events.push(record);
       plan.onEvent?.(record);
@@ -561,7 +559,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     repo,
     config,
     base: 'main',
-    reset: plan.reset === true,
     stopAfterRound: () => pressed,
     halted: false,
     recorder,

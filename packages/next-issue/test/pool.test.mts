@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { IssueReport, Outcome } from '../src/job.mts';
 import { type Loop, runIssues } from '../src/loop.mts';
-import { ARGS, issue, report } from './loop-harness.mts';
+import { issue, report } from './loop-harness.mts';
 
 type Pool = Loop & {
   started: number[];
@@ -35,7 +35,7 @@ async function settle(): Promise<void> {
 
 test('a user with concurrency 2 gets two issues handled at once and the next one claimed as soon as a slot frees up', async () => {
   const fake = pool([1, 2, 3, 4], 2);
-  const result = runIssues(ARGS, fake);
+  const result = runIssues(fake);
   await settle();
   assert.deepEqual(fake.started, [1, 2]);
   await fake.finish(2, 'done');
@@ -49,24 +49,11 @@ test('a user with concurrency 2 gets two issues handled at once and the next one
   );
 });
 
-test('a user with concurrency 3 and --max 2 gets no more than 2 handled issues', async () => {
-  const fake = pool([1, 2, 3, 4], 3);
-  const result = runIssues({ ...ARGS, max: 2 }, fake);
-  await settle();
-  assert.deepEqual(fake.started, [1, 2]);
-  await fake.finish(1, 'skipped');
-  assert.deepEqual(fake.started, [1, 2, 3]);
-  await fake.finish(2, 'done');
-  await fake.finish(3, 'done');
-  assert.deepEqual(fake.started, [1, 2, 3]);
-  assert.equal((await result).reports.length, 3);
-});
-
 test('a user with concurrency 2 who asks to stop gets no new claim and every running issue finished', async () => {
   const fake = pool([1, 2, 3], 2);
   let stopped = false;
   fake.stop = () => stopped;
-  const result = runIssues(ARGS, fake);
+  const result = runIssues(fake);
   await settle();
   stopped = true;
   await fake.finish(1, 'done');
@@ -82,7 +69,7 @@ test('a user with concurrency 2 who asks to stop gets no new claim and every run
 
 test('a user with concurrency 2 whose issue leaves main broken gets no new claim and the run ended once the running issue ends', async () => {
   const fake = pool([1, 2, 3], 2);
-  const result = runIssues(ARGS, fake);
+  const result = runIssues(fake);
   await settle();
   await fake.finish(1, 'needs-human', true);
   assert.deepEqual(fake.started, [1, 2]);
@@ -103,7 +90,7 @@ test('a user with concurrency 2 whose fetch fails gets no new claim and the runn
     }
     return next;
   };
-  const result = runIssues(ARGS, fake);
+  const result = runIssues(fake);
   await settle();
   await fake.finish(1, 'done');
   assert.deepEqual(fake.started, [1, 2]);
@@ -118,7 +105,7 @@ test('a user with concurrency 2 whose fetch fails gets no new claim and the runn
 
 test('a user with concurrency 2 whose issue is skipped while another runs does not get it tried again in that run', async () => {
   const fake = pool([1, 2], 2);
-  const result = runIssues(ARGS, fake);
+  const result = runIssues(fake);
   await settle();
   await fake.finish(2, 'skipped');
   await fake.finish(1, 'done');
@@ -132,7 +119,7 @@ test('a user with concurrency 2 whose issue throws gets the error and the other 
   const process = fake.process;
   fake.process = (target) => (target.number === 1 ? Promise.reject(failure) : process(target));
   let ended = false;
-  const result = runIssues(ARGS, fake).finally(() => {
+  const result = runIssues(fake).finally(() => {
     ended = true;
   });
   await settle();

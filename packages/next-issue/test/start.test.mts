@@ -87,7 +87,7 @@ async function fakeWorker(t: TestContext, root: string, runRepo: RunRepo, versio
 
 test('a user who runs start with no worker sees a worker start in the background with its output in .next-issue/worker.log, and the run error with exit code 1', async (t) => {
   const root = await repository(false);
-  const started = startCommand(t, root, ['--max', '1']);
+  const started = startCommand(t, root, []);
   assert.equal(await started.exited, 1);
   assert.match(started.stderr(), /next-issue failed: .*No such remote 'origin'/);
   const log = await readFile(workerPaths(root).logPath, 'utf8');
@@ -102,20 +102,18 @@ test('a user who runs start while an idle worker is alive sees the run go in tha
   let workerOutput = '';
   worker.stderr.on('data', (chunk) => (workerOutput += chunk));
   await until(() => workerOutput.includes('listening'), 'the worker to listen');
-  const started = startCommand(t, root, ['--max', '1'], env);
+  const started = startCommand(t, root, [], env);
   assert.equal(await started.exited, 0);
   assert.match(workerOutput, / run\.start /);
   assert.match(started.stderr(), / run\.start /);
   assert.match(started.stdout(), /\S/);
 });
 
-test('a user who runs start with --json gets the machine summary of the run on stdout', async (t) => {
+test('a user who runs start gets the text summary of the run on stdout', async (t) => {
   const root = await repository();
-  const started = startCommand(t, root, ['--max', '1', '--json'], await idleGh());
+  const started = startCommand(t, root, [], await idleGh());
   assert.equal(await started.exited, 0);
-  const summary = JSON.parse(started.stdout()) as { issues: unknown[]; runId: string };
-  assert.deepEqual(summary.issues, []);
-  assert.equal(typeof summary.runId, 'string');
+  assert.match(started.stdout(), /^run \S+\nissues 0: .*\ntokens .*\nlog .*\.jsonl\n$/);
 });
 
 test('a user who runs start while the worker has a run going sees that a run is going and exit code 1', async (t) => {
@@ -193,7 +191,7 @@ test('a user who runs start while an older idle worker is alive sees it close an
   const root = await repository(false);
   const fake = fakeRuns();
   const older = await fakeWorker(t, root, fake.runRepo, '0.0.0-old');
-  const started = startCommand(t, root, ['--max', '1']);
+  const started = startCommand(t, root, []);
   await older.closed;
   assert.equal(await started.exited, 1);
   assert.match(started.stderr(), /No such remote 'origin'/);
@@ -256,7 +254,7 @@ test('a user whose start run watches while a newer client connects sees the run 
   const root = await repository();
   const fake = fakeRuns();
   const worker = await fakeWorker(t, root, fake.runRepo);
-  const started = startCommand(t, root, ['--watch', '--max', '3', '--verbose']);
+  const started = startCommand(t, root, ['--watch', '--hunt']);
   await until(() => fake.calls.length === 1, 'the run to start');
   const newer = await connect(t, workerPaths(root).socketPath);
   newer.send({ type: 'hello', version: '999.0.0' });
@@ -268,8 +266,8 @@ test('a user whose start run watches while a newer client connects sees the run 
   assert.equal(runs.type === 'runs' && runs.runs[root]?.upgrade, undefined);
   assert.equal(fake.controls().interrupts.afterIssue(), false);
   assert.equal(started.child.exitCode, null);
-  assert.equal(fake.calls[0]!.args.max, 3);
-  assert.equal(fake.calls[0]!.args.level, 'verbose');
+  assert.equal(fake.calls[0]!.args.watch, true);
+  assert.equal(fake.calls[0]!.args.hunt, true);
   fake.finish();
   assert.equal(await started.exited, 0);
   await worker.closed;

@@ -77,7 +77,7 @@ export async function hunt(context: Context, count: number): Promise<boolean> {
       [...result.text.matchAll(FILED)].map((match) => match[1]!),
     );
     for (const url of urls.length === 0 ? ['none'] : urls) {
-      recorder.event('hunt.issue', { url }, 'quiet');
+      recorder.event('hunt.issue', { url });
     }
     return urls.length > 0;
   });

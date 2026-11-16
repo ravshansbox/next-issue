@@ -47,11 +47,11 @@ async function setupFailed(
   when = '',
 ): Promise<Finished> {
   const late = setup.timedOut === true;
-  job.log.event(
-    'setup.fail',
-    { code: setup.code, timedOut: late, stderr: keepTail(setup.stderr.trim(), 2000) },
-    'quiet',
-  );
+  job.log.event('setup.fail', {
+    code: setup.code,
+    timedOut: late,
+    stderr: keepTail(setup.stderr.trim(), 2000),
+  });
   if (unsettled !== '') {
     job.mainBroken = true;
     job.state.halted = true;

@@ -8,6 +8,6 @@ export async function updateLocalBase(job: Run): Promise<void> {
     ports.fastForwardBase(repo, base, config.remote),
   ).catch(() => false);
   if (!updated) {
-    log.event('base.behind', { base }, 'quiet');
+    log.event('base.behind', { base });
   }
 }

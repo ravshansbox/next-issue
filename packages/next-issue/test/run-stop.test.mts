@@ -37,11 +37,11 @@ case "$1 $2" in
 esac
 `,
   );
-  await runRepo(
-    root,
-    { ...parseArgs(argv), level: 'quiet' },
-    { interrupts, output: () => undefined, ...(watching === undefined ? {} : { watching }) },
-  );
+  await runRepo(root, parseArgs(argv), {
+    interrupts,
+    output: () => undefined,
+    ...(watching === undefined ? {} : { watching }),
+  });
   const runs = join(root, '.next-issue', 'runs');
   const log = (await readdir(runs)).find((name) => name.endsWith('.jsonl'));
   assert.ok(log);

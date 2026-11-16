@@ -55,7 +55,7 @@ async function askQuestions(job: Run, before: string, questions: string[]): Prom
     const fresh = await ports.viewIssue(repo, issue.number);
     await ports.editIssueBody(repo, issue.number, withOpenQuestions(fresh.body, questions));
   } catch (error) {
-    log.event('questions.body-failed', { error: message(error) }, 'quiet');
+    log.event('questions.body-failed', { error: message(error) });
     state.unpostedQuestions = questions;
   }
   return escalateAndFinish(
@@ -79,7 +79,7 @@ async function useEarlierCommit(job: Run): Promise<Round | undefined> {
       'no implementation commit',
     );
   }
-  log.event('implement.earlier', { subject: earlier }, 'quiet');
+  log.event('implement.earlier', { subject: earlier });
   state.title = earlier;
   return undefined;
 }

@@ -106,17 +106,16 @@ test('a client that starts a run with --hunt gets a run that hunts and watches',
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo', args: ['--hunt', '--max', '3'] });
+  client.send({ type: 'start', root: '/repo', args: ['--hunt'] });
   await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
   assert.equal(fake.calls[0]!.args.hunt, true);
   assert.equal(fake.calls[0]!.args.watch, true);
-  assert.equal(fake.calls[0]!.args.max, 3);
 });
 
 test('a client sees in the progress of each run whether it watches for new issues', async (t) => {
   for (const [args, watching] of [
     [['--watch'], true],
-    [['--max', '1'], false],
+    [[], false],
   ] as const) {
     const { socketPath } = await worker(t, fakeRuns());
     const client = await connect(t, socketPath);
@@ -170,19 +169,17 @@ test('a client that starts a run with --watch alone sees hunting off, and can sw
 });
 
 test('a client that switches hunting on for a run that does not watch sees the run watch and hunt, with no restart', async (t) => {
-  for (const args of [['--max', '1'], []]) {
-    const fake = fakeRuns();
-    const { socketPath } = await worker(t, fake);
-    const client = await connect(t, socketPath);
-    client.send({ type: 'start', root: '/repo', args });
-    await client.next(huntingIs(false));
-    client.send({ type: 'hunt', root: '/repo', on: true });
-    const on = await client.next(huntingIs(true));
-    assert.equal(on.type === 'runs' && on.runs['/repo']!.watching, true);
-    assert.equal(fake.controls().hunting?.on(), true);
-    assert.equal(fake.controls().watching?.on(), true);
-    assert.equal(fake.calls.length, 1);
-  }
+  const fake = fakeRuns();
+  const { socketPath } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo', args: [] });
+  await client.next(huntingIs(false));
+  client.send({ type: 'hunt', root: '/repo', on: true });
+  const on = await client.next(huntingIs(true));
+  assert.equal(on.type === 'runs' && on.runs['/repo']!.watching, true);
+  assert.equal(fake.controls().hunting?.on(), true);
+  assert.equal(fake.controls().watching?.on(), true);
+  assert.equal(fake.calls.length, 1);
 });
 
 const watchingIs = (on: boolean) => (value: WorkerMessage) =>
@@ -303,9 +300,12 @@ test('a client that starts a run with a command or a flag that start does not ta
   for (const [args, message] of [
     [['init'], 'start does not take init'],
     [['start'], 'start does not take start'],
-    [['start', '--max', '1'], 'start does not take start'],
     [['--once'], 'Unknown argument: --once'],
-    [['--json'], 'start does not take --json'],
+    [['--json'], 'Unknown argument: --json'],
+    [['--max', '1'], 'Unknown argument: --max'],
+    [['--reset'], 'Unknown argument: --reset'],
+    [['--verbose'], 'Unknown argument: --verbose'],
+    [['--quiet'], 'Unknown argument: --quiet'],
     [['--force'], 'start does not take --force'],
     [['--help'], 'start does not take --help'],
     [['--merge'], 'Unknown argument: --merge'],
@@ -1235,14 +1235,14 @@ test('a client of a run whose log cannot be written still sees its progress and 
   let recorder: Recorder | undefined;
   const runRepo: typeof fake.runRepo = async (root, args, controls) => {
     const dir = await tempDir();
-    recorder = await Recorder.create(dir, 'quiet', controls.onEvent, fullDisk);
-    recorder.event('issue.start', { issue: 7 }, 'verbose');
+    recorder = await Recorder.create(dir, controls.onEvent, fullDisk);
+    recorder.record('issue.start', { issue: 7 });
     return fake.runRepo(root, args, controls);
   };
   const { client, socketPath } = await startedRun(t, { ...fake, runRepo });
   await client.next((value) => value.type === 'runs' && value.runs['/repo']?.issues.length === 1);
   await new Promise((resolve) => setTimeout(resolve, 50));
-  recorder!.event('issue.start', { issue: 8 }, 'verbose');
+  recorder!.record('issue.start', { issue: 8 });
   await client.next((value) => value.type === 'runs' && value.runs['/repo']?.issues.length === 2);
   const another = await connect(t, socketPath);
   await another.next((value) => value.type === 'hello');

@@ -16,7 +16,7 @@ export async function rebase(job: Run): Promise<Finished | undefined> {
     ports.startMerge(worktree, base, config.remote),
   );
   if (files !== undefined) {
-    log.event('rebase.conflicts', { files }, 'quiet');
+    log.event('rebase.conflicts', { files });
     if (unmarked.length > 0) {
       await ports.abortMerge(worktree, before);
       return escalateAndFinish(

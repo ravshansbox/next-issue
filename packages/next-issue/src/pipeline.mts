@@ -48,9 +48,9 @@ export async function processIssue(
     return skip;
   }
   claimed();
-  log.event('issue.start', { title: issue.title, createdAt: issue.createdAt }, 'quiet');
+  log.event('issue.start', { title: issue.title, createdAt: issue.createdAt });
 
-  const state = startState(context, issue, saved, handedOver);
+  const state = startState(issue, saved, handedOver);
 
   let report: IssueReport;
   try {
@@ -72,11 +72,7 @@ export async function processIssue(
     }
     report = stopNow(log, issue, state, started);
   }
-  log.event(
-    'issue.end',
-    { outcome: report.outcome, reason: report.reason, ms: report.ms },
-    'quiet',
-  );
+  log.event('issue.end', { outcome: report.outcome, reason: report.reason, ms: report.ms });
   return report;
 }
 
@@ -95,17 +91,12 @@ function wasHandedOver(context: Context, issue: Issue, saved: IssueState | undef
   );
 }
 
-function startState(
-  context: Context,
-  issue: Issue,
-  saved: IssueState | undefined,
-  handedOver: boolean,
-): IssueState {
+function startState(issue: Issue, saved: IssueState | undefined, handedOver: boolean): IssueState {
   if (saved === undefined) {
     return newState(issue.number, branchName(issue.number));
   }
   const { pendingHandOver: _pending, ...rest } = saved;
-  return context.reset || handedOver ? resetState(saved, handedOver) : rest;
+  return handedOver ? resetState(saved) : rest;
 }
 
 async function work(

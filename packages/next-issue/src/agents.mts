@@ -195,13 +195,7 @@ function observe(log: Recorder, event: AgentSessionEvent, cwd: string): void {
   if (event.type === 'tool_execution_start') {
     log.event('tool', toolFields(event.toolName, event.args, cwd));
   } else if (event.type === 'tool_execution_end' && event.isError) {
-    log.event('tool.error', { tool: event.toolName }, 'quiet');
-  } else if (
-    event.type === 'message_update' &&
-    event.assistantMessageEvent.type === 'text_delta' &&
-    log.level === 'verbose'
-  ) {
-    log.print(event.assistantMessageEvent.delta);
+    log.event('tool.error', { tool: event.toolName });
   }
 }
 

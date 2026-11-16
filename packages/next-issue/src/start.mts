@@ -1,8 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Args } from './args.mts';
-import { prettyJson } from './files.mts';
 import { NOTES, onPresses } from './interrupt.mts';
-import type { RunSummary, WorkerMessage } from './protocol.mts';
+import type { WorkerMessage } from './protocol.mts';
 import { formatSummary } from './summary.mts';
 import { packageVersion } from './version.mts';
 import { CLOSED, type Connection, going, reachWorker } from './worker-client.mts';
@@ -53,8 +52,6 @@ function follow(
 ): Promise<number> {
   const id = randomUUID();
   const stopId = randomUUID();
-  const summaryText = (summary: RunSummary): string =>
-    args.json ? prettyJson(summary) : formatSummary(summary);
   return new Promise((resolve) => {
     const stopListening = onPresses((presses) => {
       if (presses === 1) {
@@ -87,7 +84,7 @@ function follow(
       if (message.type === 'output') {
         out.print(process.stderr, message.text);
       } else if (message.type === 'pass') {
-        out.print(process.stdout, summaryText(message.summary));
+        out.print(process.stdout, formatSummary(message.summary));
       } else if (message.type === 'stopping' && message.id === stopId) {
         out.print(process.stderr, `${firstNote(message)}\n`);
       } else if (message.type === 'error' && message.id === id) {
@@ -96,7 +93,7 @@ function follow(
         fail(message.error);
       } else if (message.type === 'end') {
         if (!args.watch && message.summary !== undefined) {
-          out.print(process.stdout, summaryText(message.summary));
+          out.print(process.stdout, formatSummary(message.summary));
         }
         settle(message.code);
       }

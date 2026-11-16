@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import type { Issue } from '../src/github.mts';
 import type { Outcome } from '../src/job.mts';
 import { exitCode, type Loop, runIssues } from '../src/loop.mts';
-import { ARGS, issue, report } from './loop-harness.mts';
+import { issue, report } from './loop-harness.mts';
 
 type Fake = Loop & { processed: number[] };
 
@@ -22,19 +22,13 @@ function loop(outcomes: Record<number, Outcome>, stops: boolean[] = []): Fake {
 
 test('every issue is handled in order', async () => {
   const fake = loop({ 1: 'skipped', 2: 'done', 3: 'needs-human' });
-  const result = await runIssues(ARGS, fake);
+  const result = await runIssues(fake);
   assert.deepEqual(fake.processed, [1, 2, 3]);
   assert.deepEqual(
     result.reports.map((entry) => entry.outcome),
     ['skipped', 'done', 'needs-human'],
   );
   assert.equal(result.stoppedAt, undefined);
-});
-
-test('--max counts the handled issues, not the skipped ones', async () => {
-  const fake = loop({ 1: 'skipped', 2: 'done', 3: 'done' });
-  await runIssues({ ...ARGS, max: 1 }, fake);
-  assert.deepEqual(fake.processed, [1, 2]);
 });
 
 test('a user who asks to stop ends the run after the current issue', async () => {
@@ -46,7 +40,7 @@ test('a user who asks to stop ends the run after the current issue', async () =>
     return process(target);
   };
   fake.stop = () => stopped;
-  const result = await runIssues(ARGS, fake);
+  const result = await runIssues(fake);
   assert.deepEqual(fake.processed, [1, 2]);
   assert.equal(result.stoppedAt, 2);
 });
@@ -54,7 +48,7 @@ test('a user who asks to stop ends the run after the current issue', async () =>
 test('a user who asks to stop before the run fetches the open issues gets no issue claimed', async () => {
   const fake = loop({ 1: 'done', 2: 'done' });
   fake.stop = () => true;
-  const result = await runIssues(ARGS, fake);
+  const result = await runIssues(fake);
   assert.deepEqual(fake.processed, []);
   assert.deepEqual(result.reports, []);
 });
@@ -69,7 +63,7 @@ test('a user who asks to stop while the run fetches the open issues gets no issu
     return list;
   };
   fake.stop = () => stopped;
-  const result = await runIssues(ARGS, fake);
+  const result = await runIssues(fake);
   assert.deepEqual(fake.processed, []);
   assert.deepEqual(result.reports, []);
 });
@@ -80,7 +74,7 @@ test('a run ends after an issue that leaves main broken', async () => {
     fake.processed.push(target.number);
     return { ...report(target.number, 'needs-human'), halt: true };
   };
-  const result = await runIssues(ARGS, fake);
+  const result = await runIssues(fake);
   assert.deepEqual(fake.processed, [1]);
   assert.equal(result.stoppedAt, 1);
 });
@@ -89,7 +83,7 @@ test('an issue opened during the run is handled in the same run', async () => {
   const fake = loop({ 1: 'done', 2: 'done' });
   const lists = [[issue(1)], [issue(1), issue(2)], [issue(1), issue(2)]];
   fake.issues = async () => lists.shift() ?? [];
-  await runIssues(ARGS, fake);
+  await runIssues(fake);
   assert.deepEqual(fake.processed, [1, 2]);
 });
 
@@ -97,7 +91,7 @@ test('an issue closed during the run is not handled', async () => {
   const fake = loop({ 1: 'done', 2: 'done', 3: 'done' });
   const lists = [[issue(1), issue(2), issue(3)], [issue(3)], []];
   fake.issues = async () => lists.shift() ?? [];
-  await runIssues(ARGS, fake);
+  await runIssues(fake);
   assert.deepEqual(fake.processed, [1, 3]);
 });
 
@@ -111,7 +105,7 @@ test('each issue is handled with the details fetched just before it', async () =
     handled.push(target);
     return report(target.number, 'done');
   };
-  await runIssues(ARGS, fake);
+  await runIssues(fake);
   assert.deepEqual(handled, [issue(1), changed]);
 });
 
@@ -126,7 +120,7 @@ test('a run that cannot fetch the open issues ends with the reports of the issue
     }
     return next;
   };
-  const result = await runIssues(ARGS, fake);
+  const result = await runIssues(fake);
   assert.deepEqual(
     result.reports.map((entry) => entry.issue),
     [1],
@@ -166,7 +160,7 @@ test('a person who answers a hand-over during the run gets the issue claimed aga
     [[ready, issue(2)], [waiting, issue(2)], [ready, issue(3)], [issue(3)], []],
     ['needs-human', 'done', 'done', 'done'],
   );
-  await runIssues(ARGS, fake);
+  await runIssues(fake);
   assert.deepEqual(fake.processed, [1, 2, 1, 3]);
 });
 
@@ -177,7 +171,7 @@ test('a person who makes a skipped issue ready during the run gets it claimed ag
     [[blocked, issue(2)], [blocked, issue(2)], [ready], []],
     ['skipped', 'done', 'done'],
   );
-  await runIssues(ARGS, fake);
+  await runIssues(fake);
   assert.deepEqual(fake.processed, [1, 2, 1]);
 });
 
@@ -187,7 +181,7 @@ test('an issue that comes back with the labels it had after its attempt is not c
     [[issue(1), issue(2)], [waiting, issue(2)], [waiting], [waiting], [waiting]],
     ['needs-human', 'done'],
   );
-  const result = await runIssues(ARGS, fake);
+  const result = await runIssues(fake);
   assert.deepEqual(fake.processed, [1, 2]);
   assert.equal(fake.fetches, 3);
   assert.equal(result.reports.length, 2);
@@ -198,7 +192,7 @@ test('an issue that failed with an error is not claimed again in the same run ev
     [[issue(1), issue(2)], [issue(1), issue(2)], [labelled(1, ['status:todo'])], []],
     ['error', 'done'],
   );
-  await runIssues(ARGS, fake);
+  await runIssues(fake);
   assert.deepEqual(fake.processed, [1, 2]);
 });
 
@@ -213,7 +207,7 @@ test('an issue that failed with an error and was handed over is claimed again on
     const outcome = fake.processed.length === 1 ? 'error' : 'done';
     return { ...report(target.number, outcome), handedOver: outcome === 'error' };
   };
-  await runIssues(ARGS, fake);
+  await runIssues(fake);
   assert.deepEqual(fake.processed, [1, 2, 1]);
 });
 
@@ -222,7 +216,7 @@ test('an issue that is done is not claimed again in the same run even when its l
     [[issue(1), issue(2)], [issue(1), issue(2)], [labelled(1, ['status:done'])], []],
     ['done', 'done'],
   );
-  await runIssues(ARGS, fake);
+  await runIssues(fake);
   assert.deepEqual(fake.processed, [1, 2]);
 });
 
@@ -275,7 +269,7 @@ function reclaimedBlocked(
 
 test('a person who changes the labels of a blocked issue gets it claimed once while it runs, even when another issue ends done meanwhile', async () => {
   const fake = reclaimedBlocked('done', 'while it runs');
-  await runIssues(ARGS, { ...fake, concurrency: 2 });
+  await runIssues({ ...fake, concurrency: 2 });
   assert.equal(fake.overlapped, false);
   assert.deepEqual(fake.processed, [1, 2, 3, 1]);
 });
@@ -283,7 +277,7 @@ test('a person who changes the labels of a blocked issue gets it claimed once wh
 for (const outcome of ['done', 'error'] as const) {
   test(`a person who changes the labels of a blocked issue that then ends ${outcome} does not get it claimed again when another issue ends done`, async () => {
     const fake = reclaimedBlocked(outcome, 'after it ends');
-    await runIssues(ARGS, { ...fake, concurrency: 2 });
+    await runIssues({ ...fake, concurrency: 2 });
     assert.deepEqual(fake.processed, [1, 2, 3, 1]);
   });
 }

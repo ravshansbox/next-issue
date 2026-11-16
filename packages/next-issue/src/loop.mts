@@ -1,4 +1,3 @@
-import type { Args } from './args.mts';
 import type { Issue } from './github.mts';
 import type { IssueReport } from './job.mts';
 import { type Slot, Slots } from './slots.mts';
@@ -25,12 +24,7 @@ type Settled = { issue: number; slot: Slot; report?: IssueReport; failure?: unkn
  */
 type Tried = { ended: Set<number>; labels: Map<number, string | undefined>; blocked: Set<number> };
 
-export async function runIssues(
-  args: Pick<Args, 'max'>,
-  loop: Loop,
-  seen = new Set<number>(),
-): Promise<LoopResult> {
-  const limit = args.max;
+export async function runIssues(loop: Loop, seen = new Set<number>()): Promise<LoopResult> {
   const slots = new Slots(loop.concurrency ?? 1);
   const reports: IssueReport[] = [];
   const running = new Map<number, Promise<Settled>>();
@@ -40,12 +34,10 @@ export async function runIssues(
   let claiming = true;
   let unclaimed = true;
   const tried: Tried = { ended: new Set(), labels: new Map(), blocked: new Set() };
-  const room = (): boolean =>
-    slots.open() && (limit === undefined || handled(reports) + running.size < limit);
   for (;;) {
-    if (claiming && unclaimed && room()) {
+    if (claiming && unclaimed && slots.open()) {
       try {
-        ({ claiming, unclaimed } = await claimIssues(loop, seen, tried, { running, slots }, room));
+        ({ claiming, unclaimed } = await claimIssues(loop, seen, tried, { running, slots }));
       } catch (failure) {
         error = failure;
         claiming = false;
@@ -104,7 +96,6 @@ async function claimIssues(
   seen: Set<number>,
   tried: Tried,
   pool: { running: Map<number, Promise<Settled>>; slots: Slots },
-  room: () => boolean,
 ): Promise<{ claiming: boolean; unclaimed: boolean }> {
   if (loop.stop()) {
     return { claiming: false, unclaimed: false };
@@ -115,7 +106,7 @@ async function claimIssues(
   }
   readmitChanged(issues, seen, tried);
   for (const issue of issues.filter((candidate) => !seen.has(candidate.number))) {
-    if (!room()) {
+    if (!pool.slots.open()) {
       return { claiming: true, unclaimed: true };
     }
     seen.add(issue.number);

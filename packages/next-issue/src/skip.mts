@@ -115,7 +115,7 @@ function readError(
   if (saved !== undefined) {
     return stopNow(log, issue, saved, started);
   }
-  log.event('issue.stop', {}, 'quiet');
+  log.event('issue.stop', {});
   return { ...skipped(issue), outcome: 'stopped', ms: elapsedMs(started) };
 }
 
@@ -136,7 +136,7 @@ export function logIssueError(
 ): { reason: string; ms: number } {
   const reason = message(error);
   const ms = elapsedMs(started);
-  log.event('issue.error', { error: reason, ms }, 'quiet');
+  log.event('issue.error', { error: reason, ms });
   return { reason, ms };
 }
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import { must } from '../src/exec.mts';
@@ -67,25 +67,24 @@ async function outputUntilEnd(
   }
 }
 
-for (const { args, normal } of [
-  { args: [], normal: true },
-  { args: ['--quiet'], normal: false },
-]) {
-  test(`a client that starts a run with [${args.join(' ')}] gets each line the run prints at its level, then the summary and exit code`, async (t) => {
-    const { root, client } = await repoWorker(t, WORKING_GH);
-    client.send({ type: 'start', root, args });
-    const { lines, end } = await outputUntilEnd(client, root);
-    assert.match(lines, / run\.start /);
-    assert.equal(/ issue\.skip /.test(lines), normal);
-    assert.equal(end.type === 'end' && end.root, root);
-    assert.equal(end.type === 'end' && end.code, 0);
-    assert.equal(end.type === 'end' && end.error, undefined);
-    assert.deepEqual(
-      end.type === 'end' && end.summary?.issues.map((report) => [report.issue, report.outcome]),
-      [[1, 'skipped']],
-    );
-  });
-}
+test('a client that starts a run gets the milestone and normal lines but not the commands, then the summary and exit code, while the run log keeps every event', async (t) => {
+  const { root, client } = await repoWorker(t, WORKING_GH);
+  client.send({ type: 'start', root });
+  const { lines, end } = await outputUntilEnd(client, root);
+  assert.match(lines, / run\.start /);
+  assert.match(lines, / issue\.skip /);
+  assert.doesNotMatch(lines, / command /);
+  const runs = join(root, '.next-issue', 'runs');
+  const [log] = (await readdir(runs)).filter((name) => name.endsWith('.jsonl'));
+  assert.match(await readFile(join(runs, log!), 'utf8'), /"kind":"command"/);
+  assert.equal(end.type === 'end' && end.root, root);
+  assert.equal(end.type === 'end' && end.code, 0);
+  assert.equal(end.type === 'end' && end.error, undefined);
+  assert.deepEqual(
+    end.type === 'end' && end.summary?.issues.map((report) => [report.issue, report.outcome]),
+    [[1, 'skipped']],
+  );
+});
 
 test('a client of a run that fails gets exit code 1 and the error text of next-issue start', async (t) => {
   const { root, client } = await repoWorker(

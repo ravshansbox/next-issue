@@ -8,13 +8,13 @@ import { logRecords } from './log-records.mts';
 import { tempDir } from './temp-dir.mts';
 
 async function recorder(): Promise<Recorder> {
-  return Recorder.create(await tempDir(), 'quiet');
+  return Recorder.create(await tempDir());
 }
 
 test('every event goes to the log file with the run id', async () => {
   const target = await recorder();
-  target.event('run.start', { repo: 'acme/tool' }, 'verbose');
-  target.event('issues', { open: 2 }, 'verbose');
+  target.record('run.start', { repo: 'acme/tool' });
+  target.record('issues', { open: 2 });
   const records = await logRecords(target);
   assert.equal(records.length, 2);
   assert.equal(records[0]!.kind, 'run.start');
@@ -27,8 +27,8 @@ test('a scope adds its fields to every event under it', async () => {
   const target = await recorder();
   const issue = target.scope({ issue: 7 });
   const role = issue.scope({ role: 'fixer' });
-  role.event('agent.start', {}, 'verbose');
-  target.event('run.end', {}, 'verbose');
+  role.record('agent.start', {});
+  target.record('run.end', {});
   const records = await logRecords(target);
   assert.equal(records[0]!.issue, 7);
   assert.equal(records[0]!.role, 'fixer');
@@ -67,7 +67,7 @@ test('the summary counts the events and adds the tokens per role', async () => {
   target.usage('implementer', usage, 100);
   target.usage('implementer', usage, 50);
   target.usage('reviewer', usage, 20);
-  target.event('commit', {}, 'verbose');
+  target.record('commit', {});
   const summary = target.summary();
   assert.equal(summary.runId, target.runId);
   assert.equal(summary.roles.implementer!.calls, 2);
@@ -83,7 +83,7 @@ test('a summary since an earlier one holds only the tokens and events after it',
   const target = await recorder();
   const usage = { input: 10, output: 5, cacheRead: 2, cacheWrite: 1, total: 18 };
   target.usage('implementer', usage, 100);
-  target.event('commit', {}, 'verbose');
+  target.record('commit', {});
   const earlier = target.summary();
   target.usage('implementer', usage, 50);
   target.usage('reviewer', usage, 20);
@@ -111,14 +111,13 @@ test('a run whose log write fails keeps passing events to its listener and repor
   const seen: string[] = [];
   const target = await Recorder.create(
     await tempDir(),
-    'quiet',
     (record) => seen.push(String(record.kind)),
     fullDisk,
   );
-  target.event('run.start', {}, 'verbose');
+  target.record('run.start', {});
   await new Promise((resolve) => setTimeout(resolve, 50));
-  target.event('issue.start', {}, 'verbose');
-  target.event('issue.end', {}, 'verbose');
+  target.record('issue.start', {});
+  target.record('issue.end', {});
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert.deepEqual(seen, ['run.start', 'issue.start', 'issue.end']);
   const reports = written.filter((line) => line.includes('ENOSPC'));
@@ -129,26 +128,26 @@ test('a run whose log write fails keeps passing events to its listener and repor
 
 test('a run whose log write fails closes its log without a throw or a hang', async (t) => {
   failingLog(t);
-  const target = await Recorder.create(await tempDir(), 'quiet', undefined, fullDisk);
-  target.event('run.start', {}, 'verbose');
+  const target = await Recorder.create(await tempDir(), undefined, fullDisk);
+  target.record('run.start', {});
   await new Promise((resolve) => setTimeout(resolve, 50));
   await target.close();
 });
 
 test('a run whose log fails on its last write closes its log without a throw or a hang', async (t) => {
   failingLog(t);
-  const target = await Recorder.create(await tempDir(), 'quiet', undefined, fullDisk);
-  target.event('run.end', {}, 'verbose');
+  const target = await Recorder.create(await tempDir(), undefined, fullDisk);
+  target.record('run.end', {});
   await target.close();
 });
 
 test('a run whose log file cannot be opened keeps running and closes its log', async (t) => {
   const written = failingLog(t);
   const root = await tempDir();
-  const target = await Recorder.create(root, 'quiet', undefined, () =>
+  const target = await Recorder.create(root, undefined, () =>
     createWriteStream(join(root, 'missing', 'run.jsonl'), { flags: 'a' }),
   );
-  target.event('run.start', {}, 'verbose');
+  target.record('run.start', {});
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert.equal(written.filter((line) => line.includes('ENOENT')).length, 1);
   await target.close();

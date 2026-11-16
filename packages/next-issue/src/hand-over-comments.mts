@@ -181,7 +181,7 @@ export async function writerComments(
     (comment) => !fromHarness(comment),
   );
   return writerQuotes(comments, writers(repo, ports), (comment) =>
-    log.event('comment.skip', { author: comment.author }, 'quiet'),
+    log.event('comment.skip', { author: comment.author }),
   );
 }
 

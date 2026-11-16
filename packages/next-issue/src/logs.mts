@@ -20,10 +20,7 @@ export async function newestRunLog(root: string): Promise<string | undefined> {
   return newest === undefined ? undefined : join(dir, newest);
 }
 
-function show(line: string, json: boolean): string {
-  if (json) {
-    return `${line}\n`;
-  }
+function show(line: string): string {
   try {
     return render(JSON.parse(line) as Record<string, unknown>);
   } catch {
@@ -47,13 +44,9 @@ function stdoutOpen(): boolean {
   }
 }
 
-async function printLines(
-  lines: string[],
-  json: boolean,
-  print: (text: string) => Promise<void>,
-): Promise<void> {
+async function printLines(lines: string[], print: (text: string) => Promise<void>): Promise<void> {
   if (lines.length > 0) {
-    await print(lines.map((line) => show(line, json)).join(''));
+    await print(lines.map(show).join(''));
   }
 }
 
@@ -101,7 +94,7 @@ function listenForStop(stop: () => void): () => void {
 export async function followLog(
   root: string,
   start: string,
-  options: { json: boolean; tail?: number },
+  options: { tail?: number },
   print: (text: string) => Promise<void>,
 ): Promise<number> {
   let file = start;
@@ -124,7 +117,7 @@ export async function followLog(
       const complete = completeLines(rest, first ? options.tail : undefined);
       rest = complete.rest;
       first = false;
-      await printLines(complete.shown, options.json, print);
+      await printLines(complete.shown, print);
       if (!stdoutOpen()) {
         control.stop();
       }
@@ -139,9 +132,7 @@ export async function followLog(
         decoder = new StringDecoder('utf8');
         position = 0;
         rest = '';
-        if (!options.json) {
-          await print(`— new run: ${basename(file)} —\n`);
-        }
+        await print(`— new run: ${basename(file)} —\n`);
         continue;
       }
       await control.pause();

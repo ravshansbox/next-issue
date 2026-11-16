@@ -50,23 +50,19 @@ esac
     );
     const records: Fields[] = [];
     await assert.rejects(
-      runRepo(
-        root,
-        { ...parseArgs(argv), level: 'quiet' },
-        {
-          interrupts: {
-            afterIssue: () => false,
-            afterRound: () => false,
-            sleep: async () => false,
-          },
-          onEvent: (record) => {
-            records.push(record);
-            if (record.kind === 'issue.skip' && record.issue === 2) {
-              throw new Error('issue 2 crashed');
-            }
-          },
+      runRepo(root, parseArgs(argv), {
+        interrupts: {
+          afterIssue: () => false,
+          afterRound: () => false,
+          sleep: async () => false,
         },
-      ),
+        onEvent: (record) => {
+          records.push(record);
+          if (record.kind === 'issue.skip' && record.issue === 2) {
+            throw new Error('issue 2 crashed');
+          }
+        },
+      }),
       /issue 2 crashed/,
     );
     assert.ok(records.some((record) => record.kind === 'run.end'));

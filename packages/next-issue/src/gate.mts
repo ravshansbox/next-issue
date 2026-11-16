@@ -190,7 +190,7 @@ async function failedChecksFix(job: Run, sha: string, refused?: string): Promise
     }
     const named = namedFile(logs, files);
     if (named !== undefined) {
-      log.event('fix.refused', { file: named }, 'quiet');
+      log.event('fix.refused', { file: named });
       return failedChecksFix(job, sha, named);
     }
   }

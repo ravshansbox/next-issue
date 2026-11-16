@@ -29,16 +29,12 @@ esac
 `,
   );
   const records: Fields[] = [];
-  await runRepo(
-    root,
-    { ...parseArgs(['start']), level: 'quiet' },
-    {
-      interrupts: { afterIssue: () => false, afterRound: () => false, sleep: async () => false },
-      onEvent: (record) => {
-        records.push(record);
-      },
+  await runRepo(root, parseArgs(['start']), {
+    interrupts: { afterIssue: () => false, afterRound: () => false, sleep: async () => false },
+    onEvent: (record) => {
+      records.push(record);
     },
-  );
+  });
   return records;
 }
 

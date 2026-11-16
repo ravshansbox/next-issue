@@ -34,17 +34,13 @@ esac
 }
 
 function start(root: string): Promise<number> {
-  return runRepo(
-    root,
-    { ...parseArgs(['start']), level: 'quiet' },
-    {
-      interrupts: {
-        afterIssue: () => false,
-        afterRound: () => false,
-        sleep: async () => false,
-      },
+  return runRepo(root, parseArgs(['start']), {
+    interrupts: {
+      afterIssue: () => false,
+      afterRound: () => false,
+      sleep: async () => false,
     },
-  );
+  });
 }
 
 test('a user who starts a run with an unsorted config file finds its keys sorted at every level, with the same fields and values', async (t) => {

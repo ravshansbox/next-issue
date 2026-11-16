@@ -135,28 +135,18 @@ test('resetState drops the budgets and keeps the resume point', () => {
   });
 });
 
-test('resetState keeps an approval unless the issue was handed over', () => {
-  const approved = { ...STATE, phase: 'approved' as const };
-  assert.deepEqual(resetState({ ...approved, commitFixes: 1 }), {
-    ...approved,
-    ciFixes: 0,
-    commitFixes: 0,
-    reviewRounds: 0,
-    reviewLog: [],
+test('resetState sends an approved issue back to review and drops its closing mark, review start and squash start', () => {
+  const reset = resetState({
+    ...STATE,
+    phase: 'approved',
+    closing: true,
+    reviewing: 'abc',
+    squashing: 'abc',
   });
-  assert.equal(resetState(approved, true).phase, 'review');
-});
-
-test('a run that resets the state keeps the squash start unless the issue was handed over', () => {
-  const squashing = { ...STATE, squashing: 'abc' };
-  assert.equal(resetState(squashing).squashing, 'abc');
-  assert.equal(resetState(squashing, true).squashing, undefined);
-});
-
-test('resetState keeps the review start unless the issue was handed over', () => {
-  const reviewing = { ...STATE, reviewing: 'abc' };
-  assert.equal(resetState(reviewing).reviewing, 'abc');
-  assert.equal(resetState(reviewing, true).reviewing, undefined);
+  assert.equal(reset.phase, 'review');
+  assert.equal(reset.closing, undefined);
+  assert.equal(reset.reviewing, undefined);
+  assert.equal(reset.squashing, undefined);
 });
 
 test('dropState takes the state away and accepts a state that is not there', async () => {

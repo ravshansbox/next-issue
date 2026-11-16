@@ -1,56 +1,39 @@
 import { CONFIG_FILE } from './config-fields.mts';
-import type { Level } from './observe.mts';
 
 type Command = 'start' | 'init' | 'serve' | 'stop' | 'logs';
 
 export type Args = {
   command?: Command;
-  max?: number;
   help: boolean;
-  json: boolean;
-  reset: boolean;
   force: boolean;
   watch: boolean;
   hunt: boolean;
-  level: Level;
 };
 
-type Switch = 'help' | 'json' | 'reset' | 'force' | 'watch' | 'hunt';
+type Switch = 'help' | 'force' | 'watch' | 'hunt';
 
 const SWITCHES = new Map<string, Switch>([
   ['--force', 'force'],
-  ['--json', 'json'],
   ['--help', 'help'],
   ['--watch', 'watch'],
   ['--hunt', 'hunt'],
-  ['--reset', 'reset'],
-]);
-
-const LEVELS = new Map<string, Level>([
-  ['--verbose', 'verbose'],
-  ['--quiet', 'quiet'],
 ]);
 
 export const USAGE = `next-issue <command> [options]
 
   start        start a run: claim issues, fix them and push them to the base branch
-    --max <n>  handle at most n issues
     --watch    keep running and read the issues again after each pass
     --hunt     hunt the repository for bugs and file issues alongside the issues, turns on --watch
-    --reset    drop the saved budgets and findings first
   init         write ${CONFIG_FILE} with the defaults and add .next-issue/ and .worktrees/ to info/exclude
   serve        run the worker of this repository that pi extensions talk to
   stop         stop the worker of this repository
   logs         show the latest run log and follow it
 
-  --json       print the machine summary instead of the text one, or raw lines with logs
   --force      replace an existing config file, with init
-  --verbose    show every command and all agent output
-  --quiet      show only the milestones and the summary
   --help       show this text
 `;
 
-const RUN_FLAGS = new Set(['--max', '--watch', '--hunt', '--reset']);
+const RUN_FLAGS = new Set(['--watch', '--hunt']);
 
 export function parseArgs(argv: string[]): Args {
   const { args, flag, runFlag } = readArgs(argv);
@@ -74,12 +57,9 @@ export function parseArgs(argv: string[]): Args {
 function readArgs(argv: string[]): { args: Args; flag?: string; runFlag?: string } {
   const args: Args = {
     help: false,
-    json: false,
-    reset: false,
     force: false,
     watch: false,
     hunt: false,
-    level: 'normal',
   };
   let flag: string | undefined;
   let runFlag: string | undefined;
@@ -95,10 +75,6 @@ function readArgs(argv: string[]): { args: Args; flag?: string; runFlag?: string
       args.command = command(arg);
     } else if (SWITCHES.has(arg)) {
       args[SWITCHES.get(arg)!] = true;
-    } else if (LEVELS.has(arg)) {
-      args.level = LEVELS.get(arg)!;
-    } else if (arg === '--max') {
-      args.max = whole(argv[++index], arg);
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
@@ -114,15 +90,7 @@ function command(arg: string): Command {
   return arg;
 }
 
-function whole(value: string | undefined, option: string): number {
-  const parsed = Number(value);
-  if (value === undefined || !Number.isInteger(parsed) || parsed < 1) {
-    throw new Error(`${option} needs a whole number of 1 or more`);
-  }
-  return parsed;
-}
-
-const OUTPUT_ONLY: Switch[] = ['json', 'force', 'help'];
+const OUTPUT_ONLY: Switch[] = ['force', 'help'];
 
 export function parseStartArgs(argv: string[]): Args {
   const { args } = readArgs(argv);

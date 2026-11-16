@@ -20,8 +20,8 @@ test('two runs of nested repositories each log only the commands they ran', asyn
   const outer = await tempDir();
   const inner = join(outer, 'inner');
   await mkdir(inner);
-  const outerRecorder = await Recorder.create(outer, 'quiet');
-  const innerRecorder = await Recorder.create(inner, 'quiet');
+  const outerRecorder = await Recorder.create(outer);
+  const innerRecorder = await Recorder.create(inner);
   await Promise.all([
     recordCommands(outerRecorder, async () => {
       await run(NODE, ['-e', '"outer-cwd"'], { cwd: outer });

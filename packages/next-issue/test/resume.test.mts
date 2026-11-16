@@ -107,66 +107,18 @@ test('a user who resumes a run that died after the fix of main was committed get
   );
 });
 
-test('--reset puts the budgets back and keeps the resume point', async (t) => {
+test('a user who takes the needs-human label off a handed-over approved change gets it reviewed again', async (t) => {
   const target = await harness(t, {
-    issue: IN_PROGRESS,
-    saved: SAVED,
-    reset: true,
+    issue: { ...ISSUE, labels: [] },
+    saved: { ...HANDED_OVER, phase: 'approved' },
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  assert.equal(report.ciFixes, 0);
   assert.equal(report.reviewRounds, 1);
   assert.deepEqual(roles(target), ['reviewer']);
 });
 
-test('a user who runs --reset with a saved approved change gets it landed with no new review and the budgets put back', async (t) => {
-  const target = await harness(t, {
-    issue: IN_REVIEW,
-    saved: { ...SAVED, phase: 'approved', commitFixes: 1 },
-    reset: true,
-  });
-  const report = await target.run();
-  assert.equal(report.outcome, 'done');
-  assert.equal(report.ciFixes, 0);
-  assert.equal(report.reviewRounds, 0);
-  assert.deepEqual(roles(target), []);
-  assert.equal(target.landed.length, 1);
-});
-
-test('a user who runs --reset with a saved approved change whose push fails finds the saved budgets, commit fixes and findings at zero', async (t) => {
-  const target = await harness(t, {
-    issue: IN_REVIEW,
-    saved: { ...SAVED, phase: 'approved', commitFixes: 1 },
-    reset: true,
-    pushRejects: 3,
-  });
-  const report = await target.run();
-  assert.equal(report.reason, 'push failed');
-  assert.deepEqual(roles(target), []);
-  const state = await target.state();
-  assert.equal(state?.phase, 'approved');
-  assert.equal(state?.ciFixes, 0);
-  assert.equal(state?.reviewRounds, 0);
-  assert.equal(state?.commitFixes, 0);
-  assert.deepEqual(state?.reviewLog, []);
-});
-
-for (const reset of [false, true]) {
-  test(`a user who takes the needs-human label off a handed-over approved change gets it reviewed again${reset ? ' with --reset' : ''}`, async (t) => {
-    const target = await harness(t, {
-      issue: { ...ISSUE, labels: [] },
-      saved: { ...HANDED_OVER, phase: 'approved' },
-      reset,
-    });
-    const report = await target.run();
-    assert.equal(report.outcome, 'done');
-    assert.equal(report.reviewRounds, 1);
-    assert.deepEqual(roles(target), ['reviewer']);
-  });
-}
-
-test('a user who takes the needs-human label off a handed-over issue gets the budgets put back without --reset', async (t) => {
+test('a user who takes the needs-human label off a handed-over issue gets the budgets put back', async (t) => {
   const target = await harness(t, {
     issue: { ...ISSUE, labels: [] },
     saved: HANDED_OVER,
@@ -344,17 +296,6 @@ test('a writer who answers a handed-over issue sees the issue leave the waiting 
     canWrite: async () => true,
   });
   assert.deepEqual(questions, []);
-});
-
-test('--reset leaves the state of a skipped issue alone', async (t) => {
-  const target = await harness(t, {
-    issue: { ...ISSUE, labels: ['status:needs-human'] },
-    saved: SAVED,
-    reset: true,
-  });
-  const report = await target.run();
-  assert.equal(report.outcome, 'skipped');
-  assert.deepEqual(await target.state(), SAVED);
 });
 
 test('a run that finds a corrupt state file reports an error that names the file and starts no agent', async (t) => {

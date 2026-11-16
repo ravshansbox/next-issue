@@ -81,7 +81,7 @@ export async function fixRound(
     job.state.title = title;
   }
   if (!committed) {
-    log.event('commit.empty', { reason }, 'quiet');
+    log.event('commit.empty', { reason });
     return { committed: false };
   }
   return { committed: true };
@@ -131,7 +131,7 @@ async function disputedFix(
   const aside = `${branch}-dispute-${disputed.slice(0, 7)}`;
   await ports.setAside(worktree, before, aside);
   job.asides.push(aside);
-  log.event('fix.aside', { branch: aside, saved }, 'quiet');
+  log.event('fix.aside', { branch: aside, saved });
   return disputedNote(job, reason, note, { stray: true, aside });
 }
 
@@ -142,7 +142,7 @@ function disputedNote(
   left: { stray: boolean; aside?: string },
 ): Fix {
   const event = 'unrelated' in note ? 'fix.unrelated' : 'fix.resolved';
-  job.log.event(event, { reason, note: Object.values(note)[0], ...left }, 'quiet');
+  job.log.event(event, { reason, note: Object.values(note)[0], ...left });
   return { committed: false, ...note, ...left };
 }
 
@@ -189,7 +189,7 @@ async function hookFix(
   state.commitFixes = used + 1;
   await writeState(repo, state);
   const output = keepTail(message(error), config.logMaxChars);
-  log.event('commit.fail', { role, output }, 'quiet');
+  log.event('commit.fail', { role, output });
   const fix = await log.step(
     'commit-fix',
     { role, round: state.commitFixes, limit: config.maxCommitFixes },

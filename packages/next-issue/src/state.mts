@@ -151,25 +151,20 @@ export function newState(issue: number, branch: string): IssueState {
 }
 
 /**
- * Drops the budgets and findings; a hand-over (`handedOver`) also cancels an approval, the closing mark, the review start and the squash start,
+ * Drops the budgets and findings of a handed-over issue, and cancels an approval, the closing mark, the review start and the squash start,
  * so a resume that stops before it finishes is resumed again rather than closed as done.
  */
-export function resetState(state: IssueState, handedOver = false): IssueState {
+export function resetState(state: IssueState): IssueState {
   const {
     handedOver: _handedOver,
     pendingHandOver: _pending,
-    closing,
-    reviewing,
-    squashing,
+    closing: _closing,
+    reviewing: _reviewing,
+    squashing: _squashing,
     ...rest
   } = state;
-  const phase = handedOver && rest.phase === 'approved' ? 'review' : rest.phase;
-  const kept = {
-    ...(!handedOver && closing !== undefined ? { closing } : {}),
-    ...(!handedOver && reviewing !== undefined ? { reviewing } : {}),
-    ...(!handedOver && squashing !== undefined ? { squashing } : {}),
-  };
-  return { ...rest, ...kept, phase, ciFixes: 0, commitFixes: 0, reviewRounds: 0, reviewLog: [] };
+  const phase = rest.phase === 'approved' ? 'review' : rest.phase;
+  return { ...rest, phase, ciFixes: 0, commitFixes: 0, reviewRounds: 0, reviewLog: [] };
 }
 
 export async function writeState(repo: Repo, state: IssueState): Promise<void> {

@@ -208,7 +208,7 @@ async function refusedRun(root: string, cwd = root) {
   const bin = await tempDir();
   const called = join(bin, 'called');
   await writeFile(join(bin, 'gh'), `#!/bin/sh\ntouch "${called}"\nexit 1\n`, { mode: 0o755 });
-  const error = await promisify(execFile)(process.execPath, [CLI, 'start', '--max', '1'], {
+  const error = await promisify(execFile)(process.execPath, [CLI, 'start'], {
     cwd,
     env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
   }).then(
@@ -370,7 +370,7 @@ test('a user who serves the repository while another process holds worker.lock s
 });
 
 async function singleRun(root: string) {
-  return promisify(execFile)(process.execPath, [CLI, 'start', '--max', '1'], { cwd: root }).then(
+  return promisify(execFile)(process.execPath, [CLI, 'start'], { cwd: root }).then(
     () => '',
     (failure: { stderr: string }) => failure.stderr,
   );
@@ -586,18 +586,6 @@ test('a user who pipes logs sees every event of the newest run log rendered, the
   );
 });
 
-test('a user who pipes logs --json sees the raw JSON lines, then new ones', async (t) => {
-  const { root, file } = await runLog([event(1)]);
-  const { child, read, exited } = followLogs(root, ['--json']);
-  t.after(() => child.kill('SIGKILL'));
-  await until(read, /step1\.end/);
-  await appendFile(file, `${event(2)}\n`);
-  await until(read, /step2\.end/);
-  child.kill('SIGINT');
-  assert.equal(await exited, 0);
-  assert.equal(read(), `${event(1)}\n${event(2)}\n`);
-});
-
 const NEW_RUN = '2026-01-03T00-00-00-000Z.jsonl';
 
 async function restart(file: string, lines: string[]): Promise<void> {
@@ -623,31 +611,19 @@ test('a user who pipes logs sees the rest of the old run log, a new run marker, 
   );
 });
 
-test('a user who pipes logs --json sees only raw JSON lines of the old and new run logs when the worker restarts', async (t) => {
-  const { root, file } = await runLog([event(1)]);
-  const { child, read, exited } = followLogs(root, ['--json']);
-  t.after(() => child.kill('SIGKILL'));
-  await until(read, /step1\.end/);
-  await restart(file, [event(3)]);
-  await until(read, /step3\.end/);
-  child.kill('SIGINT');
-  assert.equal(await exited, 0);
-  assert.equal(read(), `${event(1)}\n${event(2)}\n${event(3)}\n`);
-});
-
-test('a user who pipes logs --json sees multi-byte characters intact across a long line', async (t) => {
+test('a user who pipes logs sees multi-byte characters intact across a long line', async (t) => {
   const long = JSON.stringify({
     ts: '2026-01-02T03:04:05.000Z',
     kind: 'xy',
     text: 'é'.repeat(40000),
   });
   const { root } = await runLog([long]);
-  const { child, read, exited } = followLogs(root, ['--json']);
+  const { child, read, exited } = followLogs(root, []);
   t.after(() => child.kill('SIGKILL'));
   await until(read, /\n$/);
   child.kill('SIGINT');
   assert.equal(await exited, 0);
-  assert.equal(read(), `${long}\n`);
+  assert.match(read(), /^\S+ xy text=é{117}\.\.\.\n$/);
 });
 
 test('a user who pipes logs sees the valid events rendered and the line that is not JSON skipped', async (t) => {
@@ -720,34 +696,28 @@ async function inTerminal(command: string): Promise<string[]> {
   ];
 }
 
-for (const json of [false, true]) {
-  test(`a user who runs logs${json ? ' --json' : ''} in a terminal sees the last events that fit the screen, then new ones, until Ctrl-C`, async (t) => {
-    const { root, file } = await runLog(Array.from({ length: 10 }, (_, index) => event(index + 1)));
-    const command = `stty rows 4 cols 300; trap : INT; "${process.execPath}" "${CLI}" logs${json ? ' --json' : ''}; echo "exit=$?"`;
-    const child = spawn('sh', await inTerminal(command), { cwd: root });
-    t.after(() => child.kill('SIGKILL'));
-    let output = '';
-    child.stdout.on('data', (chunk) => (output += chunk));
-    const read = () => output.replace(/\r/g, '');
-    await until(read, /step10\.end/);
-    await appendFile(file, `${event(11)}\n`);
-    await until(read, /step11\.end/);
-    child.stdin.write('\x03');
-    await until(read, /exit=\d+/);
-    const lines = read()
-      .split('\n')
-      .filter((line) => line.includes('step'));
-    assert.deepEqual(
-      lines.map((line) => /step\d+/.exec(line)![0]),
-      ['step8', 'step9', 'step10', 'step11'],
-    );
-    assert.equal(
-      lines.every((line) => line.startsWith('{')),
-      json,
-    );
-    assert.match(read(), /exit=0/);
-  });
-}
+test('a user who runs logs in a terminal sees the last events that fit the screen, then new ones, until Ctrl-C', async (t) => {
+  const { root, file } = await runLog(Array.from({ length: 10 }, (_, index) => event(index + 1)));
+  const command = `stty rows 4 cols 300; trap : INT; "${process.execPath}" "${CLI}" logs; echo "exit=$?"`;
+  const child = spawn('sh', await inTerminal(command), { cwd: root });
+  t.after(() => child.kill('SIGKILL'));
+  let output = '';
+  child.stdout.on('data', (chunk) => (output += chunk));
+  const read = () => output.replace(/\r/g, '');
+  await until(read, /step10\.end/);
+  await appendFile(file, `${event(11)}\n`);
+  await until(read, /step11\.end/);
+  child.stdin.write('\x03');
+  await until(read, /exit=\d+/);
+  const lines = read()
+    .split('\n')
+    .filter((line) => line.includes('step'));
+  assert.deepEqual(
+    lines.map((line) => /step\d+/.exec(line)![0]),
+    ['step8', 'step9', 'step10', 'step11'],
+  );
+  assert.match(read(), /exit=0/);
+});
 
 test('a user who runs logs in a terminal sees every event of the new run log from its first when the worker restarts', async (t) => {
   const { root, file } = await runLog([event(1)]);
@@ -798,10 +768,10 @@ test('a user who runs next-issue with no argument sees the usage on standard err
   assert.equal(await exists(called), false);
 });
 
-test('a user who runs next-issue --max 1 sees an error that says to use next-issue start, exit code 1 and no issue read', async () => {
+test('a user who runs next-issue --watch sees an error that says to use next-issue start, exit code 1 and no issue read', async () => {
   const root = await repository();
   const { env, called } = await oldGit('2.50.0');
-  const error = await cliFails(['--max', '1'], { cwd: root, env });
+  const error = await cliFails(['--watch'], { cwd: root, env });
   assert.equal(error?.code, 1);
   assert.match(error?.stderr ?? '', /no command given: use next-issue start/);
   assert.equal(await exists(called), false);
@@ -816,6 +786,29 @@ test('a user who runs next-issue start --once sees an unknown argument error, ex
   assert.equal(await exists(called), false);
 });
 
+for (const args of [
+  ['start', '--max', '1'],
+  ['start', '--reset'],
+  ['start', '--json'],
+  ['start', '--verbose'],
+  ['start', '--quiet'],
+  ['logs', '--json'],
+]) {
+  test(`a user who runs next-issue ${args.join(' ')} sees an unknown argument error, exit code 1 and no issue read`, async () => {
+    const root = await repository();
+    const { env, called } = await oldGit('2.50.0');
+    const error = await cliFails(args, { cwd: root, env });
+    assert.equal(error?.code, 1);
+    assert.match(error?.stderr ?? '', new RegExp(`Unknown argument: ${args[1]}`));
+    assert.equal(await exists(called), false);
+  });
+}
+
+test('a user who runs --help sees none of the removed flags', async () => {
+  const { stdout } = await promisify(execFile)(process.execPath, [CLI, '--help']);
+  assert.doesNotMatch(stdout, /--max|--reset|--json|--verbose|--quiet/);
+});
+
 test('a user who runs start --help sees the usage and exit code 0', async () => {
   const help = await promisify(execFile)(process.execPath, [CLI, '--help']);
   const startHelp = await promisify(execFile)(process.execPath, [CLI, 'start', '--help']);
@@ -825,15 +818,12 @@ test('a user who runs start --help sees the usage and exit code 0', async () => 
 test('a user who runs --help sees start as a command with the run flags under it', async () => {
   const { stdout } = await promisify(execFile)(process.execPath, [CLI, '--help']);
   assert.match(stdout, /^next-issue <command> \[options\]$/m);
-  assert.match(
-    stdout,
-    /^ {2}start {8}.*\n {4}--max <n> {2}.*\n {4}--watch {4}.*\n {4}--hunt {5}.*\n {4}--reset {4}.*\n {2}init /m,
-  );
+  assert.match(stdout, /^ {2}start {8}.*\n {4}--watch {4}.*\n {4}--hunt {5}.*\n {2}init /m);
 });
 
 for (const args of [
   ['logs', '--watch'],
-  ['stop', '--reset'],
+  ['stop', '--hunt'],
 ]) {
   test(`a user who runs ${args.join(' ')} sees an error that says the flag belongs to start and exit code 1`, async () => {
     const root = await repository();
@@ -878,7 +868,7 @@ test('a user who runs next-issue on git 2.39 sees an error that names the found 
   const root = await repository();
   await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/old.git'], { cwd: root });
   const { env, called } = await oldGit('2.39.5');
-  const error = await promisify(execFile)(process.execPath, [CLI, 'start', '--max', '1'], {
+  const error = await promisify(execFile)(process.execPath, [CLI, 'start'], {
     cwd: root,
     env,
   }).then(
@@ -897,7 +887,7 @@ test('a user who starts a run in the worker on git 2.39 sees the run end with an
   const { child } = await serveWorker(root, env);
   t.after(() => child.kill('SIGKILL'));
   const client = await connect(t, workerPaths(root).socketPath);
-  client.send({ type: 'start', root, args: ['--max', '1'] });
+  client.send({ type: 'start', root });
   const ended = await client.next(
     (value) => value.type === 'runs' && value.runs[root]?.error !== undefined,
   );

@@ -65,10 +65,10 @@ async function openWorktree(
     ),
   );
   if (!added.baseUpdated) {
-    log.event('base.behind', { base: context.base }, 'quiet');
+    log.event('base.behind', { base: context.base });
   }
   if (!added.branchUpdated) {
-    log.event('branch.behind', { branch }, 'quiet');
+    log.event('branch.behind', { branch });
   }
   return added.path;
 }

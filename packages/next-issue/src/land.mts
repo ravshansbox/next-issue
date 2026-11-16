@@ -68,7 +68,7 @@ async function unblocked(job: Run, work: () => Promise<Finished>): Promise<Finis
   }
   // Landing now would build on a commit whose checks nobody read. The run claims no more issues, but it does not
   // set `context.halted`: a blocking issue already running must still resume and check its commit on the base.
-  log.event('land.blocked', { issues: unchecked }, 'quiet');
+  log.event('land.blocked', { issues: unchecked });
   const held = await holdBack(job, 'base unchecked');
   return { ...held, report: { ...held.report, halt: true } };
 }

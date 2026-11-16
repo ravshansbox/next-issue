@@ -12,7 +12,7 @@ import { onOff } from '../src/switch.mts';
 import { refresher } from '../src/refresh.mts';
 import { type Watch, watchIssues } from '../src/watch.mts';
 import { installGh } from './fake-gh.mts';
-import { ARGS, issue, report } from './loop-harness.mts';
+import { issue, report } from './loop-harness.mts';
 import { tempDir } from './temp-dir.mts';
 
 type FakeWatch = Watch & { processed: number[]; waits: number[]; passes: number[][] };
@@ -53,14 +53,14 @@ function watcher(lists: Outcome[][], wakes: boolean[] = []): FakeWatch {
 
 test('a user who watches gets a wait that grows 1, 2, 3, 5, 10, 10 minutes while every issue is skipped', async () => {
   const fake = watcher([[], ['skipped'], [], [], [], [], []]);
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.deepEqual(fake.waits, [1, 2, 3, 5, 10, 10, 10]);
   assert.deepEqual(fake.passes, []);
 });
 
 test('a user who watches sees the wait go back to 1 minute after a pass that handled an issue', async () => {
   const fake = watcher([[], [], ['done'], [], ['skipped']]);
-  const result = await watchIssues(ARGS, fake);
+  const result = await watchIssues(fake);
   assert.deepEqual(fake.waits, [1, 2, 1, 2, 3]);
   assert.deepEqual(fake.passes, [[1]]);
   assert.deepEqual(
@@ -96,17 +96,13 @@ esac
 `,
   );
   let waits = 0;
-  const code = await runRepo(
-    root,
-    { ...parseArgs(['start', '--watch']), level: 'quiet' },
-    {
-      interrupts: {
-        afterIssue: () => false,
-        afterRound: () => false,
-        sleep: async () => (waits += 1) < 3,
-      },
+  const code = await runRepo(root, parseArgs(['start', '--watch']), {
+    interrupts: {
+      afterIssue: () => false,
+      afterRound: () => false,
+      sleep: async () => (waits += 1) < 3,
     },
-  );
+  });
   assert.equal(code, 0);
   assert.equal(waits, 3);
   const files = await readdir(runsDir(root));
@@ -130,7 +126,7 @@ esac
 
 test('a user who watches an issue that is handed over, skipped and then done keeps both handled reports and exit code 1', async () => {
   const fake = watcher([['needs-human'], ['skipped'], ['done']]);
-  const result = await watchIssues(ARGS, fake);
+  const result = await watchIssues(fake);
   assert.deepEqual(
     result.reports.map((entry) => [entry.issue, entry.outcome]),
     [
@@ -148,7 +144,7 @@ test('a user who watches gets the handled report in place of the skips of the sa
     ['needs-human', 'skipped'],
     ['skipped'],
   ]);
-  const result = await watchIssues(ARGS, fake);
+  const result = await watchIssues(fake);
   assert.deepEqual(
     result.reports.map((entry) => [entry.issue, entry.outcome]),
     [
@@ -160,21 +156,14 @@ test('a user who watches gets the handled report in place of the skips of the sa
 
 test('a user who watches gets a summary for each pass that handled an issue', async () => {
   const fake = watcher([['done', 'skipped'], ['skipped'], ['needs-human']]);
-  const result = await watchIssues(ARGS, fake);
+  const result = await watchIssues(fake);
   assert.deepEqual(fake.passes, [[1, 2], [1]]);
   assert.equal(exitCode(result.reports), 1);
 });
 
-test('a user who watches with --max stops after n handled issues across passes', async () => {
-  const fake = watcher([['done'], ['skipped', 'done', 'done']]);
-  await watchIssues({ ...ARGS, max: 2 }, fake);
-  assert.deepEqual(fake.processed, [1, 1, 2]);
-  assert.deepEqual(fake.waits, [1]);
-});
-
 test('a user who watches sees an issue that failed tried only once across passes', async () => {
   const fake = watcher([['error', 'done'], ['error', 'done'], ['error']]);
-  const result = await watchIssues(ARGS, fake);
+  const result = await watchIssues(fake);
   assert.deepEqual(fake.processed, [1, 2, 2]);
   assert.deepEqual(fake.passes, [[1, 2], [2]]);
   assert.deepEqual(fake.waits, [1, 1, 2]);
@@ -183,7 +172,7 @@ test('a user who watches sees an issue that failed tried only once across passes
 
 test('a user who presses Ctrl-C during a wait stops watching at once', async () => {
   const fake = watcher([['done'], ['done']], [false]);
-  const result = await watchIssues(ARGS, fake);
+  const result = await watchIssues(fake);
   assert.deepEqual(fake.processed, [1]);
   assert.equal(result.stoppedAt, undefined);
 });
@@ -197,7 +186,7 @@ test('a user who presses Ctrl-C during an issue stops watching after that issue'
     return process(target, claimed);
   };
   fake.stop = () => stopped;
-  const result = await watchIssues(ARGS, fake);
+  const result = await watchIssues(fake);
   assert.deepEqual(fake.processed, [1]);
   assert.equal(result.stoppedAt, 1);
   assert.deepEqual(fake.waits, []);
@@ -213,7 +202,7 @@ test('a user who asks to stop while a pass fetches the open issues gets no issue
     return list;
   };
   fake.stop = () => stopped;
-  const result = await watchIssues(ARGS, fake);
+  const result = await watchIssues(fake);
   assert.deepEqual(fake.processed, [1]);
   assert.deepEqual(fake.waits, [1]);
   assert.equal(result.reports.length, 1);
@@ -223,7 +212,7 @@ test('a watch stops after a pass that halts the run', async () => {
   const fake = watcher([['needs-human'], ['done']]);
   const process = fake.process;
   fake.process = async (target) => ({ ...(await process(target)), halt: true });
-  const result = await watchIssues(ARGS, fake);
+  const result = await watchIssues(fake);
   assert.deepEqual(fake.processed, [1]);
   assert.equal(result.stoppedAt, 1);
   assert.deepEqual(fake.passes, [[1]]);
@@ -290,7 +279,7 @@ test('a user who watches with --hunt sees the hunter hunt while an issue runs', 
   const fake = watcher([['done']]);
   const hunting = hunter(fake, [[]]);
   holdIssues(fake, hunting.idle);
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.deepEqual(hunting.steps, ['hunt', 'wait 1', 'wait 2']);
   assert.deepEqual(fake.processed, [1]);
 });
@@ -299,7 +288,7 @@ test('a user who watches with --hunt sees the hunter hunt only while fewer than 
   const fake = watcher([['done']]);
   const hunting = hunter(fake, [[7], [7, 8], [7, 8], [8]], 2);
   holdIssues(fake, hunting.idle);
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.deepEqual(hunting.steps, [
     'hunt',
     'wait 1',
@@ -326,7 +315,7 @@ test('a user who watches with --hunt sees the running issues left out of the rea
     await hunting.idle;
     return process(target);
   };
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.deepEqual(hunting.steps, ['hunt', 'wait 1', 'wait 2']);
   assert.deepEqual(hunting.counts, [1]);
 });
@@ -348,7 +337,7 @@ test('a user who watches with --hunt sees the hunter told which issues run, so i
     await hunting.idle;
     return process(target);
   };
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.deepEqual(seen[0], [1]);
 });
 
@@ -369,7 +358,7 @@ test('a user who watches with --hunt sees the hunter told which issues failed ea
     await hunting.idle;
     return wait(minutes);
   };
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.deepEqual(seen[0], [1]);
 });
 
@@ -377,7 +366,7 @@ test('a user who watches with --hunt and whose filed issues do not count as read
   const fake = watcher([['done']]);
   const hunting = hunter(fake, [[], []]);
   holdIssues(fake, hunting.idle);
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.deepEqual(hunting.steps, ['hunt', 'wait 1', 'hunt', 'wait 1', 'wait 2']);
 });
 
@@ -385,7 +374,7 @@ test('a user who watches with --hunt sees each hunt asked to file up to huntCap 
   const fake = watcher([['done']]);
   const hunting = hunter(fake, [[], [7], [7, 8]], 3);
   holdIssues(fake, hunting.idle);
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.deepEqual(hunting.counts, [3, 2, 1]);
 });
 
@@ -418,7 +407,7 @@ test('a user who presses Ctrl-C during a hunt sees the watch stop after that hun
     return process(target, claimedIssue);
   };
   holdIssues(fake, hunted);
-  const result = await watchIssues(ARGS, fake);
+  const result = await watchIssues(fake);
   steps.push('watch end');
   assert.deepEqual(steps, ['hunt start', 'hunt end', 'watch end']);
   assert.equal(result.stoppedAt, 1);
@@ -454,7 +443,7 @@ test('a user who asks to stop while the hunter reads the ready issues sees no hu
     return process(target, claimedIssue);
   };
   holdIssues(fake, read);
-  const result = await watchIssues(ARGS, fake);
+  const result = await watchIssues(fake);
   steps.push('watch end');
   assert.deepEqual(steps, ['ready', 'watch end']);
   assert.deepEqual(fake.processed, [1]);
@@ -486,7 +475,7 @@ test('a user whose watch ends while the hunter reads the ready issues sees no hu
       steps.push('wait');
     },
   };
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   steps.push('watch end');
   assert.deepEqual(steps, ['ready', 'watch end']);
 });
@@ -495,7 +484,7 @@ test('a user who watches with --hunt sees the hunter wait with the back-off afte
   const fake = watcher([['done']]);
   const hunting = hunter(fake, [[], [], [], []], 1, ['failed', 'failed', 'filed', 'failed']);
   holdIssues(fake, hunting.idle);
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.deepEqual(hunting.steps, [
     'hunt failed',
     'wait 1',
@@ -528,7 +517,7 @@ test('a user whose watch ends while the hunter waits after a failed hunt sees th
     },
   };
   holdIssues(fake, waiting);
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   steps.push('watch end');
   assert.deepEqual(steps, ['hunt failed', 'wait 1', 'wait end', 'watch end']);
 });
@@ -599,7 +588,7 @@ test('a user who watches with --hunt sees a claim end the hunter wait at once, a
   const fake = watcher([[], ['done']]);
   const hunting = wakeable(fake, [[7], []]);
   claimAfter(fake, hunting.blocked);
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.deepEqual(hunting.steps, [
     'ready 1',
     'wait 1',
@@ -615,7 +604,7 @@ test('a user who watches with --hunt sees a claim during a hunt skip the wait af
   const fake = watcher([[], ['done']]);
   const hunting = wakeable(fake, [[], [7]]);
   claimAfter(fake, hunting.hunted);
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.deepEqual(hunting.steps, ['ready 0', 'hunt', 'ready 1', 'wait 1', 'wait over']);
 });
 
@@ -623,7 +612,7 @@ test('a user who watches with --hunt sees a claim wake the hunter, which waits a
   const fake = watcher([[], ['done']]);
   const hunting = wakeable(fake, [[7], [7], [7]], 1);
   claimAfter(fake, hunting.blocked);
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.deepEqual(hunting.steps, [
     'ready 1',
     'wait 1',
@@ -675,7 +664,7 @@ test('a user who watches with --hunt sees passes that each skip an issue during 
     waited = deferred();
     return wait(minutes);
   };
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.deepEqual(
     steps,
     [1, 2, 3, 5, 10, 10].flatMap((minutes) => ['hunt', `wait ${minutes}`]),
@@ -712,7 +701,7 @@ test('a user who watches with --hunt sees passes that each skip an issue during 
     await hunterWaiting.promise;
     return wait(minutes);
   };
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.deepEqual(waits, [1, 2, 3, 5, 10, 10, 10]);
 });
 
@@ -746,7 +735,7 @@ test('a user who turns hunting on for a watch that started with it off sees the 
     await hunted.promise;
     return process(target, claimed);
   };
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.deepEqual(steps, ['on', 'ready', 'hunt']);
   assert.deepEqual(fake.processed, [1]);
 });
@@ -781,7 +770,7 @@ test('a user who turns hunting off during a hunt sees that hunt finish with its 
     await sleep(20);
     return process(target, claimed);
   };
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.deepEqual(steps, ['ready', 'hunt start', 'hunt end']);
   assert.deepEqual(fake.processed, [1, 1]);
 });
@@ -821,7 +810,7 @@ test('a user who turns hunting off and on during a hunter back-off sees the hunt
     await done.promise;
     return process(target);
   };
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.deepEqual(steps, [
     'hunt failed',
     'wait 1',
@@ -845,7 +834,7 @@ test('a user whose watch ends while hunting is off sees the hunter never read th
     hunt: async () => true,
     wait: async () => undefined,
   };
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.deepEqual(steps, []);
   assert.deepEqual(fake.processed, [1]);
 });
@@ -880,7 +869,7 @@ test('a worker client who asks a hunting run to refresh wakes the waiting hunter
     stopped = true;
     return false;
   };
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.equal(checks, 2);
   assert.deepEqual(waits, [1, 1]);
 });
@@ -906,6 +895,6 @@ test('a user who watches with --hunt sees the hunter count an issue handed over 
     await hunting.idle;
     return wait(minutes);
   };
-  await watchIssues(ARGS, fake);
+  await watchIssues(fake);
   assert.deepEqual(hunting.counts, [1]);
 });

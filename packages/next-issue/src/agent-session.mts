@@ -45,7 +45,7 @@ export async function openSession(
     ...(model === undefined ? {} : { model }),
   });
   if (modelFallbackMessage !== undefined) {
-    log.event('agent.model', { note: modelFallbackMessage }, 'quiet');
+    log.event('agent.model', { note: modelFallbackMessage });
   }
   return session;
 }

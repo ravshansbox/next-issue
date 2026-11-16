@@ -264,15 +264,12 @@ const OLDER = { ...ISSUE, number: 5, createdAt: '2025-12-01T00:00:00Z' };
 
 async function runLoop(target: Harness, concurrency: number): Promise<IssueReport[]> {
   const { context } = target;
-  const { reports } = await runIssues(
-    {},
-    {
-      issues: () => pendingIssues(context),
-      process: (issue, claimed) => processIssue(context, issue, claimed),
-      stop: () => false,
-      concurrency,
-    },
-  );
+  const { reports } = await runIssues({
+    issues: () => pendingIssues(context),
+    process: (issue, claimed) => processIssue(context, issue, claimed),
+    stop: () => false,
+    concurrency,
+  });
   return reports;
 }
 

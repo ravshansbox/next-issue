@@ -61,11 +61,12 @@ async function runChecks(job: Run): Promise<Failed | undefined> {
     await evenWhenStopped(() => ports.discardChanges(worktree, head));
     // A stop kills the command, so its failure is no finding: the next run checks again.
     refuseWhenStopped();
-    log.event(
-      'check.output',
-      { cmd: command, code: result.code, timedOut: result.timedOut, output: result.output },
-      'verbose',
-    );
+    log.record('check.output', {
+      cmd: command,
+      code: result.code,
+      timedOut: result.timedOut,
+      output: result.output,
+    });
     if (!succeeded(result) || result.timedOut) {
       return { command, result };
     }
@@ -87,7 +88,7 @@ async function failedCheck(
   const { context, log, state } = job;
   const { repo, base } = context;
   const note = failure(job, command, result);
-  log.event('check.fail', { cmd: command, code: result.code, timedOut: result.timedOut }, 'quiet');
+  log.event('check.fail', { cmd: command, code: result.code, timedOut: result.timedOut });
   const { round, limit } = budgetUse(job, 'ciFixes');
   if (round >= limit) {
     return escalateAndFinish(

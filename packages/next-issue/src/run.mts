@@ -52,21 +52,15 @@ async function runWithConfig(
 ): Promise<number> {
   await checkGitVersion();
   const repo = await detectRepo(root, config.remote);
-  const recorder = await Recorder.create(
-    repo.root,
-    args.level,
-    controls.onEvent,
-    undefined,
-    controls.output,
-  );
+  const recorder = await Recorder.create(repo.root, controls.onEvent, undefined, controls.output);
   try {
     const pruned = await pruneRuns(repo.root, config.keepRunDays);
     if (pruned > 0) {
-      recorder.event('runs.pruned', { files: pruned, keepDays: config.keepRunDays }, 'verbose');
+      recorder.record('runs.pruned', { files: pruned, keepDays: config.keepRunDays });
     }
     return await recordCommands(recorder, () => handle(args, config, repo, recorder, controls));
   } catch (error) {
-    recorder.event('run.fail', { error: message(error) }, 'verbose');
+    recorder.record('run.fail', { error: message(error) });
     throw error;
   } finally {
     await recorder.close();
@@ -93,7 +87,7 @@ async function handle(
   const { reports, stoppedAt, error, crash } =
     args.watch || controls.watching !== undefined
       ? await watchRun(args, loop, context, controls, print)
-      : await runIssues(args, loop);
+      : await runIssues(loop);
   recordLoopEnd(recorder, stoppedAt, interrupts.afterIssue(), error);
 
   const summary = await endRun(recorder, reports);
@@ -118,10 +112,10 @@ export function watchRun(
   const { interrupts } = controls;
   let passStart = recorder.summary();
   const hunt = hunter(context);
-  return watchIssues(args, {
+  return watchIssues({
     ...loop,
     wait: (minutes, refreshed) => {
-      recorder.event('watch.wait', { minutes }, 'quiet');
+      recorder.event('watch.wait', { minutes });
       passStart = recorder.summary();
       return interrupts.sleep(minutesToMs(minutes), () => hunt.busy(), refreshed);
     },
@@ -140,12 +134,12 @@ function recordLoopEnd(
   error: unknown,
 ): void {
   if (stoppedAt !== undefined) {
-    recorder.event('run.stop', { issue: stoppedAt }, 'quiet');
+    recorder.event('run.stop', { issue: stoppedAt });
   } else if (stopped) {
-    recorder.event('run.stop', {}, 'quiet');
+    recorder.event('run.stop', {});
   }
   if (error !== undefined) {
-    recorder.event('issues.fail', { error: message(error) }, 'quiet');
+    recorder.event('issues.fail', { error: message(error) });
   }
 }
 
@@ -157,28 +151,21 @@ async function startRun(
   interrupts: Interrupts,
 ): Promise<Context> {
   const base = await defaultBranch(repo);
-  recorder.event(
-    'run.start',
-    {
-      version: await packageVersion(),
-      repo: slug(repo),
-      base,
-      log: recorder.logFile,
-    },
-    'quiet',
-  );
+  recorder.event('run.start', {
+    version: await packageVersion(),
+    repo: slug(repo),
+    base,
+    log: recorder.logFile,
+  });
   if (config.labels.ready.length === 0) {
-    recorder.event(
-      'labels.ready.empty',
-      { note: 'labels.ready is empty, so every open issue can be claimed' },
-      'quiet',
-    );
+    recorder.event('labels.ready.empty', {
+      note: 'labels.ready is empty, so every open issue can be claimed',
+    });
   }
   return {
     repo,
     config,
     base,
-    reset: args.reset,
     stopAfterRound: interrupts.afterRound,
     halted: false,
     recorder,
@@ -187,17 +174,13 @@ async function startRun(
 }
 
 async function endRun(recorder: Recorder, reports: IssueReport[]): Promise<RunSummary> {
-  recorder.event(
-    'run.end',
-    {
-      done: count(reports, 'done'),
-      needsHuman: count(reports, 'needs-human'),
-      failed: count(reports, 'error'),
-      skipped: count(reports, 'skipped'),
-      tokens: recorder.summary().total.total,
-    },
-    'quiet',
-  );
+  recorder.event('run.end', {
+    done: count(reports, 'done'),
+    needsHuman: count(reports, 'needs-human'),
+    failed: count(reports, 'error'),
+    skipped: count(reports, 'skipped'),
+    tokens: recorder.summary().total.total,
+  });
   const summary: RunSummary = { ...recorder.summary(), issues: reports };
   await writeJson(recorder.summaryFile, summary);
   return summary;

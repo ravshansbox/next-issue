@@ -45,15 +45,11 @@ esac
 `,
   );
   await assert.rejects(
-    runRepo(
-      root,
-      { ...parseArgs(['start']), level: 'quiet' },
-      {
-        interrupts: { afterIssue: () => false, afterRound: () => false, sleep: async () => false },
-        output: () => undefined,
-        onEvent,
-      },
-    ),
+    runRepo(root, parseArgs(['start']), {
+      interrupts: { afterIssue: () => false, afterRound: () => false, sleep: async () => false },
+      output: () => undefined,
+      onEvent,
+    }),
     failure,
   );
   const runs = join(root, '.next-issue', 'runs');

@@ -28,7 +28,7 @@ async function fakePi(responses: FauxResponseStep[], tokensPerSecond?: number) {
   faux.setResponses(responses);
   const model = faux.getModel();
   return {
-    recorder: await Recorder.create(root, 'quiet'),
+    recorder: await Recorder.create(root),
     request: {
       name: 'coder',
       cwd: root,
@@ -249,14 +249,15 @@ test('the harness gets the last text, the tool calls and the model of a pi agent
   assert.ok(result.usage.total > 0);
 });
 
-test('a verbose run prints the text of a pi agent to the output of its recorder', async () => {
+test('a user who runs a pi agent sees its events but not its text in the output of the recorder', async () => {
   const { request } = await fakePi([fauxAssistantMessage('agent says hello')]);
   let output = '';
-  const recorder = await Recorder.create(request.cwd, 'verbose', undefined, undefined, (text) => {
+  const recorder = await Recorder.create(request.cwd, undefined, undefined, (text) => {
     output += text;
   });
   await runAgent(recorder, request);
-  assert.match(output, /agent says hello/);
+  assert.match(output, / usage /);
+  assert.doesNotMatch(output, /agent says hello/);
 });
 
 test('the harness records a usage event without a cost for a pi agent', async () => {

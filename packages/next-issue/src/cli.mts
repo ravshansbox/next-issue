@@ -39,7 +39,7 @@ async function main(): Promise<number> {
     return stop(root);
   }
   if (args.command === 'logs') {
-    return logs(root, args.json);
+    return logs(root);
   }
   await excludeStateDirectories(root, process.stderr);
   if (args.command === 'serve') {
@@ -53,7 +53,7 @@ function run(root: string, args: Args, argv: string[]): Promise<number> {
   return startInWorker(
     root,
     args,
-    argv.slice(1).filter((arg) => arg !== '--json' && arg !== '--force'),
+    argv.slice(1).filter((arg) => arg !== '--force'),
   );
 }
 
@@ -68,14 +68,14 @@ async function stop(root: string): Promise<number> {
   return 0;
 }
 
-async function logs(root: string, json: boolean): Promise<number> {
+async function logs(root: string): Promise<number> {
   const file = await newestRunLog(root);
   if (file === undefined) {
     await write(process.stderr, `next-issue: no run log in ${STATE_DIR}/runs\n`);
     return 1;
   }
   const tail = process.stdout.isTTY ? Math.max(1, (process.stdout.rows || 24) - 1) : undefined;
-  return followLog(root, file, { json, tail }, (text) => write(process.stdout, text));
+  return followLog(root, file, { tail }, (text) => write(process.stdout, text));
 }
 
 async function init(root: string, force: boolean): Promise<number> {

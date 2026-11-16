@@ -98,17 +98,13 @@ async function changesRequestedRound(job: Run, open: Finding[], earlier: string[
 
 function recordVerdict(job: Run, verdict: Verdict, open: Finding[]): void {
   const blocking = blockingFindings(verdict);
-  job.log.event(
-    'verdict',
-    {
-      round: job.state.reviewRounds,
-      blocking: blocking.length,
-      minor: verdict.findings.length - blocking.length,
-      open: open.length,
-      summary: verdict.summary,
-    },
-    'quiet',
-  );
+  job.log.event('verdict', {
+    round: job.state.reviewRounds,
+    blocking: blocking.length,
+    minor: verdict.findings.length - blocking.length,
+    open: open.length,
+    summary: verdict.summary,
+  });
 }
 
 async function runReviewer(job: Run, earlier: string[]): Promise<string> {
@@ -118,7 +114,7 @@ async function runReviewer(job: Run, earlier: string[]): Promise<string> {
   state.reviewing = before;
   await writeState(context.repo, state);
   if (await ports.discardChanges(worktree, before, job.branch)) {
-    log.event('review.clean', { round: state.reviewRounds }, 'quiet');
+    log.event('review.clean', { round: state.reviewRounds });
   }
   const full = await ports.diff(worktree, context.base, config.remote);
   const patch = capDiff(full, config.diffMaxChars);
@@ -157,7 +153,7 @@ export async function undoingReview<T>(
   } catch (error) {
     if (!runStopped()) {
       await undoReview(job, before).catch((cleanup: unknown) => {
-        job.log.event('review.discard.error', { error: message(cleanup) }, 'quiet');
+        job.log.event('review.discard.error', { error: message(cleanup) });
       });
     }
     throw error;
@@ -177,7 +173,7 @@ export async function settleReview(job: Run): Promise<void> {
 async function undoReview(job: Run, before: string): Promise<void> {
   const { context, log, state, worktree } = job;
   if (await context.ports.discardChanges(worktree, before, job.branch)) {
-    log.event('review.discard', { round: state.reviewRounds }, 'quiet');
+    log.event('review.discard', { round: state.reviewRounds });
   }
   state.reviewing = undefined;
   await writeState(context.repo, state);

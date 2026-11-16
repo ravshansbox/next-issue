@@ -1,4 +1,3 @@
-import type { Args } from './args.mts';
 import type { Issue } from './github.mts';
 import { type Switch, onOff } from './switch.mts';
 import type { IssueReport } from './job.mts';
@@ -24,7 +23,7 @@ export type Watch = Loop & {
 
 const BACK_OFF_MINUTES = [1, 2, 3, 5, 10];
 
-export async function watchIssues(args: Pick<Args, 'max'>, watch: Watch): Promise<LoopResult> {
+export async function watchIssues(watch: Watch): Promise<LoopResult> {
   const running = new Set<number>();
   const failed = new Set<number>();
   const ended = new AbortController();
@@ -43,7 +42,7 @@ export async function watchIssues(args: Pick<Args, 'max'>, watch: Watch): Promis
           ended.signal,
         );
   try {
-    return await watchPasses(args, failed, {
+    return await watchPasses(failed, {
       ...watch,
       process: async (issue, _claimed, slot) => {
         running.add(issue.number);
@@ -141,21 +140,12 @@ async function huntIssues(
   }
 }
 
-async function watchPasses(
-  args: Pick<Args, 'max'>,
-  failed: Set<number>,
-  watch: Watch,
-): Promise<LoopResult> {
-  const limit = args.max;
+async function watchPasses(failed: Set<number>, watch: Watch): Promise<LoopResult> {
   const reports: IssueReport[] = [];
   let step = 0;
   const watching = (): boolean => watch.watching?.on() ?? true;
   for (;;) {
-    const pass = await runIssues(
-      { max: limit === undefined ? undefined : limit - handled(reports) },
-      watch,
-      new Set(failed),
-    );
+    const pass = await runIssues(watch, new Set(failed));
     addReports(reports, pass.reports);
     if (pass.crash !== undefined) {
       return { ...pass, reports };
@@ -168,7 +158,7 @@ async function watchPasses(
     if (pass.error !== undefined || pass.stoppedAt !== undefined) {
       return { ...pass, reports };
     }
-    if ((limit !== undefined && handled(reports) >= limit) || watch.stop() || !watching()) {
+    if (watch.stop() || !watching()) {
       return { reports };
     }
     const minutes = backOffMinutes(step);
