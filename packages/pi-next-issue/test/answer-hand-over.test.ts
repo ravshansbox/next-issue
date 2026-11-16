@@ -67,6 +67,10 @@ test('an agent who retries an issue nudges the going run and offers a start only
     skill,
     /call the `next_issue_refresh` tool, with no question first[\s\S]*ask only whether to start a run\. On yes, call the `next_issue_start` tool/,
   );
+  assert.match(
+    skill,
+    /does not watch for new issues[\s\S]*ask only whether to turn watching on\. On yes, call the `next_issue_watch` tool with `on` set to `true`, then the `next_issue_refresh` tool/,
+  );
 });
 
 test('a user who reads the pi-next-issue README learns about the answer-hand-over skill', async () => {

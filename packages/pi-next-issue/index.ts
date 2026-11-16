@@ -8,15 +8,17 @@ import { repoRoot } from './src/git.ts';
 import { going, type Progress, type Question, STOP_POINTS } from './src/protocol.ts';
 import {
   huntRun,
-  parseHuntArgs,
+  parseStartArgs,
   parseStopArgs,
-  requestHunt,
+  parseSwitchArgs,
   requestStart,
   requestStop,
+  requestSwitch,
   refreshRun,
   startRun,
   statusOf,
   stopRun,
+  watchRun,
 } from './src/run.ts';
 import {
   type Action,
@@ -24,10 +26,10 @@ import {
   formatQuestions,
   formatStatus,
   handledNotes,
-  huntingNote,
   type Note,
   questionNotes,
   statusNote,
+  switchNote,
 } from './src/status.ts';
 import { lockHolder } from './src/lock.ts';
 import { spawnWorker, workerPaths } from './src/spawn-worker.ts';
@@ -42,43 +44,31 @@ const STATUS_KEY = 'next-issue';
 const QUESTIONS_KEY = 'next-issue-questions';
 const RENDER_MS = 1000;
 const QUESTIONS_MS = 60_000;
-const SUBCOMMANDS: Action[] = ['start', 'stop', 'hunt'];
-const HUNT_VALUES = [
-  { value: 'on', description: 'Hunt for bugs in the going run' },
-  { value: 'off', description: 'Start no new hunt in the going run, and let a going hunt finish' },
-];
-const START_FLAGS = [
-  { flag: '--max', insert: '--max ', argument: '<n>', description: 'Handle at most n issues' },
-  {
-    flag: '--watch',
-    insert: '--watch',
-    description: 'Keep running, and read the open issues again after each pass',
-  },
-  {
-    flag: '--hunt',
-    insert: '--hunt',
-    description: 'Hunt the repository for bugs alongside the issues',
-  },
-  {
-    flag: '--reset',
-    insert: '--reset',
-    description: 'Drop the saved budgets and findings, and keep the rest of the state',
-  },
-  {
-    flag: '--verbose',
-    insert: '--verbose',
-    description: 'Show every command and all agent output',
-  },
-  { flag: '--quiet', insert: '--quiet', description: 'Show only the milestones and the summary' },
-];
-const FLAGS = START_FLAGS.map(({ flag, argument }) =>
-  argument ? `${flag} ${argument}` : flag,
-).join(', ');
+const SUBCOMMANDS: Action[] = ['start', 'stop', 'watch', 'hunt'];
+const VALUES: Partial<Record<Action, Array<{ value: string; description: string }>>> = {
+  stop: [
+    { value: 'issue', description: 'Stop after the running issues' },
+    { value: 'round', description: 'Stop after the current round of each running issue' },
+    { value: 'now', description: 'Stop at once' },
+  ],
+  watch: [
+    { value: 'on', description: 'Keep watching for new issues after the current pass' },
+    { value: 'off', description: 'End the going run after the current pass, with hunting off' },
+  ],
+  hunt: [
+    { value: 'on', description: 'Hunt for bugs in the going run' },
+    {
+      value: 'off',
+      description: 'Start no new hunt in the going run, and let a going hunt finish',
+    },
+  ],
+};
 const USAGE = [
-  '/next-issue start [flags]  start a run of this repository, with flags from: ' + FLAGS,
-  '/next-issue stop [--after issue|round|now]',
-  '                           stop the run of this repository after the running issues (issue, the default), after the current round (round), or at once (now)',
-  '/next-issue hunt on|off    switch hunting of the going run of this repository on or off, with no restart',
+  '/next-issue start           start a run of this repository: one pass, with watching and hunting off',
+  '/next-issue stop [issue|round|now]',
+  '                            stop the run of this repository after the running issues (issue, the default), after the current round (round), or at once (now)',
+  '/next-issue watch on|off    keep the going run of this repository watching for new issues after the current pass, or end it after the current pass with hunting off, with no restart',
+  '/next-issue hunt on|off     switch hunting of the going run of this repository on (which turns watching on too) or off, with no restart',
 ].join('\n');
 
 function completions(prefix: string) {
@@ -88,21 +78,17 @@ function completions(prefix: string) {
       label: name,
     }));
   }
-  if (prefix.startsWith('hunt ')) {
-    const partial = prefix.slice('hunt '.length);
-    return HUNT_VALUES.filter(({ value }) => value.startsWith(partial)).map(
-      ({ value, description }) => ({ value: `hunt ${value}`, label: value, description }),
-    );
-  }
-  if (!prefix.startsWith('start ')) {
+  const [subcommand = '', partial = '', ...rest] = prefix.split(' ');
+  if (rest.length > 0) {
     return [];
   }
-  const head = prefix.slice(0, prefix.lastIndexOf(' ') + 1);
-  const partial = prefix.slice(head.length);
-  const typed = head.split(/\s+/);
-  return START_FLAGS.filter(({ flag }) => flag.startsWith(partial) && !typed.includes(flag)).map(
-    ({ flag, insert, description }) => ({ value: head + insert, label: flag, description }),
-  );
+  return (VALUES[subcommand as Action] ?? [])
+    .filter(({ value }) => value.startsWith(partial))
+    .map(({ value, description }) => ({
+      value: `${subcommand} ${value}`,
+      label: value,
+      description,
+    }));
 }
 
 function background(callback: () => void, ms: number): ReturnType<typeof setInterval> {
@@ -139,6 +125,7 @@ export function createExtension(options: Options) {
     let handled = 0;
     let status: Progress['status'] | undefined;
     let hunting: boolean | undefined;
+    let watching: boolean | undefined;
     let baseline = false;
     // The worker answers a refused request with an error that does not name it.
     // A refresh is best effort, so an error that answers it is not shown.
@@ -153,6 +140,7 @@ export function createExtension(options: Options) {
       handled = progress?.handled.length ?? 0;
       status = progress?.status;
       hunting = progress?.hunting;
+      watching = progress?.watching;
     };
 
     const dim = (text: string) => (coloured && ui !== undefined ? ui.theme.fg('dim', text) : text);
@@ -197,9 +185,15 @@ export function createExtension(options: Options) {
 
     const announce = (progress: Progress) => {
       const wasGoing = status === 'running' || status === 'stopping';
-      if (wasGoing && going(progress) && hunting !== undefined && progress.hunting !== hunting) {
-        tell(huntingNote(progress.hunting));
+      const changed = (was: boolean | undefined, now: boolean | undefined): now is boolean =>
+        wasGoing && going(progress) && was !== undefined && now !== undefined && now !== was;
+      if (changed(watching, progress.watching)) {
+        tell(switchNote('watching', progress.watching));
       }
+      if (changed(hunting, progress.hunting)) {
+        tell(switchNote('hunting', progress.hunting));
+      }
+      watching = progress.watching;
       hunting = progress.hunting;
       if (progress.status === status) {
         return;
@@ -309,19 +303,14 @@ export function createExtension(options: Options) {
     pi.registerTool({
       name: 'next_issue_start',
       label: 'Start next-issue',
-      description: `Start a next-issue run of the GitHub issues of this repository when none is going. Starts the worker when needed. When a run is going, starts nothing, asks that run to check for new issues now and reports that run. Optional args take the flags ${FLAGS}, for example ["--hunt"] to hunt for bugs and keep watching.`,
+      description:
+        'Start a next-issue run of the GitHub issues of this repository when none is going: one pass, with watching and hunting off (next_issue_watch and next_issue_hunt switch them). Starts the worker when needed. When a run is going, starts nothing, asks that run to check for new issues now and reports that run.',
       promptSnippet: 'Start a next-issue run of this repository when none is going',
-      parameters: Type.Object({
-        args: Type.Optional(
-          Type.Array(Type.String(), {
-            description: `Flags for the run, from: ${FLAGS}`,
-          }),
-        ),
-      }),
-      async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      parameters: Type.Object({}),
+      async execute(_toolCallId, _params, signal, _onUpdate, ctx) {
         const { client, root, progress } = await connect(ctx);
-        asked = going(progress) ? 'hunt' : 'start';
-        return startRun(client, root, progress, params.args ?? [], signal, () => {
+        asked = 'start';
+        return startRun(client, root, progress, signal, () => {
           asked = 'refresh';
         });
       },
@@ -343,10 +332,26 @@ export function createExtension(options: Options) {
     });
 
     pi.registerTool({
+      name: 'next_issue_watch',
+      label: 'Switch next-issue watching',
+      description:
+        'Switch watching for new issues on or off for the going next-issue run of this repository, with no restart: the run keeps its issues. On keeps the run going after the current pass, and it reads the open issues again after each pass. Off ends the run after the current pass, and turns hunting off too. Fails when no run is going.',
+      promptSnippet: 'Switch watching of the going next-issue run on or off',
+      parameters: Type.Object({
+        on: Type.Boolean({ description: 'true to keep watching, false to end after this pass' }),
+      }),
+      async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+        const { client, root, progress } = await connect(ctx, false);
+        asked = 'watch';
+        return watchRun(client, root, progress, params.on, signal);
+      },
+    });
+
+    pi.registerTool({
       name: 'next_issue_hunt',
       label: 'Switch next-issue hunting',
       description:
-        'Switch hunting for bugs on or off for the going next-issue run of this repository, with no restart: the run keeps its issues. Off lets a hunt that is going finish and starts no new one. A run that does not watch (started with neither --watch nor --hunt) cannot hunt. Fails when no run is going.',
+        'Switch hunting for bugs on or off for the going next-issue run of this repository, with no restart: the run keeps its issues. On also turns watching on. Off lets a hunt that is going finish and starts no new one. Fails when no run is going.',
       promptSnippet: 'Switch hunting of the going next-issue run on or off',
       parameters: Type.Object({
         on: Type.Boolean({ description: 'true to hunt, false to stop hunting' }),
@@ -392,13 +397,14 @@ export function createExtension(options: Options) {
     });
 
     pi.registerCommand('next-issue', {
-      description: `"start [flags]" starts working through the GitHub issues of this repository, with flags from ${FLAGS}. "stop [--after issue|round|now]" stops the run after the running issues (the default), after the current round, or at once. "hunt on|off" switches hunting of the going run`,
+      description:
+        '"start" starts working through the GitHub issues of this repository, one pass. "stop [issue|round|now]" stops the run after the running issues (the default), after the current round, or at once. "watch on|off" keeps the going run watching for new issues, or ends it after the current pass. "hunt on|off" switches hunting of the going run',
       getArgumentCompletions: (prefix) => {
         const matches = completions(prefix);
         return matches.length === 0 ? null : matches;
       },
       handler: async (args, ctx) => {
-        const [subcommand, ...flags] = args.trim().split(/\s+/).filter(Boolean);
+        const [subcommand, ...values] = args.trim().split(/\s+/).filter(Boolean);
         if (subcommand === undefined || !SUBCOMMANDS.includes(subcommand as Action)) {
           ctx.ui.notify(USAGE, 'info');
           return;
@@ -409,18 +415,22 @@ export function createExtension(options: Options) {
           }
         };
         try {
-          const after = subcommand === 'stop' ? parseStopArgs(flags) : undefined;
-          const on = subcommand === 'hunt' ? parseHuntArgs(flags) : undefined;
+          if (subcommand === 'start') {
+            parseStartArgs(values);
+          }
+          const after = subcommand === 'stop' ? parseStopArgs(values) : undefined;
+          const toggled = subcommand === 'watch' || subcommand === 'hunt' ? subcommand : undefined;
+          const on = toggled === undefined ? undefined : parseSwitchArgs(toggled, values);
           const { client, root, progress } = await connect(ctx, subcommand === 'start');
           if (after !== undefined) {
             notify(requestStop(client, root, progress, after));
-          } else if (on !== undefined) {
-            asked = 'hunt';
-            notify(requestHunt(client, root, progress, on));
+          } else if (toggled !== undefined && on !== undefined) {
+            asked = toggled;
+            notify(requestSwitch(client, root, progress, toggled, on));
           } else {
-            asked = going(progress) ? 'hunt' : 'start';
+            asked = 'start';
             notify(
-              requestStart(client, root, progress, flags, () => {
+              requestStart(client, root, progress, () => {
                 asked = 'refresh';
               }),
             );

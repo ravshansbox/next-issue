@@ -1,6 +1,6 @@
 import type { Args } from './args.mts';
 import type { Issue } from './github.mts';
-import { type HuntSwitch, huntSwitch } from './hunt-switch.mts';
+import { type Switch, onOff } from './switch.mts';
 import type { IssueReport } from './job.mts';
 import { handled, type Loop, type LoopResult, runIssues } from './loop.mts';
 
@@ -16,7 +16,9 @@ export type Watch = Loop & {
   wait: (minutes: number, refreshed?: AbortSignal) => Promise<boolean>;
   passEnd: (reports: IssueReport[]) => Promise<void>;
   hunter?: Hunter;
-  hunting?: HuntSwitch;
+  hunting?: Switch;
+  // Off ends the watch after the current pass, or at once during a wait.
+  watching?: Switch;
   refreshed?: () => AbortSignal;
 };
 
@@ -32,7 +34,7 @@ export async function watchIssues(args: Pick<Args, 'max'>, watch: Watch): Promis
       ? undefined
       : huntIssues(
           watch.hunter,
-          watch.hunting ?? huntSwitch(true),
+          watch.hunting ?? onOff(true),
           running,
           failed,
           claims,
@@ -96,7 +98,7 @@ function aborted(signal: AbortSignal): Promise<void> {
 
 async function huntIssues(
   hunter: Hunter,
-  hunting: HuntSwitch,
+  hunting: Switch,
   running: Set<number>,
   failed: ReadonlySet<number>,
   claims: ClaimAlarm,
@@ -147,6 +149,7 @@ async function watchPasses(
   const limit = args.max;
   const reports: IssueReport[] = [];
   let step = 0;
+  const watching = (): boolean => watch.watching?.on() ?? true;
   for (;;) {
     const pass = await runIssues(
       { max: limit === undefined ? undefined : limit - handled(reports) },
@@ -162,14 +165,17 @@ async function watchPasses(
     if (pass.error !== undefined || pass.stoppedAt !== undefined) {
       return { ...pass, reports };
     }
-    if ((limit !== undefined && handled(reports) >= limit) || watch.stop()) {
+    if ((limit !== undefined && handled(reports) >= limit) || watch.stop() || !watching()) {
       return { reports };
     }
     const minutes = backOffMinutes(step);
     step += 1;
-    const refreshed = watch.refreshed?.();
-    if (!(await watch.wait(minutes, refreshed))) {
-      if (refreshed?.aborted !== true || watch.stop()) {
+    const signals = [watch.refreshed?.(), watch.watching?.changed()].filter(
+      (signal) => signal !== undefined,
+    );
+    const woken = signals.length === 0 ? undefined : AbortSignal.any(signals);
+    if (!(await watch.wait(minutes, woken))) {
+      if (woken?.aborted !== true || watch.stop() || !watching()) {
         return { reports };
       }
       step = 0;

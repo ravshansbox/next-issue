@@ -17,7 +17,6 @@ import { checkSocketPath, workerPaths } from './worker-paths.mts';
 import {
   active,
   endStatus,
-  huntRefusal,
   newRun,
   requestRefresh,
   requestStop,
@@ -25,8 +24,10 @@ import {
   runControls,
   runsMessage,
   setHunting,
+  setWatching,
   startRefusal,
   stopPoint,
+  switchRefusal,
 } from './worker-run.mts';
 import {
   broadcast,
@@ -104,7 +105,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       send(socket, { type: 'error', root, message: message(error) });
       return;
     }
-    const run = newRun({ ...startProgress(args.hunt), watching: args.watch }, args.watch);
+    const run = newRun({ ...startProgress(args.hunt), watching: args.watch });
     runs.set(root, run);
     const update = (next: Progress): void => {
       run.progress = next;
@@ -136,14 +137,19 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     }
   };
 
-  const hunt = (socket: WebSocket, root: string, on: boolean): void => {
+  const toggle = (
+    socket: WebSocket,
+    root: string,
+    on: boolean,
+    set: (run: Run, on: boolean) => void,
+  ): void => {
     const run = runs.get(root);
-    const refusal = huntRefusal(run, on);
+    const refusal = switchRefusal(run);
     if (refusal !== undefined) {
       send(socket, { type: 'error', root, message: refusal });
       return;
     }
-    setHunting(run!, on);
+    set(run!, on);
     broadcast(sockets, runs);
   };
 
@@ -167,7 +173,9 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     } else if (value.type === 'stop') {
       stop(socket, value.root, value.after);
     } else if (value.type === 'hunt') {
-      hunt(socket, value.root, value.on);
+      toggle(socket, value.root, value.on, setHunting);
+    } else if (value.type === 'watch') {
+      toggle(socket, value.root, value.on, setWatching);
     } else if (value.type === 'refresh') {
       requestRefresh(runs.get(value.root));
     } else if (value.type === 'questions') {

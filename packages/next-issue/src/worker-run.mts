@@ -1,6 +1,6 @@
 import { type RunChildren, runChildren, stopRunChildren } from './children.mts';
 import { wakeableSleep } from './durations.mts';
-import { type HuntToggle, huntSwitch } from './hunt-switch.mts';
+import { type Toggle, onOff } from './switch.mts';
 import type { Interrupts } from './interrupt.mts';
 import type { Fields } from './observe.mts';
 import { applyEvent } from './progress.mts';
@@ -13,17 +13,17 @@ export type Run = {
   stop?: StopPoint;
   children: RunChildren;
   wake?: () => void;
-  watching: boolean;
-  hunting: HuntToggle;
+  watching: Toggle;
+  hunting: Toggle;
   refresher: Refresher;
 };
 
-export function newRun(progress: Progress, watching = false): Run {
+export function newRun(progress: Progress): Run {
   return {
     progress,
     children: runChildren(),
-    watching,
-    hunting: huntSwitch(progress.hunting),
+    watching: onOff(progress.watching === true),
+    hunting: onOff(progress.hunting),
     refresher: refresher(),
   };
 }
@@ -81,19 +81,13 @@ export function requestStop(run: Run | undefined, after: StopPoint): boolean {
   return true;
 }
 
-export function huntRefusal(run: Run | undefined, on: boolean): string | undefined {
-  if (run === undefined || !active(run)) {
-    return 'no run is going in this repository';
-  }
-  if (on && !run.watching) {
-    return 'the run does not watch for issues, so it cannot hunt: start a run with --watch or --hunt';
-  }
-  return undefined;
+export function switchRefusal(run: Run | undefined): string | undefined {
+  return active(run) ? undefined : 'no run is going in this repository';
 }
 
 // Only a running watch run refreshes; a pass that is going or a stop is left alone.
 export function requestRefresh(run: Run | undefined): boolean {
-  if (run?.progress.status !== 'running' || !run.watching || run.stop !== undefined) {
+  if (run?.progress.status !== 'running' || !run.watching.on() || run.stop !== undefined) {
     return false;
   }
   run.refresher.refresh();
@@ -101,8 +95,19 @@ export function requestRefresh(run: Run | undefined): boolean {
 }
 
 export function setHunting(run: Run, on: boolean): void {
+  if (on) {
+    run.watching.set(true);
+  }
   run.hunting.set(on);
-  run.progress = { ...run.progress, hunting: on };
+  run.progress = { ...run.progress, hunting: on, watching: run.watching.on() };
+}
+
+export function setWatching(run: Run, on: boolean): void {
+  if (!on) {
+    run.hunting.set(false);
+  }
+  run.watching.set(on);
+  run.progress = { ...run.progress, watching: on, hunting: run.hunting.on() };
 }
 
 function runInterrupts(run: Run): Interrupts {
@@ -121,6 +126,7 @@ export function runControls(
   return {
     interrupts: runInterrupts(run),
     hunting: run.hunting,
+    watching: run.watching,
     refreshed: run.refresher.refreshed,
     onEvent: (record) => {
       update(applyEvent(run.progress, record));

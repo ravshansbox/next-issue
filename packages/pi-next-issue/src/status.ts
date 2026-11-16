@@ -39,14 +39,14 @@ export function statusNote(progress: Progress): Note | undefined {
   return undefined;
 }
 
-export type Action = 'start' | 'stop' | 'hunt';
+export type Action = 'start' | 'stop' | 'watch' | 'hunt';
 
 export function cannotNote(action: Action, message: string): Note {
   return { text: `next-issue cannot ${action}: ${message}`, level: 'error' };
 }
 
-export function huntingNote(on: boolean): Note {
-  return { text: `next-issue: hunting ${on ? 'on' : 'off'}`, level: 'info' };
+export function switchNote(name: 'watching' | 'hunting', on: boolean): Note {
+  return { text: `next-issue: ${name} ${on ? 'on' : 'off'}`, level: 'info' };
 }
 
 export function handledNotes(progress: Progress, from: number): Note[] {

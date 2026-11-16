@@ -40,6 +40,7 @@ export type ClientMessage =
   | { type: 'stop'; root: string; after?: StopPoint }
   | { type: 'questions'; root: string; id?: string }
   | { type: 'hunt'; root: string; on: boolean }
+  | { type: 'watch'; root: string; on: boolean }
   | { type: 'refresh'; root: string };
 
 export type WorkerMessage =

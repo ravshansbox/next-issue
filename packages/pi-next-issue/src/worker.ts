@@ -89,7 +89,7 @@ export class WorkerClient {
     return Object.values(this.runs).some(going);
   }
 
-  private get outdated(): boolean {
+  get outdated(): boolean {
     return this.workerVersion !== undefined && isNewer(this.options.version, this.workerVersion);
   }
 

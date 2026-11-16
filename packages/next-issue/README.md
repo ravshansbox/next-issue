@@ -941,7 +941,7 @@ With `next-issue start --hunt`, which turns on `--watch`, the harness runs a hun
 
 With `huntCap` at 1 and no ready issue, a hunt files at most one issue. The hunter ends its reply with one `issue:` line for each issue it filed, or one `issue: none` line; a url that is not an issue of the repository of `remote` does not count as filed. When the `remote` url holds an old owner or name that GitHub redirects after a rename or transfer, the harness asks GitHub for the new one, so an issue url with the new name counts too. The run log holds one `hunt.issue` event with the `url` for each, or one with `none`. A hunt that fails writes a `hunt.error` event and the watch goes on. The hunter then waits before the next hunt, with a `hunt.wait` event and the same back-off, so a failure, or a hunt that files nothing, that repeats waits 1, 2, 3, 5, 10, then 10 minutes, and the back-off goes back to 1 minute after a hunt that files at least one issue. The next pass claims the new issues like any other. At the first `Ctrl-C` the hunter stops after its current hunt, and the watch ends once the hunt and the running issues end. A first `Ctrl-C` during the watch wait tells you so while a hunt runs, and the third press stops the hunter at once. The hunter stops too when the watch ends for another reason.
 
-In a run of the `serve` worker, a client can switch hunting on or off while the run goes on, with no restart, for example with `/next-issue hunt on` in the pi extension, see [Worker](#worker). This works only for runs of the worker, not for a command-line run.
+In a run of the `serve` worker, a client can switch hunting and watching on or off while the run goes on, with no restart, for example with `/next-issue hunt on` or `/next-issue watch on` in the pi extension, see [Worker](#worker). This works only for runs of the worker, not for a command-line run.
 
 ## Worker
 
@@ -970,12 +970,13 @@ affect another. The worker:
   with `another worker is running`. A worker that stops removes the lock file
   only while it still holds the lock, and the socket file only while it is
   still the socket it bound;
-- refuses a `start`, `stop`, `hunt` or `questions` message whose `root` is not
+- refuses a `start`, `stop`, `watch`, `hunt` or `questions` message whose `root` is not
   the exact path of its repository with an `error` message, and starts or
   stops nothing;
 - runs at most one run at a time. A client starts it with
   `{ "type": "start", "root": "<path>", "args": [...] }`. Each run is like
-  `next-issue start` with those args, or with none when `args` is left out. It takes
+  `next-issue start` with those args, or with none when `args` is left out
+  (the pi extension sends none). It takes
   `--max <n>`, `--watch`, `--hunt`, `--reset`, `--verbose` and
   `--quiet`, and refuses a command (`start` too), `--json`, `--force`, `--help` or an
   unknown argument with an `error` message;
@@ -1010,18 +1011,24 @@ affect another. The worker:
   issue ends as `stopped` with its state and labels kept; the worker keeps
   running. A later point than one already asked for changes nothing, and an
   earlier one replaces it. An unknown `after` gets an `error` message;
+- switches watching of a run on or off when a client sends
+  `{ "type": "watch", "root": "<path>", "on": true | false }`. The run keeps
+  its issues, worktrees and progress, and nothing restarts. A run started with
+  `--watch` or `--hunt` starts with watching on, and any other run with it
+  off. On keeps the run going after the current pass, as with `--watch`. Off
+  ends the run after the current pass, or at once when it waits between
+  passes, and also turns hunting off. With no run going, the message gets an
+  `error` and starts nothing;
 - switches hunting of a run on or off when a client sends
   `{ "type": "hunt", "root": "<path>", "on": true | false }`. The run keeps its
-  issues, worktrees and progress, and nothing restarts. Every watching run has
-  a hunter: a run started with `--hunt` starts with hunting on, and one
-  started with `--watch` alone starts with it off. Off lets a hunt that is
-  going finish, so the issues it files stay, and starts no new hunt. On wakes
-  the hunter at once, with no back-off wait. A run that does not watch
-  (one started with neither `--watch` nor `--hunt`) refuses on with an
-  `error` message that says why, and goes on unchanged. With no run going, the message gets
-  an `error` and starts nothing. The setting lasts for the run only: a new run
-  takes it from its own flags. Only runs of the worker can switch; a
-  command-line run keeps what `--hunt` gave it. The progress of each run
+  issues, worktrees and progress, and nothing restarts. Every run of the
+  worker has a hunter: a run started with `--hunt` starts with hunting on, and
+  any other run with it off. Off lets a hunt that is going finish, so the
+  issues it files stay, and starts no new hunt. On wakes the hunter at once,
+  with no back-off wait, and also turns watching on. With no run going, the message gets
+  an `error` and starts nothing. The settings last for the run only: a new run
+  takes them from its own flags. Only runs of the worker can switch; a
+  command-line run keeps what `--watch` and `--hunt` gave it. The progress of each run
   carries `hunting`, `true` while hunting is on, and `watching`, `true` when
   the run watches for issues;
 - asks a watching run to check for new issues now when a client sends

@@ -170,6 +170,10 @@ test('an agent who files an issue with the create-issue skill nudges the going r
     skill,
     /call the `next_issue_refresh` tool, with no question first[\s\S]*Ask no question[\s\S]*ask only whether to start a run\. On yes, call the `next_issue_start` tool/,
   );
+  assert.match(
+    skill,
+    /does not watch for new issues[\s\S]*ask only whether to turn watching on\. On yes, call the `next_issue_watch` tool with `on` set to `true`, then the `next_issue_refresh` tool/,
+  );
   assert.doesNotMatch(skill, /c\) change the issue/);
   assert.match(readme, /The `next_issue_refresh` tool/);
   assert.match(readme, /calls `next_issue_refresh` with no question first/);

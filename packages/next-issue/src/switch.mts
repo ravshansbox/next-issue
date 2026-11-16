@@ -1,12 +1,12 @@
-export type HuntSwitch = {
+export type Switch = {
   on: () => boolean;
-  // Aborted at the next change, so a wait can end as soon as hunting turns on or off.
+  // Aborted at the next change, so a wait can end as soon as the switch turns on or off.
   changed: () => AbortSignal;
 };
 
-export type HuntToggle = HuntSwitch & { set: (on: boolean) => void };
+export type Toggle = Switch & { set: (on: boolean) => void };
 
-export function huntSwitch(initial: boolean): HuntToggle {
+export function onOff(initial: boolean): Toggle {
   let on = initial;
   let controller = new AbortController();
   return {

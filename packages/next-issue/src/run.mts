@@ -13,7 +13,7 @@ import { checkGitVersion } from './git-version.mts';
 import { defaultBranch } from './github.mts';
 import { hunter } from './hunt.mts';
 import type { Interrupts } from './interrupt.mts';
-import { type HuntSwitch, huntSwitch } from './hunt-switch.mts';
+import { type Switch, onOff } from './switch.mts';
 import type { Context, IssueReport } from './job.mts';
 import { lock, lockHolder } from './lock.mts';
 import { exitCode, type Loop, type LoopResult, runIssues } from './loop.mts';
@@ -32,7 +32,9 @@ export type RunControls = {
   print?: (summary: RunSummary) => Promise<void>;
   onEvent?: (record: Fields) => void;
   // The worker passes a switch that its clients turn on and off; a command-line run keeps --hunt.
-  hunting?: HuntSwitch;
+  hunting?: Switch;
+  // The worker passes a switch that its clients turn on and off; a command-line run keeps --watch.
+  watching?: Switch;
   // The worker passes the signal of its clients' refresh requests, which end a watch wait early.
   refreshed?: () => AbortSignal;
 };
@@ -100,9 +102,10 @@ async function handle(
     concurrency: config.concurrency,
   };
   const print = controls.print ?? (async () => undefined);
-  const { reports, stoppedAt, error } = args.watch
-    ? await watchRun(args, loop, context, controls, print)
-    : await runIssues(args, loop);
+  const { reports, stoppedAt, error } =
+    args.watch || controls.watching !== undefined
+      ? await watchRun(args, loop, context, controls, print)
+      : await runIssues(args, loop);
   recordLoopEnd(recorder, stoppedAt, error);
 
   const summary = await endRun(recorder, reports);
@@ -132,7 +135,8 @@ export function watchRun(
     },
     passEnd: (issues) => print({ ...recorder.summary(passStart), issues }),
     hunter: hunt,
-    hunting: controls.hunting ?? huntSwitch(args.hunt),
+    hunting: controls.hunting ?? onOff(args.hunt),
+    watching: controls.watching,
     refreshed: controls.refreshed,
   });
 }

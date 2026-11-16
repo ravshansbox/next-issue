@@ -8,7 +8,7 @@ import { runRepo } from '../src/run.mts';
 import { runsDir } from '../src/state.mts';
 import type { Outcome } from '../src/job.mts';
 import { exitCode } from '../src/loop.mts';
-import { huntSwitch } from '../src/hunt-switch.mts';
+import { onOff } from '../src/switch.mts';
 import { refresher } from '../src/refresh.mts';
 import { type Watch, watchIssues } from '../src/watch.mts';
 import { installGh } from './fake-gh.mts';
@@ -744,7 +744,7 @@ test('a user who watches with --hunt sees passes that each skip an issue during 
 
 test('a user who turns hunting on for a watch that started with it off sees the hunter start at once while the issue runs', async () => {
   const fake = watcher([['done']]);
-  const toggle = huntSwitch(false);
+  const toggle = onOff(false);
   fake.hunting = toggle;
   const steps: string[] = [];
   const hunted = deferred();
@@ -779,7 +779,7 @@ test('a user who turns hunting on for a watch that started with it off sees the 
 
 test('a user who turns hunting off during a hunt sees that hunt finish with its result and no new hunt start', async () => {
   const fake = watcher([['done'], ['done']]);
-  const toggle = huntSwitch(true);
+  const toggle = onOff(true);
   fake.hunting = toggle;
   const steps: string[] = [];
   const hunted = deferred();
@@ -814,7 +814,7 @@ test('a user who turns hunting off during a hunt sees that hunt finish with its 
 
 test('a user who turns hunting off and on during a hunter back-off sees the hunter hunt again at once, with the back-off back at 1 minute', async () => {
   const fake = watcher([['done']]);
-  const toggle = huntSwitch(true);
+  const toggle = onOff(true);
   fake.hunting = toggle;
   const steps: string[] = [];
   const waiting = deferred();
@@ -860,7 +860,7 @@ test('a user who turns hunting off and on during a hunter back-off sees the hunt
 
 test('a user whose watch ends while hunting is off sees the hunter never read the ready issues', async () => {
   const fake = watcher([['done']]);
-  fake.hunting = huntSwitch(false);
+  fake.hunting = onOff(false);
   const steps: string[] = [];
   fake.hunter = {
     cap: 1,
