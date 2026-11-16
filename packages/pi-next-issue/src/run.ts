@@ -1,4 +1,4 @@
-import { going, type Progress, STOP_POINTS, type StopPoint } from './protocol.ts';
+import { going, type Progress, type StopPoint } from './protocol.ts';
 import { accepted } from './requests.ts';
 import { cannotNote, formatStatus, handledNote, type Note } from './status.ts';
 import type { WorkerClient } from './worker.ts';
@@ -85,12 +85,6 @@ export function requestStart(
   return undefined;
 }
 
-export function parseStartArgs(args: string[]): void {
-  if (args[0] !== undefined) {
-    throw new Error(`start does not take ${args[0]}`);
-  }
-}
-
 export type SwitchName = 'watch' | 'hunt';
 
 const SWITCH_FIELDS = { watch: 'watching', hunt: 'hunting' } as const;
@@ -157,19 +151,6 @@ export async function huntRun(
   return report(text, { hunting: on, root });
 }
 
-export function parseSwitchArgs(name: SwitchName, args: string[]): boolean {
-  const [value, ...rest] = args;
-  if (value !== 'on' && value !== 'off') {
-    throw new Error(
-      value === undefined ? `${name} takes on or off` : `${name} takes on or off, not ${value}`,
-    );
-  }
-  if (rest[0] !== undefined) {
-    throw new Error(`${name} does not take ${rest[0]}`);
-  }
-  return value === 'on';
-}
-
 export function requestSwitch(
   client: WorkerClient,
   root: string,
@@ -186,21 +167,6 @@ export function requestSwitch(
   }
   client.request({ type: name, root, on });
   return undefined;
-}
-
-export function parseStopArgs(args: string[]): StopPoint {
-  const [value, ...rest] = args;
-  if (value === undefined) {
-    return 'issue';
-  }
-  const point = STOP_POINTS.find((candidate) => candidate === value);
-  if (point === undefined) {
-    throw new Error(`stop takes issue, round or now, not ${value}`);
-  }
-  if (rest[0] !== undefined) {
-    throw new Error(`stop does not take ${rest[0]}`);
-  }
-  return point;
 }
 
 export function requestStop(

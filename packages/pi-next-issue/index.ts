@@ -8,12 +8,15 @@ import { errorText } from './src/errors.ts';
 import { must } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
 import { type Answer, answerHandOver } from './src/hand-overs.ts';
-import { going, type Progress, type Question, STOP_POINTS } from './src/protocol.ts';
+import {
+  going,
+  type Progress,
+  type Question,
+  STOP_POINTS,
+  type StopPoint,
+} from './src/protocol.ts';
 import {
   huntRun,
-  parseStartArgs,
-  parseStopArgs,
-  parseSwitchArgs,
   requestStart,
   requestStop,
   requestSwitch,
@@ -51,34 +54,13 @@ const STATUS_KEY = 'next-issue';
 const QUESTIONS_KEY = 'next-issue-questions';
 const RENDER_MS = 1000;
 const QUESTIONS_MS = 60_000;
-const SUBCOMMANDS: Action[] = ['start', 'stop', 'watch', 'hunt'];
 const DASHBOARD = 'dashboard';
-const VALUES: Partial<Record<Action, Array<{ value: string; description: string }>>> = {
-  stop: [
-    { value: 'issue', description: 'Stop after the running issues' },
-    { value: 'round', description: 'Stop after the current round of each running issue' },
-    { value: 'now', description: 'Stop at once' },
-  ],
-  watch: [
-    { value: 'on', description: 'Keep watching for new issues after the current pass' },
-    { value: 'off', description: 'End the going run after the current pass, with hunting off' },
-  ],
-  hunt: [
-    { value: 'on', description: 'Hunt for bugs in the going run' },
-    {
-      value: 'off',
-      description: 'Start no new hunt in the going run, and let a going hunt finish',
-    },
-  ],
-};
-const USAGE = [
-  '/next-issue start           start a run of this repository: one pass, with watching and hunting off',
-  '/next-issue stop [issue|round|now]',
-  '                            stop the run of this repository after the running issues (issue, the default), after the current round (round), or at once (now)',
-  '/next-issue watch on|off    keep the going run of this repository watching for new issues after the current pass, or end it after the current pass with hunting off, with no restart',
-  '/next-issue hunt on|off     switch hunting of the going run of this repository on (which turns watching on too) or off, with no restart',
-  '/next-issue dashboard       open the dashboard of the run of this repository',
-].join('\n');
+const REFRESH = 'refresh';
+const STOP_CHOICES: Array<{ value: StopPoint; description: string }> = [
+  { value: 'issue', description: 'Stop after the running issues' },
+  { value: 'round', description: 'Stop after the current round of each running issue' },
+  { value: 'now', description: 'Stop at once' },
+];
 
 function menuChoices(progress: Progress | undefined): Record<string, string> {
   if (!going(progress)) {
@@ -88,40 +70,19 @@ function menuChoices(progress: Progress | undefined): Record<string, string> {
     Stop: 'stop',
     ...(progress.watching === true ? { 'Watch off': 'watch off' } : { 'Watch on': 'watch on' }),
     ...(progress.hunting ? { 'Hunt off': 'hunt off' } : { 'Hunt on': 'hunt on' }),
+    Refresh: REFRESH,
   };
 }
 
 function dashboardActions(progress: Progress | undefined): DashboardAction[] {
   return Object.entries(menuChoices(progress)).flatMap(([label, args]) =>
     args === 'stop'
-      ? (VALUES.stop ?? []).map(({ value, description }) => ({
+      ? STOP_CHOICES.map(({ value, description }) => ({
           label: description,
           args: `stop ${value}`,
         }))
       : [{ label, args }],
   );
-}
-
-function completions(prefix: string) {
-  if (!prefix.includes(' ')) {
-    return [...SUBCOMMANDS, DASHBOARD]
-      .filter((name) => name.startsWith(prefix))
-      .map((name) => ({
-        value: name,
-        label: name,
-      }));
-  }
-  const [subcommand = '', partial = '', ...rest] = prefix.split(' ');
-  if (rest.length > 0) {
-    return [];
-  }
-  return (VALUES[subcommand as Action] ?? [])
-    .filter(({ value }) => value.startsWith(partial))
-    .map(({ value, description }) => ({
-      value: `${subcommand} ${value}`,
-      label: value,
-      description,
-    }));
 }
 
 function background(callback: () => void, ms: number): ReturnType<typeof setInterval> {
@@ -431,13 +392,9 @@ export function createExtension(options: Options) {
 
     pi.registerCommand('next-issue', {
       description:
-        '"start" starts working through the GitHub issues of this repository, one pass. "stop [issue|round|now]" stops the run after the running issues (the default), after the current round, or at once. "watch on|off" keeps the going run watching for new issues, or ends it after the current pass. "hunt on|off" switches hunting of the going run. "dashboard" opens the dashboard of the run',
-      getArgumentCompletions: (prefix) => {
-        const matches = completions(prefix);
-        return matches.length === 0 ? null : matches;
-      },
-      handler: async (args, ctx) => {
-        const picked = args.trim() === '' ? await pickAction(ctx) : args;
+        'Open the next-issue menu: start, stop or refresh the run of this repository, switch its watching or hunting, or open its dashboard',
+      handler: async (_args, ctx) => {
+        const picked = await pickAction(ctx);
         if (picked !== undefined) {
           await act(picked, ctx);
         }
@@ -457,7 +414,7 @@ export function createExtension(options: Options) {
       if (picked !== 'stop') {
         return picked;
       }
-      const points = VALUES.stop ?? [];
+      const points = STOP_CHOICES;
       const point = await ctx.ui.select(
         'Stop next-issue when?',
         points.map(({ description }) => description),
@@ -530,37 +487,33 @@ export function createExtension(options: Options) {
     };
 
     const act = async (args: string, ctx: ExtensionContext) => {
-      const [subcommand, ...values] = args.trim().split(/\s+/).filter(Boolean);
-      if (subcommand === DASHBOARD && values.length === 0) {
+      if (args === DASHBOARD) {
         await openDashboard(ctx);
         return;
       }
-      if (subcommand === undefined || !SUBCOMMANDS.includes(subcommand as Action)) {
-        ctx.ui.notify(USAGE, 'info');
-        return;
-      }
+      const [subcommand, value] = args.split(' ') as [Action, string | undefined];
       const notify = (note: Note | undefined) => {
         if (note !== undefined) {
           ctx.ui.notify(note.text, note.level);
         }
       };
       try {
-        if (subcommand === 'start') {
-          parseStartArgs(values);
+        if (subcommand === REFRESH) {
+          const root = await options.root(ctx.cwd);
+          const refreshed = await refreshRun(clientOf(root), root);
+          notify({ text: refreshed.content[0]?.text ?? '', level: 'info' });
+          return;
         }
-        const after = subcommand === 'stop' ? parseStopArgs(values) : undefined;
-        const toggled = subcommand === 'watch' || subcommand === 'hunt' ? subcommand : undefined;
-        const on = toggled === undefined ? undefined : parseSwitchArgs(toggled, values);
         const { client, root, progress } = await connect(ctx, subcommand === 'start');
-        if (after !== undefined) {
-          notify(requestStop(client, root, progress, after));
-        } else if (toggled !== undefined && on !== undefined) {
-          notify(requestSwitch(client, root, progress, toggled, on));
+        if (subcommand === 'stop') {
+          notify(requestStop(client, root, progress, value as StopPoint));
+        } else if (subcommand === 'watch' || subcommand === 'hunt') {
+          notify(requestSwitch(client, root, progress, subcommand, value === 'on'));
         } else {
           notify(requestStart(client, root, progress));
         }
       } catch (error) {
-        notify(cannotNote(subcommand as Action, errorText(error)));
+        notify(cannotNote(subcommand, errorText(error)));
       }
     };
   };
