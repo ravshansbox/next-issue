@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { createExtension } from '../index.ts';
 import type { Progress, Question } from '../src/protocol.ts';
 import { formatStatus } from '../src/status.ts';
@@ -12,6 +14,7 @@ import {
   until,
   working,
 } from './fake-worker.ts';
+import { tempFolder } from './temp-folder.ts';
 
 type Handler = (event: unknown, ctx: unknown) => unknown;
 type ToolResult = {
@@ -40,7 +43,7 @@ type Overlay = {
   press: (key: string) => void;
 };
 type OverlayFactory = (
-  tui: { requestRender: () => void },
+  tui: { requestRender: () => void; terminal: { rows: number } },
   theme: unknown,
   keybindings: { matches: (data: string, id: string) => boolean },
   done: (result: unknown) => void,
@@ -51,7 +54,11 @@ const KEY_IDS: Record<string, string> = {
   down: 'tui.select.down',
   enter: 'tui.select.confirm',
   escape: 'tui.select.cancel',
+  tab: 'tui.input.tab',
+  pageUp: 'tui.select.pageUp',
+  pageDown: 'tui.select.pageDown',
 };
+const ROWS = 30;
 const KEYBINDINGS = { matches: (data: string, id: string) => KEY_IDS[data] === id };
 
 const shutdowns: Array<() => Promise<void>> = [];
@@ -122,10 +129,15 @@ function host(mode = 'tui', cwd = '/repo') {
               .map((line) => line.replace(/<\/?[a-z]+>/g, ''))
               .join('\n');
           };
-          const component = factory({ requestRender: draw }, theme, KEYBINDINGS, (result) => {
-            overlay.closed = true;
-            resolve(result);
-          });
+          const component = factory(
+            { requestRender: draw, terminal: { rows: ROWS } },
+            theme,
+            KEYBINDINGS,
+            (result) => {
+              overlay.closed = true;
+              resolve(result);
+            },
+          );
           draw();
           overlay.screen = () => frame;
           overlay.press = (key) => {
@@ -1204,6 +1216,127 @@ test('a user who picks each action on the Active tab of a going run sends what t
     { type: 'hunt', root: '/repo', on: true },
   ]);
   assert.deepEqual(hosted.notes, []);
+  overlay.press('escape');
+  await opened;
+});
+
+function writeRun(root: string, id: string, events: object[], summary?: object) {
+  const dir = join(root, '.next-issue', 'runs');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, `${id}.jsonl`),
+    events.map((event) => JSON.stringify({ ts: 'x', runId: id, ...event })).join('\n'),
+  );
+  if (summary !== undefined) {
+    writeFileSync(join(dir, `${id}.summary.json`), JSON.stringify(summary));
+  }
+}
+
+test('a user who presses Tab on the dashboard sees the past runs newest first, with the start time, end state, issues and summary of the chosen run', async () => {
+  const root = tempFolder();
+  writeRun(
+    root,
+    '2026-11-15T19-21-25-787Z',
+    [
+      { kind: 'run.start' },
+      { kind: 'issue.start', issue: 3 },
+      { kind: 'issue.end', issue: 3, outcome: 'done', ms: 1000 },
+      { kind: 'issue.end', issue: 4, outcome: 'needs-human', reason: 'no fix commit', ms: 1000 },
+      { kind: 'run.end', done: 1, needsHuman: 1, failed: 0, skipped: 0, tokens: 1500 },
+    ],
+    {
+      roles: { implementer: { total: 1200, ms: 125000 }, reviewer: { total: 300, ms: 4000 } },
+      total: { total: 1500 },
+    },
+  );
+  writeRun(root, '2026-11-16T10-07-19-656Z', [
+    { kind: 'run.start' },
+    { kind: 'issue.error', issue: 9, error: 'rate limited', ms: 10 },
+    { kind: 'run.stop', issue: 9 },
+    { kind: 'run.end', done: 0, needsHuman: 0, failed: 1, skipped: 0, tokens: 0 },
+  ]);
+  const { path, extension } = setup();
+  await worker(path);
+  const hosted = host('tui', root);
+  extension(hosted.pi as never);
+  await hosted.emit('session_start');
+  const { overlay, opened } = await openDashboard(hosted);
+  overlay.press('tab');
+  await until(() => overlay.screen().includes('Past runs'), 500);
+  const screen = overlay.screen();
+  assert.match(screen, /\[Past\]/);
+  const newer = screen.indexOf('2026-11-16 10:07:19 UTC · stopped');
+  const older = screen.indexOf('2026-11-15 19:21:25 UTC · finished');
+  assert.ok(newer >= 0 && older > newer);
+  assert.match(screen, /#9 failed: rate limited/);
+  assert.match(screen, /No run summary/);
+  overlay.press('down');
+  const chosen = overlay.screen();
+  assert.match(chosen, /Run 2026-11-15 19:21:25 UTC · finished/);
+  assert.match(chosen, /#3 done/);
+  assert.match(chosen, /#4 needs a human: no fix commit/);
+  assert.match(chosen, /Tokens: 1,500/);
+  assert.match(chosen, /implementer: 1,200 tokens · 2m05s/);
+  assert.match(chosen, /reviewer: 300 tokens · 4s/);
+  overlay.press('tab');
+  assert.match(overlay.screen(), /No run is going/);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user with many past runs who chooses an old run on the dashboard sees all its issues and summary within the overlay height, paging through a long run', async () => {
+  const root = tempFolder();
+  const summary = { roles: { implementer: { total: 900, ms: 60000 } }, total: { total: 900 } };
+  const ended = (count: number) => [
+    { kind: 'run.start' },
+    ...Array.from({ length: count }, (_, index) => ({
+      kind: 'issue.end',
+      issue: 100 + index,
+      outcome: 'done',
+      ms: 10,
+    })),
+    { kind: 'run.end', done: count, needsHuman: 0, failed: 0, skipped: 0, tokens: 900 },
+  ];
+  for (let day = 1; day <= 20; day += 1) {
+    const date = `2026-10-${String(day).padStart(2, '0')}T08-00-00-000Z`;
+    writeRun(root, date, ended(day === 2 ? 12 : day === 1 ? 30 : 1), summary);
+  }
+  const { path, extension } = setup();
+  await worker(path);
+  const hosted = host('tui', root);
+  extension(hosted.pi as never);
+  await hosted.emit('session_start');
+  const { overlay, opened } = await openDashboard(hosted);
+  overlay.press('tab');
+  await until(() => overlay.screen().includes('Past runs'), 500);
+  const height = Math.floor(ROWS * 0.9);
+  for (let press = 0; press < 18; press += 1) {
+    overlay.press('down');
+  }
+  const twelve = overlay.screen();
+  assert.ok(twelve.split('\n').length <= height);
+  assert.match(twelve, /> 2026-10-02 08:00:00 UTC · finished/);
+  assert.match(twelve, /Run 2026-10-02 08:00:00 UTC · finished/);
+  for (let index = 0; index < 12; index += 1) {
+    assert.match(twelve, new RegExp(`#${100 + index} done`));
+  }
+  assert.match(twelve, /implementer: 900 tokens · 1m00s/);
+  assert.match(twelve, /esc close/);
+  overlay.press('down');
+  const long = overlay.screen();
+  assert.ok(long.split('\n').length <= height);
+  assert.match(long, /Run 2026-10-01 08:00:00 UTC · finished/);
+  assert.match(long, /esc close/);
+  const seen = new Set<string>();
+  for (let page = 0; page < 5; page += 1) {
+    for (const match of overlay.screen().matchAll(/#(\d+) done/g)) {
+      seen.add(match[1]!);
+    }
+    assert.ok(overlay.screen().split('\n').length <= height);
+    overlay.press('pageDown');
+  }
+  assert.equal(seen.size, 30);
+  assert.match(overlay.screen(), /implementer: 900 tokens · 1m00s/);
   overlay.press('escape');
   await opened;
 });

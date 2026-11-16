@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 import { shared } from './src/clients.ts';
-import { dashboard, type DashboardAction } from './src/dashboard.ts';
+import { DASHBOARD_HEIGHT, dashboard, type DashboardAction } from './src/dashboard.ts';
 import { errorText } from './src/errors.ts';
 import { repoRoot } from './src/git.ts';
 import { going, type Progress, type Question, STOP_POINTS } from './src/protocol.ts';
@@ -34,6 +34,7 @@ import {
   upgradeNote,
 } from './src/status.ts';
 import { lockHolder } from './src/lock.ts';
+import { pastRuns } from './src/past.ts';
 import { spawnWorker, workerPaths } from './src/spawn-worker.ts';
 import { WorkerClient, type WorkerEvent } from './src/worker.ts';
 
@@ -480,6 +481,7 @@ export function createExtension(options: Options) {
           dashboard({
             progress: () => (root === undefined ? undefined : client?.runs[root]),
             actions: dashboardActions,
+            pastRuns: () => (root === undefined ? Promise.resolve([]) : pastRuns(root)),
             act: (args) => void act(args, ctx),
             subscribe: (listener) => client?.subscribe(listener) ?? (() => {}),
             tui,
@@ -487,7 +489,10 @@ export function createExtension(options: Options) {
             keybindings,
             done: () => done(undefined),
           }),
-        { overlay: true, overlayOptions: { width: '80%', maxHeight: '90%', anchor: 'center' } },
+        {
+          overlay: true,
+          overlayOptions: { width: '80%', maxHeight: `${DASHBOARD_HEIGHT}%`, anchor: 'center' },
+        },
       );
     };
 

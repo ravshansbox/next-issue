@@ -1,6 +1,6 @@
 import type { Handled, IssueProgress, Progress, Question, Upgrade } from './protocol.ts';
 
-function duration(ms: number): string {
+export function duration(ms: number): string {
   const seconds = Math.max(0, Math.floor(ms / 1000));
   const minutes = Math.floor(seconds / 60);
   return minutes > 0 ? `${minutes}m${String(seconds % 60).padStart(2, '0')}s` : `${seconds}s`;
@@ -9,6 +9,10 @@ function duration(ms: number): string {
 const OUTCOME_NOTES = { done: 'done', 'needs-human': 'needs a human', error: 'failed' } as const;
 
 type Outcome = keyof typeof OUTCOME_NOTES;
+
+export function outcomeNote(outcome: string): string {
+  return OUTCOME_NOTES[outcome as Outcome] ?? outcome;
+}
 
 function outcomes(progress: Progress): string {
   const count = (outcome: Outcome): number =>
