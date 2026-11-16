@@ -2126,6 +2126,24 @@ test('a user with a newer extension whose run a person stopped gets no new worke
   assert.deepEqual(spawns, []);
 });
 
+test('a user with a newer extension whose upgrading run a person turned watching off for gets no new worker and no new run once the old worker closes', async () => {
+  const { path, spawns, extension } = setup({ version: '2.0.0' });
+  const old = await upgradingWorker(path, { upgrade: { from: '1.0.0', to: '2.0.0' } });
+  workers.push(old);
+  old.runs['/repo'] = running({ watching: true, issues: [working(7)] });
+  const { pi, emit, status } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await until(() => status.at(-1) === '#7 · stopping to upgrade the worker to 2.0.0');
+  const { upgrade: _dropped, ...run } = old.runs['/repo']!;
+  old.update('/repo', { ...run, watching: false });
+  await until(() => status.at(-1) === '#7 · stopping');
+  old.update('/repo', { ...old.runs['/repo']!, status: 'stopped', issues: [] });
+  await old.close();
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.deepEqual(spawns, []);
+});
+
 test('a user starts a run in one repository while a run is going in another, each with its own worker', async () => {
   const paths = { '/one': socketPath(), '/two': socketPath() };
   const one = await worker(paths['/one']);

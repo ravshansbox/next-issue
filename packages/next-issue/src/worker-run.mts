@@ -127,6 +127,7 @@ export function setHunting(run: Run, on: boolean): void {
 export function setWatching(run: Run, on: boolean): void {
   if (!on) {
     run.hunting.set(false);
+    dropUpgrade(run);
   }
   run.watching.set(on);
   run.progress = { ...run.progress, watching: on, hunting: run.hunting.on() };

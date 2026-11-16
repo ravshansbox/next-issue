@@ -1098,6 +1098,23 @@ test('a person who stops a run that stops for an upgrade sees the upgrade droppe
   await started.closed;
 });
 
+test('a person who turns watching off on a run that stops for an upgrade sees the upgrade dropped from its progress', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath, worker: started } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo', args: ['--watch'] });
+  await client.next(watchingIs(true));
+  client.send({ type: 'hello', version: '2.1.0' });
+  await client.next(upgrading);
+  client.send({ type: 'watch', root: '/repo', on: false });
+  const dropped = await client.next(
+    (value) => value.type === 'runs' && value.runs['/repo']?.upgrade === undefined,
+  );
+  assert.equal(dropped.type === 'runs' && dropped.runs['/repo']!.watching, false);
+  fake.finish();
+  await started.closed;
+});
+
 test('a client that resumes a run while a run is going gets no error and no second run starts', async (t) => {
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
