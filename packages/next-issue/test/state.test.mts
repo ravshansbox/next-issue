@@ -146,6 +146,12 @@ test('resetState keeps an approval unless the issue was handed over', () => {
   assert.equal(resetState(approved, true).phase, 'review');
 });
 
+test('resetState keeps the review start unless the issue was handed over', () => {
+  const reviewing = { ...STATE, reviewing: 'abc' };
+  assert.equal(resetState(reviewing).reviewing, 'abc');
+  assert.equal(resetState(reviewing, true).reviewing, undefined);
+});
+
 test('dropState takes the state away and accepts a state that is not there', async () => {
   const target = await repo();
   await writeState(target, STATE);

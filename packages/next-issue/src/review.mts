@@ -95,11 +95,9 @@ function recordVerdict(job: Run, verdict: Verdict, open: Finding[]): void {
 async function runReviewer(job: Run, earlier: string[]): Promise<string> {
   const { context, issue, log, state, worktree, comments } = job;
   const { config, ports } = context;
-  const before = state.reviewing ?? (await ports.revision(worktree));
-  if (state.reviewing === undefined) {
-    state.reviewing = before;
-    await writeState(context.repo, state);
-  }
+  const before = await ports.revision(worktree);
+  state.reviewing = before;
+  await writeState(context.repo, state);
   if (await ports.discardChanges(worktree, before, job.branch)) {
     log.event('review.clean', { round: state.reviewRounds }, 'quiet');
   }
@@ -138,6 +136,12 @@ async function runReviewer(job: Run, earlier: string[]): Promise<string> {
     await undoReview(job, before);
   }
   return review.text;
+}
+
+export async function settleReview(job: Run): Promise<void> {
+  if (job.state.reviewing !== undefined) {
+    await undoReview(job, job.state.reviewing);
+  }
 }
 
 async function undoReview(job: Run, before: string): Promise<void> {

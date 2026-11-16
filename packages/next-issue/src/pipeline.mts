@@ -7,7 +7,7 @@ import { implement } from './implement.mts';
 import type { Context, IssueReport, Run } from './job.mts';
 import type { Recorder } from './observe.mts';
 import { openJob } from './open-job.mts';
-import { reviewRound } from './review.mts';
+import { reviewRound, settleReview } from './review.mts';
 import { skipReport, unclaimedError } from './skip.mts';
 import { hasLabel } from './labels.mts';
 import {
@@ -115,6 +115,7 @@ async function work(
 ): Promise<IssueReport> {
   const { job, setup } = await beforeBaseSettled(state, context.base, async () => {
     const opened = await openJob(context, issue, log, state, start, handedOver, pending);
+    await settleReview(opened);
     return { job: opened, setup: await setUp(opened) };
   });
   if (setup.done) {
