@@ -1213,7 +1213,7 @@ test('a user sees each running issue with its stage, tool count and time spent i
   assert.equal(formatStatus(progress({}), now), 'looking for issues');
 });
 
-test('a user sees each running issue with the open-issue count of the latest fetch in the footer', () => {
+test('a user sees the open-issue count of the latest fetch once, before the running issues, in the footer', () => {
   assert.equal(
     formatStatus(
       progress({
@@ -1225,15 +1225,19 @@ test('a user sees each running issue with the open-issue count of the latest fet
       }),
       now,
     ),
-    '#12 · 7 issues · implement · 3 tools · 41s | #13 · 7 issues · review fix 2/5 · 1 tools',
+    '7 issues · #12 · implement · 3 tools · 41s | #13 · review fix 2/5 · 1 tools',
   );
   assert.equal(
     formatStatus(
       progress({ open: 1, issues: [working(225, { stage: 'implement', tools: 0 })] }),
       now,
     ),
-    '#225 · 1 issue · implement · 0 tools',
+    '1 issue · #225 · implement · 0 tools',
   );
+});
+
+test('a user whose run looks for issues sees the open-issue count of the latest fetch in the footer', () => {
+  assert.equal(formatStatus(progress({ open: 7 }), now), '7 issues · looking for issues');
 });
 
 test('a model sees a finished or stopped run summed up by outcome in the run status', () => {

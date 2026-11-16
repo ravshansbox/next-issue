@@ -26,7 +26,7 @@ Run this in pi, inside a git repository:
 - The `next_issue_stop` tool lets the model stop the going run, like `/next-issue stop`, with an optional `after` argument, `issue` (the default), `round` or `now`. It does not ask for confirmation and does not wait for the run to end: it returns at once and says that the run of the repository was asked to stop and at which point, for example `Asked the run of /repo to stop after the running issues.` It fails with `no run of <root> is going` when no run is going, and starts no worker when none is running.
 - The `next_issue_status` tool lets the model see the run of this repository. It returns the footer line, `hunting on` or `hunting off` while the run is going, then one line per handled issue with its outcome, for example `#190 done`. When the worker has no run of this repository, it returns `no run of <root>`. When no worker is going, it returns `no worker is running` and does not start one. It reports no other repository.
 
-The footer shows each running issue with the number of open issues at the latest fetch, its stage, the number of tool calls and the time spent on it, for example `#12 · 7 issues · review 2/5 · 37 tools · 4m12s | #13 · 7 issues · implement · 5 tools · 40s`. The open count is the number of open issues that the run lists, including the running issues and the ones it skips. A stage with a limited number of rounds shows the round and its limit:
+The footer starts with the number of open issues at the latest fetch, then shows each running issue with its stage, the number of tool calls and the time spent on it, for example `7 issues · #12 · review 2/5 · 37 tools · 4m12s | #13 · implement · 5 tools · 40s`. The open count is the number of open issues that the run lists, including the running issues and the ones it skips. A stage with a limited number of rounds shows the round and its limit:
 
 - `review 2/5`: the reviewer reviews the change.
 - `review fix 2/5`: the fixer works on the findings of the review.
@@ -37,7 +37,7 @@ The footer shows each running issue with the number of open issues at the latest
 
 `local fix`, `conflict fix` and `checks fix` share one limit, `maxCiFixes`, from the [config](../next-issue/README.md).
 
-Other lines read, for example, `looking for issues` or `#12 · stopping`. When a run finishes or stops, the line is cleared. When a run fails, it shows the error, for example `failed: gh failed`. In the terminal, it uses the dim colour of the theme, like the rest of the footer. A note appears when an issue is done, needs a human or fails while pi is open. Pi does not repeat the notes of a run that ended before it opened.
+Other lines read, for example, `7 issues · looking for issues` or `#12 · stopping`. When a run finishes or stops, the line is cleared. When a run fails, it shows the error, for example `failed: gh failed`. In the terminal, it uses the dim colour of the theme, like the rest of the footer. A note appears when an issue is done, needs a human or fails while pi is open. Pi does not repeat the notes of a run that ended before it opened.
 
 ## Answer questions
 

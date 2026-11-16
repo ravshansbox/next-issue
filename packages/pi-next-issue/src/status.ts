@@ -72,12 +72,8 @@ export function formatQuestions(count: number): string {
   return `${count} ${count === 1 ? 'question' : 'questions'} waiting`;
 }
 
-function issueLine(item: IssueProgress, open: number | undefined, now: number): string {
-  const parts = [`#${item.issue}`];
-  if (open !== undefined) {
-    parts.push(`${open} ${open === 1 ? 'issue' : 'issues'}`);
-  }
-  parts.push(item.stage ?? 'prepare', `${item.tools} tools`);
+function issueLine(item: IssueProgress, now: number): string {
+  const parts = [`#${item.issue}`, item.stage ?? 'prepare', `${item.tools} tools`];
   if (item.startedAt !== undefined) {
     parts.push(duration(now - item.startedAt));
   }
@@ -88,10 +84,12 @@ export function formatStatus(progress: Progress, now: number): string {
   const running = progress.issues ?? [];
   switch (progress.status) {
     case 'running': {
-      if (running.length === 0) {
-        return 'looking for issues';
-      }
-      return running.map((item) => issueLine(item, progress.open, now)).join(' | ');
+      const line =
+        running.length === 0
+          ? 'looking for issues'
+          : running.map((item) => issueLine(item, now)).join(' | ');
+      const open = progress.open;
+      return open === undefined ? line : `${open} ${open === 1 ? 'issue' : 'issues'} · ${line}`;
     }
     case 'stopping': {
       const issues = running.map((item) => `#${item.issue}`);
