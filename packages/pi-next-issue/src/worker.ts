@@ -133,9 +133,14 @@ export class WorkerClient {
   }
 
   private connect(): Promise<void> {
-    this.connecting ??= this.start().finally(() => {
-      this.connecting = undefined;
-    });
+    this.connecting ??= this.start()
+      .catch((error: unknown) => {
+        this.scheduleReconnect();
+        throw error;
+      })
+      .finally(() => {
+        this.connecting = undefined;
+      });
     return this.connecting;
   }
 

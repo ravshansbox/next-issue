@@ -828,6 +828,38 @@ for (const action of ['start', 'stop', 'answer']) {
   });
 }
 
+test('a user whose /next-issue start fails while a retry falls due sees the run in the footer once a worker starts later, with no further command', async () => {
+  let held = true;
+  const { path, extension } = setup({ holder: () => (held ? 4242 : undefined) });
+  const { pi, emit, command, notes, status } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command('start');
+  assert.deepEqual(notes, [RUN_NOTE('start')]);
+  held = false;
+  const fake = await worker(path);
+  fake.update('/repo', running({ issues: [working(7)] }));
+  await until(() => status.at(-1)?.includes('#7') === true);
+});
+
+test('a user whose worker starts slowly while a retry falls due opens one connection to it', async () => {
+  let started: FakeWorker | undefined;
+  const { extension } = setup({
+    startTimeoutMs: 10_000,
+    spawn: async (path) => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      started = await worker(path);
+    },
+  });
+  const { pi, emit, command } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command('start');
+  await until(() => started?.received.some((message) => message.type === 'start') === true);
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(started!.received.filter((message) => message.type === 'hello').length, 1);
+});
+
 test('a model that calls next_issue_start while a command-line run holds the repository gets that error at once and no worker starts', async () => {
   const { spawns, extension } = setup({ holder: () => 4242, startTimeoutMs: 60_000 });
   const { pi, start } = host();
