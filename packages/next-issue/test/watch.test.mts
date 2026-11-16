@@ -910,3 +910,28 @@ test('a worker client who asks a hunting run to refresh wakes the waiting hunter
   assert.equal(checks, 2);
   assert.deepEqual(waits, [1, 1]);
 });
+
+test('a user who watches with --hunt sees the hunter count an issue handed over after an error as ready once a person answers, and hunt for one issue fewer', async () => {
+  const fake = watcher([['error'], []]);
+  const process = fake.process;
+  fake.process = async (target, claimed) => ({
+    ...(await process(target, claimed)),
+    handedOver: true,
+  });
+  const { promise: failedPass, resolve } = deferred();
+  const hunting = hunter(fake, [[1]], 2);
+  const ready = fake.hunter!.ready;
+  fake.hunter!.ready = async (running, failed) => {
+    await failedPass;
+    const issues = await ready(running, failed);
+    return issues.filter((entry) => !failed.has(entry.number));
+  };
+  const wait = fake.wait;
+  fake.wait = async (minutes) => {
+    resolve();
+    await hunting.idle;
+    return wait(minutes);
+  };
+  await watchIssues(ARGS, fake);
+  assert.deepEqual(hunting.counts, [1]);
+});

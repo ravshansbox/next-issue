@@ -866,8 +866,11 @@ A run without `--watch` ends when no unseen issue is left. With
 `next-issue start --watch`, the harness then waits, reads the open issues again
 and runs another pass, so it picks up an issue that someone opens during the run, or one whose blocker
 closes. Each pass tries every open issue again, also one that an earlier pass
-skipped. An issue that failed in an earlier pass is not tried again until the
-next run.
+skipped. An issue that failed with an error before the claim is not tried
+again until the next run. An issue that failed after the claim and was handed
+over with the needs-human label is tried again in a later pass once a person
+answers the hand-over or takes the label off. The hunter counts the same
+issues as ready.
 
 The waits follow a fixed back-off in minutes: 1, 2, 3, 5, 10, then 10 from then
 on. A pass that handles an issue, with any outcome other than `skipped`, resets

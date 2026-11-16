@@ -7,10 +7,11 @@ import { type HuntSwitch, huntSwitch } from '../src/hunt-switch.mts';
 import type { LoopResult } from '../src/loop.mts';
 import { type Refresher, refresher } from '../src/refresh.mts';
 import { watchRun } from '../src/run.mts';
-import { harness, roles } from './harness.mts';
+import { harness, ISSUE, type Plan, roles } from './harness.mts';
 
 type Running = {
   hunts: () => number;
+  runs: () => number;
   passes: () => number;
   sleeps: number[];
   end: () => Promise<LoopResult>;
@@ -20,12 +21,14 @@ type Options = {
   hunting?: HuntSwitch;
   refresher?: Refresher;
   issues?: () => Promise<Issue[]>;
+  plan?: Plan;
 };
 
 async function startWatch(t: TestContext, args: Args, options: Options = {}): Promise<Running> {
-  const target = await harness(t);
+  const target = await harness(t, options.plan);
   let stopped = false;
   let passes = 0;
+  let runs = 0;
   const sleeps: number[] = [];
   let wake = (): void => undefined;
   const result = watchRun(
@@ -35,7 +38,10 @@ async function startWatch(t: TestContext, args: Args, options: Options = {}): Pr
         passes += 1;
         return (await options.issues?.()) ?? [];
       },
-      process: () => assert.fail('no issue'),
+      process: (_issue, claimed) => {
+        runs += 1;
+        return target.run(claimed);
+      },
       stop: () => stopped,
     },
     target.context,
@@ -63,6 +69,7 @@ async function startWatch(t: TestContext, args: Args, options: Options = {}): Pr
   t.after(end);
   return {
     hunts: () => roles(target).filter((role) => role === 'hunter').length,
+    runs: () => runs,
     passes: () => passes,
     sleeps,
     end,
@@ -140,5 +147,35 @@ test('a worker client who asks a watch run to refresh while a pass runs leaves t
   await delay(50);
   assert.equal(run.passes(), 1);
   assert.deepEqual(run.sleeps, [1]);
+  await run.end();
+});
+
+test('a person who takes the label off an issue that a watch handed over after an error sees a later pass of the same watch try it again', async (t) => {
+  const refresh = refresher();
+  const run = await startWatch(t, parseArgs(['start', '--watch']), {
+    refresher: refresh,
+    plan: { fail: 'runAgent' },
+    issues: async () => [ISSUE],
+  });
+  await until(() => run.sleeps.length === 1);
+  assert.equal(run.runs(), 1);
+  refresh.refresh();
+  await until(() => run.sleeps.length === 2);
+  assert.equal(run.runs(), 2);
+  await run.end();
+});
+
+test('a user whose watch fails on an issue before the claim sees no later pass of the same watch try it again', async (t) => {
+  const refresh = refresher();
+  const run = await startWatch(t, parseArgs(['start', '--watch']), {
+    refresher: refresh,
+    plan: { fail: 'openBlockers' },
+    issues: async () => [ISSUE],
+  });
+  await until(() => run.sleeps.length === 1);
+  assert.equal(run.runs(), 1);
+  refresh.refresh();
+  await until(() => run.sleeps.length === 2);
+  assert.equal(run.runs(), 1);
   await run.end();
 });

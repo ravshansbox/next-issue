@@ -31,6 +31,8 @@ export type IssueReport = {
   reviewRounds: number;
   ms: number;
   halt?: boolean;
+  /** An error after the claim whose hand-over reached GitHub, so the label holds the issue until a person answers. */
+  handedOver?: boolean;
 };
 
 export type Run = {

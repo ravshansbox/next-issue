@@ -198,7 +198,7 @@ function addReports(reports: IssueReport[], pass: IssueReport[]): void {
 
 function recordFailures(failed: Set<number>, reports: IssueReport[]): void {
   for (const report of reports) {
-    if (report.outcome === 'error') {
+    if (report.outcome === 'error' && report.handedOver !== true) {
       failed.add(report.issue);
     }
   }

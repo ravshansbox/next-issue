@@ -281,16 +281,21 @@ export async function claimedError(
     // Saved with the hand-over, so later runs land nothing before the base is checked.
     state.halted = true;
   }
+  let handedOver = false;
   try {
     const earlier = error instanceof HandOverFailed ? error.pending : undefined;
     await handOver(context, log, issue.number, state, handOverReason(error, reason), earlier);
+    handedOver = true;
   } catch (failure) {
     log.event('hand-over.error', { error: message(failure) }, 'quiet');
   }
   // The issue ends (and the waiting questions go out) only once the hand-over is done.
   logIssueError(log, error, started);
   await cleanUp(context, log, state.branch);
-  const report = issueReport(issue.number, 'error', state, started, reason);
+  const report = {
+    ...issueReport(issue.number, 'error', state, started, reason),
+    ...(handedOver ? { handedOver } : {}),
+  };
   if (!(error instanceof UnsettledBase)) {
     return report;
   }
