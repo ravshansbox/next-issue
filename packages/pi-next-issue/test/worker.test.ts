@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { workerPaths } from '../src/spawn-worker.ts';
@@ -8,7 +7,7 @@ import { WorkerClient } from '../src/worker.ts';
 import { running, startFakeWorker } from './fake-worker.ts';
 
 async function connectsIn(t: test.TestContext, name: string): Promise<void> {
-  const root = join(mkdtempSync(join(tmpdir(), 'pi-next-issue-')), name);
+  const root = join(mkdtempSync('/tmp/pi-next-issue-'), name);
   const { socketPath } = workerPaths(root);
   mkdirSync(join(root, '.next-issue'), { recursive: true });
   const worker = await startFakeWorker(socketPath);
