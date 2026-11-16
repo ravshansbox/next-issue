@@ -64,6 +64,23 @@ test('an agent session leaves out the pi-next-issue extension and keeps the othe
   assert.equal(isOwnResource('/home/me/node_modules/@ravshansbox/pi-statusline/index.ts'), false);
 });
 
+test('an implementer in a repository under a pi-next-issue folder gets its project extension and skill', async () => {
+  let transcript = '';
+  const { recorder, request } = await fakePi([
+    (context) => {
+      transcript = JSON.stringify(context.messages);
+      return fauxAssistantMessage([fauxToolCall('mark', {})], { stopReason: 'toolUse' });
+    },
+    fauxAssistantMessage('done'),
+  ]);
+  const worktree = join(request.cwd, 'pi-next-issue', '.worktrees', '7');
+  const mark = await markExtension(join(worktree, '.pi'));
+  await addSkill(join(worktree, '.pi', 'skills'), 'project-skill');
+  await runAgent(recorder, { ...request, cwd: worktree });
+  assert.match(transcript, /project-skill/);
+  assert.equal(await readFile(mark, 'utf8'), 'yes');
+});
+
 async function addSkill(folder: string, name: string): Promise<void> {
   await mkdir(join(folder, name), { recursive: true });
   await writeFile(
@@ -80,7 +97,7 @@ test('an agent session leaves out the skills of pi-next-issue and keeps the othe
       return fauxAssistantMessage('done');
     },
   ]);
-  await addSkill(join(request.cwd, 'skills', 'pi-next-issue'), 'create-issue');
+  await addSkill(join(request.cwd, 'skills', 'pi-next-issue', 'skills'), 'create-issue');
   await addSkill(join(request.cwd, 'skills'), 'other-skill');
   await runAgent(recorder, request);
   assert.match(transcript, /other-skill/);

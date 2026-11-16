@@ -606,7 +606,9 @@ Three levels of console output:
   ssh alias with `ssh -G`. The host `ssh.github.com` (GitHub's ssh over port 443) means `github.com`. Other hosts, such as GitLab, are not supported.
 - pi, logged in to a model provider. The agents use the model, the thinking
   level, the extensions and the skills from your pi settings, except the
-  extension and the skills of `pi-next-issue`. The implementer and the fixer
+  extension and the skills of the `pi-next-issue` package. A repository
+  under a folder named `pi-next-issue` keeps its project extensions and
+  skills. The implementer and the fixer
   get the default tools of your pi settings, the `grep`, `find` and `ls` tools
   and the tools of your extensions. The reviewer gets all of them except
   `edit` and `write`. The agents run with `GIT_OPTIONAL_LOCKS=0`, so a

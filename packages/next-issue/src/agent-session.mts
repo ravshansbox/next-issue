@@ -9,7 +9,13 @@ import type { AgentRequest } from './agents.mts';
 import type { Recorder } from './observe.mts';
 
 export function isOwnResource(path: string): boolean {
-  return path.split(sep).includes('pi-next-issue');
+  const parts = path.split(sep);
+  return parts.some(
+    (part, index) =>
+      part === 'pi-next-issue' &&
+      ((parts[index + 1] === 'index.ts' && index + 2 === parts.length) ||
+        parts[index + 1] === 'skills'),
+  );
 }
 
 export async function openSession(
