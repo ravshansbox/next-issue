@@ -20,6 +20,12 @@ export function keepTail(text: string, limit: number | undefined): string {
 
 const COMMENT_LIMIT = 65536;
 
+export const AGENT_PREFIX = '### next-issue ·';
+
+export function agentHeading(agent: string, outcome: string): string {
+  return `${AGENT_PREFIX} ${agent}: ${outcome}`;
+}
+
 export const COMMENT_CUT = '\n\nThis comment was too long for GitHub and was cut.';
 
 export function fitComment(comment: string, cut: string): string {

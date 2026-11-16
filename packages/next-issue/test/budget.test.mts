@@ -11,7 +11,7 @@ test('the check budget hands the issue to a person', async (t) => {
   assert.equal(target.labels.at(-1)?.label, 'status:needs-human');
   assert.match(
     target.comments.at(-1)!,
-    /needs help: The checks on main failed and the limit of 1 check fixes/,
+    /needs help\n\nThe checks on main failed and the limit of 1 check fixes/,
   );
   assert.equal((await target.state())?.phase, 'review');
 });

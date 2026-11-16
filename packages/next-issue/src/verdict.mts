@@ -1,5 +1,5 @@
 import { isRecord } from './records.mts';
-import { paragraphs } from './text.mts';
+import { agentHeading, paragraphs } from './text.mts';
 
 type Severity = 'blocking' | 'minor';
 
@@ -103,10 +103,10 @@ const LEFT =
 
 export function formatVerdict(verdict: Verdict, open: Finding[]): string {
   const approved = open.length === 0;
-  const head = approved ? 'Review: approved' : 'Review: changes requested';
+  const head = agentHeading('Review', approved ? 'approved' : 'changes requested');
   const lines = verdict.findings.map((finding) => `- **${finding.severity}** ${finding.detail}`);
   const note = approved && verdict.findings.length > 0 ? LEFT : '';
-  return paragraphs([`### ${head}`, verdict.summary, lines.join('\n'), note]);
+  return paragraphs([head, verdict.summary, lines.join('\n'), note]);
 }
 
 export function formatFindings(findings: Finding[]): string {

@@ -1209,12 +1209,12 @@ for (const [runConclusion, reason, comment] of [
   [
     'failure',
     'main checks cut short',
-    /needs help: A job in `ignoredChecks` failed on main and GitHub cancelled or skipped another job of its workflow run before it finished/,
+    /needs help\n\nA job in `ignoredChecks` failed on main and GitHub cancelled or skipped another job of its workflow run before it finished/,
   ],
   [
     'cancelled',
     'main checks cancelled',
-    /needs help: The checks on main were cancelled before they finished/,
+    /needs help\n\nThe checks on main were cancelled before they finished/,
   ],
 ] as const) {
   test(`a user whose ignored matrix job fails while a kept one is cancelled in a run that ends ${runConclusion} gets a hand-over with ${reason}`, async (t) => {
@@ -1282,7 +1282,7 @@ test('a user whose ignored build job fails so GitHub skips the kept test job tha
   assert.equal(report.halt, true);
   assert.match(
     target.comments.at(-1)!,
-    /needs help: A job in `ignoredChecks` failed on main and GitHub cancelled or skipped another job of its workflow run/,
+    /needs help\n\nA job in `ignoredChecks` failed on main and GitHub cancelled or skipped another job of its workflow run/,
   );
   assert.deepEqual(target.closed, []);
   assert.deepEqual(target.reverts, []);

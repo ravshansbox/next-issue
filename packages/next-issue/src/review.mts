@@ -8,7 +8,7 @@ import { ROUND_CONTINUE, type Round, type Run, runRole, setStatus } from './job.
 import { landApproved } from './land.mts';
 import { capDiff, history, reviewPrompt } from './prompts.mts';
 import { writeState } from './state.mts';
-import { COMMENT_CUT, fitComment } from './text.mts';
+import { agentHeading, COMMENT_CUT, fitComment } from './text.mts';
 import {
   blockingFindings,
   type Finding,
@@ -201,7 +201,7 @@ async function unfixedRound(job: Run, fix: Unfixed): Promise<Round> {
   await ports.commentOnIssue(
     repo,
     issue.number,
-    fitComment(`### Fixer: ${heading}\n\n${note}`, COMMENT_CUT),
+    fitComment(`${agentHeading('Fixer', heading)}\n\n${note}`, COMMENT_CUT),
   );
   return ROUND_CONTINUE;
 }

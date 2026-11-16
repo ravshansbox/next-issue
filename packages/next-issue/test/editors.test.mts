@@ -13,7 +13,7 @@ test('a user whose issue body was last edited by a person without write access s
   assert.deepEqual(target.prompts, []);
   assert.equal(
     target.issueNotes[0]!.body,
-    'next-issue needs help: The worker did not send the issue to an agent: the body was last changed by @stranger, who has no write access to the repository. A person with write access can check the issue, then change the body to go on.',
+    '### next-issue · Hand-over: needs help\n\nThe worker did not send the issue to an agent: the body was last changed by @stranger, who has no write access to the repository. A person with write access can check the issue, then change the body to go on.',
   );
 });
 
@@ -24,7 +24,7 @@ test('a user whose issue title and body were last changed by people without writ
   assert.deepEqual(target.prompts, []);
   assert.equal(
     target.issueNotes[0]!.body,
-    'next-issue needs help: The worker did not send the issue to an agent: the title was last changed by @visitor, who has no write access to the repository; the body was last changed by @stranger, who has no write access to the repository. A person with write access can check the issue, then change the title and the body to go on.',
+    '### next-issue · Hand-over: needs help\n\nThe worker did not send the issue to an agent: the title was last changed by @visitor, who has no write access to the repository; the body was last changed by @stranger, who has no write access to the repository. A person with write access can check the issue, then change the title and the body to go on.',
   );
 });
 

@@ -218,7 +218,10 @@ test('a handed-over issue that still has the needs-human label is not claimed', 
 
 const NEEDS_HUMAN = { ...ISSUE, labels: ['status:needs-human'] };
 
-const HAND_OVER_NOTE = { author: 'bot', body: 'next-issue needs help: No fix commit.' };
+const HAND_OVER_NOTE = {
+  author: 'bot',
+  body: '### next-issue · Hand-over: needs help\n\nNo fix commit.',
+};
 
 test('a person with write access who answers a handed-over issue gets the issue claimed again and the needs-human label removed', async (t) => {
   const target = await harness(t, {
@@ -287,8 +290,8 @@ test('a handed-over issue whose only later comments come from the harness or a u
     saved: HANDED_OVER,
     thread: [
       HAND_OVER_NOTE,
-      { author: 'bot', body: '### Review: approved' },
-      { author: 'bot', body: '### Fixer: no change\n\nNothing to do.' },
+      { author: 'bot', body: '### next-issue · Review: approved' },
+      { author: 'bot', body: '### next-issue · Fixer: no change\n\nNothing to do.' },
       { author: 'stranger', body: 'Ready, take it.' },
     ],
     writers: ['bot'],

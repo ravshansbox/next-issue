@@ -25,7 +25,7 @@ test('a user whose issue is handed over because the implementer made no change s
   await target.run();
   assert.equal(
     target.issueNotes[0]!.body,
-    `next-issue needs help: The implementer produced no change.\n\n${reply}`,
+    `### next-issue · Hand-over: needs help\n\nThe implementer produced no change.\n\n${reply}`,
   );
 });
 
@@ -34,8 +34,11 @@ test('a user whose implementer gave a reply too long for a GitHub comment sees i
   await target.run();
   const body = target.issueNotes[0]!.body;
   assert.ok(body.length <= 65536);
-  assert.match(body, /^next-issue needs help: The implementer produced no change\.\n\nxxx/);
-  assert.match(body, /\n\nThe reason was too long for a GitHub comment and was cut\.$/);
+  assert.match(
+    body,
+    /^### next-issue · Hand-over: needs help\n\nThe implementer produced no change\.\n\nxxx/,
+  );
+  assert.match(body, /\n\nThis comment was too long for GitHub and was cut\.$/);
 });
 
 test('a user whose implementer gave a long reply of emoji sees it cut between whole characters', async (t) => {
@@ -54,8 +57,11 @@ test('a writer who answers a hand-over after a run error with stderr longer than
   assert.equal(report.outcome, 'error');
   const body = failed.issueNotes[0]!.body;
   assert.ok(body.length <= 65536);
-  assert.match(body, /^next-issue needs help: The run failed: git hook run pre-commit failed/);
-  assert.match(body, /\n\nThe reason was too long for a GitHub comment and was cut\.$/);
+  assert.match(
+    body,
+    /^### next-issue · Hand-over: needs help\n\nThe run failed: git hook run pre-commit failed/,
+  );
+  assert.match(body, /\n\nThis comment was too long for GitHub and was cut\.$/);
   const answered = await harness(t, {
     issue: { ...ISSUE, labels: ['status:needs-human'] },
     saved: await failed.state(),
@@ -75,7 +81,7 @@ test('a user whose implementer made no change and gave no reply sees only the no
   await target.run();
   assert.equal(
     target.issueNotes[0]!.body,
-    'next-issue needs help: The implementer produced no change.',
+    '### next-issue · Hand-over: needs help\n\nThe implementer produced no change.',
   );
 });
 
@@ -95,7 +101,7 @@ test('a user whose issue is handed over before a pull request exists gets the re
   await target.run();
   assert.equal(target.issueNotes.length, 1);
   assert.equal(target.issueNotes[0]!.number, 7);
-  assert.match(target.issueNotes[0]!.body, /^next-issue needs help: /);
+  assert.match(target.issueNotes[0]!.body, /^### next-issue · Hand-over: needs help\n\n/);
 });
 
 test('a user whose resumed issue has a pull request in its state gets the hand-over as a comment on the issue', async (t) => {
@@ -110,7 +116,7 @@ test('a user whose resumed issue has a pull request in its state gets the hand-o
     target.issueNotes.map((note) => note.number),
     [7],
   );
-  assert.match(target.issueNotes[0]!.body, /^next-issue needs help: /);
+  assert.match(target.issueNotes[0]!.body, /^### next-issue · Hand-over: needs help\n\n/);
 });
 
 test('a user whose issue is handed over after the review gets the verdict and the reason on the issue', async (t) => {
@@ -121,7 +127,7 @@ test('a user whose issue is handed over after the review gets the verdict and th
     [7, 7],
   );
   assert.match(target.issueNotes[0]!.body, /Review: approved/);
-  assert.match(target.issueNotes[1]!.body, /needs help: /);
+  assert.match(target.issueNotes[1]!.body, /needs help\n\n/);
 });
 
 test('a fixer that changes nothing hands the issue to a person', async (t) => {
@@ -155,7 +161,7 @@ test('an implementer that asks questions hands the issue to a person with the qu
   assert.equal(target.labels.at(-1)!.label, 'status:needs-human');
   assert.equal(
     target.issueNotes.at(-1)!.body,
-    `next-issue needs help: The implementer has questions about the issue.\n\n${ASKED}`,
+    `### next-issue · Hand-over: needs help\n\nThe implementer has questions about the issue.\n\n${ASKED}`,
   );
   assert.deepEqual(target.messages, []);
   assert.equal(target.head(), '0');
@@ -174,7 +180,7 @@ test('a user whose issue body cannot be edited still gets the implementer questi
   assert.equal(target.labels.at(-1)!.label, 'status:needs-human');
   assert.equal(
     target.issueNotes.at(-1)!.body,
-    `next-issue needs help: The implementer has questions about the issue.\n\n${ASKED}`,
+    `### next-issue · Hand-over: needs help\n\nThe implementer has questions about the issue.\n\n${ASKED}`,
   );
   assert.deepEqual(
     target.events
@@ -195,7 +201,7 @@ test('a user whose issue cannot be read again still gets the implementer questio
   assert.equal(target.labels.at(-1)!.label, 'status:needs-human');
   assert.equal(
     target.issueNotes.at(-1)!.body,
-    `next-issue needs help: The implementer has questions about the issue.\n\n${ASKED}`,
+    `### next-issue · Hand-over: needs help\n\nThe implementer has questions about the issue.\n\n${ASKED}`,
   );
   assert.deepEqual(target.bodies, []);
   assert.deepEqual(
@@ -287,7 +293,7 @@ test('an implementer whose reply holds only a placeholder question line gets its
 const ANSWERED = [
   {
     author: 'bot',
-    body: `next-issue needs help: The implementer has questions about the issue.\n\n${ASKED}`,
+    body: `### next-issue · Hand-over: needs help\n\nThe implementer has questions about the issue.\n\n${ASKED}`,
   },
   { author: 'owner', body: '1. b, 2. a' },
 ];

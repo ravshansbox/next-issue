@@ -28,7 +28,10 @@ test('a fixer that disputes a finding keeps the round going', async (t) => {
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer', 'reviewer']);
-  assert.match(target.comments[1]!, /### Fixer: no change\n\nthe count follows the convention/);
+  assert.match(
+    target.comments[1]!,
+    /### next-issue · Fixer: no change\n\nthe count follows the convention/,
+  );
 });
 
 test('a fixer that disputes and leaves a change hands the issue to a person', async (t) => {

@@ -137,12 +137,12 @@ test('readVerdict ignores an approve or reject field that the reviewer adds', ()
   })!;
   const open = openFindings(contradictory, true);
   assert.equal(open.length, 1);
-  assert.match(formatVerdict(contradictory, open), /### Review: changes requested/);
+  assert.match(formatVerdict(contradictory, open), /### next-issue · Review: changes requested/);
 });
 
 test('formatVerdict shows the head, the summary and every finding', () => {
   const text = formatVerdict(BLOCKING, BLOCKING.findings);
-  assert.match(text, /### Review: changes requested/);
+  assert.match(text, /### next-issue · Review: changes requested/);
   assert.match(text, /One problem is left\./);
   assert.match(text, /- \*\*blocking\*\* The count is wrong\./);
   assert.match(text, /- \*\*minor\*\* The name is long\./);
@@ -155,7 +155,7 @@ test('an approval that leaves a finding says why', () => {
     findings: [{ severity: 'minor', detail: 'The name is long.' }],
   };
   const text = formatVerdict(taste, []);
-  assert.match(text, /### Review: approved/);
+  assert.match(text, /### next-issue · Review: approved/);
   assert.match(text, /- \*\*minor\*\* The name is long\./);
   assert.match(text, /the review budget is spent/);
   assert.doesNotMatch(formatVerdict(taste, taste.findings), /the review budget is spent/);

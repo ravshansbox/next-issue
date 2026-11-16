@@ -17,7 +17,7 @@ test('a user whose implementer finds the issue already done on the base and whos
   assert.deepEqual(target.landed, []);
   assert.equal(
     target.issueNotes.at(-1)!.body,
-    '### Already done\n\nsrc/flag.mts already reads the flag at line 12.\n\nReview: Good.',
+    '### next-issue · Worker: already done\n\nsrc/flag.mts already reads the flag at line 12.\n\nReview: Good.',
   );
   const review = target.prompts.find((entry) => entry.role === 'reviewer')!.prompt;
   assert.match(review, /already done on the base/);
@@ -37,7 +37,7 @@ test('a user whose implementer finds the issue already done but whose reviewer d
   assert.equal(target.labels.at(-1)!.label, 'status:needs-human');
   assert.equal(
     target.issueNotes.at(-1)!.body,
-    'next-issue needs help: The implementer produced no change and said the issue is already done: src/flag.mts already reads the flag at line 12.\n\nThe reviewer disagreed:\n\n- The flag is never read.',
+    '### next-issue · Hand-over: needs help\n\nThe implementer produced no change and said the issue is already done: src/flag.mts already reads the flag at line 12.\n\nThe reviewer disagreed:\n\n- The flag is never read.',
   );
 });
 

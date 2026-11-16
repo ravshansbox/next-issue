@@ -14,6 +14,7 @@ import {
 } from './job.mts';
 import { donePrompt, implementPrompt } from './prompts.mts';
 import { writeState } from './state.mts';
+import { agentHeading } from './text.mts';
 import { blockingFindings, formatFindings, parseVerdict } from './verdict.mts';
 
 export async function implement(job: Run): Promise<Round> {
@@ -113,5 +114,8 @@ async function closeIfDone(job: Run, evidence: string): Promise<Finished> {
       'already done disputed',
     );
   }
-  return finishDone(job, `### Already done\n\n${evidence}\n\nReview: ${verdict.summary}`);
+  return finishDone(
+    job,
+    `${agentHeading('Worker', 'already done')}\n\n${evidence}\n\nReview: ${verdict.summary}`,
+  );
 }

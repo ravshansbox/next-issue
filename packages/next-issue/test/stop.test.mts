@@ -405,7 +405,7 @@ test('a user who stops a run now while a change approved in an earlier review ro
   assert.equal(report.outcome, 'done');
   assert.deepEqual(roles(target), []);
   assert.equal(
-    target.comments.some((body) => body.startsWith('### Review:')),
+    target.comments.some((body) => body.startsWith('### next-issue · Review:')),
     false,
   );
   assert.equal(target.landed.length, 1);

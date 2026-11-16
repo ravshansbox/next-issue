@@ -8,7 +8,7 @@ const BEFORE = { ...SAVED, ciFixes: 1, commitFixes: 1 };
 const OLD_THREAD = [
   {
     author: 'bot',
-    body: 'next-issue needs help: The limit of 1 check fixes was reached.',
+    body: '### next-issue · Hand-over: needs help\n\nThe limit of 1 check fixes was reached.',
     url: 'https://github.com/o/r/issues/7#issuecomment-1',
     createdAt: '2026-01-02T00:00:00Z',
   },
@@ -31,7 +31,7 @@ function firstCommentFails(target: Target) {
   const commentOnIssue = target.context.ports.commentOnIssue;
   let failed = false;
   target.context.ports.commentOnIssue = async (repo, issue, body) => {
-    if (!failed && body.includes('needs help:')) {
+    if (!failed && body.includes('needs help')) {
       failed = true;
       throw new Error('gh: HTTP 502');
     }
@@ -92,7 +92,7 @@ test('a user whose hand-over comment fails sees the original reason in the hand-
   });
   firstCommentFails(target);
   await target.run();
-  const handOvers = target.comments.filter((comment) => comment.includes('needs help:'));
+  const handOvers = target.comments.filter((comment) => comment.includes('needs help'));
   assert.equal(handOvers.length, 1);
   assert.match(handOvers[0]!, /The limit of 1 review rounds was reached\./);
   assert.equal((await target.state())?.handedOver, true);
@@ -133,7 +133,7 @@ test('a user whose hand-over posts its label and comment gets the next run to re
 function commentFails(target: Target) {
   const commentOnIssue = target.context.ports.commentOnIssue;
   target.context.ports.commentOnIssue = async (repo, issue, body) => {
-    if (body.includes('needs help:')) {
+    if (body.includes('needs help')) {
       throw new Error('gh: HTTP 502');
     }
     return commentOnIssue(repo, issue, body);
@@ -271,7 +271,7 @@ async function labelledThenRetryFails(t: test.TestContext, threadFails: boolean)
   const { commentOnIssue, setLabel, threadComments } = ports;
   let outage = false;
   ports.commentOnIssue = async (repo, issue, body) => {
-    if (body.includes('needs help:')) {
+    if (body.includes('needs help')) {
       outage = true;
       throw new Error('gh: HTTP 502');
     }

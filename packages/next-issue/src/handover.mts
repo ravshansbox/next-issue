@@ -256,10 +256,8 @@ function handOverReason(error: unknown, reason: string): string {
   return `The run failed: ${reason}${unsettled}`;
 }
 
-const CUT = '\n\nThe reason was too long for a GitHub comment and was cut.';
-
 function handOverComment(reason: string): string {
-  return fitComment(`${HAND_OVER} ${reason}`, CUT);
+  return fitComment(`${HAND_OVER}\n\n${reason}`, COMMENT_CUT);
 }
 
 export async function claimedError(

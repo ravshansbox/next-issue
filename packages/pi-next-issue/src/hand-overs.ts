@@ -4,7 +4,13 @@ export type Gh = (args: string[]) => Promise<string>;
 
 export type Answer = { kind: 'retry'; guidance?: string } | { kind: 'give-up' };
 
-const HEADINGS = ['next-issue needs help:', '### Review:', '### Fixer:'];
+const HEADINGS = [
+  '### next-issue ·',
+  'next-issue needs help:',
+  '### Review:',
+  '### Fixer:',
+  '### Already done',
+];
 
 export function guidanceProblem(text: string): string | undefined {
   if (text.trim() === '') {

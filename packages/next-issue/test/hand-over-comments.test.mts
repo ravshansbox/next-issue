@@ -38,16 +38,28 @@ test('the worker lists each open issue that waits for a person with the reason a
   };
   const threads: Record<number, Comment[]> = {
     7: [
-      { author: 'bot', body: 'next-issue needs help: old', url: 'u1' },
+      { author: 'bot', body: '### next-issue · Hand-over: needs help\n\nold', url: 'u1' },
       {
         author: 'bot',
-        body: 'next-issue needs help: The implementer produced no change.',
+        body: '### next-issue · Hand-over: needs help\n\nThe implementer produced no change.',
         url: 'u2',
       },
-      { author: 'stranger', body: 'next-issue needs help: fake', url: 'u3' },
+      { author: 'stranger', body: '### next-issue · Hand-over: needs help\n\nfake', url: 'u3' },
     ],
-    8: [{ author: 'bot', body: 'next-issue needs help: The reviewer gave no verdict.', url: 'u4' }],
-    80: [{ author: 'bot', body: 'next-issue needs help: On the pull request.', url: 'u6' }],
+    8: [
+      {
+        author: 'bot',
+        body: '### next-issue · Hand-over: needs help\n\nThe reviewer gave no verdict.',
+        url: 'u4',
+      },
+    ],
+    80: [
+      {
+        author: 'bot',
+        body: '### next-issue · Hand-over: needs help\n\nOn the pull request.',
+        url: 'u6',
+      },
+    ],
     9: [{ author: 'owner', body: 'A plain comment.', url: 'u5' }],
   };
   const labels: string[][] = [];
@@ -103,16 +115,24 @@ test('the worker leaves out of the waiting questions an issue whose hand-over a 
   const config = await loadConfig(root);
   const threads: Record<number, Comment[]> = {
     10: [
-      { author: 'bot', body: 'next-issue needs help: Answered.', url: 'u10' },
+      { author: 'bot', body: '### next-issue · Hand-over: needs help\n\nAnswered.', url: 'u10' },
       { author: 'owner', body: 'Use the other api.', url: 'u11' },
     ],
     11: [
-      { author: 'bot', body: 'next-issue needs help: Stranger only.', url: 'u12' },
+      {
+        author: 'bot',
+        body: '### next-issue · Hand-over: needs help\n\nStranger only.',
+        url: 'u12',
+      },
       { author: 'stranger', body: 'Try again.', url: 'u13' },
     ],
     12: [
-      { author: 'bot', body: 'next-issue needs help: Harness only.', url: 'u14' },
-      { author: 'bot', body: '### Review: changes', url: 'u15' },
+      {
+        author: 'bot',
+        body: '### next-issue · Hand-over: needs help\n\nHarness only.',
+        url: 'u14',
+      },
+      { author: 'bot', body: '### next-issue · Review: changes', url: 'u15' },
     ],
   };
   const questions = await waitingQuestions(repo, config, {
@@ -136,7 +156,7 @@ test('the worker names the host of a GitHub Enterprise remote in the repository 
   const questions = await waitingQuestions(repo, config, {
     openIssues: async () => [issue(7, 'Seven')],
     threadComments: async () => [
-      { author: 'bot', body: 'next-issue needs help: Stuck.', url: 'u1' },
+      { author: 'bot', body: '### next-issue · Hand-over: needs help\n\nStuck.', url: 'u1' },
     ],
     canWrite: async () => true,
   });
@@ -153,12 +173,39 @@ test('the worker gives owner and name alone as the repository of each waiting qu
   const questions = await waitingQuestions(repo, config, {
     openIssues: async () => [issue(7, 'Seven')],
     threadComments: async () => [
-      { author: 'bot', body: 'next-issue needs help: Stuck.', url: 'u1' },
+      { author: 'bot', body: '### next-issue · Hand-over: needs help\n\nStuck.', url: 'u1' },
     ],
     canWrite: async () => true,
   });
   assert.deepEqual(
     questions.map((question) => question.repo),
     ['acme/tool'],
+  );
+});
+
+test('the worker finds a hand-over posted in the older one-line format, reads its reason, and keeps it waiting when only an older harness comment follows', async () => {
+  const root = await tempDir();
+  const repo = { owner: 'acme', name: 'tool', root };
+  const config = await loadConfig(root);
+  const threads: Record<number, Comment[]> = {
+    7: [
+      {
+        author: 'bot',
+        body: 'next-issue needs help: The limit was reached.',
+        url: 'u1',
+      },
+      { author: 'bot', body: '### Review: approved', url: 'u2' },
+      { author: 'bot', body: '### Fixer: no change\n\nNothing.', url: 'u3' },
+      { author: 'bot', body: '### Already done\n\nDone.', url: 'u4' },
+    ],
+  };
+  const questions = await waitingQuestions(repo, config, {
+    openIssues: async () => [issue(7, 'Seven')],
+    threadComments: async (_repo, number) => threads[number] ?? [],
+    canWrite: async () => true,
+  });
+  assert.deepEqual(
+    questions.map((question) => [question.issue, question.reason, question.url]),
+    [[7, 'The limit was reached.', 'u1']],
   );
 });

@@ -103,7 +103,7 @@ test('a user who stops the run after the revert of main reaches the base and the
   assert.deepEqual(target.reverts, []);
   assert.match(
     target.comments.at(-1)!,
-    /needs help: The run stopped during the revert of the change on main\. The harness reverted the change on main\.$/,
+    /needs help\n\nThe run stopped during the revert of the change on main\. The harness reverted the change on main\.$/,
   );
   const state = await target.state();
   assert.equal(state?.landed, undefined);
@@ -158,7 +158,7 @@ test('a user whose push to the base branch reports a failure, whose fetch of the
 function commentFails(target: Awaited<ReturnType<typeof harness>>) {
   const commentOnIssue = target.context.ports.commentOnIssue;
   target.context.ports.commentOnIssue = async (repo, issue, body) => {
-    if (body.includes('needs help:')) {
+    if (body.includes('needs help')) {
       throw new Error('gh: could not resolve host');
     }
     return commentOnIssue(repo, issue, body);
@@ -191,7 +191,7 @@ test('a user whose push to the base branch is refused while the base stays put g
   assert.deepEqual(target.landed, []);
   assert.match(
     target.comments.at(-1)!,
-    /needs help: The push to main failed, and main did not move, so the harness did not try again\. The error of git:\n\n```\nremote: Permission to acme\/tool\.git denied to bot\.\n```/,
+    /needs help\n\nThe push to main failed, and main did not move, so the harness did not try again\. The error of git:\n\n```\nremote: Permission to acme\/tool\.git denied to bot\.\n```/,
   );
 });
 
@@ -201,7 +201,7 @@ test('a user whose push is refused with no error from git gets a hand-over that 
   assert.equal(report.outcome, 'needs-human');
   assert.match(
     target.comments.at(-1)!,
-    /needs help: The push to main failed, and main did not move, so the harness did not try again\.$/,
+    /needs help\n\nThe push to main failed, and main did not move, so the harness did not try again\.$/,
   );
 });
 
@@ -268,7 +268,7 @@ test('a user whose checks on main fail for an unrelated reason gets the change r
   assert.deepEqual(target.reverts, [{ shas: ['2'], message: 'revert: issue #7\n\nRefs #7' }]);
   assert.match(
     target.comments.at(-1)!,
-    /needs help: The checks on main fail for a reason this change did not cause: .* The harness reverted the change on main\./,
+    /needs help\n\nThe checks on main fail for a reason this change did not cause: .* The harness reverted the change on main\./,
   );
   assert.equal((await target.state())?.landed, undefined);
   assert.deepEqual(target.closed, []);
@@ -345,7 +345,7 @@ test('a user whose fixer calls a failure unrelated and whose read of the changed
   );
   assert.match(
     target.comments.at(-1)!,
-    /needs help: The read of the files of the change failed: git: bad object 2\. The harness reverted the change on main\./,
+    /needs help\n\nThe read of the files of the change failed: git: bad object 2\. The harness reverted the change on main\./,
   );
 });
 
@@ -449,7 +449,7 @@ test('a user whose fix for main cannot be pushed and whose revert throws gets th
   assert.equal(report.halt, true);
   assert.match(
     target.comments.at(-1)!,
-    /needs help: The push to main failed 3 times\. The last error of git:\n\n```\n.+\n```\n The revert of the change on main failed: git: fetch failed\. The landed commits stay on main\./,
+    /needs help\n\nThe push to main failed 3 times\. The last error of git:\n\n```\n.+\n```\n The revert of the change on main failed: git: fetch failed\. The landed commits stay on main\./,
   );
   assert.deepEqual((await target.state())?.landed, ['2']);
 });
@@ -514,7 +514,7 @@ test('a user whose landing of the fix for main fails with an error gets the chan
   );
   assert.match(
     target.comments.at(-1)!,
-    /needs help: The landing of the fix for the checks on main failed: git: merge failed\. The harness reverted the change on main\./,
+    /needs help\n\nThe landing of the fix for the checks on main failed: git: merge failed\. The harness reverted the change on main\./,
   );
   assert.equal((await target.state())?.landed, undefined);
 });
@@ -578,7 +578,7 @@ test('a user whose fixer for the failed checks on main fails with an error gets 
   );
   assert.match(
     target.comments.at(-1)!,
-    /needs help: The fixer for the failed checks on main failed: the fixer timed out\. The harness reverted the change on main\./,
+    /needs help\n\nThe fixer for the failed checks on main failed: the fixer timed out\. The harness reverted the change on main\./,
   );
   assert.equal((await target.state())?.landed, undefined);
   assert.deepEqual(target.closed, []);
@@ -661,7 +661,7 @@ test('a user whose checks on main fail and whose read of the failed runs then fa
   );
   assert.match(
     target.comments.at(-1)!,
-    /needs help: The read of the failed checks on main failed: gh: API rate limit exceeded\. The harness reverted the change on main\./,
+    /needs help\n\nThe read of the failed checks on main failed: gh: API rate limit exceeded\. The harness reverted the change on main\./,
   );
   assert.equal((await target.state())?.landed, undefined);
 });
@@ -690,7 +690,7 @@ test('a user whose checks on main fail and whose read of the checks after the re
   );
   assert.match(
     target.comments.at(-1)!,
-    /needs help: The read of the checks on main failed: gh: API rate limit exceeded\. The harness reverted the change on main\./,
+    /needs help\n\nThe read of the checks on main failed: gh: API rate limit exceeded\. The harness reverted the change on main\./,
   );
   assert.equal((await target.state())?.landed, undefined);
 });
@@ -711,7 +711,7 @@ test('a user whose fix for main lands and whose read of the checks of the fix th
   );
   assert.match(
     target.comments.at(-1)!,
-    /needs help: The read of the checks on main failed: gh: API rate limit exceeded\. The harness reverted the change on main\./,
+    /needs help\n\nThe read of the checks on main failed: gh: API rate limit exceeded\. The harness reverted the change on main\./,
   );
   assert.equal((await target.state())?.landed, undefined);
 });
@@ -727,7 +727,7 @@ test('a user whose checks on main fail with no check fix left and whose revert f
   assert.equal(report.halt, true);
   assert.match(
     target.comments.at(-1)!,
-    /needs help: The checks on main failed and the limit of 0 check fixes was reached\. The revert of the change on main failed: git: fetch failed\./,
+    /needs help\n\nThe checks on main failed and the limit of 0 check fixes was reached\. The revert of the change on main failed: git: fetch failed\./,
   );
   assert.deepEqual((await target.state())?.landed, ['2']);
 });
@@ -748,7 +748,7 @@ test('a user whose checks on main are all cancelled before they finish gets the 
   assert.equal(report.halt, true);
   assert.match(
     target.comments.at(-1)!,
-    /needs help: The checks on main were cancelled before they finished./,
+    /needs help\n\nThe checks on main were cancelled before they finished./,
   );
 });
 

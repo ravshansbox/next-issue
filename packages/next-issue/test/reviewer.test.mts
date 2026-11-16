@@ -533,7 +533,7 @@ test('a person whose reviewer timed out and whose branch then could not be put b
   assert.equal(report.outcome, 'error');
   assert.match(
     target.issueNotes[0]!.body,
-    /^next-issue needs help: The run failed: The reviewer agent did not finish in 60000 ms\./,
+    /^### next-issue · Hand-over: needs help\n\nThe run failed: The reviewer agent did not finish in 60000 ms\./,
   );
 });
 

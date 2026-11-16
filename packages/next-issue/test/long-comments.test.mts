@@ -12,7 +12,7 @@ test('a user whose reviewer approves with a summary longer than a GitHub comment
   assert.equal(report.outcome, 'done');
   const body = target.comments[0]!;
   assert.ok(body.length <= 65536);
-  assert.match(body, /^### Review: approved\n\nGood\./);
+  assert.match(body, /^### next-issue · Review: approved\n\nGood\./);
   assert.match(body, CUT);
 });
 
@@ -36,7 +36,7 @@ test('a user whose fixer disputes with a note longer than a GitHub comment sees 
   assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer', 'reviewer']);
   const body = target.comments[1]!;
   assert.ok(body.length <= 65536);
-  assert.match(body, /^### Fixer: no change\n\nyyy/);
+  assert.match(body, /^### next-issue · Fixer: no change\n\nyyy/);
   assert.match(body, CUT);
 });
 
@@ -49,6 +49,6 @@ test('a user whose fixer settles with a note longer than a GitHub comment sees t
   assert.equal(report.outcome, 'done');
   const body = target.comments[1]!;
   assert.ok(body.length <= 65536);
-  assert.match(body, /^### Fixer: settled with no change\n\nzzz/);
+  assert.match(body, /^### next-issue · Fixer: settled with no change\n\nzzz/);
   assert.match(body, CUT);
 });

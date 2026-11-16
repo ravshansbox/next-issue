@@ -7,10 +7,24 @@ import type { Recorder } from './observe.mts';
 import type { Ports } from './ports.mts';
 import type { Question } from './protocol.mts';
 import { heldByPerson, type IssueState, type PendingHandOver, readState } from './state.mts';
+import { AGENT_PREFIX, agentHeading } from './text.mts';
 
-export const HAND_OVER = 'next-issue needs help:';
+export const HAND_OVER = agentHeading('Hand-over', 'needs help');
 
-const HARNESS_HEADINGS = [HAND_OVER, '### Review:', '### Fixer:'];
+const OLD_HAND_OVER = 'next-issue needs help:';
+
+const HARNESS_HEADINGS = [
+  AGENT_PREFIX,
+  OLD_HAND_OVER,
+  '### Review:',
+  '### Fixer:',
+  '### Already done',
+];
+
+function handOverReason(comment: Comment): string | undefined {
+  const heading = [HAND_OVER, OLD_HAND_OVER].find((item) => comment.body.startsWith(item));
+  return heading === undefined ? undefined : comment.body.slice(heading.length).trim();
+}
 
 function fromHarness(comment: Comment): boolean {
   return HARNESS_HEADINGS.some((heading) => comment.body.startsWith(heading));
@@ -51,7 +65,7 @@ async function writerQuotes(
 async function lastHandOver(comments: Comment[], writer: Writer): Promise<number> {
   for (let index = comments.length - 1; index >= 0; index -= 1) {
     const comment = comments[index]!;
-    if (comment.body.startsWith(HAND_OVER) && (await writer(comment.author))) {
+    if (handOverReason(comment) !== undefined && (await writer(comment.author))) {
       return index;
     }
   }
@@ -146,7 +160,7 @@ async function waitingQuestion(
   return {
     issue: issue.number,
     title: issue.title,
-    reason: comment?.body.slice(HAND_OVER.length).trim() ?? pending?.reason ?? '',
+    reason: (comment && handOverReason(comment)) ?? pending?.reason ?? '',
     url: comment?.url ?? '',
     repo: repoArg(repo),
     labels: {

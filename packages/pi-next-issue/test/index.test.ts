@@ -1523,12 +1523,14 @@ test('a user who retries a hand-over with guidance from the dashboard posts the 
   overlay.press('down');
   overlay.press('enter');
   assert.match(overlay.screen(), /Guidance for #5/);
-  overlay.press('\x1b[200~### Review: no\x1b[201~');
-  overlay.press('\n');
-  assert.match(overlay.screen(), /must not start with/);
-  assert.deepEqual(ghCalls, []);
-  for (let index = 0; index < 14; index += 1) {
-    overlay.press('\x7f');
+  for (const heading of ['### next-issue · Review: no', '### Review: no']) {
+    overlay.press(`\x1b[200~${heading}\x1b[201~`);
+    overlay.press('\n');
+    assert.match(overlay.screen(), /must not start with/);
+    assert.deepEqual(ghCalls, []);
+    for (let index = 0; index < heading.length; index += 1) {
+      overlay.press('\x7f');
+    }
   }
   overlay.press('\x1b[200~Use the v2 api\x1b[201~');
   overlay.press('\n');
