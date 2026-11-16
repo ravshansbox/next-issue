@@ -348,6 +348,22 @@ test('a fixer commit made after a reviewer detached HEAD is still on branch 3 wh
   assert.equal(existsSync(join(resumed, 'fixer.txt')), true);
 });
 
+test('a run of issue 3 after a crash left its worktree on a detached HEAD with uncommitted files keeps those files on a 3-detached branch', async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  await commit(path, 'implementer.txt');
+  await git(path, 'checkout', '-q', '--detach');
+  await writeFile(join(path, 'implementer.txt'), 'unsaved\n');
+  await writeFile(join(path, 'new.txt'), 'new\n');
+  await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  const [aside] = (
+    await git(repo.root, 'for-each-ref', '--format=%(refname:short)', 'refs/heads/3-detached-*')
+  ).split('\n');
+  assert.ok(aside);
+  assert.equal(await git(repo.root, 'show', `${aside}:implementer.txt`), 'unsaved');
+  assert.equal(await git(repo.root, 'show', `${aside}:new.txt`), 'new');
+});
+
 test('changedFiles gives the files that landed commits added or changed and leaves out deleted ones', async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);

@@ -70,7 +70,10 @@ the run handles one issue. For each issue:
    no commits of its own starts again from the remote base. An issue with no
    saved state does not reuse a local `<n>` branch: it resets that branch,
    and any worktree that holds it, to the remote branch, or to the remote
-   base when there is none. The main worktree of the repository is never
+   base when there is none. A worktree at `.worktrees/<n>` left on a
+   detached HEAD, for example by a crash, is removed, but its uncommitted
+   files are first committed on a `<n>-detached-<sha>` branch, so they are
+   kept. The main worktree of the repository is never
    used, reset or cleaned: when it has the branch of the issue checked out,
    the issue fails and is handed over, and the reason asks you to check out
    another branch there. A fast-forward of the base that is not safe

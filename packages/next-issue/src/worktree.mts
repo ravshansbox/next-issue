@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
@@ -9,6 +10,8 @@ import {
   oneFetchAtATime,
   remoteRef,
   type Repo,
+  revision,
+  saveEdits,
   succeeds,
 } from './git.mts';
 
@@ -46,6 +49,7 @@ export async function addWorktree(
   const path = existing ?? worktreePath(repo, issue);
   const target = pushed ? upstream : remoteBase;
   if (existing === undefined) {
+    await keepDetachedEdits(path, branch);
     await succeeds(repo.root, ['worktree', 'remove', '--force', path]);
     const args =
       !start && (await hasWork(repo, branch, pushed, remoteBase))
@@ -59,6 +63,17 @@ export async function addWorktree(
     await succeeds(path, ['merge', '--ff-only', upstream]);
   }
   return { path, baseUpdated };
+}
+
+async function keepDetachedEdits(path: string, branch: string): Promise<void> {
+  if (
+    !existsSync(join(path, '.git')) ||
+    (await currentBranch(path)) !== undefined ||
+    !(await saveEdits(path, 'chore: edits left on a detached HEAD'))
+  ) {
+    return;
+  }
+  await git(path, ['branch', `${branch}-detached-${(await revision(path)).slice(0, 7)}`]);
 }
 
 async function hasWork(
