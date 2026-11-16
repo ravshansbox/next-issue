@@ -294,14 +294,14 @@ export function createExtension(options: Options) {
       ui = undefined;
     });
 
-    const connect = async (ctx: ExtensionContext) => {
+    const connect = async (ctx: ExtensionContext, startWorker = true) => {
       root = await options.root(ctx.cwd);
       if (ctx.hasUI) {
         show(ctx);
         follow();
       }
       const client = clientOf(root);
-      await client.ensure();
+      await (startWorker ? client.ensure() : client.reach());
       return { client, root, progress: client.runs[root] };
     };
 
@@ -351,7 +351,7 @@ export function createExtension(options: Options) {
         on: Type.Boolean({ description: 'true to hunt, false to stop hunting' }),
       }),
       async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-        const { client, root, progress } = await connect(ctx);
+        const { client, root, progress } = await connect(ctx, false);
         asked = 'hunt';
         return huntRun(client, root, progress, params.on, signal);
       },
@@ -372,7 +372,7 @@ export function createExtension(options: Options) {
         ),
       }),
       async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-        const { client, root, progress } = await connect(ctx);
+        const { client, root, progress } = await connect(ctx, false);
         return stopRun(client, root, progress, params.after ?? 'issue');
       },
     });
@@ -410,7 +410,7 @@ export function createExtension(options: Options) {
         try {
           const after = subcommand === 'stop' ? parseStopArgs(flags) : undefined;
           const on = subcommand === 'hunt' ? parseHuntArgs(flags) : undefined;
-          const { client, root, progress } = await connect(ctx);
+          const { client, root, progress } = await connect(ctx, subcommand === 'start');
           if (after !== undefined) {
             notify(requestStop(client, root, progress, after));
           } else if (on !== undefined) {

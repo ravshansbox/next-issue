@@ -517,6 +517,35 @@ test('a model that calls next_issue_refresh with no worker going is told no run 
   assert.equal(spawns.length, 0);
 });
 
+test('a model that calls next_issue_stop with no worker going is told no run is going and no worker starts', async () => {
+  const { spawns, extension } = setup();
+  const { pi, emit, stop } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await assert.rejects(stop(), /no run of \/repo is going/);
+  assert.equal(spawns.length, 0);
+});
+
+test('a model that calls next_issue_hunt with no worker going is told no run is going and no worker starts', async () => {
+  const { spawns, extension } = setup();
+  const { pi, emit, hunt } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await assert.rejects(hunt({ on: true }), /no run of \/repo is going/);
+  assert.equal(spawns.length, 0);
+});
+
+test('a user who runs /next-issue stop or hunt on with no worker going is told no run is going and no worker starts', async () => {
+  const { spawns, extension } = setup();
+  const { pi, emit, command, notes } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command('stop');
+  await command('hunt on');
+  assert.deepEqual(notes, ['No run of /repo is going.', 'No run of /repo is going.']);
+  assert.equal(spawns.length, 0);
+});
+
 test('a user who runs /next-issue start with no worker going starts the worker release that matches the extension version', async () => {
   const { spawns, extension } = setup({ version: '1.2.3' });
   const { pi, emit, command } = host();

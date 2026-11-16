@@ -113,6 +113,16 @@ export class WorkerClient {
     await this.open().catch(() => this.scheduleReconnect());
   }
 
+  async reach(): Promise<void> {
+    if (this.connected) {
+      return;
+    }
+    checkSocketPath(this.options.socketPath);
+    if (!(await this.opened())) {
+      await this.waitForHolder();
+    }
+  }
+
   async ensure(): Promise<void> {
     if (!this.connected) {
       await this.connect();
