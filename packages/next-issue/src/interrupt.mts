@@ -8,11 +8,16 @@ export type Interrupts = {
   sleep: (ms: number, hunting?: () => boolean, refreshed?: AbortSignal) => Promise<boolean>;
 };
 
-export function listenForInterrupts(say: (text: string) => void): Interrupts {
+export const NOTES = {
+  hunt: 'Stopping after the current hunt. Press Ctrl-C twice more to stop now.',
+  wait: 'Stopping now.',
+  issue: 'Stopping after the running issues. Press Ctrl-C again to stop after the current round.',
+  round: 'Stopping after the current round. Press Ctrl-C again to stop now.',
+};
+
+export function onPresses(handle: (presses: number) => void): () => void {
   let presses = 0;
   let lastPress = -Infinity;
-  const sleeper: Sleeper = {};
-  let hunting = (): boolean => false;
   const press = (): void => {
     const now = performance.now();
     if (now - lastPress < 100) {
@@ -20,23 +25,32 @@ export function listenForInterrupts(say: (text: string) => void): Interrupts {
     }
     lastPress = now;
     presses += 1;
-    if (presses === 1 && sleeper.wake !== undefined) {
-      say(
-        hunting()
-          ? 'Stopping after the current hunt. Press Ctrl-C twice more to stop now.'
-          : 'Stopping now.',
-      );
-      sleeper.wake();
-    } else if (presses === 1) {
-      say('Stopping after the running issues. Press Ctrl-C again to stop after the current round.');
-    } else if (presses === 2) {
-      say('Stopping after the current round. Press Ctrl-C again to stop now.');
-    } else {
+    if (presses >= 3) {
       process.off('SIGINT', press);
-      stopChildren('SIGINT');
     }
+    handle(presses);
   };
   process.on('SIGINT', press);
+  return () => process.off('SIGINT', press);
+}
+
+export function listenForInterrupts(say: (text: string) => void): Interrupts {
+  let presses = 0;
+  const sleeper: Sleeper = {};
+  let hunting = (): boolean => false;
+  onPresses((count) => {
+    presses = count;
+    if (presses === 1 && sleeper.wake !== undefined) {
+      say(hunting() ? NOTES.hunt : NOTES.wait);
+      sleeper.wake();
+    } else if (presses === 1) {
+      say(NOTES.issue);
+    } else if (presses === 2) {
+      say(NOTES.round);
+    } else {
+      stopChildren('SIGINT');
+    }
+  });
   return {
     afterIssue: () => presses >= 1,
     afterRound: () => presses >= 2,

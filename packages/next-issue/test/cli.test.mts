@@ -190,6 +190,8 @@ esac
   assert.equal(stdout, '');
 });
 
+const RUN_GOING = /next-issue failed: a run is going in this repository already/;
+
 const RUNNING = (pid: number | undefined) =>
   new RegExp(
     `another next-issue worker or run \\(process id ${pid}\\) is going in this repository`,
@@ -292,23 +294,16 @@ test('a user whose stderr reader exits before Ctrl-C sees the run stop with exit
   assert.equal(kinds.at(-1), 'run.end');
 });
 
-test('a user who runs next-issue while another run is going in the repository sees an error that names it, exit code 1 and no issue read', async (t) => {
+test('a user who runs next-issue while another run of start is going in the repository sees that a run is going, exit code 1 and no issue read', async (t) => {
   const root = await repository();
   const { child, exited } = await watchingRun(root);
   t.after(() => child.kill('SIGKILL'));
-  assert.match(await refusedRun(root), RUNNING(child.pid));
+  assert.match(await refusedRun(root), RUN_GOING);
   child.kill('SIGINT');
   assert.equal(await exited, 0);
 });
 
-test('a user who runs next-issue while an idle worker is alive in the repository sees an error that names the worker, exit code 1 and no issue read', async (t) => {
-  const root = await repository();
-  const { child } = await serveWorker(root);
-  t.after(() => child.kill('SIGKILL'));
-  assert.match(await refusedRun(root), RUNNING(child.pid));
-});
-
-test('a user who runs next-issue while the worker has a run going sees an error that names the worker, exit code 1 and no issue read', async (t) => {
+test('a user who runs next-issue while the worker has a run going sees that a run is going, exit code 1 and no issue read', async (t) => {
   const root = await realpath(await repository());
   await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/watch.git'], {
     cwd: root,
@@ -323,7 +318,7 @@ test('a user who runs next-issue while the worker has a run going sees an error 
       value.runs[root]?.status === 'running' &&
       value.runs[root].error === undefined,
   );
-  assert.match(await refusedRun(root), RUNNING(child.pid));
+  assert.match(await refusedRun(root), RUN_GOING);
   client.send({ type: 'start', root });
   const refusal = await client.next((value) => value.type === 'error');
   assert.equal(refusal.type === 'error' && refusal.root, root);
@@ -361,20 +356,19 @@ test('a user who serves a linked worktree while the worker of the main worktree 
   assert.equal(error?.stderr, 'next-issue: another worker is running\n');
 });
 
-test('a user who serves the repository while a command-line run is going sees that another worker is running and gets no worker', async (t) => {
+test('a user who serves the repository while another process holds worker.lock sees that another worker is running and gets no worker', async (t) => {
   const root = await repository();
-  const { child, exited } = await watchingRun(root);
-  t.after(() => child.kill('SIGKILL'));
+  const other = spawn('sleep', ['30']);
+  t.after(() => other.kill('SIGKILL'));
+  const lock = await holdLock(root, other.pid!);
   const error = await promisify(execFile)(process.execPath, [CLI, 'serve'], { cwd: root }).then(
     () => undefined,
     (failure: { code: number; stderr: string }) => failure,
   );
   assert.equal(error?.code, 1);
-  assert.equal(error?.stderr, 'next-issue: another worker is running\n');
+  assert.match(error?.stderr ?? '', /\nnext-issue: another worker is running\n$/);
   assert.equal(await exists(workerPaths(root).socketPath), false);
-  child.kill('SIGINT');
-  assert.equal(await exited, 0);
-  assert.deepEqual((await readdir(stateDir(root))).includes('worker.lock'), false);
+  assert.equal(await readFile(workerPaths(root).lockPath, 'utf8'), lock);
 });
 
 async function singleRun(root: string) {
@@ -384,10 +378,17 @@ async function singleRun(root: string) {
   );
 }
 
-test('a user whose run ends finds no worker.lock and no run.lock left in the repository', async () => {
+async function gone(path: string): Promise<boolean> {
+  for (let left = 100; left > 0 && (await exists(path)); left -= 1) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return !(await exists(path));
+}
+
+test('a user whose run ends finds no worker.lock and no run.lock left in the repository once the worker it started closes', async () => {
   const root = await repository();
   assert.match(await singleRun(root), /No such remote 'origin'/);
-  assert.equal(await exists(workerPaths(root).lockPath), false);
+  assert.equal(await gone(workerPaths(root).lockPath), true);
   assert.equal(await exists(join(stateDir(root), 'run.lock')), false);
 });
 
@@ -400,7 +401,7 @@ test('a user who runs next-issue over a worker.lock that a dead process left tak
   const stderr = await singleRun(root);
   assert.doesNotMatch(stderr, /is going in this repository/);
   assert.match(stderr, /No such remote 'origin'/);
-  assert.equal(await exists(workerPaths(root).lockPath), false);
+  assert.equal(await gone(workerPaths(root).lockPath), true);
 });
 
 test('a user who starts a run in the worker sees it go past the worker lock and create no run.lock', async (t) => {
@@ -495,19 +496,18 @@ test('a user who runs stop while the lock holds the id of a live process that is
   assert.equal(other.exitCode, null);
 });
 
-test('a user who runs stop while a command-line run is going sees that no worker is running and the run keeps going', async (t) => {
+test('a user who runs stop while a process that does not listen holds worker.lock sees that no worker is running and the process keeps going', async (t) => {
   const root = await repository();
-  const { child, exited } = await watchingRun(root);
-  t.after(() => child.kill('SIGKILL'));
+  const other = spawn('sleep', ['30']);
+  t.after(() => other.kill('SIGKILL'));
+  await holdLock(root, other.pid!);
   assert.equal(
     await stopCommand(root),
-    `next-issue: no worker is running; a command-line run (process id ${child.pid}) is going, press Ctrl-C there to stop it\n`,
+    `next-issue: no worker is running; a command-line run (process id ${other.pid}) is going, press Ctrl-C there to stop it\n`,
   );
   await new Promise((resolve) => setTimeout(resolve, 100));
-  assert.equal(child.exitCode, null);
-  assert.equal(child.signalCode, null);
-  child.kill('SIGINT');
-  assert.equal(await exited, 0);
+  assert.equal(other.exitCode, null);
+  assert.equal(other.signalCode, null);
 });
 
 test('a user who serves a repository whose socket path is too long sees an error that says so', async () => {

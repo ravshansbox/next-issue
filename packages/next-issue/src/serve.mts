@@ -30,6 +30,7 @@ import {
   setHunting,
   setWatching,
   startRefusal,
+  stoppingMessage,
   stopPoint,
   switchRefusal,
 } from './worker-run.mts';
@@ -132,6 +133,9 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
         ...runControls(run, update, () =>
           outsideRuns(() => void sendQuestions(root, () => sockets.clients)),
         ),
+        print: args.watch
+          ? async (pass) => sendAll(sockets, { type: 'pass', root, summary: pass })
+          : undefined,
         output: (text) => {
           process.stderr.write(text);
           sendAll(sockets, { type: 'output', root, text });
@@ -159,13 +163,16 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       .finally(closeWhenIdle);
   };
 
-  const stop = (refuse: Refuse, root: string, after: unknown): void => {
+  const stop = (socket: WebSocket, refuse: Refuse, root: string, after: unknown, id?: string) => {
     const point = stopPoint(after);
     if (point === undefined) {
       refuse(`stop does not take --after ${String(after)}`);
       return;
     }
     const run = runs.get(root);
+    if (run !== undefined && active(run)) {
+      send(socket, stoppingMessage(root, run, id));
+    }
     const dropped = dropUpgrade(run);
     if (requestStop(run, point) || dropped) {
       broadcast(sockets, runs);
@@ -204,7 +211,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     } else if (value.type === 'start') {
       start(refuse, value.root, value.args ?? [], value.resume === true);
     } else if (value.type === 'stop') {
-      stop(refuse, value.root, value.after);
+      stop(socket, refuse, value.root, value.after, value.id);
     } else if (value.type === 'hunt') {
       toggle(refuse, value.root, value.on, setHunting);
     } else if (value.type === 'watch') {

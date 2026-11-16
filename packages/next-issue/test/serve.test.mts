@@ -1250,3 +1250,59 @@ test('a client of a run whose log cannot be written still sees its progress and 
   fake.finish();
   await client.next((value) => value.type === 'runs' && value.runs['/repo']?.status === 'finished');
 });
+
+test('a client of a watch run gets the summary of each pass, and a client of any other run gets none', async (t) => {
+  const pass = {
+    runId: 'r',
+    logFile: 'l',
+    roles: {},
+    counts: {},
+    total: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    issues: [],
+  };
+  for (const { args, sent } of [
+    { args: ['--watch'], sent: true },
+    { args: [], sent: false },
+  ]) {
+    const fake = fakeRuns();
+    const { socketPath, worker: started } = await worker(t, fake);
+    const client = await connect(t, socketPath);
+    client.send({ type: 'start', root: '/repo', args });
+    await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
+    assert.equal(fake.controls().print !== undefined, sent);
+    await fake.controls().print?.(pass);
+    if (sent) {
+      assert.deepEqual(await client.next((value) => value.type === 'pass'), {
+        type: 'pass',
+        root: '/repo',
+        summary: pass,
+      });
+    }
+    fake.finish();
+    await started.close();
+  }
+});
+
+test('a client that stops a run waiting between passes is told it waits, and whether a hunt is going', async (t) => {
+  for (const hunting of [false, true]) {
+    const { fake, client } = await startedRun(t);
+    const slept = fake.controls().interrupts.sleep(60_000, () => hunting);
+    client.send({ type: 'stop', root: '/repo', id: 'stop-1' });
+    assert.deepEqual(await client.next((value) => value.type === 'stopping'), {
+      type: 'stopping',
+      root: '/repo',
+      waiting: true,
+      hunting,
+      id: 'stop-1',
+    });
+    assert.equal(await slept, false);
+    client.send({ type: 'stop', root: '/repo', after: 'round' });
+    assert.deepEqual(await client.next((value) => value.type === 'stopping'), {
+      type: 'stopping',
+      root: '/repo',
+      waiting: false,
+      hunting: false,
+    });
+    fake.finish();
+  }
+});

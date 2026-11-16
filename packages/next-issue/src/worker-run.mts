@@ -19,6 +19,7 @@ export type Run = {
   stop?: StopPoint;
   children: RunChildren;
   wake?: () => void;
+  huntBusy?: () => boolean;
   watching: Toggle;
   hunting: Toggle;
   refresher: Refresher;
@@ -87,6 +88,17 @@ export function requestStop(run: Run | undefined, after: StopPoint): boolean {
   return true;
 }
 
+export function stoppingMessage(root: string, run: Run, id?: string): WorkerMessage {
+  const waiting = run.wake !== undefined;
+  return {
+    type: 'stopping',
+    root,
+    waiting,
+    hunting: waiting && run.huntBusy?.() === true,
+    ...(id === undefined ? {} : { id }),
+  };
+}
+
 export function requestUpgrade(run: Run, upgrade: Upgrade): boolean {
   if (!run.watching.on() || run.stop !== undefined || !requestStop(run, 'issue')) {
     return false;
@@ -137,7 +149,10 @@ function runInterrupts(run: Run): Interrupts {
   return {
     afterIssue: () => run.stop !== undefined,
     afterRound: () => run.stop === 'round' || run.stop === 'now',
-    sleep: (ms, _hunting, refreshed) => wakeableSleep(run, ms, run.stop !== undefined, refreshed),
+    sleep: (ms, hunting, refreshed) => {
+      run.huntBusy = hunting;
+      return wakeableSleep(run, ms, run.stop !== undefined, refreshed);
+    },
   };
 }
 

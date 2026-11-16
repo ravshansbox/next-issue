@@ -89,6 +89,8 @@ export type WorkerMessage =
   | { type: 'upcoming-error'; root: string; message: string }
   | { type: 'output'; root: string; text: string }
   | { type: 'end'; root: string; code: number; summary?: RunSummary; error?: string }
+  | { type: 'pass'; root: string; summary: RunSummary }
+  | { type: 'stopping'; root: string; waiting: boolean; hunting: boolean; id?: string }
   | { type: 'error'; root: string; message: string; id?: string };
 
 export function isNewer(candidate: string, current: string): boolean {

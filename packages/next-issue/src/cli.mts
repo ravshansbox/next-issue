@@ -3,16 +3,13 @@ import { type Args, parseArgs, USAGE } from './args.mts';
 import { moveOldConfig, rejectOldConfig, writeDefaultConfig } from './config.mts';
 import { OLD_CONFIG_FILE } from './config-fields.mts';
 import { message } from './errors.mts';
-import { prettyJson } from './files.mts';
 import { repoRoot } from './git.mts';
 import { ensureExcluded, excludeFile, removeIgnored } from './ignore.mts';
-import { listenForInterrupts } from './interrupt.mts';
 import { stopWorker } from './lock.mts';
 import { followLog, newestRunLog } from './logs.mts';
-import { runLocked } from './run.mts';
 import { serve } from './serve.mts';
+import { startInWorker } from './start.mts';
 import { STATE_DIR } from './state.mts';
-import { formatSummary } from './summary.mts';
 import { workerPaths } from './worker-paths.mts';
 import { WORKTREE_DIR } from './worktree.mts';
 
@@ -23,7 +20,8 @@ function write(stream: NodeJS.WriteStream, text: string): Promise<void> {
 }
 
 async function main(): Promise<number> {
-  const args = parseArgs(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  const args = parseArgs(argv);
   if (args.help) {
     await write(process.stdout, USAGE);
     return 0;
@@ -47,17 +45,16 @@ async function main(): Promise<number> {
   if (args.command === 'serve') {
     return serve(root);
   }
-  return run(root, args);
+  return run(root, args, argv);
 }
 
-function run(root: string, args: Args): Promise<number> {
+function run(root: string, args: Args, argv: string[]): Promise<number> {
   process.stderr.on('error', () => {});
-  const interrupts = listenForInterrupts((text) => process.stderr.write(`${text}\n`));
-  return runLocked(root, args, {
-    interrupts,
-    print: (summary) =>
-      write(process.stdout, args.json ? prettyJson(summary) : formatSummary(summary)),
-  });
+  return startInWorker(
+    root,
+    args,
+    argv.slice(1).filter((arg) => arg !== '--json' && arg !== '--force'),
+  );
 }
 
 const STOPPED = {
