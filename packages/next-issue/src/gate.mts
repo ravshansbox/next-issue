@@ -217,9 +217,9 @@ function namedFile(logs: string, files: string[]): string | undefined {
         ? [file]
         : parts.slice(0, -1).map((_, index) => parts.slice(index).join('/'));
     return tails.some((tail) =>
-      new RegExp(
-        `(?<![\\w.${tail === file ? '' : '/'}-])${escapeRegExp(tail)}(?![\\w.-])`,
-      ).test(logs),
+      new RegExp(`(?<![\\w.${tail === file ? '' : '/'}-])${escapeRegExp(tail)}(?![\\w.-])`).test(
+        logs,
+      ),
     );
   });
 }
