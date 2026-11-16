@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import type { Issue } from '../src/github.mts';
 import type { Outcome } from '../src/job.mts';
 import { exitCode, type Loop, runIssues } from '../src/loop.mts';
+import { applyEvent, startProgress } from '../src/progress.mts';
+import { refresher } from '../src/refresh.mts';
 import { issue, report } from './loop-harness.mts';
 
 type Fake = Loop & { processed: number[] };
@@ -281,3 +283,88 @@ for (const outcome of ['done', 'error'] as const) {
     assert.deepEqual(fake.processed, [1, 2, 3, 1]);
   });
 }
+
+type Gate = { promise: Promise<void>; open: () => void };
+
+function gate(): Gate {
+  let open = (): void => undefined;
+  const promise = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  return { promise, open };
+}
+
+async function until(done: () => boolean): Promise<void> {
+  for (let tries = 0; !done(); tries += 1) {
+    assert.ok(tries < 100, 'timed out');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+type Counted = Fake & { open: Set<number>; status: () => number | undefined };
+
+function counted(numbers: number[]): Counted {
+  const fake = loop({}) as Counted;
+  fake.open = new Set(numbers);
+  let progress = startProgress();
+  fake.status = () => progress.open;
+  fake.issues = async () => {
+    progress = applyEvent(progress, { kind: 'issues', open: fake.open.size });
+    return [...fake.open].map((number) => issue(number));
+  };
+  return fake;
+}
+
+test('a person who reads the status sees the open count drop when an issue ends while every slot is taken, and no issue is claimed for it', async () => {
+  const fake = counted([1, 2, 3]);
+  const secondClaimed = gate();
+  const secondEnds = gate();
+  const firstEnds = gate();
+  fake.process = async (target, _claimed, slot) => {
+    fake.processed.push(target.number);
+    if (target.number === 1) {
+      await new Promise((resolve) => setImmediate(resolve));
+      slot!.free();
+      await secondClaimed.promise;
+      const taken = slot!.take();
+      secondEnds.open();
+      await taken;
+      await firstEnds.promise;
+    } else if (target.number === 2) {
+      secondClaimed.open();
+      await secondEnds.promise;
+    }
+    fake.open.delete(target.number);
+    return report(target.number, 'done');
+  };
+  const run = runIssues({ ...fake, concurrency: 1 });
+  await until(() => fake.status() === 2);
+  assert.deepEqual(fake.processed, [1, 2]);
+  firstEnds.open();
+  await run;
+  assert.deepEqual(fake.processed, [1, 2, 3]);
+});
+
+test('a person who files an issue and asks for a refresh while every slot is taken sees the open count rise, and no issue is claimed for it', async () => {
+  const fake = counted([1, 2]);
+  const firstEnds = gate();
+  fake.process = async (target) => {
+    fake.processed.push(target.number);
+    if (target.number === 1) {
+      await firstEnds.promise;
+    }
+    fake.open.delete(target.number);
+    return report(target.number, 'done');
+  };
+  const refresh = refresher();
+  const run = runIssues({ ...fake, concurrency: 1, refreshed: refresh.refreshed });
+  await until(() => fake.processed.length === 1);
+  assert.equal(fake.status(), 2);
+  fake.open.add(3);
+  refresh.refresh();
+  await until(() => fake.status() === 3);
+  assert.deepEqual(fake.processed, [1]);
+  firstEnds.open();
+  await run;
+  assert.deepEqual(fake.processed, [1, 2, 3]);
+});

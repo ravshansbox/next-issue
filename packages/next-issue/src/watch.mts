@@ -18,7 +18,6 @@ export type Watch = Loop & {
   hunting?: Switch;
   // Off ends the watch after the current pass, or at once during a wait.
   watching?: Switch;
-  refreshed?: () => AbortSignal;
 };
 
 const BACK_OFF_MINUTES = [1, 2, 3, 5, 10];

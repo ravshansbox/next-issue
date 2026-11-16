@@ -121,7 +121,7 @@ export function switchRefusal(run: Run | undefined): string | undefined {
   return active(run) ? undefined : 'no run is going in this repository';
 }
 
-// Only a running watch run refreshes; a pass that is going or a stop is left alone.
+// Only a running watch run refreshes: it wakes the wait between passes, or reads the open issues again during a pass.
 export function requestRefresh(run: Run | undefined): boolean {
   if (run?.progress.status !== 'running' || !run.watching.on() || run.stop !== undefined) {
     return false;
