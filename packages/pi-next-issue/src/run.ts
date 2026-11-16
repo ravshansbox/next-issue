@@ -31,19 +31,13 @@ function goingAlready(root: string, progress: Progress): string {
   return `A run of ${root} is going already, so nothing started: ${formatStatus(progress, Date.now())}. Asked it to check for new issues now.`;
 }
 
-// Best effort: a worker that knows no refresh ignores it or answers with an error that does
-// not name it. So it goes last, after any request whose answer counts, and `refreshing` lets
-// the caller know that a later error answers the refresh.
-function sendRefresh(client: WorkerClient, root: string, refreshing: () => void): void {
-  client.send({ type: 'refresh', root });
-  refreshing();
+// Best effort: a worker that knows no refresh ignores it or answers with an error. So it goes
+// last, after any request whose answer counts.
+function sendRefresh(client: WorkerClient, root: string): void {
+  client.request({ type: 'refresh', root });
 }
 
-export async function refreshRun(
-  client: WorkerClient,
-  root: string,
-  refreshing: () => void = () => {},
-) {
+export async function refreshRun(client: WorkerClient, root: string) {
   await client.attach();
   if (!client.connected || !going(client.runs[root])) {
     return report(`No run of ${root} is going, so nothing was asked.`, {
@@ -57,7 +51,7 @@ export async function refreshRun(
       { refreshed: false, root },
     );
   }
-  sendRefresh(client, root, refreshing);
+  sendRefresh(client, root);
   return report(`Asked the run of ${root} to check for new issues now.`, {
     refreshed: true,
     root,
@@ -69,15 +63,12 @@ export async function startRun(
   root: string,
   progress: Progress | undefined,
   signal: AbortSignal | undefined,
-  refreshing: () => void = () => {},
 ) {
   if (going(progress)) {
-    sendRefresh(client, root, refreshing);
+    sendRefresh(client, root);
     return report(goingAlready(root, progress), { started: false, root });
   }
-  const accepting = accepted(client, root, signal);
-  client.send({ type: 'start', root });
-  await accepting;
+  await accepted(client, root, client.request({ type: 'start', root }), signal);
   return report(`Started a next-issue run of ${root}.`, { started: true, root });
 }
 
@@ -85,13 +76,12 @@ export function requestStart(
   client: WorkerClient,
   root: string,
   progress: Progress | undefined,
-  refreshing: () => void = () => {},
 ): Note | undefined {
   if (going(progress)) {
-    sendRefresh(client, root, refreshing);
+    sendRefresh(client, root);
     return { text: goingAlready(root, progress), level: 'info' };
   }
-  client.send({ type: 'start', root });
+  client.request({ type: 'start', root });
   return undefined;
 }
 
@@ -123,15 +113,14 @@ async function flip(
     throw new Error(refusal);
   }
   const field = SWITCH_FIELDS[name];
-  const accepting = accepted(
+  await accepted(
     client,
     root,
+    client.request({ type: name, root, on }),
     signal,
     (next) => next?.[field] === on,
     `next_issue_${name}`,
   );
-  client.send({ type: name, root, on });
-  await accepting;
 }
 
 export async function watchRun(
@@ -195,7 +184,7 @@ export function requestSwitch(
   if (refusal !== undefined) {
     return cannotNote(name, refusal);
   }
-  client.send({ type: name, root, on });
+  client.request({ type: name, root, on });
   return undefined;
 }
 
@@ -223,7 +212,7 @@ export function requestStop(
   if (!going(progress)) {
     return { text: `No run of ${root} is going.`, level: 'info' };
   }
-  client.send({ type: 'stop', root, after });
+  client.request({ type: 'stop', root, after });
   return undefined;
 }
 
@@ -242,6 +231,6 @@ export function stopRun(
   if (!going(progress)) {
     throw new Error(`no run of ${root} is going`);
   }
-  client.send({ type: 'stop', root, after });
+  client.request({ type: 'stop', root, after });
   return report(`Asked the run of ${root} to stop ${STOP_TEXTS[after]}.`, { after, root });
 }

@@ -52,7 +52,9 @@ export async function startFakeWorker(
     socket.send(JSON.stringify({ type: 'runs', runs: worker.runs }));
     socket.on('message', (data) => {
       const message = JSON.parse(String(data)) as ClientMessage;
-      worker.received.push(message);
+      const sent: ClientMessage & { id?: string } = { ...message };
+      delete sent.id;
+      worker.received.push(sent);
       onMessage(worker, message);
     });
   });

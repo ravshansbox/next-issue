@@ -996,6 +996,10 @@ affect another. The worker:
 - refuses a `start`, `stop`, `watch`, `hunt`, `questions` or `upcoming` message whose `root` is not
   the exact path of its repository with an `error` message, and starts or
   stops nothing;
+- sends each `error` as
+  `{ "type": "error", "root": "<path>", "message": "<text>" }`. When a `start`,
+  `stop`, `watch`, `hunt` or `refresh` message carries an `"id"`, the `error`
+  that refuses it carries the same `id`;
 - runs at most one run at a time. A client starts it with
   `{ "type": "start", "root": "<path>", "args": [...] }`. Each run is like
   `next-issue start` with those args, or with none when `args` is left out

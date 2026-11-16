@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { createConnection } from 'node:net';
 import WebSocket from 'ws';
 import { errorText } from './errors.ts';
@@ -12,6 +13,11 @@ import {
 } from './protocol.ts';
 
 export type WorkerEvent = Exclude<WorkerMessage, { type: 'hello' }> | { type: 'closed' };
+
+export type Request = Extract<
+  ClientMessage,
+  { type: 'start' | 'stop' | 'hunt' | 'watch' | 'refresh' }
+>;
 
 export type WorkerOptions = {
   socketPath: string;
@@ -31,6 +37,7 @@ const POLL_MS = 200;
 const HOLDER_GRACE_MS = 2_000;
 const ANSWER_TIMEOUT_MS = 5_000;
 const UPCOMING_WAIT_MS = 10_000;
+const KEPT_REQUESTS = 16;
 
 export const CLOSED = 'the worker closed the connection';
 export const NOT_RUNNING = 'No worker is running, so pi cannot list the upcoming issues.';
@@ -85,6 +92,7 @@ export class WorkerClient {
   private connecting: Promise<void> | undefined;
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly listeners = new Set<(event: WorkerEvent) => void>();
+  private readonly requests = new Map<string, { root: string; type: Request['type'] }>();
   private readonly options: WorkerOptions;
 
   constructor(options: WorkerOptions) {
@@ -118,6 +126,23 @@ export class WorkerClient {
 
   send(message: ClientMessage): void {
     this.socket?.send(JSON.stringify(message));
+  }
+
+  request(message: Request): string {
+    const id = randomUUID();
+    this.requests.set(id, { root: message.root, type: message.type });
+    if (this.requests.size > KEPT_REQUESTS) {
+      this.requests.delete(this.requests.keys().next().value!);
+    }
+    this.send({ ...message, id });
+    return id;
+  }
+
+  // An older worker names no request, so its error answers the last request of that root.
+  requestOf(error: { root: string; id?: string }): Request['type'] {
+    const named = error.id === undefined ? undefined : this.requests.get(error.id);
+    const last = [...this.requests.values()].reverse().find(({ root }) => root === error.root);
+    return (named ?? last)?.type ?? 'start';
   }
 
   // An older worker ignores the request, so it gets a time limit; a current one always answers.
@@ -336,6 +361,7 @@ export class WorkerClient {
         )
       : [];
     this.socket = undefined;
+    this.requests.clear();
     this.runs = {};
     this.questions = {};
     this.emit({ type: 'closed' });

@@ -45,13 +45,13 @@ export type StopPoint = (typeof STOP_POINTS)[number];
 
 export type ClientMessage =
   | { type: 'hello'; version: string }
-  | { type: 'start'; root: string; args?: string[]; resume?: boolean }
-  | { type: 'stop'; root: string; after?: StopPoint }
+  | { type: 'start'; root: string; args?: string[]; resume?: boolean; id?: string }
+  | { type: 'stop'; root: string; after?: StopPoint; id?: string }
   | { type: 'questions'; root: string; id?: string }
   | { type: 'upcoming'; root: string }
-  | { type: 'hunt'; root: string; on: boolean }
-  | { type: 'watch'; root: string; on: boolean }
-  | { type: 'refresh'; root: string };
+  | { type: 'hunt'; root: string; on: boolean; id?: string }
+  | { type: 'watch'; root: string; on: boolean; id?: string }
+  | { type: 'refresh'; root: string; id?: string };
 
 export type WorkerMessage =
   | { type: 'hello'; version: string }
@@ -60,7 +60,7 @@ export type WorkerMessage =
   | { type: 'questions-error'; root: string; message: string; id?: string }
   | ({ type: 'upcoming'; root: string } & Upcoming)
   | { type: 'upcoming-error'; root: string; message: string }
-  | { type: 'error'; root: string; message: string };
+  | { type: 'error'; root: string; message: string; id?: string };
 
 export function isNewer(candidate: string, current: string): boolean {
   const { core: left, prerelease: leftPrerelease } = parseVersion(candidate);

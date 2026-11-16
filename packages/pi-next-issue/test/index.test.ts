@@ -2710,6 +2710,39 @@ test('a model that calls next_issue_hunt gets the error when the worker refuses 
   await assert.rejects(hunt({ on: true }), /the worker is restarting/);
 });
 
+test('a model whose next_issue_hunt the worker refuses while its next_issue_watch is accepted sees only the hunt call fail, with hunt named', async () => {
+  const { path, extension } = setup();
+  let huntId: string | undefined;
+  const fake = await startFakeWorker(path, '1.0.0', (self, message) => {
+    if (message.type === 'hunt') {
+      huntId = message.id;
+    } else if (message.type === 'watch') {
+      self.reply({
+        type: 'error',
+        root: message.root,
+        message: 'the worker is restarting',
+        ...(huntId === undefined ? {} : { id: huntId }),
+      });
+      self.update(message.root, running({ watching: true }));
+    }
+  });
+  workers.push(fake);
+  fake.runs['/repo'] = running({ watching: false });
+  const { pi, emit, hunt, watch, notes } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const hunting = hunt({ on: true });
+  await until(() => fake.received.some((message) => message.type === 'hunt'));
+  const watching = watch({ on: true });
+  const [hunted, watched] = await Promise.allSettled([hunting, watching]);
+  assert.match(String(hunted.status === 'rejected' && hunted.reason), /the worker is restarting/);
+  assert.equal(watched.status, 'fulfilled');
+  assert.deepEqual(
+    notes.filter((note) => note.includes('cannot')),
+    ['next-issue cannot hunt: the worker is restarting'],
+  );
+});
+
 test('a user who runs /next-issue watch on or off while a run is going asks the worker to switch watching', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);

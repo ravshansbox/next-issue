@@ -162,9 +162,6 @@ export function createExtension(options: Options) {
     let watching: boolean | undefined;
     let upgrading = false;
     let baseline = false;
-    // The worker answers a refused request with an error that does not name it.
-    // A refresh is best effort, so an error that answers it is not shown.
-    let asked: Action | 'refresh' = 'start';
 
     const clientOf = (root: string) => shared(options.client, root);
 
@@ -272,8 +269,11 @@ export function createExtension(options: Options) {
         }
       } else if (event.type === 'questions' && event.root === root) {
         onQuestions(event.questions);
-      } else if (event.type === 'error' && event.root === root && asked !== 'refresh') {
-        tell(cannotNote(asked, event.message));
+      } else if (event.type === 'error' && event.root === root) {
+        const request = clientOf(root).requestOf(event);
+        if (request !== 'refresh') {
+          tell(cannotNote(request, event.message));
+        }
       } else if (event.type === 'closed') {
         baseline = true;
         waiting = undefined;
@@ -349,10 +349,7 @@ export function createExtension(options: Options) {
       parameters: Type.Object({}),
       async execute(_toolCallId, _params, signal, _onUpdate, ctx) {
         const { client, root, progress } = await connect(ctx);
-        asked = 'start';
-        return startRun(client, root, progress, signal, () => {
-          asked = 'refresh';
-        });
+        return startRun(client, root, progress, signal);
       },
     });
 
@@ -365,9 +362,7 @@ export function createExtension(options: Options) {
       parameters: Type.Object({}),
       async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
         const root = await options.root(ctx.cwd);
-        return refreshRun(clientOf(root), root, () => {
-          asked = 'refresh';
-        });
+        return refreshRun(clientOf(root), root);
       },
     });
 
@@ -382,7 +377,6 @@ export function createExtension(options: Options) {
       }),
       async execute(_toolCallId, params, signal, _onUpdate, ctx) {
         const { client, root, progress } = await connect(ctx, false);
-        asked = 'watch';
         return watchRun(client, root, progress, params.on, signal);
       },
     });
@@ -398,7 +392,6 @@ export function createExtension(options: Options) {
       }),
       async execute(_toolCallId, params, signal, _onUpdate, ctx) {
         const { client, root, progress } = await connect(ctx, false);
-        asked = 'hunt';
         return huntRun(client, root, progress, params.on, signal);
       },
     });
@@ -484,9 +477,7 @@ export function createExtension(options: Options) {
       if (given.kind === 'give-up') {
         return `Gave up on #${question.issue}.`;
       }
-      const refreshed = await refreshRun(client, root, () => {
-        asked = 'refresh';
-      });
+      const refreshed = await refreshRun(client, root);
       const done = given.guidance === undefined ? 'Retried' : 'Posted the guidance and retried';
       return `${done} #${question.issue}. ${refreshed.content[0]?.text ?? ''}`.trim();
     };
@@ -564,15 +555,9 @@ export function createExtension(options: Options) {
         if (after !== undefined) {
           notify(requestStop(client, root, progress, after));
         } else if (toggled !== undefined && on !== undefined) {
-          asked = toggled;
           notify(requestSwitch(client, root, progress, toggled, on));
         } else {
-          asked = 'start';
-          notify(
-            requestStart(client, root, progress, () => {
-              asked = 'refresh';
-            }),
-          );
+          notify(requestStart(client, root, progress));
         }
       } catch (error) {
         notify(cannotNote(subcommand as Action, errorText(error)));

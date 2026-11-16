@@ -102,11 +102,11 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     }
   };
 
-  const start = (socket: WebSocket, root: string, argv: string[], resume: boolean): void => {
+  const start = (refuse: Refuse, root: string, argv: string[], resume: boolean): void => {
     const refusal = startRefusal(runs.get(root), restart !== undefined);
     if (refusal !== undefined) {
       if (!resume) {
-        send(socket, { type: 'error', root, message: refusal });
+        refuse(refusal);
       }
       return;
     }
@@ -114,7 +114,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     try {
       args = parseStartArgs(argv);
     } catch (error) {
-      send(socket, { type: 'error', root, message: message(error) });
+      refuse(message(error));
       return;
     }
     const run = newRun({ ...startProgress(args.hunt), watching: args.watch });
@@ -140,10 +140,10 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       .finally(closeWhenIdle);
   };
 
-  const stop = (socket: WebSocket, root: string, after: unknown): void => {
+  const stop = (refuse: Refuse, root: string, after: unknown): void => {
     const point = stopPoint(after);
     if (point === undefined) {
-      send(socket, { type: 'error', root, message: `stop does not take --after ${String(after)}` });
+      refuse(`stop does not take --after ${String(after)}`);
       return;
     }
     const run = runs.get(root);
@@ -154,7 +154,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   };
 
   const toggle = (
-    socket: WebSocket,
+    refuse: Refuse,
     root: string,
     on: boolean,
     set: (run: Run, on: boolean) => void,
@@ -162,7 +162,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     const run = runs.get(root);
     const refusal = switchRefusal(run);
     if (refusal !== undefined) {
-      send(socket, { type: 'error', root, message: refusal });
+      refuse(refusal);
       return;
     }
     set(run!, on);
@@ -170,7 +170,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     upgradeBetweenIssues(run!);
   };
 
-  const receive = (socket: WebSocket, value: ClientMessage): void => {
+  const receive = (socket: WebSocket, value: ClientMessage, refuse: Refuse): void => {
     if (value.type === 'hello') {
       if (typeof value.version !== 'string') {
         throw new Error('a hello message needs its version as a string');
@@ -181,19 +181,15 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
         closeWhenIdle();
       }
     } else if (value.root !== options.root) {
-      send(socket, {
-        type: 'error',
-        root: value.root,
-        message: `the worker serves ${options.root} only`,
-      });
+      refuse(`the worker serves ${options.root} only`);
     } else if (value.type === 'start') {
-      start(socket, value.root, value.args ?? [], value.resume === true);
+      start(refuse, value.root, value.args ?? [], value.resume === true);
     } else if (value.type === 'stop') {
-      stop(socket, value.root, value.after);
+      stop(refuse, value.root, value.after);
     } else if (value.type === 'hunt') {
-      toggle(socket, value.root, value.on, setHunting);
+      toggle(refuse, value.root, value.on, setHunting);
     } else if (value.type === 'watch') {
-      toggle(socket, value.root, value.on, setWatching);
+      toggle(refuse, value.root, value.on, setWatching);
     } else if (value.type === 'refresh') {
       requestRefresh(runs.get(value.root));
     } else if (value.type === 'questions') {
@@ -214,14 +210,11 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       if (value === undefined) {
         return;
       }
+      const refuse = refuser(socket, value, options.root);
       try {
-        receive(socket, value);
+        receive(socket, value, refuse);
       } catch (error) {
-        send(socket, {
-          type: 'error',
-          root: value.type === 'hello' ? options.root : value.root,
-          message: message(error),
-        });
+        refuse(message(error));
       }
     });
   });
@@ -233,6 +226,15 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   owned.socket = fileId(options.socketPath);
   idleTimer = setTimeout(closeWhenIdle, options.idleMs ?? IDLE_MS);
   return { closed, close, release: () => removeOwned(owned) };
+}
+
+type Refuse = (text: string) => void;
+
+function refuser(socket: WebSocket, value: ClientMessage, served: string): Refuse {
+  const root = value.type === 'hello' ? served : value.root;
+  const id = 'id' in value ? value.id : undefined;
+  return (text) =>
+    send(socket, { type: 'error', root, message: text, ...(id === undefined ? {} : { id }) });
 }
 
 export async function serve(root: string, logCheckMs = LOG_CHECK_MS): Promise<number> {

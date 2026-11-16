@@ -24,11 +24,11 @@ function isClientMessage(value: unknown): value is ClientMessage {
   if (typeof value['root'] !== 'string') {
     return false;
   }
+  if (value['id'] !== undefined && typeof value['id'] !== 'string') {
+    return false;
+  }
   if (value['type'] === 'hunt' || value['type'] === 'watch') {
     return typeof value['on'] === 'boolean';
-  }
-  if (value['type'] === 'questions') {
-    return value['id'] === undefined || typeof value['id'] === 'string';
   }
   return value['type'] !== 'start' || value['args'] === undefined || isStringArray(value['args']);
 }

@@ -276,6 +276,26 @@ test('a client that switches hunting with no run going gets an error and no run 
   assert.equal(fake.calls.length, 1);
 });
 
+test('a client whose requests carry an id gets each refusal back with the id of the request it answers', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'hunt', root: '/repo', on: true, id: 'hunt-1' });
+  client.send({ type: 'start', root: '/repo', args: ['--once'], id: 'start-1' });
+  client.send({ type: 'stop', root: '/repo', after: 'later' as never, id: 'stop-1' });
+  client.send({ type: 'refresh', root: '/other', id: 'refresh-1' });
+  const errors: WorkerMessage[] = [];
+  for (let count = 0; count < 4; count += 1) {
+    errors.push(await client.next((value) => value.type === 'error'));
+  }
+  assert.deepEqual(errors, [
+    { type: 'error', root: '/repo', message: 'no run is going in this repository', id: 'hunt-1' },
+    { type: 'error', root: '/repo', message: 'Unknown argument: --once', id: 'start-1' },
+    { type: 'error', root: '/repo', message: 'stop does not take --after later', id: 'stop-1' },
+    { type: 'error', root: '/other', message: 'the worker serves /repo only', id: 'refresh-1' },
+  ]);
+});
+
 test('a client that starts a run with a command or a flag that start does not take gets an error and no run starts', async (t) => {
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
