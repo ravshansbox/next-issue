@@ -1,5 +1,4 @@
-import { randomUUID } from 'node:crypto';
-import { going, type Progress, type Question } from './protocol.ts';
+import { going, type Progress } from './protocol.ts';
 import { CLOSED, type WorkerClient } from './worker.ts';
 
 export function accepted(
@@ -34,30 +33,5 @@ export function accepted(
     } else {
       signal?.addEventListener('abort', abort, { once: true });
     }
-  });
-}
-
-export function fresh(client: WorkerClient, root: string): Promise<Question[]> {
-  return new Promise<Question[]>((resolve, reject) => {
-    const id = randomUUID();
-    const ours = (event: { root: string; id?: string }) => event.root === root && event.id === id;
-    const stop = client.subscribe((event) => {
-      if (event.type === 'closed') {
-        stop();
-        reject(new Error(CLOSED));
-      } else if (event.type === 'questions' && ours(event)) {
-        stop();
-        resolve(event.questions);
-      } else if (event.type === 'questions-error' && ours(event)) {
-        stop();
-        reject(new Error(event.message));
-      }
-    });
-    if (!client.connected) {
-      stop();
-      reject(new Error(CLOSED));
-      return;
-    }
-    client.send({ type: 'questions', root, id });
   });
 }

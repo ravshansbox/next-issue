@@ -2,10 +2,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
-import { answerAll, type Gh } from './src/answer.ts';
 import { shared } from './src/clients.ts';
 import { errorText } from './src/errors.ts';
-import { must } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
 import { going, type Progress, type Question, STOP_POINTS } from './src/protocol.ts';
 import {
@@ -38,14 +36,13 @@ import { WorkerClient, type WorkerEvent } from './src/worker.ts';
 export type Options = {
   client: (root: string) => WorkerClient;
   root: (cwd: string) => Promise<string>;
-  gh: Gh;
 };
 
 const STATUS_KEY = 'next-issue';
 const QUESTIONS_KEY = 'next-issue-questions';
 const RENDER_MS = 1000;
 const QUESTIONS_MS = 60_000;
-const SUBCOMMANDS: Action[] = ['start', 'stop', 'answer', 'hunt'];
+const SUBCOMMANDS: Action[] = ['start', 'stop', 'hunt'];
 const HUNT_VALUES = [
   { value: 'on', description: 'Hunt for bugs in the going run' },
   { value: 'off', description: 'Start no new hunt in the going run, and let a going hunt finish' },
@@ -81,7 +78,6 @@ const USAGE = [
   '/next-issue start [flags]  start a run of this repository, with flags from: ' + FLAGS,
   '/next-issue stop [--after issue|round|now]',
   '                           stop the run of this repository after the running issues (issue, the default), after the current round (round), or at once (now)',
-  '/next-issue answer         answer the waiting questions',
   '/next-issue hunt on|off    switch hunting of the going run of this repository on or off, with no restart',
 ].join('\n');
 
@@ -129,7 +125,6 @@ const fromMachine: Options = {
       lockHolder: () => lockHolder(workerPaths(root).lockPath),
     }),
   root: repoRoot,
-  gh: (args, options) => must('gh', args, options),
 };
 
 export function createExtension(options: Options) {
@@ -396,7 +391,7 @@ export function createExtension(options: Options) {
     });
 
     pi.registerCommand('next-issue', {
-      description: `"start [flags]" starts working through the GitHub issues of this repository, with flags from ${FLAGS}. "stop [--after issue|round|now]" stops the run after the running issues (the default), after the current round, or at once. "answer" answers the waiting questions. "hunt on|off" switches hunting of the going run`,
+      description: `"start [flags]" starts working through the GitHub issues of this repository, with flags from ${FLAGS}. "stop [--after issue|round|now]" stops the run after the running issues (the default), after the current round, or at once. "hunt on|off" switches hunting of the going run`,
       getArgumentCompletions: (prefix) => {
         const matches = completions(prefix);
         return matches.length === 0 ? null : matches;
@@ -416,9 +411,7 @@ export function createExtension(options: Options) {
           const after = subcommand === 'stop' ? parseStopArgs(flags) : undefined;
           const on = subcommand === 'hunt' ? parseHuntArgs(flags) : undefined;
           const { client, root, progress } = await connect(ctx);
-          if (subcommand === 'answer') {
-            await answerAll(ctx.ui, options.gh, client, root);
-          } else if (after !== undefined) {
+          if (after !== undefined) {
             notify(requestStop(client, root, progress, after));
           } else if (on !== undefined) {
             asked = 'hunt';

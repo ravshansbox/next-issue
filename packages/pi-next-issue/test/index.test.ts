@@ -34,7 +34,7 @@ type ToolExecute = (
 
 const shutdowns: Array<() => Promise<void>> = [];
 
-function host(mode = 'tui', cwd = '/repo', answers: Array<string | undefined> = []) {
+function host(mode = 'tui', cwd = '/repo') {
   const commands = new Map<string, (args: string, ctx: unknown) => Promise<void>>();
   const handlers = new Map<string, Handler[]>();
   const tools = new Map<string, ToolExecute>();
@@ -80,9 +80,8 @@ function host(mode = 'tui', cwd = '/repo', answers: Array<string | undefined> = 
       },
       select: async (title: string) => {
         asked.push(title);
-        return answers.shift();
+        return undefined;
       },
-      editor: async () => answers.shift(),
       setWidget: (_key: string, lines: string[] | undefined) => widgets.push(lines),
       notify: (text: string) => notes.push(text),
     },
@@ -139,21 +138,17 @@ afterEach(async () => {
   await Promise.all(workers.splice(0).map((worker) => worker.close()));
 });
 
-type GhCall = { args: string[]; cwd: string; input?: string };
-
 function setup(
   options: {
     version?: string;
     spawn?: (path: string, onExit: (reason: string) => void) => Promise<void>;
     holder?: () => number | undefined;
     startTimeoutMs?: number;
-    gh?: (call: GhCall) => string | undefined;
     paths?: Record<string, string>;
   } = {},
 ) {
   const path = socketPath();
   const spawns: string[] = [];
-  const calls: GhCall[] = [];
   const extension = createExtension({
     client: (root) =>
       new WorkerClient({
@@ -173,17 +168,8 @@ function setup(
       }
       return cwd;
     },
-    gh: async (args, run) => {
-      const call: GhCall = {
-        args,
-        cwd: run.cwd,
-        ...(run.input === undefined ? {} : { input: run.input }),
-      };
-      calls.push(call);
-      return options.gh?.(call) ?? '';
-    },
   });
-  return { path, spawns, calls, extension };
+  return { path, spawns, extension };
 }
 
 async function worker(path: string, version = '1.0.0') {
@@ -764,7 +750,7 @@ test('a user who runs /next-issue start while a run is going is told so and noth
   );
 });
 
-test('a user who runs /next-issue with no argument or an unknown one sees the usage and nothing starts or stops', async () => {
+test('a user who runs /next-issue with no argument, an unknown one or answer sees the usage without answer and nothing starts or stops', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
   fake.runs['/repo'] = running();
@@ -773,11 +759,12 @@ test('a user who runs /next-issue with no argument or an unknown one sees the us
   await emit('session_start');
   await command();
   await command('go');
-  assert.equal(notes.length, 2);
+  await command('answer');
+  assert.equal(notes.length, 3);
   for (const note of notes) {
     assert.match(note, /\/next-issue start \[flags\]/);
     assert.match(note, /\/next-issue stop \[--after issue\|round\|now\]/);
-    assert.match(note, /\/next-issue answer/);
+    assert.doesNotMatch(note, /answer/);
     assert.match(note, /--hunt/);
   }
   await new Promise((resolve) => setTimeout(resolve, 50));
@@ -868,7 +855,7 @@ test('a user sees why a run could not start when the worker does not come up', a
 const RUN_NOTE = (action: string) =>
   `next-issue cannot ${action}: a command-line next-issue run (process 4242) is going in this repository. Wait until it ends, or stop it, then try again`;
 
-for (const action of ['start', 'stop', 'answer']) {
+for (const action of ['start', 'stop']) {
   test(`a user who runs /next-issue ${action} while a command-line run holds the repository is told so at once and no worker starts`, async () => {
     const { spawns, extension } = setup({ holder: () => 4242, startTimeoutMs: 60_000 });
     const { pi, command, notes } = host();
@@ -1172,37 +1159,15 @@ function question(issue: number): Question {
   };
 }
 
-async function questionWorker(path: string, lists: Question[][], stale?: Question[]) {
-  let list: Question[] = lists[0] ?? [];
-  const started = await startFakeWorker(path, '1.0.0', (self, message) => {
-    if (message.type === 'questions') {
-      if (stale !== undefined && message.id !== undefined) {
-        self.reply({ type: 'questions', root: message.root, questions: stale });
-      }
-      if (message.id !== undefined) {
-        list = lists.length > 1 ? lists.shift()! : list;
-      }
-      self.reply({
-        type: 'questions',
-        root: message.root,
-        questions: list,
-        ...(message.id === undefined ? {} : { id: message.id }),
-      });
-    }
-  });
-  workers.push(started);
-  return started;
-}
-
 test('a user who types /next-issue followed by nothing or a start of a subcommand is offered the matching subcommands', () => {
   const { extension } = setup();
   const { pi, complete } = host();
   extension(pi as never);
   const item = (value: string) => ({ value, label: value });
-  assert.deepEqual(complete(''), [item('start'), item('stop'), item('answer'), item('hunt')]);
+  assert.deepEqual(complete(''), [item('start'), item('stop'), item('hunt')]);
   assert.deepEqual(complete('h'), [item('hunt')]);
   assert.deepEqual(complete('st'), [item('start'), item('stop')]);
-  assert.deepEqual(complete('an'), [item('answer')]);
+  assert.equal(complete('an'), null);
   assert.equal(complete('x'), null);
 });
 
@@ -1262,12 +1227,11 @@ test('a user who already typed a flag after /next-issue start is not offered it 
   ]);
 });
 
-test('a user who types /next-issue stop or answer followed by a space is offered no flags', () => {
+test('a user who types /next-issue stop followed by a space is offered no flags', () => {
   const { extension } = setup();
   const { pi, complete } = host();
   extension(pi as never);
   assert.equal(complete('stop '), null);
-  assert.equal(complete('answer '), null);
   assert.equal(complete('stop --'), null);
 });
 
@@ -1314,7 +1278,7 @@ test('a user sees a note for a question whose title ends in a stop mark with no 
 });
 
 test('a user sees the count drop when a question is answered elsewhere, with no action in this pi', async () => {
-  const { path, calls, extension } = setup();
+  const { path, extension } = setup();
   const fake = await worker(path);
   const { pi, emit, waiting, notes } = host();
   extension(pi as never);
@@ -1326,7 +1290,6 @@ test('a user sees the count drop when a question is answered elsewhere, with no 
   fake.reply({ type: 'questions', root: '/repo', questions: [] });
   await until(() => waiting.at(-1) === undefined);
   assert.deepEqual(notes, []);
-  assert.deepEqual(calls, []);
 });
 
 test('a user of an rpc client sees the question count in the footer without colour codes', async () => {
@@ -1366,273 +1329,6 @@ test('a user who opens pi asks the worker for the waiting questions of this repo
     fake.received.find((message) => message.type === 'questions'),
     { type: 'questions', root: '/repo' },
   );
-});
-
-test('a user who answers retry takes the needs-human label off the issue', async () => {
-  const { path, calls, extension } = setup();
-  await questionWorker(path, [[question(4)], []]);
-  const { pi, emit, command, asked, notes } = host('tui', '/repo', ['Retry']);
-  extension(pi as never);
-  await emit('session_start');
-  await command('answer');
-  assert.deepEqual(asked, ['#4 Title 4\n\nReason 4']);
-  assert.deepEqual(calls, [
-    {
-      args: ['issue', 'edit', '4', '--repo', 'owner/name', '--remove-label', 'status:needs-human'],
-      cwd: '/repo',
-    },
-  ]);
-  assert.ok(notes.includes('next-issue: #4 will be retried'));
-});
-
-test('a user who answers retry with guidance posts it on the issue, then takes the label off', async () => {
-  const { path, calls, extension } = setup();
-  await questionWorker(path, [[question(4)], []]);
-  const { pi, emit, command } = host('tui', '/repo', ['Retry with guidance', 'Use the cache']);
-  extension(pi as never);
-  await emit('session_start');
-  await command('answer');
-  assert.deepEqual(calls, [
-    {
-      args: ['issue', 'comment', '4', '--repo', 'owner/name', '--body-file', '-'],
-      cwd: '/repo',
-      input: 'Use the cache',
-    },
-    {
-      args: ['issue', 'edit', '4', '--repo', 'owner/name', '--remove-label', 'status:needs-human'],
-      cwd: '/repo',
-    },
-  ]);
-});
-
-test('a user who answers a question of a GitHub Enterprise repository acts on that host', async () => {
-  const { path, calls, extension } = setup();
-  const enterprise = { ...question(4), repo: 'github.example.com/owner/name' };
-  await questionWorker(path, [[enterprise], []]);
-  const { pi, emit, command } = host('tui', '/repo', ['Retry with guidance', 'Use the cache']);
-  extension(pi as never);
-  await emit('session_start');
-  await command('answer');
-  assert.deepEqual(
-    calls.map((call) => call.args.slice(0, 5)),
-    [
-      ['issue', 'comment', '4', '--repo', 'github.example.com/owner/name'],
-      ['issue', 'edit', '4', '--repo', 'github.example.com/owner/name'],
-    ],
-  );
-});
-
-function labelledGh(repoLabels: string[], create: 'works' | 'fails' | 'raced' = 'works') {
-  const issueLabels = new Set(['status:needs-human']);
-  const gh = ({ args }: GhCall): string | undefined => {
-    const [noun, verb] = args;
-    if (noun === 'label' && verb === 'list') {
-      return JSON.stringify(repoLabels.map((name) => ({ name })));
-    }
-    if (noun === 'label' && verb === 'create') {
-      const name = args[2] ?? '';
-      if (create === 'raced') {
-        repoLabels.push(name);
-      }
-      if (repoLabels.some((label) => label.toLowerCase() === name.toLowerCase())) {
-        throw new Error(`label with name "${name}" already exists`);
-      }
-      if (create === 'fails') {
-        throw new Error('gh label create failed: HTTP 403');
-      }
-      repoLabels.push(name);
-      return undefined;
-    }
-    if (noun === 'issue' && verb === 'edit') {
-      const added = args.filter((_, index) => args[index - 1] === '--add-label');
-      const removed = args.filter((_, index) => args[index - 1] === '--remove-label');
-      const unknown = added.find((label) => !repoLabels.includes(label));
-      if (unknown !== undefined) {
-        throw new Error(`'${unknown}' not found`);
-      }
-      removed.forEach((label) => issueLabels.delete(label));
-      added.forEach((label) => issueLabels.add(label));
-    }
-    return undefined;
-  };
-  return { gh, issueLabels, repoLabels };
-}
-
-test('a user who gives up in a repository without the skip label creates it and sees it on the issue', async () => {
-  const fake = labelledGh([]);
-  const { path, calls, extension } = setup({ gh: fake.gh });
-  await questionWorker(path, [[question(4)], []]);
-  const { pi, emit, command, notes } = host('tui', '/repo', ['Give up']);
-  extension(pi as never);
-  await emit('session_start');
-  await command('answer');
-  assert.deepEqual([...fake.issueLabels], ['status:blocked']);
-  assert.deepEqual(fake.repoLabels, ['status:blocked']);
-  assert.equal(calls.filter((call) => call.args[1] === 'create').length, 1);
-  assert.ok(notes.includes('next-issue: #4 given up'));
-});
-
-test('a user who gives up in a repository with the skip label does not create it again', async () => {
-  const fake = labelledGh(['status:blocked']);
-  const { path, calls, extension } = setup({ gh: fake.gh });
-  await questionWorker(path, [[question(4)], []]);
-  const { pi, emit, command } = host('tui', '/repo', ['Give up']);
-  extension(pi as never);
-  await emit('session_start');
-  await command('answer');
-  assert.deepEqual([...fake.issueLabels], ['status:blocked']);
-  assert.deepEqual(fake.repoLabels, ['status:blocked']);
-  assert.equal(calls.filter((call) => call.args[1] === 'create').length, 0);
-});
-
-test('a user who gives up in a repository with the skip label in another case adds that label without creating it', async () => {
-  const fake = labelledGh(['Status:Blocked']);
-  const { path, calls, extension } = setup({ gh: fake.gh });
-  await questionWorker(path, [[question(4)], []]);
-  const { pi, emit, command, notes } = host('tui', '/repo', ['Give up']);
-  extension(pi as never);
-  await emit('session_start');
-  await command('answer');
-  assert.deepEqual([...fake.issueLabels], ['Status:Blocked']);
-  assert.equal(calls.filter((call) => call.args[1] === 'create').length, 0);
-  assert.ok(notes.includes('next-issue: #4 given up'), notes.join('\n'));
-});
-
-test('a user who gives up while the skip label is created elsewhere sees the issue given up', async () => {
-  const fake = labelledGh([], 'raced');
-  const { path, extension } = setup({ gh: fake.gh });
-  await questionWorker(path, [[question(4)], []]);
-  const { pi, emit, command, notes } = host('tui', '/repo', ['Give up']);
-  extension(pi as never);
-  await emit('session_start');
-  await command('answer');
-  assert.deepEqual([...fake.issueLabels], ['status:blocked']);
-  assert.ok(notes.includes('next-issue: #4 given up'), notes.join('\n'));
-});
-
-test('a user who gives up when the skip label cannot be created sees an error that names it, and the issue keeps its labels', async () => {
-  const fake = labelledGh([], 'fails');
-  const { path, extension } = setup({ gh: fake.gh });
-  await questionWorker(path, [[question(4)], []]);
-  const { pi, emit, command, notes } = host('tui', '/repo', ['Give up']);
-  extension(pi as never);
-  await emit('session_start');
-  await command('answer');
-  assert.deepEqual([...fake.issueLabels], ['status:needs-human']);
-  assert.ok(
-    notes.some((note) =>
-      note.startsWith('next-issue cannot answer: cannot create the label status:blocked'),
-    ),
-    notes.join('\n'),
-  );
-});
-
-test('a user who gives up takes the needs-human label off and adds the skip label, then sees the next question', async () => {
-  const { path, calls, extension } = setup({ gh: labelledGh(['status:blocked']).gh });
-  await questionWorker(path, [[question(4), question(5)], [question(5)], []]);
-  const { pi, emit, command, asked } = host('tui', '/repo', ['Give up', undefined]);
-  extension(pi as never);
-  await emit('session_start');
-  await command('answer');
-  assert.deepEqual(asked, ['#4 Title 4\n\nReason 4', '#5 Title 5\n\nReason 5']);
-  assert.deepEqual(calls, [
-    {
-      args: ['label', 'list', '--repo', 'owner/name', '--limit', '1000', '--json', 'name'],
-      cwd: '/repo',
-    },
-    {
-      args: [
-        'issue',
-        'edit',
-        '4',
-        '--repo',
-        'owner/name',
-        '--remove-label',
-        'status:needs-human',
-        '--add-label',
-        'status:blocked',
-      ],
-      cwd: '/repo',
-    },
-  ]);
-});
-
-test('a user who answers is not shown a question from an older list that arrives first', async () => {
-  const { path, extension } = setup();
-  await questionWorker(path, [[question(5)], []], [question(4)]);
-  const { pi, emit, command, asked } = host('tui', '/repo', [undefined]);
-  extension(pi as never);
-  await emit('session_start');
-  await command('answer');
-  assert.deepEqual(asked, ['#5 Title 5\n\nReason 5']);
-});
-
-test('a user who answers skips a question that was answered elsewhere in the meantime', async () => {
-  const { path, calls, extension } = setup();
-  await questionWorker(path, [[question(4), question(5)], [], []]);
-  const { pi, emit, command, asked } = host('tui', '/repo', ['Retry', 'Retry']);
-  extension(pi as never);
-  await emit('session_start');
-  await command('answer');
-  assert.deepEqual(asked, ['#4 Title 4\n\nReason 4']);
-  assert.equal(calls.length, 1);
-});
-
-test('a user who runs /next-issue answer with no question waiting is told so', async () => {
-  const { path, calls, extension } = setup();
-  await questionWorker(path, [[]]);
-  const { pi, emit, command, notes, asked } = host();
-  extension(pi as never);
-  await emit('session_start');
-  await command('answer');
-  assert.deepEqual(asked, []);
-  assert.deepEqual(calls, []);
-  assert.ok(notes.includes('next-issue: no questions waiting'));
-});
-
-test('a user who answers is told the worker closed when it closes while a question is shown', async () => {
-  const { path, calls, extension } = setup();
-  const started = await questionWorker(path, [[question(4), question(5)]]);
-  const { pi, ctx, emit, command, notes } = host('tui', '/repo', ['Retry']);
-  const store = globalThis as Record<symbol, Map<string, WorkerClient> | undefined>;
-  ctx.ui.select = async () => {
-    const closed = new Promise<void>((resolve) => {
-      store[KEY]?.get('/repo')?.subscribe((event) => {
-        if (event.type === 'closed') {
-          resolve();
-        }
-      });
-    });
-    await started.close();
-    await closed;
-    return 'Retry';
-  };
-  extension(pi as never);
-  await emit('session_start');
-  const hung = new Promise<string>((resolve) => setTimeout(() => resolve('hung'), 2000).unref());
-  assert.equal(await Promise.race([command('answer').then(() => 'ended'), hung]), 'ended');
-  assert.equal(calls.length, 1);
-  assert.ok(notes.includes('next-issue cannot answer: the worker closed the connection'));
-});
-
-test('a user sees why the questions could not be read', async () => {
-  const { path, extension } = setup();
-  const started = await startFakeWorker(path, '1.0.0', (self, message) => {
-    if (message.type === 'questions') {
-      self.reply({
-        type: 'questions-error',
-        root: message.root,
-        message: 'gh failed',
-        ...(message.id === undefined ? {} : { id: message.id }),
-      });
-    }
-  });
-  workers.push(started);
-  const { pi, emit, command, notes } = host();
-  extension(pi as never);
-  await emit('session_start');
-  await command('answer');
-  assert.ok(notes.includes('next-issue cannot answer: gh failed'));
 });
 
 test('a user who runs /next-issue hunt on or off while a run is going asks the worker to switch hunting', async () => {

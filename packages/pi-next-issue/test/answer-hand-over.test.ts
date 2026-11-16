@@ -33,7 +33,7 @@ test('an agent who answers a hand-over asks numbered questions with lettered opt
   assert.match(skill, /Label options with letters and recommend one/);
 });
 
-test('an agent who retries, guides or gives up changes the labels as /next-issue answer does', async () => {
+test('an agent who retries, guides or gives up changes the labels of the issue on GitHub', async () => {
   const skill = await readFile(skillFile, 'utf8');
   assert.match(skill, /gh issue edit --repo <repo> <number> --remove-label "<needs-human>"\n/);
   assert.match(skill, /gh issue comment --repo <repo> <number> --body-file <file>/);

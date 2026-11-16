@@ -39,7 +39,7 @@ export function statusNote(progress: Progress): Note | undefined {
   return undefined;
 }
 
-export type Action = 'start' | 'stop' | 'answer' | 'hunt';
+export type Action = 'start' | 'stop' | 'hunt';
 
 export function cannotNote(action: Action, message: string): Note {
   return { text: `next-issue cannot ${action}: ${message}`, level: 'error' };

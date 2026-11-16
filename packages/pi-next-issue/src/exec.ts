@@ -2,13 +2,13 @@ import { spawn } from 'node:child_process';
 
 type Result = { code: number; stdout: string; stderr: string };
 
-export type RunOptions = { cwd: string; input?: string };
+type RunOptions = { cwd: string };
 
 function run(command: string, args: string[], options: RunOptions): Promise<Result> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
-      stdio: [options.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = '';
     let stderr = '';
@@ -16,10 +16,6 @@ function run(command: string, args: string[], options: RunOptions): Promise<Resu
     child.stderr?.setEncoding('utf8').on('data', (chunk: string) => (stderr += chunk));
     child.on('error', reject);
     child.on('close', (code) => resolve({ code: code ?? 1, stdout, stderr }));
-    if (options.input !== undefined) {
-      child.stdin?.on('error', () => {});
-      child.stdin?.end(options.input);
-    }
   });
 }
 
