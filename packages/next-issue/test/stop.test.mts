@@ -7,7 +7,7 @@ import { listenForInterrupts } from '../src/interrupt.mts';
 import { pendingIssues } from '../src/pending.mts';
 import { processIssue } from '../src/pipeline.mts';
 import { applyEvent, startProgress } from '../src/progress.mts';
-import type { IssueState } from '../src/state.mts';
+import { type IssueState, writeState } from '../src/state.mts';
 import {
   APPROVE,
   changes,
@@ -107,6 +107,32 @@ test('a user who stops a run now while a push to main lands gets no other issue 
   assert.equal((await next.run()).outcome, 'done');
   assert.equal(next.landed.length, 1);
 });
+
+for (const state of ['timeout', 'cancelled'] as const) {
+  test(`a user who stops a run now while it hands over an issue whose landed checks ended in ${state} gets no other issue landed by the next run`, async (t) => {
+    const first = await harness(t, { baseChecks: [state] });
+    const threadComments = first.context.ports.threadComments;
+    let killed: IssueState | undefined;
+    first.context.ports.threadComments = async (...parameters) => {
+      if (first.baseWaits.length === 0) {
+        return threadComments(...parameters);
+      }
+      killed = await first.state();
+      first.stopNow();
+      throw new Error('gh issue view failed with code 143');
+    };
+    await first.run();
+    await writeState(first.context.repo, killed!);
+    const older = await harness(t, {
+      root: first.context.repo.root,
+      issue: { ...ISSUE, number: 5 },
+    });
+    const blocked = await older.run();
+    assert.equal(blocked.outcome, 'stopped');
+    assert.equal(blocked.reason, 'base unchecked');
+    assert.deepEqual(older.landed, []);
+  });
+}
 
 test('a user who stops a run now while a push to main fails to land gets the stopped issue pushed again and an older approved issue landed after it', async (t) => {
   const first = await harness(t, { pushLandsAndStops: true });

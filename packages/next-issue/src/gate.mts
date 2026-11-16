@@ -21,8 +21,9 @@ export async function checkGate(job: Run, sha: string): Promise<Gate> {
     }
     return unreadChecks(job, error);
   }
-  // The checks are known now, so an earlier halt on this issue no longer holds back other landings.
-  if (job.state.halted === true) {
+  // Checks that finished leave the base known, so an earlier halt on this issue no longer holds back other landings.
+  const finished = checks === 'pass' || checks === 'none' || checks === 'fail';
+  if (finished && job.state.halted === true) {
     delete job.state.halted;
     await writeState(job.context.repo, job.state);
   }
