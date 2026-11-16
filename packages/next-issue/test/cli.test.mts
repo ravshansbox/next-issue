@@ -252,6 +252,22 @@ async function watchingRun(root: string) {
   return { child, exited };
 }
 
+test('a user whose stderr reader exits before Ctrl-C sees the run stop with exit code 0 and a run.end event in the run log', async (t) => {
+  const root = await repository();
+  const { child, exited } = await watchingRun(root);
+  t.after(() => child.kill('SIGKILL'));
+  child.stderr.destroy();
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  child.kill('SIGINT');
+  assert.equal(await exited, 0);
+  const [log] = (await readdir(runsDir(root))).filter((name) => name.endsWith('.jsonl'));
+  const kinds = (await readFile(join(runsDir(root), log), 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line).kind);
+  assert.equal(kinds.at(-1), 'run.end');
+});
+
 test('a user who runs next-issue while another run is going in the repository sees an error that names it, exit code 1 and no issue read', async (t) => {
   const root = await repository();
   const { child, exited } = await watchingRun(root);

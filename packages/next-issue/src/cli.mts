@@ -50,7 +50,8 @@ async function main(): Promise<number> {
 }
 
 function run(root: string, args: Args): Promise<number> {
-  const interrupts = listenForInterrupts((text) => void write(process.stderr, `${text}\n`));
+  process.stderr.on('error', () => {});
+  const interrupts = listenForInterrupts((text) => process.stderr.write(`${text}\n`));
   return runLocked(root, args, {
     interrupts,
     print: (summary) =>
