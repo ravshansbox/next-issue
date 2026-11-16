@@ -52,8 +52,13 @@ async function askQuestions(job: Run, before: string, questions: string[]): Prom
   const { repo, ports } = context;
   await ports.discardChanges(worktree, before, branch);
   try {
-    const fresh = await ports.viewIssue(repo, issue.number);
-    await ports.editIssueBody(repo, issue.number, withOpenQuestions(fresh.body, questions));
+    const fresh = await ports.issueEditors(repo, issue.number);
+    if (await ports.canWrite(repo, fresh.editors.body)) {
+      await ports.editIssueBody(repo, issue.number, withOpenQuestions(fresh.body, questions));
+    } else {
+      log.event('questions.body-untrusted', { editor: fresh.editors.body });
+      state.unpostedQuestions = questions;
+    }
   } catch (error) {
     log.event('questions.body-failed', { error: message(error) });
     state.unpostedQuestions = questions;

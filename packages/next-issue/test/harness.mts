@@ -87,8 +87,12 @@ export type Plan = {
   fixerWrites?: boolean;
   detected?: string;
   issue?: Issue;
-  /** The issue as GitHub holds it when the harness reads it again during the run. */
+  /** The issue as GitHub holds it when the harness reads it again after the implementer. */
   fresh?: Issue;
+  /** The last person to change the issue body when the harness reads it again after the implementer; by default the first one. */
+  freshEditor?: string;
+  /** Reading the issue again after the implementer fails. */
+  freshFails?: boolean;
   baseUpdated?: boolean;
   branchUpdated?: boolean;
   landedBaseUpdated?: boolean;
@@ -258,6 +262,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     state: () => readState(repo, issue.number),
   };
 
+  let editorReads = 0;
   const ports: Ports = {
     canWrite: async (_repo, login) => {
       if (plan.accessFails === true) {
@@ -514,18 +519,27 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
         refuseWhenStopped();
       }
     },
-    issueEditors: async () => ({
-      ...(plan.current ?? { title: issue.title, body: issue.body }),
-      editors: plan.editors ?? { body: MAINTAINER, title: MAINTAINER },
-    }),
+    issueEditors: async () => {
+      editorReads += 1;
+      const checked = plan.current ?? { title: issue.title, body: issue.body };
+      const editors = plan.editors ?? { body: MAINTAINER, title: MAINTAINER };
+      if (editorReads === 1) {
+        return { ...checked, editors };
+      }
+      if (plan.freshFails === true) {
+        throw new Error('the port broke');
+      }
+      return {
+        title: checked.title,
+        body: plan.fresh?.body ?? checked.body,
+        editors: { ...editors, body: plan.freshEditor ?? editors.body },
+      };
+    },
     threadComments: async (_repo, number) => {
       state.threads.push(number);
       return plan.thread ?? [];
     },
     viewIssue: async (_repo, number) => {
-      if (plan.fresh?.number === number) {
-        return { ...plan.fresh, open: true };
-      }
       const closed = (plan.closed ?? []).find((entry) => entry.number === number);
       return closed === undefined
         ? { ...(plan.unlisted ?? []).find((entry) => entry.number === number)!, open: true }
