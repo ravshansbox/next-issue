@@ -5,7 +5,9 @@ import { Type } from 'typebox';
 import { shared } from './src/clients.ts';
 import { DASHBOARD_HEIGHT, dashboard, type DashboardAction } from './src/dashboard.ts';
 import { errorText } from './src/errors.ts';
+import { must } from './src/exec.ts';
 import { repoRoot } from './src/git.ts';
+import { type Answer, answerHandOver } from './src/hand-overs.ts';
 import { going, type Progress, type Question, STOP_POINTS } from './src/protocol.ts';
 import {
   huntRun,
@@ -41,6 +43,7 @@ import { WorkerClient, type WorkerEvent } from './src/worker.ts';
 export type Options = {
   client: (root: string) => WorkerClient;
   root: (cwd: string) => Promise<string>;
+  gh: (args: string[], root: string) => Promise<string>;
 };
 
 const STATUS_KEY = 'next-issue';
@@ -140,6 +143,7 @@ const fromMachine: Options = {
       lockHolder: () => lockHolder(workerPaths(root).lockPath),
     }),
   root: repoRoot,
+  gh: (args, root) => must('gh', args, { cwd: root }),
 };
 
 export function createExtension(options: Options) {
@@ -468,6 +472,24 @@ export function createExtension(options: Options) {
       return value === undefined ? undefined : `stop ${value}`;
     };
 
+    const answer = async (root: string, question: Question, given: Answer): Promise<string> => {
+      await answerHandOver((args) => options.gh(args, root), question, given);
+      const client = clientOf(root);
+      const listed = client.questions[root];
+      if (listed !== undefined) {
+        client.questions[root] = listed.filter((item) => item.issue !== question.issue);
+      }
+      client.send({ type: 'questions', root });
+      if (given.kind === 'give-up') {
+        return `Gave up on #${question.issue}.`;
+      }
+      const refreshed = await refreshRun(client, root, () => {
+        asked = 'refresh';
+      });
+      const done = given.guidance === undefined ? 'Retried' : 'Posted the guidance and retried';
+      return `${done} #${question.issue}. ${refreshed.content[0]?.text ?? ''}`.trim();
+    };
+
     const openDashboard = async (ctx: ExtensionContext) => {
       if (ctx.mode !== 'tui') {
         ctx.ui.notify('next-issue dashboard needs the terminal UI', 'error');
@@ -482,6 +504,17 @@ export function createExtension(options: Options) {
             progress: () => (root === undefined ? undefined : client?.runs[root]),
             actions: dashboardActions,
             pastRuns: () => (root === undefined ? Promise.resolve([]) : pastRuns(root)),
+            questions: () => (root === undefined ? undefined : client?.questions[root]),
+            connected: () => client?.connected === true,
+            askQuestions: () => {
+              if (root !== undefined) {
+                client?.send({ type: 'questions', root });
+              }
+            },
+            answer: (question, given) =>
+              root === undefined
+                ? Promise.reject(new Error('not in a git repository'))
+                : answer(root, question, given),
             act: (args) => void act(args, ctx),
             subscribe: (listener) => client?.subscribe(listener) ?? (() => {}),
             tui,

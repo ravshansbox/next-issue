@@ -229,10 +229,12 @@ function setup(
     holder?: () => number | undefined;
     startTimeoutMs?: number;
     paths?: Record<string, string>;
+    gh?: (args: string[]) => string;
   } = {},
 ) {
   const path = socketPath();
   const spawns: string[] = [];
+  const ghCalls: string[][] = [];
   const extension = createExtension({
     client: (root) =>
       new WorkerClient({
@@ -252,8 +254,12 @@ function setup(
       }
       return cwd;
     },
+    gh: async (args) => {
+      ghCalls.push(args);
+      return options.gh?.(args) ?? '';
+    },
   });
-  return { path, spawns, extension };
+  return { path, spawns, extension, ghCalls };
 }
 
 async function worker(path: string, version = '1.0.0') {
@@ -1279,6 +1285,7 @@ test('a user who presses Tab on the dashboard sees the past runs newest first, w
   assert.match(chosen, /implementer: 1,200 tokens · 2m05s/);
   assert.match(chosen, /reviewer: 300 tokens · 4s/);
   overlay.press('tab');
+  overlay.press('tab');
   assert.match(overlay.screen(), /No run is going/);
   overlay.press('escape');
   await opened;
@@ -1337,6 +1344,257 @@ test('a user with many past runs who chooses an old run on the dashboard sees al
   }
   assert.equal(seen.size, 30);
   assert.match(overlay.screen(), /implementer: 900 tokens · 1m00s/);
+  overlay.press('escape');
+  await opened;
+});
+
+async function handOvers(
+  options: { gh?: (args: string[]) => string; waiting?: Question[]; going?: boolean } = {},
+) {
+  const { path, extension, ghCalls } = setup({ gh: options.gh ?? (() => '') });
+  const worker = { replying: true };
+  const fake = await startFakeWorker(path, '1.0.0', (self, message) => {
+    if (message.type === 'questions' && worker.replying) {
+      self.reply({ type: 'questions', root: '/repo', questions: waiting });
+    }
+  });
+  workers.push(fake);
+  const waiting = options.waiting ?? [
+    { ...question(4), url: 'https://github.com/owner/name/issues/4' },
+    { ...question(5), url: 'https://github.com/owner/name/issues/5' },
+  ];
+  if (options.going !== false) {
+    fake.runs['/repo'] = running({ watching: true });
+  }
+  const hosted = host();
+  extension(hosted.pi as never);
+  await hosted.emit('session_start');
+  const { overlay, opened } = await openDashboard(hosted);
+  overlay.press('tab');
+  overlay.press('tab');
+  await until(() => !overlay.screen().includes('Waiting for the hand-overs'), 500);
+  worker.replying = false;
+  return { fake, ghCalls, overlay, opened };
+}
+
+test('a user who opens the Hand-overs tab of the dashboard sees each issue waiting for a person with its number, title, reason and url', async () => {
+  const { overlay, opened } = await handOvers();
+  const screen = overlay.screen();
+  assert.match(screen, /\[Hand-overs\]/);
+  assert.match(screen, /#4 Title 4/);
+  assert.match(screen, /Reason 4/);
+  assert.match(screen, /https:\/\/github\.com\/owner\/name\/issues\/4/);
+  assert.match(screen, /#5 Title 5/);
+  assert.match(screen, /Reason 5/);
+  assert.match(screen, /https:\/\/github\.com\/owner\/name\/issues\/5/);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user who retries a hand-over from the dashboard removes the needs-human label, asks the going run to check now and sees the issue leave the list', async () => {
+  const { fake, ghCalls, overlay, opened } = await handOvers();
+  overlay.press('enter');
+  assert.match(overlay.screen(), /> Retry/);
+  overlay.press('enter');
+  await until(() => fake.received.some((message) => message.type === 'refresh'), 500);
+  assert.deepEqual(ghCalls, [
+    ['issue', 'edit', '--repo', 'owner/name', '4', '--remove-label', 'status:needs-human'],
+  ]);
+  await until(() => overlay.screen().includes('Retried #4'), 500);
+  assert.doesNotMatch(overlay.screen(), /#4 Title 4/);
+  assert.match(overlay.screen(), /#5 Title 5/);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user who retries a hand-over with guidance from the dashboard posts the typed guidance as a comment, then removes the needs-human label and asks the going run to check now', async () => {
+  const { fake, ghCalls, overlay, opened } = await handOvers();
+  overlay.press('down');
+  overlay.press('enter');
+  overlay.press('down');
+  overlay.press('enter');
+  assert.match(overlay.screen(), /Guidance for #5/);
+  overlay.press('\x1b[200~### Review: no\x1b[201~');
+  overlay.press('\n');
+  assert.match(overlay.screen(), /must not start with/);
+  assert.deepEqual(ghCalls, []);
+  for (let index = 0; index < 14; index += 1) {
+    overlay.press('\x7f');
+  }
+  overlay.press('\x1b[200~Use the v2 api\x1b[201~');
+  overlay.press('\n');
+  await until(() => fake.received.some((message) => message.type === 'refresh'), 500);
+  assert.deepEqual(ghCalls, [
+    ['issue', 'comment', '--repo', 'owner/name', '5', '--body', 'Use the v2 api'],
+    ['issue', 'edit', '--repo', 'owner/name', '5', '--remove-label', 'status:needs-human'],
+  ]);
+  await until(() => !overlay.screen().includes('#5 Title 5'), 500);
+  assert.match(overlay.screen(), /#4 Title 4/);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user who gives up on a hand-over from the dashboard swaps the needs-human label for the skip label that the repository has, and the run is not asked to check', async () => {
+  const { fake, ghCalls, overlay, opened } = await handOvers({
+    gh: (args) =>
+      args[1] === 'list' ? JSON.stringify([{ name: 'bug' }, { name: 'Status:Blocked' }]) : '',
+  });
+  overlay.press('enter');
+  overlay.press('down');
+  overlay.press('down');
+  overlay.press('enter');
+  await until(() => overlay.screen().includes('Gave up on #4'), 500);
+  assert.deepEqual(ghCalls, [
+    ['label', 'list', '--repo', 'owner/name', '--limit', '1000', '--json', 'name'],
+    [
+      'issue',
+      'edit',
+      '--repo',
+      'owner/name',
+      '4',
+      '--remove-label',
+      'status:needs-human',
+      '--add-label',
+      'Status:Blocked',
+    ],
+  ]);
+  assert.doesNotMatch(overlay.screen(), /#4 Title 4/);
+  assert.equal(
+    fake.received.some((message) => message.type === 'refresh'),
+    false,
+  );
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user who gives up on a hand-over from the dashboard in a repository with no skip label creates it first', async () => {
+  const { ghCalls, overlay, opened } = await handOvers({
+    gh: (args) => (args[1] === 'list' ? '[]' : ''),
+  });
+  overlay.press('enter');
+  overlay.press('down');
+  overlay.press('down');
+  overlay.press('enter');
+  await until(() => overlay.screen().includes('Gave up on #4'), 500);
+  assert.deepEqual(ghCalls.slice(1), [
+    ['label', 'create', '--repo', 'owner/name', 'status:blocked'],
+    [
+      'issue',
+      'edit',
+      '--repo',
+      'owner/name',
+      '4',
+      '--remove-label',
+      'status:needs-human',
+      '--add-label',
+      'status:blocked',
+    ],
+  ]);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user whose answer fails on GitHub sees the error on the Hand-overs tab and the issue stays listed', async () => {
+  const { overlay, opened } = await handOvers({
+    gh: () => {
+      throw new Error('gh: not authenticated');
+    },
+  });
+  overlay.press('enter');
+  overlay.press('enter');
+  await until(() => overlay.screen().includes('gh: not authenticated'), 500);
+  assert.match(overlay.screen(), /#4 Title 4/);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user who presses Esc in the answer menu or the guidance box of a hand-over goes back to the list, answers nothing and keeps the dashboard open', async () => {
+  const { ghCalls, overlay, opened } = await handOvers();
+  overlay.press('enter');
+  assert.match(overlay.screen(), /Answer #4/);
+  overlay.press('escape');
+  assert.doesNotMatch(overlay.screen(), /Answer #4/);
+  assert.match(overlay.screen(), /#4 Title 4/);
+  overlay.press('enter');
+  overlay.press('down');
+  overlay.press('enter');
+  assert.match(overlay.screen(), /Guidance for #4/);
+  overlay.press('\x1b');
+  assert.doesNotMatch(overlay.screen(), /Guidance for #4/);
+  assert.match(overlay.screen(), /#4 Title 4/);
+  assert.equal(overlay.closed, false);
+  assert.deepEqual(ghCalls, []);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user who submits empty guidance for a hand-over is asked to type it first and nothing is posted', async () => {
+  const { ghCalls, overlay, opened } = await handOvers();
+  overlay.press('enter');
+  overlay.press('down');
+  overlay.press('enter');
+  overlay.press('\n');
+  assert.match(overlay.screen(), /Type the guidance first\./);
+  assert.match(overlay.screen(), /Guidance for #4/);
+  assert.deepEqual(ghCalls, []);
+  overlay.press('\x1b');
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user who opens the Hand-overs tab when no issue waits for a person is told so', async () => {
+  const { overlay, opened } = await handOvers({ waiting: [] });
+  assert.match(overlay.screen(), /No issue waits for a person\./);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user with more hand-overs than the overlay fits sees a window of them with the place of the chosen one, and moving down shows later ones', async () => {
+  const many = Array.from({ length: 20 }, (_, index) => question(index + 1));
+  const { overlay, opened } = await handOvers({ waiting: many });
+  const height = Math.floor((ROWS * 90) / 100);
+  assert.match(overlay.screen(), /Waiting for a person \(1 of 20\)/);
+  assert.match(overlay.screen(), /#1 Title 1\b/);
+  assert.doesNotMatch(overlay.screen(), /#20 Title 20/);
+  assert.ok(overlay.screen().split('\n').length <= height);
+  overlay.press('up');
+  assert.match(overlay.screen(), /Waiting for a person \(20 of 20\)/);
+  assert.match(overlay.screen(), /> #20 Title 20/);
+  assert.doesNotMatch(overlay.screen(), /#1 Title 1\b/);
+  assert.ok(overlay.screen().split('\n').length <= height);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user who retries a hand-over from the dashboard while no run is going removes the needs-human label and is told no run was asked', async () => {
+  const { fake, ghCalls, overlay, opened } = await handOvers({ going: false });
+  overlay.press('enter');
+  overlay.press('enter');
+  await until(() => overlay.screen().includes('Retried #4'), 500);
+  assert.deepEqual(ghCalls, [
+    ['issue', 'edit', '--repo', 'owner/name', '4', '--remove-label', 'status:needs-human'],
+  ]);
+  assert.match(overlay.screen(), /Retried #4\. No run of \/repo is going, so nothing was asked\./);
+  assert.equal(
+    fake.received.some((message) => message.type === 'refresh'),
+    false,
+  );
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user who opens the Hand-overs tab with no worker running is told pi cannot list them and pointed to the answer-hand-over skill', async () => {
+  const { extension } = setup();
+  const hosted = host();
+  extension(hosted.pi as never);
+  await hosted.emit('session_start');
+  const { overlay, opened } = await openDashboard(hosted);
+  overlay.press('tab');
+  overlay.press('tab');
+  assert.match(
+    overlay.screen(),
+    /No worker is running, so pi cannot list the hand-overs\. Answer them with the answer-hand-over skill\./,
+  );
   overlay.press('escape');
   await opened;
 });
