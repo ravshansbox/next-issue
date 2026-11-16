@@ -238,6 +238,37 @@ test('a person with write access who answers a handed-over issue gets the issue 
   assert.ok(target.removable[0]!.includes('status:needs-human'));
 });
 
+test('a writer whose answered hand-over is stopped while the claim moves its label gets the next run to claim the issue and pass the answer on', async (t) => {
+  const thread = [HAND_OVER_NOTE, { author: 'owner', body: 'Ready, take it.' }];
+  const plan = { issue: NEEDS_HUMAN, thread, writers: ['owner', 'bot'] };
+  const first = await harness(t, {
+    ...plan,
+    saved: { ...HANDED_OVER, phase: 'claimed' },
+    stopNowOnLabel: 'status:in-progress',
+  });
+  assert.equal((await first.run()).outcome, 'stopped');
+  const target = await harness(t, { ...plan, saved: await first.state() });
+  const report = await target.run();
+  assert.notEqual(report.outcome, 'skipped');
+  assert.deepEqual(target.labels[0]?.label, 'status:in-progress');
+  const implementer = target.prompts.find((entry) => entry.role === 'implementer')!.prompt;
+  assert.match(implementer, /@owner: Ready, take it\./);
+});
+
+test('a writer whose answered hand-over is claimed sees the saved state drop the hand-over mark', async (t) => {
+  const target = await harness(t, {
+    issue: NEEDS_HUMAN,
+    saved: HANDED_OVER,
+    thread: [HAND_OVER_NOTE, { author: 'owner', body: 'Ready, take it.' }],
+    writers: ['owner', 'bot'],
+    stopNowOnLabel: 'status:in-review',
+  });
+  assert.equal((await target.run()).outcome, 'stopped');
+  const state = await target.state();
+  assert.equal(state?.handedOver, undefined);
+  assert.equal(state?.pendingHandOver, undefined);
+});
+
 test('a person with write access who answers a handed-over issue whose needs-human label is in another case gets the issue claimed again', async (t) => {
   const target = await harness(t, {
     issue: { ...ISSUE, labels: ['Status:Needs-Human'] },

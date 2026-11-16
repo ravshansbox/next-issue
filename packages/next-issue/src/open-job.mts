@@ -19,8 +19,11 @@ export async function openJob(
   const branch = state.branch;
 
   await log.step('claim', { label: config.labels.inProgress }, async () => {
-    await writeState(repo, state);
+    await writeState(repo, handedOver ? { ...state, ...handOverMark(pending) } : state);
     await setStatus(context, issue.number, config.labels.inProgress);
+    if (handedOver) {
+      await writeState(repo, state);
+    }
   });
 
   const comments = await log.step('comments', {}, () => writerComments(context, log, issue.number));
@@ -42,6 +45,10 @@ export async function openJob(
     repairing: false,
     asides: [],
   };
+}
+
+function handOverMark(pending: PendingHandOver | undefined): Partial<IssueState> {
+  return pending === undefined ? { handedOver: true } : { pendingHandOver: pending };
 }
 
 async function openWorktree(
