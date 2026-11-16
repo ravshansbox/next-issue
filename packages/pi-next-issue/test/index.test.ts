@@ -1929,29 +1929,37 @@ test('a user sees why a run could not start when the worker does not come up', a
   assert.match(notes[0] ?? '', /^next-issue cannot start: the next-issue worker did not start/);
 });
 
-const RUN_NOTE = (action: string) =>
-  `next-issue cannot ${action}: a command-line next-issue run (process 4242) is going in this repository. Wait until it ends, or stop it, then try again`;
+const HELD_NOTE =
+  'next-issue cannot start: the next-issue worker exited before it listened: exit code 1 (see .next-issue/worker.log)';
 
-test('a user who picks Start in the /next-issue menu while a command-line run holds the repository is told so at once and no worker starts', async () => {
-  const { spawns, extension } = setup({ holder: () => 4242, startTimeoutMs: 60_000 });
+function heldLock() {
+  return setup({
+    holder: () => 4242,
+    startTimeoutMs: 60_000,
+    spawn: async (_path, onExit) => {
+      setTimeout(() => onExit('exit code 1 (see .next-issue/worker.log)'), 100);
+    },
+  });
+}
+
+test('a user who picks Start in the /next-issue menu while a process that does not listen holds the lock sees the worker it starts exit, within a few seconds', async () => {
+  const { spawns, extension } = heldLock();
   const { pi, pick, notes } = host('rpc');
   extension(pi as never);
   const began = Date.now();
   await pick('Start');
   assert.ok(Date.now() - began < 5000);
-  assert.deepEqual(notes, [RUN_NOTE('start')]);
-  assert.equal(spawns.length, 0);
+  assert.deepEqual(notes, [HELD_NOTE]);
+  assert.equal(spawns.length, 1);
 });
 
 test('a user whose Start from the /next-issue menu fails while a retry falls due sees the run in the footer once a worker starts later, with no further command', async () => {
-  let held = true;
-  const { path, extension } = setup({ holder: () => (held ? 4242 : undefined) });
+  const { path, extension } = heldLock();
   const { pi, emit, pick, notes, status } = host('rpc');
   extension(pi as never);
   await emit('session_start');
   await pick('Start');
-  assert.deepEqual(notes, [RUN_NOTE('start')]);
-  held = false;
+  assert.deepEqual(notes, [HELD_NOTE]);
   const fake = await worker(path);
   fake.update('/repo', running({ issues: [working(7)] }));
   await until(() => status.at(-1)?.includes('#7') === true);
@@ -1975,17 +1983,17 @@ test('a user whose worker starts slowly while a retry falls due opens one connec
   assert.equal(started!.received.filter((message) => message.type === 'hello').length, 1);
 });
 
-test('a model that calls next_issue_start while a command-line run holds the repository gets that error at once and no worker starts', async () => {
-  const { spawns, extension } = setup({ holder: () => 4242, startTimeoutMs: 60_000 });
+test('a model that calls next_issue_start while a process that does not listen holds the lock gets the exit of the worker it starts, within a few seconds', async () => {
+  const { spawns, extension } = heldLock();
   const { pi, start } = host();
   extension(pi as never);
   const began = Date.now();
   await assert.rejects(
     start(),
-    /^Error: a command-line next-issue run \(process 4242\) is going in this repository/,
+    /^Error: the next-issue worker exited before it listened: exit code 1/,
   );
   assert.ok(Date.now() - began < 5000);
-  assert.equal(spawns.length, 0);
+  assert.equal(spawns.length, 1);
 });
 
 test('a user whose worker is closing as the lock is read connects to a new worker once the lock is free', async () => {
@@ -2021,24 +2029,6 @@ test('a user whose worker holds the lock but listens only after a moment connect
   assert.equal(spawns.length, 0);
   assert.deepEqual(notes, []);
   await until(() => started?.received.some((message) => message.type === 'start') === true);
-});
-
-test('a user whose spawned worker finds a command-line run and exits sees that run at once', async () => {
-  let held = false;
-  const { extension } = setup({
-    startTimeoutMs: 60_000,
-    holder: () => (held ? 4242 : undefined),
-    spawn: async (_path, onExit) => {
-      held = true;
-      setTimeout(() => onExit('next-issue: another worker is running'), 100);
-    },
-  });
-  const { pi, pick, notes } = host('rpc');
-  extension(pi as never);
-  const began = Date.now();
-  await pick('Start');
-  assert.ok(Date.now() - began < 5000);
-  assert.deepEqual(notes, [RUN_NOTE('start')]);
 });
 
 test('a user whose spawned worker exits before it listens sees its reason at once', async () => {

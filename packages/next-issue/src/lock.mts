@@ -158,7 +158,9 @@ async function removeDeadDrafts(path: string): Promise<void> {
   }
 }
 
-function listening(socketPath: string): Promise<boolean> {
+type StopResult = { stopped: 'worker' | 'none'; pid?: number };
+
+function takesConnection(socketPath: string): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = createConnection(socketPath);
     socket.once('connect', () => {
@@ -169,18 +171,15 @@ function listening(socketPath: string): Promise<boolean> {
   });
 }
 
-type StopResult = { stopped: 'worker' | 'none' | 'run'; pid?: number };
-
 export async function stopWorker(paths: {
   lockPath: string;
   socketPath: string;
 }): Promise<StopResult> {
-  const pid = await lockHolder(paths.lockPath);
-  if (pid === undefined) {
+  const text = await readTextOrEmpty(paths.lockPath);
+  const pid = await holderOf(text);
+  const unverified = text.trim().split(' ').length === 1;
+  if (pid === undefined || (unverified && !(await takesConnection(paths.socketPath)))) {
     return { stopped: 'none' };
-  }
-  if (!(await listening(paths.socketPath))) {
-    return { stopped: 'run', pid };
   }
   process.kill(pid, 'SIGTERM');
   return { stopped: 'worker', pid };

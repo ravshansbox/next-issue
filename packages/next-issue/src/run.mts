@@ -1,5 +1,3 @@
-import { mkdir, rm } from 'node:fs/promises';
-import { dirname } from 'node:path';
 import type { Args } from './args.mts';
 import { recordCommands } from './command-records.mts';
 import { type Config, loadConfig } from './config.mts';
@@ -15,7 +13,6 @@ import { hunter } from './hunt.mts';
 import type { Interrupts } from './interrupt.mts';
 import { type Switch, onOff } from './switch.mts';
 import type { Context, IssueReport } from './job.mts';
-import { lock, lockHolder } from './lock.mts';
 import { exitCode, type Loop, type LoopResult, runIssues } from './loop.mts';
 import { type Fields, Recorder } from './observe.mts';
 import { pendingIssues } from './pending.mts';
@@ -25,7 +22,6 @@ import { pruneRuns } from './prune-runs.mts';
 import { count, type RunSummary } from './summary.mts';
 import { packageVersion } from './version.mts';
 import { watchIssues } from './watch.mts';
-import { workerPaths } from './worker-paths.mts';
 
 export type RunControls = {
   interrupts: Interrupts;
@@ -33,32 +29,13 @@ export type RunControls = {
   onEvent?: (record: Fields) => void;
   output?: (text: string) => void;
   ended?: (summary: RunSummary) => void;
-  // The worker passes a switch that its clients turn on and off; a command-line run keeps --hunt.
+  // The worker passes a switch that its clients turn on and off; without one, the run keeps --hunt.
   hunting?: Switch;
-  // The worker passes a switch that its clients turn on and off; a command-line run keeps --watch.
+  // The worker passes a switch that its clients turn on and off; without one, the run keeps --watch.
   watching?: Switch;
   // The worker passes the signal of its clients' refresh requests, which end a watch wait early.
   refreshed?: () => AbortSignal;
 };
-
-export async function runLocked(root: string, args: Args, controls: RunControls): Promise<number> {
-  const path = workerPaths(root).lockPath;
-  await mkdir(dirname(path), { recursive: true });
-  const held = await lock(path, 0);
-  if (held === undefined) {
-    const pid = await lockHolder(path);
-    throw new Error(
-      `another next-issue worker or run (process id ${pid ?? 'unknown'}) is going in this repository`,
-    );
-  }
-  try {
-    return await runRepo(root, args, controls);
-  } finally {
-    if (held.owns()) {
-      await rm(path, { force: true });
-    }
-  }
-}
 
 export async function runRepo(root: string, args: Args, controls: RunControls): Promise<number> {
   const config = await loadConfig(root, { sortFile: true });

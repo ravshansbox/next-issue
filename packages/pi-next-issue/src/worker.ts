@@ -74,12 +74,6 @@ function parseMessage(text: string): WorkerMessage | undefined {
   }
 }
 
-function runGoing(pid: number): Error {
-  return new Error(
-    `a command-line next-issue run (process ${pid}) is going in this repository. Wait until it ends, or stop it, then try again`,
-  );
-}
-
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms).unref?.());
 }
@@ -264,16 +258,12 @@ export class WorkerClient {
   }
 
   // A live process holds the lock but does not listen: a worker that is about to listen or
-  // to close, or a command-line run, which holds the lock for its whole run.
+  // to close.
   private async waitForHolder(): Promise<boolean> {
     const deadline = Date.now() + (this.options.holderGraceMs ?? HOLDER_GRACE_MS);
     for (;;) {
-      const pid = await this.holder();
-      if (pid === undefined) {
+      if ((await this.holder()) === undefined || Date.now() >= deadline) {
         return false;
-      }
-      if (Date.now() >= deadline) {
-        throw runGoing(pid);
       }
       await delay(POLL_MS);
       if (await this.opened()) {
@@ -295,10 +285,7 @@ export class WorkerClient {
           throw error;
         }
         if (reason !== undefined) {
-          const pid = await this.holder();
-          throw pid === undefined
-            ? new Error(`the next-issue worker exited before it listened: ${reason}`)
-            : runGoing(pid);
+          throw new Error(`the next-issue worker exited before it listened: ${reason}`);
         }
         if (Date.now() >= deadline) {
           throw new Error(`the next-issue worker did not start: ${errorText(error)}`);

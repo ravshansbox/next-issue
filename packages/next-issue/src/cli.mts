@@ -59,8 +59,6 @@ function run(root: string, args: Args, argv: string[]): Promise<number> {
 
 const STOPPED = {
   none: () => 'next-issue: no worker is running\n',
-  run: (pid?: number) =>
-    `next-issue: no worker is running; a command-line run (process id ${pid}) is going, press Ctrl-C there to stop it\n`,
   worker: (pid?: number) => `next-issue: stopped the worker with process id ${pid}\n`,
 };
 

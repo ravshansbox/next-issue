@@ -35,12 +35,6 @@ export function going(progress: Progress | undefined): boolean {
   return progress?.status === 'running' || progress?.status === 'stopping';
 }
 
-function runGoing(pid: number): Error {
-  return new Error(
-    `another next-issue worker or run (process id ${pid}) is going in this repository`,
-  );
-}
-
 function parse(text: string): WorkerMessage | undefined {
   try {
     return JSON.parse(text) as WorkerMessage;
@@ -123,12 +117,8 @@ async function waitForHolder(
 ): Promise<Connection | undefined> {
   const deadline = Date.now() + HOLDER_GRACE_MS;
   for (;;) {
-    const pid = await lockHolder(paths.lockPath);
-    if (pid === undefined) {
+    if ((await lockHolder(paths.lockPath)) === undefined || Date.now() >= deadline) {
       return undefined;
-    }
-    if (Date.now() >= deadline) {
-      throw runGoing(pid);
     }
     await delay(POLL_MS);
     const opened = await tryOpen(paths.socketPath, version);
@@ -152,10 +142,7 @@ async function waitForStart(
       return opened;
     }
     if (reason !== undefined) {
-      const pid = await lockHolder(paths.lockPath);
-      throw pid === undefined
-        ? new Error(`the next-issue worker exited before it listened: ${reason}`)
-        : runGoing(pid);
+      throw new Error(`the next-issue worker exited before it listened: ${reason}`);
     }
     if (Date.now() >= deadline) {
       throw new Error('the next-issue worker did not start (see .next-issue/worker.log)');
