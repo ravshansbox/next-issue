@@ -252,6 +252,30 @@ async function watchingRun(root: string) {
   return { child, exited };
 }
 
+test('a user who starts a run without init gets .next-issue/ and .worktrees/ in info/exclude, out of .gitignore, and no config file', async (t) => {
+  const root = await repository();
+  await writeFile(join(root, '.gitignore'), 'node_modules/\n.next-issue/\n');
+  const { child, exited } = await watchingRun(root);
+  t.after(() => child.kill('SIGKILL'));
+  child.kill('SIGINT');
+  assert.equal(await exited, 0);
+  const exclude = await readFile(join(root, '.git/info/exclude'), 'utf8');
+  assert.match(exclude, /^\.next-issue\/$/m);
+  assert.match(exclude, /^\.worktrees\/$/m);
+  assert.equal(await readFile(join(root, '.gitignore'), 'utf8'), 'node_modules/\n');
+  assert.equal(await exists(join(root, '.next-issue/config.json')), false);
+});
+
+test('a user who starts the worker without init gets .next-issue/ and .worktrees/ once in info/exclude', async (t) => {
+  const root = await repository();
+  await appendFile(join(root, '.git/info/exclude'), '.worktrees/\n');
+  const { child } = await serveWorker(root);
+  t.after(() => child.kill('SIGKILL'));
+  const exclude = await readFile(join(root, '.git/info/exclude'), 'utf8');
+  assert.equal(exclude.split('\n').filter((line) => line === '.next-issue/').length, 1);
+  assert.equal(exclude.split('\n').filter((line) => line === '.worktrees/').length, 1);
+});
+
 test('a user whose stderr reader exits before Ctrl-C sees the run stop with exit code 0 and a run.end event in the run log', async (t) => {
   const root = await repository();
   const { child, exited } = await watchingRun(root);

@@ -37,14 +37,15 @@ async function main(): Promise<number> {
     return init(root, args.force);
   }
   await rejectOldConfig(root);
-  if (args.command === 'serve') {
-    return serve(root);
-  }
   if (args.command === 'stop') {
     return stop(root);
   }
   if (args.command === 'logs') {
     return logs(root, args.json);
+  }
+  await excludeStateDirectories(root, process.stderr);
+  if (args.command === 'serve') {
+    return serve(root);
   }
   return run(root, args);
 }
@@ -83,23 +84,27 @@ async function logs(root: string, json: boolean): Promise<number> {
 }
 
 async function init(root: string, force: boolean): Promise<number> {
-  const exclude = await excludeFile(root);
   const moved = await moveOldConfig(root, force);
   if (moved === undefined) {
     await write(process.stdout, `wrote ${await writeDefaultConfig(root, force)}\n`);
   } else {
     await write(process.stdout, `moved ${OLD_CONFIG_FILE} to ${moved}\n`);
   }
+  await excludeStateDirectories(root, process.stdout);
+  return 0;
+}
+
+async function excludeStateDirectories(root: string, stream: NodeJS.WriteStream): Promise<void> {
+  const exclude = await excludeFile(root);
   const entries = [STATE_DIR, WORKTREE_DIR].map((directory) => `${directory}/`);
   for (const entry of entries) {
     if (await ensureExcluded(exclude, entry)) {
-      await write(process.stdout, `added ${entry} to ${exclude}\n`);
+      await write(stream, `added ${entry} to ${exclude}\n`);
     }
   }
   for (const entry of await removeIgnored(root, entries)) {
-    await write(process.stdout, `removed ${entry} from .gitignore\n`);
+    await write(stream, `removed ${entry} from .gitignore\n`);
   }
-  return 0;
 }
 
 main().then(

@@ -647,6 +647,10 @@ there already; `--force` replaces it. The file holds no
 `setupCommand`, because the harness deduces one from the lock file of the
 project.
 
+`start` and `serve` also add the two lines to `info/exclude` and remove them
+from `.gitignore`, so a repository needs no `init` to run. They do not write
+the config file.
+
 With no file, every field keeps its default. A field that is not in the file
 keeps its default. A file that cannot be read, a file that is not valid
 JSON, a field with a value of the wrong type and a field name that the harness
