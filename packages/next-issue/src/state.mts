@@ -142,6 +142,10 @@ export async function savedIssues(repo: Repo): Promise<number[]> {
   });
 }
 
+export function heldByPerson(saved: IssueState | undefined): boolean {
+  return saved !== undefined && saved.handedOver !== true && saved.pendingHandOver === undefined;
+}
+
 export function newState(issue: number, branch: string): IssueState {
   return { issue, phase: 'claimed', branch, ciFixes: 0, reviewRounds: 0, reviewLog: [] };
 }

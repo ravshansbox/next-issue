@@ -6,7 +6,7 @@ import type { Context } from './job.mts';
 import type { Recorder } from './observe.mts';
 import type { Ports } from './ports.mts';
 import type { Question } from './protocol.mts';
-import { type PendingHandOver, readState } from './state.mts';
+import { heldByPerson, type IssueState, type PendingHandOver, readState } from './state.mts';
 
 export const HAND_OVER = 'next-issue needs help:';
 
@@ -117,9 +117,9 @@ async function replyAfter(
   );
 }
 
-async function pendingHandOver(repo: Repo, issue: number): Promise<PendingHandOver | undefined> {
+async function savedState(repo: Repo, issue: number): Promise<IssueState | undefined> {
   try {
-    return (await readState(repo, issue))?.pendingHandOver;
+    return await readState(repo, issue);
   } catch {
     return undefined;
   }
@@ -133,8 +133,9 @@ async function waitingQuestion(
   issue: Issue,
 ): Promise<Question | undefined> {
   const { comments, last } = await handOverThread(repo, ports, writer, issue.number);
-  const pending = await pendingHandOver(repo, issue.number);
-  if ((await replyAfter(comments, last, writer, pending)).length > 0) {
+  const saved = await savedState(repo, issue.number);
+  const pending = saved?.pendingHandOver;
+  if (!heldByPerson(saved) && (await replyAfter(comments, last, writer, pending)).length > 0) {
     return undefined;
   }
   const latest = comments[last];

@@ -8,7 +8,7 @@ import { stopNow } from './handover.mts';
 import type { Context, IssueReport } from './job.mts';
 import { hasLabel } from './labels.mts';
 import type { Recorder } from './observe.mts';
-import { type IssueState, writeState } from './state.mts';
+import { heldByPerson, type IssueState, writeState } from './state.mts';
 import { heldOnBase } from './unsettled.mts';
 
 type Skip = 'stop-label' | 'not-ready' | 'in-flight';
@@ -96,7 +96,7 @@ async function hasAnswer(
   if (!hasLabel(issue.labels, context.config.labels.needsHuman)) {
     return false;
   }
-  if (saved !== undefined && saved.handedOver !== true && saved.pendingHandOver === undefined) {
+  if (heldByPerson(saved)) {
     return false;
   }
   return (await handOverReply(context, issue.number, saved?.pendingHandOver)).length > 0;
