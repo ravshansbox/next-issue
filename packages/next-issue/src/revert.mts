@@ -1,6 +1,7 @@
 import { runStopped } from './children.mts';
 import { message } from './errors.mts';
 import type { Run } from './job.mts';
+import { updateLocalBase } from './local-base.mts';
 import { type IssueState, writeState } from './state.mts';
 import { HALT_NOTE, releaseSettled } from './unsettled.mts';
 
@@ -91,5 +92,6 @@ export async function revert(job: Run): Promise<string> {
   restoreChange(state);
   releaseSettled(state);
   await writeState(repo, state);
+  await updateLocalBase(job);
   return ` The harness reverted the change on ${base}.`;
 }

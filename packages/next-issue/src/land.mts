@@ -2,6 +2,7 @@ import { runStopped } from './children.mts';
 import { rebase } from './conflict.mts';
 import { checkGate, escalateError } from './gate.mts';
 import { PUSH_TRIES } from './git-land.mts';
+import { updateLocalBase } from './local-base.mts';
 import { localChecks } from './local-checks.mts';
 import { escalateAndFinish, finishDone, stop } from './handover.mts';
 import type { Finished, Run } from './job.mts';
@@ -170,6 +171,7 @@ async function pushChange(job: Run): Promise<Finished | string> {
     await writeState(repo, state);
     if (pushed) {
       job.repairing = false;
+      await updateLocalBase(job);
       return sha;
     }
     attempt += 1;

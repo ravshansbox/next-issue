@@ -206,6 +206,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
   const fixerTexts = Array.isArray(plan.fixerText) ? [...plan.fixerText] : [];
   const implementerTexts = [...(plan.implementerText ?? [])];
   let head = 0;
+  let remoteBase: string | undefined;
   let pressed = false;
   let removed = false;
   const children = runChildren();
@@ -283,7 +284,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       if (plan.landedBaseUpdated === false) {
         return false;
       }
-      state.localBase = String(head);
+      state.localBase = remoteBase;
       return true;
     },
     closeIssue: async (_repo, number) => {
@@ -358,6 +359,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
         return false;
       }
       state.landed.push(String(head));
+      remoteBase = String(head);
       if (plan.pushLandsAndStops === true) {
         stopRunChildren(children);
         return false;
@@ -384,6 +386,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
         stopRunChildren(children);
         refuseWhenStopped();
       }
+      remoteBase = String(head + 1);
       head += 2;
       return true;
     },

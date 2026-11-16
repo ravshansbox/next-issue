@@ -218,7 +218,11 @@ the run handles one issue. For each issue:
    holds the commit during the push, so a run stopped meanwhile, or the
    resume after that hand-over (once a person answers or takes the label
    off), checks the base and waits for the checks of the commit when it
-   landed. Until then, no run lands another change (see below). The
+   landed. Until then, no run lands another change (see below). Once the
+   commit lands, the harness fetches the remote and fast-forwards the local
+   base branch to it when that is safe. A fetch that fails or a
+   fast-forward that is not safe leaves the local base branch as it is and
+   writes a `base.behind` event, and the landing goes on. The
    harness then waits for the checks of the pushed commit on the base
    branch: the GitHub Actions workflow runs that a `push` of the base
    branch started on it, its commit statuses and the check runs of every
@@ -276,12 +280,8 @@ the run handles one issue. For each issue:
    file and removes the worktree, the local branches and the state file,
    with no new push, revert, label, close or hand-over. A label or close
    that fails for another reason hands the issue over, and it then waits
-   for a person like any other hand-over. Then the harness fetches the
-   remote and fast-forwards the local base branch to the landed commit
-   when that is safe, and the worktree, the local branch and the state
-   file go away. A fetch that fails or a fast-forward that is
-   not safe leaves the local base branch as it is and writes a `base.behind`
-   event, and the issue is still done. When the checks fail, the harness
+   for a person like any other hand-over. Then the worktree, the local
+   branch and the state file go away. When the checks fail, the harness
    reruns the failed jobs of each failed GitHub Actions workflow run once
    with `gh run rerun <id> --failed`, records a `main-checks.rerun` event
    and waits again once the runs restart. A failed run whose failed jobs
@@ -311,7 +311,9 @@ the run handles one issue. For each issue:
    other `push unknown`. A revert
    push that the remote refuses, for example because the base moved, makes
    the revert again on the new base, three times at most. A failed revert
-   push that the base holds after a fetch counts as landed. When that fetch
+   push that the base holds after a fetch counts as landed. Once the revert
+   lands, the harness fast-forwards the local base branch to it, as after a
+   landed commit. When that fetch
    fails too, the revert may be on the base with checks nobody awaited: the
    harness reports it so, saves the halt and blocks later landings. The state file holds the
    revert commit during the push, so a run stopped meanwhile checks the base

@@ -61,7 +61,6 @@ export async function finishDone(job: Run): Promise<Finished> {
     await setStatus(context, issue.number, context.config.labels.done);
     await context.ports.closeIssue(context.repo, issue.number);
   }
-  await updateLocalBase(job);
   return { done: true, report: await finish(job, 'done') };
 }
 
@@ -111,17 +110,6 @@ export async function dropClosed(
     reviewRounds: 0,
     ms: 0,
   };
-}
-
-async function updateLocalBase(job: Run): Promise<void> {
-  const { context, log } = job;
-  const { repo, ports, config, base } = context;
-  const updated = await oneAtATime(repo.root, () =>
-    ports.fastForwardBase(repo, base, config.remote),
-  ).catch(() => false);
-  if (!updated) {
-    log.event('base.behind', { base }, 'quiet');
-  }
 }
 
 export function stop(job: Run, reason?: string): IssueReport {

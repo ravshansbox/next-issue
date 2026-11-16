@@ -891,11 +891,28 @@ test('a user with concurrency 2 whose issue halts the run gets the other approve
   assert.equal(target.landed.length, 2);
 });
 
-test('a user whose change lands gets the local base moved to the landed commit', async (t) => {
+test('a user whose change lands sees the local base at the landed commit while its checks are pending', async (t) => {
   const target = await harness(t);
+  const basesAtWait: Array<string | undefined> = [];
+  const waitForBaseChecks = target.context.ports.waitForBaseChecks;
+  target.context.ports.waitForBaseChecks = async (...args) => {
+    basesAtWait.push(target.localBase);
+    return waitForBaseChecks(...args);
+  };
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  assert.equal(target.localBase, target.landed.at(-1));
+  assert.deepEqual(basesAtWait, ['2']);
+  assert.equal(target.localBase, '2');
+});
+
+test('a user whose landed change is reverted sees the local base at the revert commit', async (t) => {
+  const target = await harness(t, {
+    baseChecks: ['fail'],
+    fixerText: 'unrelated: the server does not mount the release',
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(target.localBase, '3');
 });
 
 test('a user whose fetch fails after landing gets the issue done and a base.behind event', async (t) => {
