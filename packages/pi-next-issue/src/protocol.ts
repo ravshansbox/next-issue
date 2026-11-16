@@ -72,7 +72,14 @@ export type StopPoint = (typeof STOP_POINTS)[number];
 
 export type ClientMessage =
   | { type: 'hello'; version: string }
-  | { type: 'start'; root: string; args?: string[]; resume?: boolean; id?: string }
+  | {
+      type: 'start';
+      root: string;
+      args?: string[];
+      resume?: boolean;
+      command?: boolean;
+      id?: string;
+    }
   | { type: 'stop'; root: string; after?: StopPoint; id?: string }
   | { type: 'questions'; root: string; id?: string }
   | { type: 'upcoming'; root: string }

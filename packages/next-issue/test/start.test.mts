@@ -251,3 +251,26 @@ test('a user who runs start while an older worker has a watch run going sees sta
   assert.equal(fake.controls().interrupts.afterIssue(), false);
   fake.finish();
 });
+
+test('a user whose start run watches while a newer client connects sees the run keep its flags and go on, and start exit only when it ends', async (t) => {
+  const root = await repository();
+  const fake = fakeRuns();
+  const worker = await fakeWorker(t, root, fake.runRepo);
+  const started = startCommand(t, root, ['--watch', '--max', '3', '--verbose']);
+  await until(() => fake.calls.length === 1, 'the run to start');
+  const newer = await connect(t, workerPaths(root).socketPath);
+  newer.send({ type: 'hello', version: '999.0.0' });
+  newer.send({ type: 'questions', root, id: 'after' });
+  await newer.next((value) => value.type === 'questions' && value.id === 'after');
+  const observer = await connect(t, workerPaths(root).socketPath);
+  const runs = await observer.next((value) => value.type === 'runs');
+  assert.equal(runs.type === 'runs' && runs.runs[root]?.status, 'running');
+  assert.equal(runs.type === 'runs' && runs.runs[root]?.upgrade, undefined);
+  assert.equal(fake.controls().interrupts.afterIssue(), false);
+  assert.equal(started.child.exitCode, null);
+  assert.equal(fake.calls[0]!.args.max, 3);
+  assert.equal(fake.calls[0]!.args.level, 'verbose');
+  fake.finish();
+  assert.equal(await started.exited, 0);
+  await worker.closed;
+});

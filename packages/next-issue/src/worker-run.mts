@@ -23,11 +23,13 @@ export type Run = {
   watching: Toggle;
   hunting: Toggle;
   refresher: Refresher;
+  command: boolean;
 };
 
-export function newRun(progress: Progress): Run {
+export function newRun(progress: Progress, command = false): Run {
   return {
     progress,
+    command,
     children: runChildren(),
     watching: onOff(progress.watching === true),
     hunting: onOff(progress.hunting),
@@ -100,7 +102,7 @@ export function stoppingMessage(root: string, run: Run, id?: string): WorkerMess
 }
 
 export function requestUpgrade(run: Run, upgrade: Upgrade): boolean {
-  if (!run.watching.on() || run.stop !== undefined || !requestStop(run, 'issue')) {
+  if (run.command || !run.watching.on() || run.stop !== undefined || !requestStop(run, 'issue')) {
     return false;
   }
   run.progress = { ...run.progress, upgrade };

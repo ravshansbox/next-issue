@@ -102,6 +102,6 @@ function follow(
       }
     });
     void connection.closed.then(() => fail(CLOSED));
-    connection.send({ type: 'start', root, args: argv, id });
+    connection.send({ type: 'start', root, args: argv, command: true, id });
   });
 }
