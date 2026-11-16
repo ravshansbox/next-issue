@@ -23,6 +23,14 @@ test('a user whose change is approved gets it done only after the checks of the 
   assert.equal(report.halt, undefined);
 });
 
+test('a user whose change lands sees the wait for the checks on the base branch logged as the ci-checks step', async (t) => {
+  const target = await harness(t);
+  await target.run();
+  const kinds = target.events.map((event) => event.kind);
+  assert.ok(kinds.includes('ci-checks.end'));
+  assert.ok(kinds.includes('ci-checks.state'));
+});
+
 test('a user whose base branch moves during the push gets the change rebased and pushed again', async (t) => {
   const target = await harness(t, { pushRejects: 1 });
   const report = await target.run();
@@ -174,7 +182,7 @@ test('a user whose checks on main fail once and pass on the rerun gets the issue
   assert.deepEqual(target.reruns, ['2']);
   assert.deepEqual(roles(target), ['implementer', 'reviewer']);
   assert.deepEqual(target.reverts, []);
-  assert.ok(target.events.some((event) => event.kind === 'main-checks.rerun' && event.sha === '2'));
+  assert.ok(target.events.some((event) => event.kind === 'ci-checks.rerun' && event.sha === '2'));
 });
 
 test('a user whose checks on main fail again on the rerun gets the fixer only after the second failure', async (t) => {
@@ -197,7 +205,7 @@ test('a user whose failed jobs on main cannot be rerun gets the fixer for the re
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer']);
-  assert.ok(target.events.some((event) => event.kind === 'main-checks.rerun-failed'));
+  assert.ok(target.events.some((event) => event.kind === 'ci-checks.rerun-failed'));
 });
 
 test('a user whose checks on main fail after the landing gets the fix landed the same way', async (t) => {
@@ -606,7 +614,7 @@ test('a user whose revert cannot be pushed gets the issue handed over with the l
 
 test('a user whose checks on main fail and whose read of the failed runs then fails gets the change reverted, the issue handed over and the run halted', async (t) => {
   const target = await harness(t, { baseChecks: ['fail'] });
-  target.context.ports.failedBaseLogs = async () => {
+  target.context.ports.failedCiLogs = async () => {
     throw new Error('gh: API rate limit exceeded');
   };
   const report = await target.run();
@@ -626,12 +634,12 @@ test('a user whose checks on main fail and whose read of the failed runs then fa
 
 function checkReadFails(target: Awaited<ReturnType<typeof harness>>, when: () => boolean) {
   const ports = target.context.ports;
-  const waitForBaseChecks = ports.waitForBaseChecks;
-  ports.waitForBaseChecks = async (...args) => {
+  const waitForCiChecks = ports.waitForCiChecks;
+  ports.waitForCiChecks = async (...args) => {
     if (when()) {
       throw new Error('gh: API rate limit exceeded');
     }
-    return waitForBaseChecks(...args);
+    return waitForCiChecks(...args);
   };
 }
 
@@ -746,12 +754,12 @@ test('a user with several approved issues gets each landed only after the checks
   const target = await harness(t, { verdicts: [APPROVE, APPROVE] });
   const ports = target.context.ports;
   const order: string[] = [];
-  const waitForBaseChecks = ports.waitForBaseChecks;
-  ports.waitForBaseChecks = async (...args) => {
+  const waitForCiChecks = ports.waitForCiChecks;
+  ports.waitForCiChecks = async (...args) => {
     order.push(`wait ${args[1]}`);
     await new Promise((resolve) => setTimeout(resolve, 10));
     order.push(`end ${args[1]}`);
-    return waitForBaseChecks(...args);
+    return waitForCiChecks(...args);
   };
   const pushToBase = ports.pushToBase;
   ports.pushToBase = async (...args) => {
@@ -780,15 +788,15 @@ test('a user with several issues gets the others implemented and reviewed while 
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
-  const waitForBaseChecks = ports.waitForBaseChecks;
+  const waitForCiChecks = ports.waitForCiChecks;
   let first = true;
-  ports.waitForBaseChecks = async (...args) => {
+  ports.waitForCiChecks = async (...args) => {
     if (first) {
       first = false;
       waiting();
       await held;
     }
-    return waitForBaseChecks(...args);
+    return waitForCiChecks(...args);
   };
   let waiting: () => void = () => {};
   const landingWaits = new Promise<void>((resolve) => {
@@ -839,11 +847,11 @@ test('a user with concurrency 2 whose issue halts the run gets the other approve
   const landingWaits = new Promise<void>((resolve) => {
     waiting = resolve;
   });
-  const waitForBaseChecks = ports.waitForBaseChecks;
-  ports.waitForBaseChecks = async (...args) => {
+  const waitForCiChecks = ports.waitForCiChecks;
+  ports.waitForCiChecks = async (...args) => {
     waiting();
     await held;
-    return waitForBaseChecks(...args);
+    return waitForCiChecks(...args);
   };
   let reviewed: () => void = () => {};
   const otherReviewed = new Promise<void>((resolve) => {
@@ -894,10 +902,10 @@ test('a user with concurrency 2 whose issue halts the run gets the other approve
 test('a user whose change lands sees the local base at the landed commit while its checks are pending', async (t) => {
   const target = await harness(t);
   const basesAtWait: Array<string | undefined> = [];
-  const waitForBaseChecks = target.context.ports.waitForBaseChecks;
-  target.context.ports.waitForBaseChecks = async (...args) => {
+  const waitForCiChecks = target.context.ports.waitForCiChecks;
+  target.context.ports.waitForCiChecks = async (...args) => {
     basesAtWait.push(target.localBase);
-    return waitForBaseChecks(...args);
+    return waitForCiChecks(...args);
   };
   const report = await target.run();
   assert.equal(report.outcome, 'done');

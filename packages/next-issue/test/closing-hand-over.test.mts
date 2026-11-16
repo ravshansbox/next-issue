@@ -101,7 +101,7 @@ test('a user whose closing issue got its needs-human label but whose hand-over d
 test('a user whose closing issue is handed over, answered and halted on resume with an unchecked commit on main gets no other issue landed by the next run', async (t) => {
   const root = await handedOverWhileClosing(t);
   const resumed = await harness(t, { root, issue: { ...ISSUE, labels: [] }, baseMoved: true });
-  resumed.context.ports.waitForBaseChecks = async () => {
+  resumed.context.ports.waitForCiChecks = async () => {
     throw new Error('gh: API rate limit exceeded');
   };
   assert.equal((await resumed.run()).halt, true);

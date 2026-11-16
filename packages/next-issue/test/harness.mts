@@ -328,7 +328,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     },
     disputeBranches: async () => plan.disputes ?? [],
     ensureLabel: async () => undefined,
-    failedBaseLogs: async () => {
+    failedCiLogs: async () => {
       await hangIf('logs');
       return plan.baseLogs ?? 'the failed main logs';
     },
@@ -424,7 +424,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     resetToBase: async () => {
       state.resets += 1;
     },
-    rerunFailedBase: async (_repo, sha, _branch, started = () => undefined) => {
+    rerunFailedCi: async (_repo, sha, _branch, started = () => undefined) => {
       if (rerunDone.has(sha)) {
         return [];
       }
@@ -537,7 +537,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
         ? { ...(plan.unlisted ?? []).find((entry) => entry.number === number)!, open: true }
         : { ...closed, open: false };
     },
-    waitForBaseChecks: async (_repo, sha) => {
+    waitForCiChecks: async (_repo, sha) => {
       if (rerun) {
         rerun = false;
         return rerunChecks.shift() ?? 'fail';

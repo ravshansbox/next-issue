@@ -207,7 +207,7 @@ function baseState(runs: BaseRun[], external: Check[]): CheckState {
   return checks.some((entry) => entry.conclusion === CUT) ? 'cut' : 'pass';
 }
 
-export function waitForBaseChecks(
+export function waitForCiChecks(
   repo: Repo,
   sha: string,
   branch: string,
@@ -234,7 +234,7 @@ export function waitForBaseChecks(
   );
 }
 
-export async function rerunFailedBase(
+export async function rerunFailedCi(
   repo: Repo,
   sha: string,
   branch: string,
@@ -282,7 +282,7 @@ async function waitForRestart(
   }
 }
 
-export async function failedBaseLogs(
+export async function failedCiLogs(
   repo: Repo,
   sha: string,
   branch: string,

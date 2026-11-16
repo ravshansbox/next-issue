@@ -283,7 +283,7 @@ the run handles one issue. For each issue:
    for a person like any other hand-over. Then the worktree, the local
    branch and the state file go away. When the checks fail, the harness
    reruns the failed jobs of each failed GitHub Actions workflow run once
-   with `gh run rerun <id> --failed`, records a `main-checks.rerun` event
+   with `gh run rerun <id> --failed`, records a `ci-checks.rerun` event
    and waits again once the runs restart. A failed run whose failed jobs
    were already rerun (its attempt on GitHub is above 1) is not rerun
    again, so a resumed run reruns only the runs not rerun yet. A failure
@@ -300,7 +300,7 @@ the run handles one issue. For each issue:
    harness still waits for the checks again, counting each restarted run as
    running until a later attempt of it completes, so the fixer never runs
    while a rerun is queued or in progress. When the rerun cannot start (no
-   run restarted, a `main-checks.rerun-failed` event), or the checks
+   run restarted, a `ci-checks.rerun-failed` event), or the checks
    fail again with no run left to rerun, the fixer gets their logs from the check budget (for a check
    from another CI service, only its name and link), and its fix
    lands the same way. When the fixer cannot fix them, its fix cannot land,
@@ -603,7 +603,7 @@ get the full summary object there instead, so the harness fits in a pipe. All
 progress goes to standard error.
 
 Recorded for each step: `claim`, `comments`, `reply`, `worktree`, `setup`,
-`editors`, `implement`, `review`, `fix`, `commit-fix`, `rebase`, `land`, `main-checks`, `revert` and `hunt`, each with a
+`editors`, `implement`, `review`, `fix`, `commit-fix`, `rebase`, `land`, `ci-checks`, `revert` and `hunt`, each with a
 `.start`, `.end` or `.error` event and a duration in `ms`. Every `git` and `gh`
 command is recorded with its exit code and duration. A `tool` event holds the
 tool name, and for a `bash` tool the command too. Each agent call adds a `usage`

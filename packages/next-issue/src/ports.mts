@@ -1,5 +1,5 @@
 import { runAgent } from './agents.mts';
-import { failedBaseLogs, rerunFailedBase, waitForBaseChecks } from './base-checks.mts';
+import { failedCiLogs, rerunFailedCi, waitForCiChecks } from './ci-checks.mts';
 import { run } from './exec.mts';
 import { commitAll } from './git-commit.mts';
 import { pushToBase, reapplyRevert, revertOnBase, squashOnto } from './git-land.mts';
@@ -75,7 +75,7 @@ export const PORTS = {
   disputeBranches,
   editIssueBody,
   ensureLabel,
-  failedBaseLogs,
+  failedCiLogs,
   fastForwardBase,
   findWorktree,
   huntWorktree,
@@ -93,7 +93,7 @@ export const PORTS = {
   removeWorktree,
   reopenIssue,
   repositorySlug,
-  rerunFailedBase,
+  rerunFailedCi,
   resetToBase,
   revertOnBase,
   revision,
@@ -108,7 +108,7 @@ export const PORTS = {
   startMerge,
   threadComments,
   viewIssue,
-  waitForBaseChecks,
+  waitForCiChecks,
 };
 
 export type Ports = typeof PORTS;

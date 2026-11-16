@@ -64,7 +64,7 @@ test('a user who stops a run now while a push to main lands gets the next run to
 
 test('a user who stops a run now while it waits for the checks of a landed commit gets no other issue landed by the next run until those checks are read', async (t) => {
   const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
-  first.context.ports.waitForBaseChecks = async () => {
+  first.context.ports.waitForCiChecks = async () => {
     first.stopNow();
     throw new Error('The run stopped.');
   };
@@ -155,7 +155,7 @@ test('a user who stops a run now while a push to main lands, and stops the resum
     issue: { ...ISSUE, labels: ['status:in-review'] },
     baseMoved: true,
   });
-  resumed.context.ports.waitForBaseChecks = async () => {
+  resumed.context.ports.waitForCiChecks = async () => {
     resumed.stopNow();
     throw new Error('The run stopped.');
   };
@@ -473,14 +473,14 @@ test('a user who stops a run now while the hand-over answer of a resumed needs-h
 
 test('a user who stops a run now while the failed jobs on main are rerun gets the issue stopped with the check fixes kept, and the next run reruns them before any fixer', async (t) => {
   const first = await harness(t, { baseChecks: ['fail'] });
-  first.context.ports.rerunFailedBase = async (_repo, sha) => {
+  first.context.ports.rerunFailedCi = async (_repo, sha) => {
     first.reruns.push(sha);
     first.stopNow();
     throw new Error('The run stopped.');
   };
   assert.equal((await first.run()).outcome, 'stopped');
   assert.equal(
-    first.events.some((record) => record.kind === 'main-checks.rerun-failed'),
+    first.events.some((record) => record.kind === 'ci-checks.rerun-failed'),
     false,
   );
   const saved = (await first.state())!;
@@ -501,7 +501,7 @@ test('a user who stops a run now while the failed jobs on main are rerun gets th
 
 test('a user who stops a run now while the harness waits for the rerun failed jobs on main to restart gets the issue stopped, and the next run, which finds the run rerun on GitHub, sends a new failure to the fixer with no second rerun', async (t) => {
   const first = await harness(t, { baseChecks: ['fail'] });
-  first.context.ports.rerunFailedBase = async (_repo, sha, _branch, started) => {
+  first.context.ports.rerunFailedCi = async (_repo, sha, _branch, started) => {
     first.reruns.push(sha);
     started?.({ id: 41, attempt: 1 });
     first.stopNow();
@@ -509,7 +509,7 @@ test('a user who stops a run now while the harness waits for the rerun failed jo
   };
   assert.equal((await first.run()).outcome, 'stopped');
   assert.equal(
-    first.events.some((record) => record.kind === 'main-checks.rerun-failed'),
+    first.events.some((record) => record.kind === 'ci-checks.rerun-failed'),
     false,
   );
   const saved = (await first.state())!;

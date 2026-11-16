@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
-import { failedBaseLogs, rerunFailedBase, waitForBaseChecks } from '../src/base-checks.mts';
+import { failedCiLogs, rerunFailedCi, waitForCiChecks } from '../src/ci-checks.mts';
 import { pollChecks } from '../src/check-poll.mts';
 import type { Config } from '../src/config.mts';
 import { fakeClock } from './fake-clock.mts';
@@ -66,7 +66,7 @@ esac
 
 const BASE_WAIT = { intervalSeconds: 1, graceMs: 0, timeoutMs: 10_000 };
 
-test('waitForBaseChecks passes when every run on the commit ends without a failure or a cancel', async (t) => {
+test('waitForCiChecks passes when every run on the commit ends without a failure or a cancel', async (t) => {
   const dir = await fakeRunsGh(t, [
     { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'success' },
     {
@@ -78,23 +78,23 @@ test('waitForBaseChecks passes when every run on the commit ends without a failu
     { databaseId: 3, name: 'Docs', status: 'completed', conclusion: 'skipped' },
   ]);
   assert.equal(
-    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
+    await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
     'pass',
   );
 });
 
-test('waitForBaseChecks reports cancelled when every run on the commit was cancelled before it finished', async (t) => {
+test('waitForCiChecks reports cancelled when every run on the commit was cancelled before it finished', async (t) => {
   const dir = await fakeRunsGh(t, [
     { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'cancelled' },
     { databaseId: 2, name: 'Docs', status: 'completed', conclusion: 'skipped' },
   ]);
   assert.equal(
-    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
+    await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
     'cancelled',
   );
 });
 
-test('waitForBaseChecks reports cancelled when the CI run on the commit was cancelled and another workflow succeeded', async (t) => {
+test('waitForCiChecks reports cancelled when the CI run on the commit was cancelled and another workflow succeeded', async (t) => {
   const dir = await fakeRunsGh(t, [
     { databaseId: 1, name: 'ci', status: 'completed', conclusion: 'cancelled' },
     {
@@ -105,23 +105,23 @@ test('waitForBaseChecks reports cancelled when the CI run on the commit was canc
     },
   ]);
   assert.equal(
-    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
+    await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
     'cancelled',
   );
 });
 
-test('waitForBaseChecks fails as soon as one run on the commit fails', async (t) => {
+test('waitForCiChecks fails as soon as one run on the commit fails', async (t) => {
   const dir = await fakeRunsGh(t, [
     { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'failure' },
     { databaseId: 2, name: 'Deploy', status: 'in_progress', conclusion: '' },
   ]);
   assert.equal(
-    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
+    await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
     'fail',
   );
 });
 
-test('waitForBaseChecks fails when a workflow run on the commit ends waiting for someone to approve it', async (t) => {
+test('waitForCiChecks fails when a workflow run on the commit ends waiting for someone to approve it', async (t) => {
   const dir = await fakeRunsGh(t, [
     {
       databaseId: 1,
@@ -132,12 +132,12 @@ test('waitForBaseChecks fails when a workflow run on the commit ends waiting for
     { databaseId: 2, name: 'Docs', status: 'completed', conclusion: 'success' },
   ]);
   assert.equal(
-    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
+    await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
     'fail',
   );
 });
 
-test('rerunFailedBase reruns a failed workflow run and leaves one that waits for approval alone', async (t) => {
+test('rerunFailedCi reruns a failed workflow run and leaves one that waits for approval alone', async (t) => {
   const dir = await fakeRunsGh(
     t,
     [
@@ -174,7 +174,7 @@ test('rerunFailedBase reruns a failed workflow run and leaves one that waits for
     ],
   );
   const repo = { owner: 'acme', name: 'tool', root: dir };
-  assert.deepEqual(await rerunFailedBase(repo, 'abc', 'main'), ['2']);
+  assert.deepEqual(await rerunFailedCi(repo, 'abc', 'main'), ['2']);
   assert.equal(await readFile(join(dir, 'reruns'), 'utf8'), '2\n');
 });
 
@@ -188,7 +188,7 @@ function passedRuns(count: number): unknown[] {
   }));
 }
 
-test('waitForBaseChecks fails when the commit has more than 20 runs and one beyond the first 20 fails', async (t) => {
+test('waitForCiChecks fails when the commit has more than 20 runs and one beyond the first 20 fails', async (t) => {
   const dir = await fakeRunsGh(t, [
     ...passedRuns(20),
     {
@@ -200,12 +200,12 @@ test('waitForBaseChecks fails when the commit has more than 20 runs and one beyo
     },
   ]);
   assert.equal(
-    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
+    await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
     'fail',
   );
 });
 
-test('rerunFailedBase and failedBaseLogs cover a failed run beyond the first 20 runs on the commit', async (t) => {
+test('rerunFailedCi and failedCiLogs cover a failed run beyond the first 20 runs on the commit', async (t) => {
   const failed = {
     databaseId: 21,
     name: 'Release',
@@ -218,22 +218,22 @@ test('rerunFailedBase and failedBaseLogs cover a failed run beyond the first 20 
     [...passedRuns(20), { ...failed, status: 'queued', conclusion: '', attempt: 2 }],
   );
   const repo = { owner: 'acme', name: 'tool', root: dir };
-  const report = await failedBaseLogs(repo, 'abc', 'main', 1000);
+  const report = await failedCiLogs(repo, 'abc', 'main', 1000);
   assert.match(report, /## Release/);
   assert.match(report, /boom in 21/);
-  assert.deepEqual(await rerunFailedBase(repo, 'abc', 'main'), ['21']);
+  assert.deepEqual(await rerunFailedCi(repo, 'abc', 'main'), ['21']);
   assert.equal(await readFile(join(dir, 'reruns'), 'utf8'), '21\n');
 });
 
-test('waitForBaseChecks reports none when the commit starts no run', async (t) => {
+test('waitForCiChecks reports none when the commit starts no run', async (t) => {
   const dir = await fakeRunsGh(t, []);
   assert.equal(
-    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
+    await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
     'none',
   );
 });
 
-test('waitForBaseChecks fails when a check run from a CI other than GitHub Actions fails on the commit', async (t) => {
+test('waitForCiChecks fails when a check run from a CI other than GitHub Actions fails on the commit', async (t) => {
   const dir = await fakeRunsGh(t, [], [], {
     checkRuns: [
       {
@@ -246,12 +246,12 @@ test('waitForBaseChecks fails when a check run from a CI other than GitHub Actio
     ],
   });
   assert.equal(
-    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
+    await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
     'fail',
   );
 });
 
-test('waitForBaseChecks fails when a check run from a CI other than GitHub Actions waits for someone to act on the commit', async (t) => {
+test('waitForCiChecks fails when a check run from a CI other than GitHub Actions waits for someone to act on the commit', async (t) => {
   const dir = await fakeRunsGh(t, [], [], {
     checkRuns: [
       {
@@ -264,12 +264,12 @@ test('waitForBaseChecks fails when a check run from a CI other than GitHub Actio
     ],
   });
   assert.equal(
-    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
+    await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
     'fail',
   );
 });
 
-test('waitForBaseChecks waits for a pending commit status and fails when it then fails', async (t) => {
+test('waitForCiChecks waits for a pending commit status and fails when it then fails', async (t) => {
   const dir = await fakeRunsGh(t, [], [], {
     statuses: [
       [{ name: 'ci/jenkins', state: 'pending', url: 'https://ci.example/2' }],
@@ -277,12 +277,12 @@ test('waitForBaseChecks waits for a pending commit status and fails when it then
     ],
   });
   assert.equal(
-    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
+    await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
     'fail',
   );
 });
 
-test('waitForBaseChecks fails when a failing commit status shows up after the first check has passed', async (t) => {
+test('waitForCiChecks fails when a failing commit status shows up after the first check has passed', async (t) => {
   const dir = await fakeRunsGh(t, [], [], {
     statuses: [
       [{ name: 'app/lint', state: 'success', url: '' }],
@@ -293,7 +293,7 @@ test('waitForBaseChecks fails when a failing commit status shows up after the fi
     ],
   });
   assert.equal(
-    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', {
+    await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', {
       ...BASE_WAIT,
       graceMs: 1500,
     }),
@@ -301,12 +301,12 @@ test('waitForBaseChecks fails when a failing commit status shows up after the fi
   );
 });
 
-test('waitForBaseChecks times out while a commit status stays pending', async (t) => {
+test('waitForCiChecks times out while a commit status stays pending', async (t) => {
   const dir = await fakeRunsGh(t, [], [], {
     statuses: [[{ name: 'ci/jenkins', state: 'pending', url: '' }]],
   });
   assert.equal(
-    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', {
+    await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', {
       ...BASE_WAIT,
       timeoutMs: 1500,
     }),
@@ -314,7 +314,7 @@ test('waitForBaseChecks times out while a commit status stays pending', async (t
   );
 });
 
-test('waitForBaseChecks passes when every run and every commit status on the commit succeeds', async (t) => {
+test('waitForCiChecks passes when every run and every commit status on the commit succeeds', async (t) => {
   const dir = await fakeRunsGh(
     t,
     [{ databaseId: 1, name: 'CI', status: 'completed', conclusion: 'success' }],
@@ -333,12 +333,12 @@ test('waitForBaseChecks passes when every run and every commit status on the com
     },
   );
   assert.equal(
-    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
+    await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
     'pass',
   );
 });
 
-test('rerunFailedBase reruns the failed jobs of the failed runs on the commit only and returns once they restart', async (t) => {
+test('rerunFailedCi reruns the failed jobs of the failed runs on the commit only and returns once they restart', async (t) => {
   const dir = await fakeRunsGh(
     t,
     [
@@ -375,7 +375,7 @@ test('rerunFailedBase reruns the failed jobs of the failed runs on the commit on
     ],
   );
   const sent: string[] = [];
-  const runs = await rerunFailedBase(
+  const runs = await rerunFailedCi(
     { owner: 'acme', name: 'tool', root: dir },
     'abc',
     'main',
@@ -388,12 +388,12 @@ test('rerunFailedBase reruns the failed jobs of the failed runs on the commit on
   assert.equal(await readFile(join(dir, 'reruns'), 'utf8'), '1\n');
 });
 
-test('failedBaseLogs gives the logs of the failed runs on the commit only', async (t) => {
+test('failedCiLogs gives the logs of the failed runs on the commit only', async (t) => {
   const dir = await fakeRunsGh(t, [
     { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'failure' },
     { databaseId: 2, name: 'Docs', status: 'completed', conclusion: 'success' },
   ]);
-  const report = await failedBaseLogs(
+  const report = await failedCiLogs(
     { owner: 'acme', name: 'tool', root: dir },
     'abc',
     'main',
@@ -404,7 +404,7 @@ test('failedBaseLogs gives the logs of the failed runs on the commit only', asyn
   assert.doesNotMatch(report, /Docs|boom in 2/);
 });
 
-test('failedBaseLogs names the failed checks from other CI services with their links', async (t) => {
+test('failedCiLogs names the failed checks from other CI services with their links', async (t) => {
   const dir = await fakeRunsGh(t, [], [], {
     checkRuns: [
       {
@@ -424,7 +424,7 @@ test('failedBaseLogs names the failed checks from other CI services with their l
     ],
     statuses: [[{ name: 'ci/jenkins', state: 'error', url: 'https://ci.example/2' }]],
   });
-  const report = await failedBaseLogs(
+  const report = await failedCiLogs(
     { owner: 'acme', name: 'tool', root: dir },
     'abc',
     'main',
@@ -435,7 +435,7 @@ test('failedBaseLogs names the failed checks from other CI services with their l
   assert.doesNotMatch(report, /lint/);
 });
 
-test('failedBaseLogs gives the one failed run the whole log budget when external checks failed next to it', async (t) => {
+test('failedCiLogs gives the one failed run the whole log budget when external checks failed next to it', async (t) => {
   const dir = await fakeRunsGh(
     t,
     [{ databaseId: 1, name: 'CI', status: 'completed', conclusion: 'failure' }],
@@ -462,12 +462,7 @@ test('failedBaseLogs gives the one failed run the whole log budget when external
   );
   const log = `${'a'.repeat(30)}real error${'b'.repeat(60)}`;
   await writeFile(join(dir, 'log'), log);
-  const report = await failedBaseLogs(
-    { owner: 'acme', name: 'tool', root: dir },
-    'abc',
-    'main',
-    100,
-  );
+  const report = await failedCiLogs({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', 100);
   assert.ok(report.includes(log), report);
   assert.match(report, /## deploy/);
   assert.match(report, /## bot/);
@@ -508,27 +503,27 @@ const ISSUE_RUNS = [
   },
 ];
 
-test('waitForBaseChecks passes when the push run of the commit passes, whatever the runs that other events started on it do', async (t) => {
+test('waitForCiChecks passes when the push run of the commit passes, whatever the runs that other events started on it do', async (t) => {
   const dir = await fakeRunsGh(t, ISSUE_RUNS);
   assert.equal(
-    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
+    await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
     'pass',
   );
 });
 
-test('rerunFailedBase and failedBaseLogs leave out a failed run that an event other than push started on the commit', async (t) => {
+test('rerunFailedCi and failedCiLogs leave out a failed run that an event other than push started on the commit', async (t) => {
   const dir = await fakeRunsGh(t, ISSUE_RUNS);
   const repo = { owner: 'acme', name: 'tool', root: dir };
-  assert.equal(await failedBaseLogs(repo, 'abc', 'main', 1000), '');
-  assert.deepEqual(await rerunFailedBase(repo, 'abc', 'main'), []);
+  assert.equal(await failedCiLogs(repo, 'abc', 'main', 1000), '');
+  assert.deepEqual(await rerunFailedCi(repo, 'abc', 'main'), []);
 });
 
 test('a user whose landed commit has a passed push run and a failed issues run gets the issue closed and done', async (t) => {
   const target = await harness(t, { config: { checkGraceSeconds: 0 } });
   await fakeRunsGh(t, ISSUE_RUNS, ISSUE_RUNS, { sha: '2' });
-  target.context.ports.waitForBaseChecks = waitForBaseChecks;
-  target.context.ports.rerunFailedBase = rerunFailedBase;
-  target.context.ports.failedBaseLogs = failedBaseLogs;
+  target.context.ports.waitForCiChecks = waitForCiChecks;
+  target.context.ports.rerunFailedCi = rerunFailedCi;
+  target.context.ports.failedCiLogs = failedCiLogs;
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.deepEqual(target.closed, [7]);
@@ -570,15 +565,15 @@ const OTHER_REF_RUNS = [
   },
 ];
 
-test('waitForBaseChecks passes when the push run of the base branch passes, whatever the push runs of a tag or another branch do', async (t) => {
+test('waitForCiChecks passes when the push run of the base branch passes, whatever the push runs of a tag or another branch do', async (t) => {
   const dir = await fakeRunsGh(t, OTHER_REF_RUNS);
   assert.equal(
-    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
+    await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
     'pass',
   );
 });
 
-test('waitForBaseChecks fails when the push run of the base branch fails', async (t) => {
+test('waitForCiChecks fails when the push run of the base branch fails', async (t) => {
   const dir = await fakeRunsGh(t, [
     {
       databaseId: 1,
@@ -589,16 +584,16 @@ test('waitForBaseChecks fails when the push run of the base branch fails', async
     },
   ]);
   assert.equal(
-    await waitForBaseChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
+    await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
     'fail',
   );
 });
 
-test('rerunFailedBase and failedBaseLogs leave out a failed push run of a tag or another branch on the commit', async (t) => {
+test('rerunFailedCi and failedCiLogs leave out a failed push run of a tag or another branch on the commit', async (t) => {
   const dir = await fakeRunsGh(t, OTHER_REF_RUNS);
   const repo = { owner: 'acme', name: 'tool', root: dir };
-  assert.equal(await failedBaseLogs(repo, 'abc', 'main', 1000), '');
-  assert.deepEqual(await rerunFailedBase(repo, 'abc', 'main'), []);
+  assert.equal(await failedCiLogs(repo, 'abc', 'main', 1000), '');
+  assert.deepEqual(await rerunFailedCi(repo, 'abc', 'main'), []);
 });
 
 test('a user whose landed commit has a passed push run on the base branch and a failed push run on a tag gets the issue closed and done', async (t) => {
@@ -606,9 +601,9 @@ test('a user whose landed commit has a passed push run on the base branch and a 
   await fakeRunsGh(t, OTHER_REF_RUNS.slice(0, 2), OTHER_REF_RUNS.slice(0, 2), {
     sha: '2',
   });
-  target.context.ports.waitForBaseChecks = waitForBaseChecks;
-  target.context.ports.rerunFailedBase = rerunFailedBase;
-  target.context.ports.failedBaseLogs = failedBaseLogs;
+  target.context.ports.waitForCiChecks = waitForCiChecks;
+  target.context.ports.rerunFailedCi = rerunFailedCi;
+  target.context.ports.failedCiLogs = failedCiLogs;
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.deepEqual(target.closed, [7]);
@@ -630,9 +625,9 @@ test('a user whose landed commit gets a failing commit status after the first ch
       ],
     ],
   });
-  target.context.ports.waitForBaseChecks = waitForBaseChecks;
-  target.context.ports.rerunFailedBase = rerunFailedBase;
-  target.context.ports.failedBaseLogs = failedBaseLogs;
+  target.context.ports.waitForCiChecks = waitForCiChecks;
+  target.context.ports.rerunFailedCi = rerunFailedCi;
+  target.context.ports.failedCiLogs = failedCiLogs;
   const report = await target.run();
   assert.equal(report.reason, 'check budget');
   assert.deepEqual(target.closed, []);
@@ -650,9 +645,9 @@ test(
       [],
       { sha: '2' },
     );
-    target.context.ports.waitForBaseChecks = (repo, sha, branch, options) => {
+    target.context.ports.waitForCiChecks = (repo, sha, branch, options) => {
       void stopAfterFirstRead(dir, target.stopNow);
-      return waitForBaseChecks(repo, sha, branch, options);
+      return waitForCiChecks(repo, sha, branch, options);
     };
     const started = Date.now();
     const report = await target.run();
@@ -679,7 +674,7 @@ for (const [checks, state] of [
   test(`a user with a one-minute check timeout and the default grace time whose landed commit has ${state === 'pass' ? 'passing checks' : 'no checks'} gets the issue closed and done`, async (t) => {
     const target = await harness(t, { config: { checkTimeoutMinutes: 1 } });
     const time = fakeClock();
-    target.context.ports.waitForBaseChecks = (_repo, _sha, _branch, options) =>
+    target.context.ports.waitForCiChecks = (_repo, _sha, _branch, options) =>
       pollChecks(
         {
           head: async () => '2',
@@ -773,11 +768,11 @@ async function rerunHarness(t: TestContext, plan: RerunPlan, config: Partial<Con
   });
   const dir = await fakeRerunGh(t, plan);
   const fixerReads: string[] = [];
-  target.context.ports.waitForBaseChecks = waitForBaseChecks;
-  target.context.ports.rerunFailedBase = rerunFailedBase;
-  target.context.ports.failedBaseLogs = async (...args) => {
+  target.context.ports.waitForCiChecks = waitForCiChecks;
+  target.context.ports.rerunFailedCi = rerunFailedCi;
+  target.context.ports.failedCiLogs = async (...args) => {
     fixerReads.push(await readFile(join(dir, 'after-reads'), 'utf8').catch(() => '0\n'));
-    return failedBaseLogs(...args);
+    return failedCiLogs(...args);
   };
   return { target, dir, fixerReads };
 }
@@ -917,13 +912,13 @@ test(
   },
 );
 
-test('rerunFailedBase leaves alone a failed run whose failed jobs were already rerun', async (t) => {
+test('rerunFailedCi leaves alone a failed run whose failed jobs were already rerun', async (t) => {
   const dir = await fakeRunsGh(t, [
     { ...FAILED_CI, attempt: 2 },
     { ...FAILED_DOCS, attempt: 1 },
   ]);
   const repo = { owner: 'acme', name: 'tool', root: dir };
-  assert.deepEqual(await rerunFailedBase(repo, 'abc', 'main'), ['2']);
+  assert.deepEqual(await rerunFailedCi(repo, 'abc', 'main'), ['2']);
   assert.equal(await readFile(join(dir, 'reruns'), 'utf8'), '2\n');
 });
 
@@ -967,12 +962,12 @@ test('a user whose landed commit fails only a check from another CI service gets
       },
     ],
   });
-  target.context.ports.waitForBaseChecks = waitForBaseChecks;
-  target.context.ports.rerunFailedBase = rerunFailedBase;
+  target.context.ports.waitForCiChecks = waitForCiChecks;
+  target.context.ports.rerunFailedCi = rerunFailedCi;
   await target.run();
-  const fixer = target.events.findIndex((event) => event.kind === 'main-checks.logs');
+  const fixer = target.events.findIndex((event) => event.kind === 'ci-checks.logs');
   const rerun = target.events.findIndex(
-    (event) => event.kind === 'main-checks.rerun' && event.sha === '2',
+    (event) => event.kind === 'ci-checks.rerun' && event.sha === '2',
   );
   assert.ok(rerun !== -1 && (fixer === -1 || rerun < fixer));
   assert.deepEqual(target.events[rerun]!.runs, []);
@@ -1002,16 +997,16 @@ const RELEASE_FAILED_JOBS = {
   ],
 };
 
-test('waitForBaseChecks passes when the only failed job of a workflow run is in the ignored checks', async (t) => {
+test('waitForCiChecks passes when the only failed job of a workflow run is in the ignored checks', async (t) => {
   const dir = await fakeRunsGh(t, [RELEASE_FAILED_CI], [], {
     jobs: RELEASE_FAILED_JOBS,
   });
   const repo = { owner: 'acme', name: 'tool', root: dir };
-  assert.equal(await waitForBaseChecks(repo, 'abc', 'main', BASE_WAIT, [], ['release']), 'pass');
-  assert.equal(await waitForBaseChecks(repo, 'abc', 'main', BASE_WAIT, [], []), 'fail');
+  assert.equal(await waitForCiChecks(repo, 'abc', 'main', BASE_WAIT, [], ['release']), 'pass');
+  assert.equal(await waitForCiChecks(repo, 'abc', 'main', BASE_WAIT, [], []), 'fail');
 });
 
-test('waitForBaseChecks does not wait for an ignored job that still runs once every other job passed', async (t) => {
+test('waitForCiChecks does not wait for an ignored job that still runs once every other job passed', async (t) => {
   const dir = await fakeRunsGh(
     t,
     [
@@ -1044,10 +1039,10 @@ test('waitForBaseChecks does not wait for an ignored job that still runs once ev
     },
   );
   const repo = { owner: 'acme', name: 'tool', root: dir };
-  assert.equal(await waitForBaseChecks(repo, 'abc', 'main', BASE_WAIT, [], ['release']), 'pass');
+  assert.equal(await waitForCiChecks(repo, 'abc', 'main', BASE_WAIT, [], ['release']), 'pass');
 });
 
-test('waitForBaseChecks keeps waiting for a running workflow run whose listed jobs have all finished', async (t) => {
+test('waitForCiChecks keeps waiting for a running workflow run whose listed jobs have all finished', async (t) => {
   const dir = await fakeRunsGh(
     t,
     [
@@ -1075,19 +1070,12 @@ test('waitForBaseChecks keeps waiting for a running workflow run whose listed jo
   );
   const repo = { owner: 'acme', name: 'tool', root: dir };
   assert.equal(
-    await waitForBaseChecks(
-      repo,
-      'abc',
-      'main',
-      { ...BASE_WAIT, timeoutMs: 1500 },
-      [],
-      ['release'],
-    ),
+    await waitForCiChecks(repo, 'abc', 'main', { ...BASE_WAIT, timeoutMs: 1500 }, [], ['release']),
     'timeout',
   );
 });
 
-test('waitForBaseChecks fails when a job outside the ignored checks fails next to an ignored one', async (t) => {
+test('waitForCiChecks fails when a job outside the ignored checks fails next to an ignored one', async (t) => {
   const dir = await fakeRunsGh(t, [RELEASE_FAILED_CI], [], {
     jobs: {
       1: [
@@ -1107,10 +1095,10 @@ test('waitForBaseChecks fails when a job outside the ignored checks fails next t
     },
   });
   const repo = { owner: 'acme', name: 'tool', root: dir };
-  assert.equal(await waitForBaseChecks(repo, 'abc', 'main', BASE_WAIT, [], ['release']), 'fail');
+  assert.equal(await waitForCiChecks(repo, 'abc', 'main', BASE_WAIT, [], ['release']), 'fail');
 });
 
-test('waitForBaseChecks leaves out a check run and a commit status whose names are in the ignored checks', async (t) => {
+test('waitForCiChecks leaves out a check run and a commit status whose names are in the ignored checks', async (t) => {
   const dir = await fakeRunsGh(t, [], [], {
     checkRuns: [
       {
@@ -1132,21 +1120,21 @@ test('waitForBaseChecks leaves out a check run and a commit status whose names a
   });
   const repo = { owner: 'acme', name: 'tool', root: dir };
   assert.equal(
-    await waitForBaseChecks(repo, 'abc', 'main', BASE_WAIT, [], ['deploy', 'ci/jenkins']),
+    await waitForCiChecks(repo, 'abc', 'main', BASE_WAIT, [], ['deploy', 'ci/jenkins']),
     'pass',
   );
 });
 
-test('rerunFailedBase and failedBaseLogs leave out a run whose only failed job is in the ignored checks', async (t) => {
+test('rerunFailedCi and failedCiLogs leave out a run whose only failed job is in the ignored checks', async (t) => {
   const dir = await fakeRunsGh(t, [RELEASE_FAILED_CI], [], {
     jobs: RELEASE_FAILED_JOBS,
   });
   const repo = { owner: 'acme', name: 'tool', root: dir };
-  assert.equal(await failedBaseLogs(repo, 'abc', 'main', 1000, ['release']), '');
-  assert.deepEqual(await rerunFailedBase(repo, 'abc', 'main', () => {}, ['release']), []);
+  assert.equal(await failedCiLogs(repo, 'abc', 'main', 1000, ['release']), '');
+  assert.deepEqual(await rerunFailedCi(repo, 'abc', 'main', () => {}, ['release']), []);
 });
 
-test('failedBaseLogs gives the logs of the failed jobs outside the ignored checks only', async (t) => {
+test('failedCiLogs gives the logs of the failed jobs outside the ignored checks only', async (t) => {
   const dir = await fakeRunsGh(t, [RELEASE_FAILED_CI], [], {
     jobs: {
       1: [
@@ -1174,7 +1162,7 @@ test('failedBaseLogs gives the logs of the failed jobs outside the ignored check
       },
     ],
   });
-  const report = await failedBaseLogs(
+  const report = await failedCiLogs(
     { owner: 'acme', name: 'tool', root: dir },
     'abc',
     'main',
@@ -1200,9 +1188,9 @@ for (const ignoredChecks of [['release'], []]) {
       sha: '2',
       jobs: RELEASE_FAILED_JOBS,
     });
-    target.context.ports.waitForBaseChecks = waitForBaseChecks;
-    target.context.ports.rerunFailedBase = rerunFailedBase;
-    target.context.ports.failedBaseLogs = failedBaseLogs;
+    target.context.ports.waitForCiChecks = waitForCiChecks;
+    target.context.ports.rerunFailedCi = rerunFailedCi;
+    target.context.ports.failedCiLogs = failedCiLogs;
     const report = await target.run();
     if (ignoredChecks.length > 0) {
       assert.equal(report.outcome, 'done');
@@ -1256,9 +1244,9 @@ for (const [runConclusion, reason, comment] of [
         ],
       },
     });
-    target.context.ports.waitForBaseChecks = waitForBaseChecks;
-    target.context.ports.rerunFailedBase = rerunFailedBase;
-    target.context.ports.failedBaseLogs = failedBaseLogs;
+    target.context.ports.waitForCiChecks = waitForCiChecks;
+    target.context.ports.rerunFailedCi = rerunFailedCi;
+    target.context.ports.failedCiLogs = failedCiLogs;
     const report = await target.run();
     assert.equal(report.outcome, 'needs-human');
     assert.equal(report.reason, reason);
@@ -1285,9 +1273,9 @@ test('a user whose ignored build job fails so GitHub skips the kept test job tha
       ],
     },
   });
-  target.context.ports.waitForBaseChecks = waitForBaseChecks;
-  target.context.ports.rerunFailedBase = rerunFailedBase;
-  target.context.ports.failedBaseLogs = failedBaseLogs;
+  target.context.ports.waitForCiChecks = waitForCiChecks;
+  target.context.ports.rerunFailedCi = rerunFailedCi;
+  target.context.ports.failedCiLogs = failedCiLogs;
   const report = await target.run();
   assert.equal(report.outcome, 'needs-human');
   assert.equal(report.reason, 'main checks cut short');

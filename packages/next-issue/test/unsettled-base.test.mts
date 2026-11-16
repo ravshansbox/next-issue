@@ -11,7 +11,7 @@ const IN_REVIEW = { ...ISSUE, labels: ['status:in-review'] };
 
 test('a user whose change lands and whose first read of its checks on main fails gets the issue handed over with the error, the landed commit kept and the run halted', async (t) => {
   const target = await harness(t, { verdicts: [APPROVE, APPROVE] });
-  target.context.ports.waitForBaseChecks = async () => {
+  target.context.ports.waitForCiChecks = async () => {
     throw new Error('gh: HTTP 401: Bad credentials');
   };
   const report = await target.run();
@@ -94,7 +94,7 @@ const OTHER = { ...ISSUE, number: 8 };
 
 test('a user whose run halted on a checks error gets no other issue landed by the next run until the halted commit has its checks read', async (t) => {
   const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
-  first.context.ports.waitForBaseChecks = async () => {
+  first.context.ports.waitForCiChecks = async () => {
     throw new Error('gh: API rate limit exceeded');
   };
   assert.equal((await first.run()).reason, 'checks error');
@@ -121,7 +121,7 @@ test('a user whose run halted on a checks error gets no other issue landed by th
 
 test('a user who gives up on an issue halted on a checks error gets the next run to release its block and land another issue', async (t) => {
   const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
-  first.context.ports.waitForBaseChecks = async () => {
+  first.context.ports.waitForCiChecks = async () => {
     throw new Error('gh: API rate limit exceeded');
   };
   assert.equal((await first.run()).reason, 'checks error');
@@ -140,7 +140,7 @@ test('a user who gives up on an issue halted on a checks error gets the next run
 
 async function haltOnChecksError(t: Parameters<typeof harness>[0]): Promise<string> {
   const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
-  first.context.ports.waitForBaseChecks = async () => {
+  first.context.ports.waitForCiChecks = async () => {
     throw new Error('gh: API rate limit exceeded');
   };
   assert.equal((await first.run()).reason, 'checks error');
@@ -215,7 +215,7 @@ test('a user whose resume failed before it checked a landed commit gets no other
 
 test('a user who answers one of two issues halted with unchecked commits on main gets its landed commit checked and the issue done', async (t) => {
   const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
-  first.context.ports.waitForBaseChecks = async () => {
+  first.context.ports.waitForCiChecks = async () => {
     throw new Error('gh: API rate limit exceeded');
   };
   assert.equal((await first.run()).reason, 'checks error');
@@ -279,7 +279,7 @@ async function runLoop(target: Harness, concurrency: number): Promise<IssueRepor
 for (const concurrency of [1, 2]) {
   test(`a user who answers a halted issue while an older issue is held back by it gets the halted commit checked and the older issue landed (concurrency ${concurrency})`, async (t) => {
     const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
-    first.context.ports.waitForBaseChecks = async () => {
+    first.context.ports.waitForCiChecks = async () => {
       throw new Error('gh: API rate limit exceeded');
     };
     assert.equal((await first.run()).reason, 'checks error');
@@ -339,7 +339,7 @@ for (const concurrency of [1, 2]) {
 
 test('a user whose halted issue is resumed, reverted and later handed over with a new commit kept on main gets the next run to land another issue', async (t) => {
   const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
-  first.context.ports.waitForBaseChecks = async () => {
+  first.context.ports.waitForCiChecks = async () => {
     throw new Error('gh: API rate limit exceeded');
   };
   assert.equal((await first.run()).reason, 'checks error');
@@ -374,7 +374,7 @@ test('a user whose halted issue is resumed, reverted and later handed over with 
 
 test('a user whose halted issue is resumed and has its landed commit checked gets the saved halt cleared', async (t) => {
   const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
-  first.context.ports.waitForBaseChecks = async () => {
+  first.context.ports.waitForCiChecks = async () => {
     throw new Error('gh: API rate limit exceeded');
   };
   assert.equal((await first.run()).reason, 'checks error');
@@ -416,7 +416,7 @@ test('a user whose halted issue is resumed and finds its revert already on main 
 
 test('a user whose halted issue is resumed, fails the read after a rerun and has its commit reverted gets the saved halt cleared', async (t) => {
   const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
-  first.context.ports.waitForBaseChecks = async () => {
+  first.context.ports.waitForCiChecks = async () => {
     throw new Error('gh: API rate limit exceeded');
   };
   assert.equal((await first.run()).reason, 'checks error');
@@ -425,7 +425,7 @@ test('a user whose halted issue is resumed, fails the read after a rerun and has
     issue: { ...ISSUE, labels: [] },
   });
   let reads = 0;
-  target.context.ports.waitForBaseChecks = async () => {
+  target.context.ports.waitForCiChecks = async () => {
     reads += 1;
     if (reads > 1) {
       throw new Error('gh: API rate limit exceeded');
@@ -460,12 +460,12 @@ async function fixChecksUnread(
     revertFails: revert === 'fails',
   });
   const ports = first.context.ports;
-  const waitForBaseChecks = ports.waitForBaseChecks;
-  ports.waitForBaseChecks = async (...args) => {
+  const waitForCiChecks = ports.waitForCiChecks;
+  ports.waitForCiChecks = async (...args) => {
     if (first.landed.length > 1) {
       throw new Error('gh: could not resolve host');
     }
-    return waitForBaseChecks(...args);
+    return waitForCiChecks(...args);
   };
   if (revert === 'throws') {
     ports.revertOnBase = async () => {

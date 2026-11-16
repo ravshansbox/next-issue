@@ -1,4 +1,4 @@
-import type { Restarted } from './base-checks.mts';
+import type { Restarted } from './ci-checks.mts';
 import { budgetUse, refundBudget, refundOnKill } from './budget.mts';
 import { type CheckState, checkWaiting } from './check-poll.mts';
 import { runStopped } from './children.mts';
@@ -69,8 +69,8 @@ async function waitForChecks(
 ): Promise<CheckState> {
   const { context, log } = job;
   const { repo, config, ports } = context;
-  const checks = await log.step('main-checks', { sha, ...fields }, () =>
-    ports.waitForBaseChecks(
+  const checks = await log.step('ci-checks', { sha, ...fields }, () =>
+    ports.waitForCiChecks(
       repo,
       sha,
       context.base,
@@ -79,7 +79,7 @@ async function waitForChecks(
       config.ignoredChecks,
     ),
   );
-  log.event('main-checks.state', { state: checks, ...fields });
+  log.event('ci-checks.state', { state: checks, ...fields });
   return checks;
 }
 
@@ -103,7 +103,7 @@ async function rerunFailed(job: Run, sha: string): Promise<Restarted[]> {
   const { context, log } = job;
   const restarted: Restarted[] = [];
   try {
-    const runs = await context.ports.rerunFailedBase(
+    const runs = await context.ports.rerunFailedCi(
       context.repo,
       sha,
       context.base,
@@ -113,17 +113,17 @@ async function rerunFailed(job: Run, sha: string): Promise<Restarted[]> {
       context.config.ignoredChecks,
     );
     // An empty list tells why the fixer starts with no rerun: no failed workflow run is left to rerun.
-    log.event('main-checks.rerun', { sha, runs });
+    log.event('ci-checks.rerun', { sha, runs });
   } catch (error) {
     if (runStopped()) {
       throw error;
     }
     if (restarted.length === 0) {
-      log.event('main-checks.rerun-failed', { sha, error: asError(error).message });
+      log.event('ci-checks.rerun-failed', { sha, error: asError(error).message });
       return restarted;
     }
     // Some runs restarted, so the fixer waits for them rather than getting a failure with no log.
-    log.event('main-checks.rerun', {
+    log.event('ci-checks.rerun', {
       sha,
       runs: restarted.map((run) => String(run.id)),
       error: asError(error).message,
@@ -149,7 +149,7 @@ async function failedChecksFix(job: Run, sha: string, refused?: string): Promise
   let logs: string;
   try {
     logs = await refundOnKill(job, 'ciFixes', () =>
-      ports.failedBaseLogs(repo, sha, base, config.logMaxChars, config.ignoredChecks),
+      ports.failedCiLogs(repo, sha, base, config.logMaxChars, config.ignoredChecks),
     );
   } catch (error) {
     await refundStopped(job);
@@ -160,7 +160,7 @@ async function failedChecksFix(job: Run, sha: string, refused?: string): Promise
       'logs error',
     );
   }
-  log.event('main-checks.logs', { chars: logs.length });
+  log.event('ci-checks.logs', { chars: logs.length });
   let fix: Fix;
   try {
     fix = await refundOnKill(job, 'ciFixes', () =>
