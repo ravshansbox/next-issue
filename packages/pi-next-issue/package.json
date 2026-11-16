@@ -20,6 +20,9 @@
     "github",
     "issues"
   ],
+  "engines": {
+    "node": ">=24"
+  },
   "pi": {
     "extensions": [
       "./index.ts"
