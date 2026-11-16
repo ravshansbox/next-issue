@@ -21,13 +21,12 @@ export async function enterReview(job: Run): Promise<Round> {
     );
   }
   const landed = state.landed?.at(-1);
-  await beforeBaseSettled(state, context.base, async () => {
-    await settleSquash(job);
-    if (landed !== undefined || state.phase === 'approved') {
+  if (landed !== undefined || state.phase === 'approved') {
+    await beforeBaseSettled(state, context.base, async () => {
       const { ports } = context;
       await ports.discardChanges(job.worktree, await ports.revision(job.worktree), job.branch);
-    }
-  });
+    });
+  }
   if (landed !== undefined) {
     return resumeLanding(job, landed);
   }
@@ -55,7 +54,7 @@ async function settlePush(job: Run): Promise<void> {
   await writeState(repo, state);
 }
 
-async function settleSquash(job: Run): Promise<void> {
+export async function settleSquash(job: Run): Promise<void> {
   const { context, state, worktree, branch } = job;
   const sha = state.squashing;
   if (sha === undefined) {

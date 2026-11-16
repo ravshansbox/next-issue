@@ -188,7 +188,11 @@ the run handles one issue. For each issue:
    failure unrelated hands it over too, as for the checks on the base.
    Nothing of the change reaches the base. A run that stops while a
    command runs keeps the budget, and the next run merges and runs every
-   command again before any push. The harness then pushes the commit to
+   command again before any push. The state file keeps the merged commit
+   from the squash until the push, so the next run that resumes the issue
+   first puts the issue branch back at that commit, before the setup
+   command. A commit that a person adds to the branch after a hand-over
+   stays on it. The harness then pushes the commit to
    the base branch, without force. A push that the remote refuses, for
    example because the base moved, starts the rebase again, three times at
    most. When the push fails, the harness fetches the base first, and

@@ -1,4 +1,4 @@
-import { enterReview } from './enter-review.mts';
+import { enterReview, settleSquash } from './enter-review.mts';
 import { branchName } from './git.mts';
 import type { Issue } from './github.mts';
 import { runStopped } from './children.mts';
@@ -116,6 +116,7 @@ async function work(
   const { job, setup } = await beforeBaseSettled(state, context.base, async () => {
     const opened = await openJob(context, issue, log, state, start, handedOver, pending);
     await settleReview(opened);
+    await settleSquash(opened);
     return { job: opened, setup: await setUp(opened) };
   });
   if (setup.done) {

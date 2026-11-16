@@ -146,6 +146,12 @@ test('resetState keeps an approval unless the issue was handed over', () => {
   assert.equal(resetState(approved, true).phase, 'review');
 });
 
+test('a run that resets the state keeps the squash start unless the issue was handed over', () => {
+  const squashing = { ...STATE, squashing: 'abc' };
+  assert.equal(resetState(squashing).squashing, 'abc');
+  assert.equal(resetState(squashing, true).squashing, undefined);
+});
+
 test('resetState keeps the review start unless the issue was handed over', () => {
   const reviewing = { ...STATE, reviewing: 'abc' };
   assert.equal(resetState(reviewing).reviewing, 'abc');
