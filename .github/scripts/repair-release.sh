@@ -29,7 +29,7 @@ if [ "${#missing[@]}" -gt 0 ]; then
   for workspace in "${missing[@]}"; do
     if ! output=$(npm publish -w "$workspace" 2>&1); then
       echo "$output" >&2
-      if ! grep -q 'previously published version' <<<"$output"; then
+      if ! grep -qE 'previously (published|staged) version' <<<"$output"; then
         exit 1
       fi
       echo "npm already holds $workspace at $version."

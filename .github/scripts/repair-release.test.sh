@@ -23,6 +23,11 @@ else
     echo "npm error 403 403 Forbidden - PUT https://registry.npmjs.org/${3#packages/} - You cannot publish over the previously published versions: 1.2.0." >&2
     exit 1
   fi
+  if [ "$1" = publish ] && grep -qx "${3#packages/}" <<<"$STAGED"; then
+    echo "npm error code E409" >&2
+    echo "npm error 409 Conflict - PUT https://registry.npmjs.org/${3#packages/} - Cannot publish over previously staged version \"1.2.0\"" >&2
+    exit 1
+  fi
   if [ "$1" = publish ] && grep -qx "${3#packages/}" <<<"$BROKEN"; then
     echo "npm error 500 Internal Server Error" >&2
     exit 1
@@ -54,7 +59,7 @@ repair() {
     cd "$repo"
     export GITHUB_REPOSITORY=owner/repo
     if [ -n "${UNNAMED:-}" ]; then unset GITHUB_REPOSITORY; fi
-    PATH="$bin:$PATH" LOG="$log" HELD="$1" RELEASED="$2" REFUSED="${3:-}" BROKEN="${4:-}" "$script"
+    PATH="$bin:$PATH" LOG="$log" HELD="$1" RELEASED="$2" REFUSED="${3:-}" BROKEN="${4:-}" STAGED="${5:-}" "$script"
   ) > /dev/null 2>&1 || true
 }
 
@@ -106,6 +111,19 @@ setup
 git -C "$repo" tag v1.2.0
 repair first '' second
 check 'the release job counts a package that npm refuses as previously published as held and makes the missing release' "npm ci --ignore-scripts
+npm version --no-git-tag-version --allow-same-version --workspaces 1.2.0
+npm publish -w packages/second
+gh release create v1.2.0 --title v1.2.0 --notes-file -
+## Features
+
+- feat: start ($start)
+
+**Full Changelog**: https://github.com/owner/repo/commits/v1.2.0"
+
+setup
+git -C "$repo" tag v1.2.0
+repair first '' '' '' second
+check 'the release job counts a package that npm refuses as previously staged as held and makes the missing release' "npm ci --ignore-scripts
 npm version --no-git-tag-version --allow-same-version --workspaces 1.2.0
 npm publish -w packages/second
 gh release create v1.2.0 --title v1.2.0 --notes-file -
