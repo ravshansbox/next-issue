@@ -12,7 +12,7 @@ test('a user who installs pi-next-issue gets the answer-hand-over skill', async 
 test('an agent who answers a hand-over lists the waiting issues of <repo> and passes --repo <repo> to every gh command', async () => {
   const skill = await readFile(skillFile, 'utf8');
   assert.match(skill, /gh issue list --repo <repo> --state open --label "<needs-human>"/);
-  const commands = [...skill.matchAll(/^\s*gh .*$/gm)].map((match) => match[0]);
+  const commands = [...skill.matchAll(/^\s*gh (?!api ).*$/gm)].map((match) => match[0]);
   assert.ok(commands.length > 0);
   for (const command of commands) {
     assert.match(command, /--repo <repo>/);
@@ -25,6 +25,17 @@ test('an agent who answers a hand-over reads the latest hand-over comment, the b
   assert.match(skill, /`question:`/);
   assert.match(skill, /git diff/);
   assert.match(skill, /gh run view --repo <repo> <run> --log-failed/);
+});
+
+test('an agent who answers a hand-over counts only comments from authors with admin or write permission, as the worker does', async () => {
+  const skill = await readFile(skillFile, 'utf8');
+  assert.match(
+    skill,
+    /gh api <hostname> repos\/<owner>\/<name>\/collaborators\/<login>\/permission --jq '\.permission'/,
+  );
+  assert.match(skill, /write access only when the permission is `admin` or `write`/);
+  assert.match(skill, /`HTTP 404`[^\n]*no write access/);
+  assert.doesNotMatch(skill, /authorAssociation/);
 });
 
 test('an agent who answers a hand-over asks numbered questions with lettered options and a recommendation', async () => {

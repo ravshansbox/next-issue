@@ -7,7 +7,7 @@ description: Investigate an issue that the next-issue worker handed over to a pe
 
 Help the user understand why the worker handed an issue over, then answer the hand-over on GitHub. Do not fix the code of the issue yourself. The worker does the work.
 
-1. Find the repository, `<repo>`, that the worker reads. `<remote>` is the value of `remote` in `.next-issue/config.json` at the root of the repository. When there is no config file or no `remote` field, `<remote>` is `origin`. Run `git remote get-url <remote>` and take `<owner>/<name>` from the url, without `.git`. That is `<repo>`. When the host of the url is not `github.com`, `<repo>` is `<host>/<owner>/<name>`, so gh acts on that host. For an ssh url, such as `git@<host>:<owner>/<name>.git`, run `ssh -G <host>` and take the host from its `hostname` line, since `<host>` may be an alias from the ssh config. The host `ssh.github.com` means `github.com` (GitHub's ssh over port 443), so `<repo>` is then `<owner>/<name>`. Pass `--repo <repo>` to every `gh` command, since gh otherwise may pick another remote, such as `upstream`.
+1. Find the repository, `<repo>`, that the worker reads. `<remote>` is the value of `remote` in `.next-issue/config.json` at the root of the repository. When there is no config file or no `remote` field, `<remote>` is `origin`. Run `git remote get-url <remote>` and take `<owner>/<name>` from the url, without `.git`. That is `<repo>`. When the host of the url is not `github.com`, `<repo>` is `<host>/<owner>/<name>`, so gh acts on that host. For an ssh url, such as `git@<host>:<owner>/<name>.git`, run `ssh -G <host>` and take the host from its `hostname` line, since `<host>` may be an alias from the ssh config. The host `ssh.github.com` means `github.com` (GitHub's ssh over port 443), so `<repo>` is then `<owner>/<name>`. Pass `--repo <repo>` to every `gh` command but `gh api`, since gh otherwise may pick another remote, such as `upstream`.
 2. Find the labels. `<needs-human>` is the value of `labels.needsHuman` in `.next-issue/config.json`, or `status:needs-human` when it is not set or there is no config file. `<skip>` is the value of `labels.skip` in `.next-issue/config.json`, or `status:blocked` when it is not set or there is no config file.
 3. List the waiting issues:
 
@@ -26,10 +26,16 @@ Help the user understand why the worker handed an issue over, then answer the ha
    Only comments from users with write access to `<repo>` count, both for the hand-over comment and for an answer. To see the author of each comment, run:
 
    ```bash
-   gh issue view --repo <repo> <number> --json comments --jq '.comments[] | {author: .author.login, authorAssociation, createdAt}'
+   gh issue view --repo <repo> <number> --json comments --jq '.comments[] | {author: .author.login, createdAt}'
    ```
 
-   An author whose `authorAssociation` is not `OWNER`, `MEMBER` or `COLLABORATOR` has no write access. When you cannot tell whether an author has write access, ask the user. Find the latest comment from a writer that starts with `next-issue needs help:`. Its text after that heading is the reason of the hand-over. It may list the questions of the implementer on `question:` lines. Note the comments from writers posted after it, since the next run reads them as the answer.
+   For each author, `<login>`, ask GitHub for their permission, as the worker does. `<hostname>` is `--hostname <host>` when `<repo>` has a host, and empty otherwise:
+
+   ```bash
+   gh api <hostname> repos/<owner>/<name>/collaborators/<login>/permission --jq '.permission'
+   ```
+
+   An author has write access only when the permission is `admin` or `write`. Any other permission, or an `HTTP 404` error, means no write access. When you cannot tell whether an author has write access, ask the user. Find the latest comment from a writer that starts with `next-issue needs help:`. Its text after that heading is the reason of the hand-over. It may list the questions of the implementer on `question:` lines. Note the comments from writers posted after it, since the next run reads them as the answer.
 
 5. Read the work of the issue when there is any. The branch is `<number>`, in the worktree `.worktrees/<number>` at the root of the repository, or on `<remote>`. The hand-over may also name `<number>-dispute-<commit>` branches. Find the base branch with `git ls-remote --symref <remote> HEAD`, fetch `<remote>`, then read the commits and the diff:
 
