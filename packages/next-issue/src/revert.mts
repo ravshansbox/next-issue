@@ -9,6 +9,16 @@ export async function revertFailedFix(job: Run): Promise<string> {
     return '';
   }
   job.repairing = false;
+  return revertFailedChecks(job);
+}
+
+/** Hands over a fix of failed checks; with no stop, its saved halt gives way, so the run halt alone holds back other landings. */
+export async function revertFailedChecks(job: Run): Promise<string> {
+  const { context, state } = job;
+  if (state.halted === true && state.pushing === undefined && !runStopped()) {
+    delete state.halted;
+    await writeState(context.repo, state);
+  }
   return revertOrReport(job);
 }
 

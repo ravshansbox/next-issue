@@ -262,6 +262,28 @@ test('a user who stops a run now while the fixer of the failed checks on main ru
   assert.deepEqual(target.closed, [7]);
 });
 
+test('a user who stops a run now while the fixer of the failed checks on main runs gets no other issue landed by the next run until the stopped issue fixes the checks', async (t) => {
+  const first = await harness(t, { baseChecks: ['fail'], stopNowDuring: 'fixer' });
+  assert.equal((await first.run()).outcome, 'stopped');
+  const root = first.context.repo.root;
+  const older = await harness(t, { root, issue: { ...ISSUE, number: 5 } });
+  const blocked = await older.run();
+  assert.equal(blocked.outcome, 'stopped');
+  assert.equal(blocked.reason, 'base unchecked');
+  assert.equal(older.pushes, 0);
+  const resumed = await harness(t, {
+    root,
+    issue: { ...ISSUE, labels: ['status:in-review'] },
+    baseMoved: true,
+    baseChecks: ['fail', 'pass'],
+  });
+  assert.equal((await resumed.run()).outcome, 'done');
+  assert.deepEqual(roles(resumed), ['fixer']);
+  const next = await harness(t, { root, issue: { ...ISSUE, number: 5 } });
+  assert.equal((await next.run()).outcome, 'done');
+  assert.equal(next.landed.length, 1);
+});
+
 test('a user who stops a run now during the setup command gets the issue stopped with no hand-over, and the next run keeps the review rounds, fix counts and findings', async (t) => {
   const first = await harness(t, { pressDuring: 'reviewer', verdicts: [changes('Rename it.')] });
   assert.equal((await first.run()).outcome, 'stopped');

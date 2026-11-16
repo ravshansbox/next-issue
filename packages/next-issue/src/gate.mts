@@ -6,7 +6,7 @@ import { asError, message } from './errors.mts';
 import { escalateCheckFix, type Fix, fixRound } from './fix.mts';
 import { escalateAndFinish } from './handover.mts';
 import { type Finished, type Gate, GATE_FIXED, GATE_PASSED, type Run } from './job.mts';
-import { revertOrReport, sentence } from './revert.mts';
+import { revertFailedChecks, revertOrReport, sentence } from './revert.mts';
 import { writeState } from './state.mts';
 import { HALT_NOTE } from './unsettled.mts';
 
@@ -21,13 +21,12 @@ export async function checkGate(job: Run, sha: string): Promise<Gate> {
     }
     return unreadChecks(job, error);
   }
-  // Checks that finished leave the base known, so an earlier halt on this issue no longer holds back other landings.
-  const finished = checks === 'pass' || checks === 'none' || checks === 'fail';
-  if (finished && job.state.halted === true) {
-    delete job.state.halted;
-    await writeState(job.context.repo, job.state);
-  }
+  // Checks that passed leave the base known, so an earlier halt on this issue no longer holds back other landings.
   if (checks === 'pass' || checks === 'none') {
+    if (job.state.halted === true) {
+      delete job.state.halted;
+      await writeState(job.context.repo, job.state);
+    }
     return GATE_PASSED;
   }
   job.mainBroken = true;
@@ -49,6 +48,9 @@ export async function checkGate(job: Run, sha: string): Promise<Gate> {
       'main checks timeout',
     );
   }
+  // Failed checks leave the base broken until the fix lands, so a stop or kill before then keeps other landings back.
+  job.state.halted = true;
+  await writeState(job.context.repo, job.state);
   return failedChecksFix(job, sha);
 }
 
@@ -128,7 +130,7 @@ async function failedChecksFix(job: Run, sha: string, refused?: string): Promise
   const { repo, config, ports, base } = context;
   const { round, limit } = budgetUse(job, 'ciFixes');
   if (round >= limit) {
-    const reverted = await revertOrReport(job);
+    const reverted = await revertFailedChecks(job);
     return escalateAndFinish(
       job,
       `The checks on ${base} failed and the limit of ${limit} check fixes was reached.${reverted}`,
@@ -186,7 +188,7 @@ async function failedChecksFix(job: Run, sha: string, refused?: string): Promise
     }
   }
   if (!fix.committed) {
-    const reverted = await revertOrReport(job);
+    const reverted = await revertFailedChecks(job);
     return escalateCheckFix(job, fix.unrelated, `checks on ${base}`, reverted, fix.aside);
   }
   job.repairing = true;
@@ -264,6 +266,6 @@ export async function escalateError(
   if (runStopped()) {
     throw error;
   }
-  const reverted = await revertOrReport(job);
+  const reverted = await revertFailedChecks(job);
   return escalateAndFinish(job, `${note}: ${sentence(message(error))}${reverted}`, reason);
 }
