@@ -5,6 +5,7 @@ import type { ClientMessage, IssueProgress, Progress, WorkerMessage } from '../s
 import { tempFolder } from './temp-folder.ts';
 
 export type FakeWorker = {
+  connections: number;
   received: ClientMessage[];
   runs: Record<string, Progress>;
   update: (root: string, progress: Progress) => void;
@@ -29,6 +30,7 @@ export async function startFakeWorker(
     }
   };
   const worker: FakeWorker = {
+    connections: 0,
     received: [],
     runs: {},
     update: (root, progress) => {
@@ -45,6 +47,7 @@ export async function startFakeWorker(
     },
   };
   sockets.on('connection', (socket) => {
+    worker.connections += 1;
     socket.send(JSON.stringify({ type: 'hello', version }));
     socket.send(JSON.stringify({ type: 'runs', runs: worker.runs }));
     socket.on('message', (data) => {

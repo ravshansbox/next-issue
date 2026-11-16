@@ -20,6 +20,7 @@ export type WorkerOptions = {
   lockHolder?: () => Promise<number | undefined>;
   startTimeoutMs?: number;
   holderGraceMs?: number;
+  answerTimeoutMs?: number;
   reconnectMs?: number;
   upcomingWaitMs?: number;
 };
@@ -28,12 +29,19 @@ const START_TIMEOUT_MS = 120_000;
 const RECONNECT_MS = 5_000;
 const POLL_MS = 200;
 const HOLDER_GRACE_MS = 2_000;
+const ANSWER_TIMEOUT_MS = 5_000;
 const UPCOMING_WAIT_MS = 10_000;
 
 export const CLOSED = 'the worker closed the connection';
 export const NOT_RUNNING = 'No worker is running, so pi cannot list the upcoming issues.';
 export const OUTDATED_UPCOMING =
   'The worker did not answer: it is older than pi and needs an upgrade to list the upcoming issues.';
+
+class SilentWorker extends Error {
+  constructor() {
+    super('the next-issue worker did not answer');
+  }
+}
 
 function checkSocketPath(path: string, platform = process.platform): void {
   const size = platform === 'linux' ? 108 : 104;
@@ -147,26 +155,20 @@ export class WorkerClient {
   }
 
   async attach(): Promise<void> {
-    if (this.connected) {
-      return;
-    }
-    await this.open().catch(() => this.scheduleReconnect());
+    await this.share(() => this.open()).catch(() => this.scheduleReconnect());
   }
 
-  async reach(): Promise<void> {
-    if (this.connected) {
-      return;
-    }
-    checkSocketPath(this.options.socketPath);
-    if (!(await this.opened())) {
-      await this.waitForHolder();
-    }
+  reach(): Promise<void> {
+    return this.share(async () => {
+      checkSocketPath(this.options.socketPath);
+      if (!(await this.opened())) {
+        await this.waitForHolder();
+      }
+    });
   }
 
   async ensure(): Promise<void> {
-    if (!this.connected) {
-      await this.connect();
-    }
+    await this.connect();
     if (this.outdated && !this.busy) {
       await this.waitForClose();
       await this.connect();
@@ -183,15 +185,26 @@ export class WorkerClient {
   }
 
   private connect(): Promise<void> {
-    this.connecting ??= this.start()
-      .catch((error: unknown) => {
+    return this.share(() =>
+      this.start().catch((error: unknown) => {
         this.scheduleReconnect();
         throw error;
-      })
-      .finally(() => {
-        this.connecting = undefined;
-      });
-    return this.connecting;
+      }),
+    );
+  }
+
+  private async share(task: () => Promise<void>): Promise<void> {
+    while (this.connecting !== undefined) {
+      await this.connecting.catch(() => {});
+    }
+    if (this.connected) {
+      return;
+    }
+    const connecting = task().finally(() => {
+      this.connecting = undefined;
+    });
+    this.connecting = connecting;
+    return connecting;
   }
 
   private holder(): Promise<number | undefined> {
@@ -217,7 +230,10 @@ export class WorkerClient {
     try {
       await this.open();
       return true;
-    } catch {
+    } catch (error) {
+      if (error instanceof SilentWorker) {
+        throw error;
+      }
       return false;
     }
   }
@@ -250,6 +266,9 @@ export class WorkerClient {
         await this.open();
         return;
       } catch (error) {
+        if (error instanceof SilentWorker) {
+          throw error;
+        }
         if (reason !== undefined) {
           const pid = await this.holder();
           throw pid === undefined
@@ -267,27 +286,38 @@ export class WorkerClient {
     return new Promise((resolve, reject) => {
       const socket = dial(this.options.socketPath);
       let hello = false;
-      socket.once('error', (error) => {
+      const timer = setTimeout(() => {
+        reject(new SilentWorker());
+        socket.terminate();
+      }, this.options.answerTimeoutMs ?? ANSWER_TIMEOUT_MS);
+      socket.on('error', (error) => {
         if (!hello) {
+          clearTimeout(timer);
           reject(error);
         }
       });
       socket.on('message', (data) => {
         const message = parseMessage(String(data));
-        if (message === undefined) {
+        if (message === undefined || (hello && this.socket !== socket)) {
+          return;
+        }
+        if (message.type === 'runs' && !hello) {
+          hello = true;
+          clearTimeout(timer);
+          const earlier = this.socket;
+          this.socket = socket;
+          earlier?.terminate();
+          this.receive(message);
+          resolve();
           return;
         }
         this.receive(message);
-        if (message.type === 'runs' && !hello) {
-          hello = true;
-          resolve();
-        }
       });
       socket.once('open', () => {
-        this.socket = socket;
-        this.send({ type: 'hello', version: this.options.version });
+        socket.send(JSON.stringify({ type: 'hello', version: this.options.version }));
       });
       socket.once('close', () => {
+        clearTimeout(timer);
         this.release(socket);
         if (!hello) {
           reject(new Error(CLOSED));

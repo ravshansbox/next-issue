@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync } from 'node:fs';
+import { createServer } from 'node:http';
+import type { Socket } from 'node:net';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { WebSocketServer } from 'ws';
 import { workerPaths } from '../src/spawn-worker.ts';
 import { WorkerClient, type WorkerEvent } from '../src/worker.ts';
 import { type FakeWorker, running, socketPath, startFakeWorker, until } from './fake-worker.ts';
@@ -87,4 +90,85 @@ test('several pi sessions with a newer extension whose watching run stops for an
     events.some((event) => event.type === 'error'),
     false,
   );
+});
+
+test('a pi session that attaches, reaches and ensures the worker at the same time opens one connection to it', async (t) => {
+  const path = socketPath();
+  const worker = await startFakeWorker(path);
+  t.after(() => worker.close());
+  const client = new WorkerClient({
+    socketPath: path,
+    version: '1.0.0',
+    spawnWorker: () => {},
+    startTimeoutMs: 500,
+  });
+  t.after(() => client.close());
+  await Promise.all([client.attach(), client.reach(), client.ensure(), client.attach()]);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(client.connected, true);
+  assert.equal(worker.connections, 1);
+});
+
+test('a pi tool call to a worker that accepts the connection but never answers fails with an error that says the worker did not answer', async (t) => {
+  const path = socketPath();
+  const server = createServer();
+  const sockets = new WebSocketServer({ server });
+  await new Promise<void>((resolve) => server.listen(path, resolve));
+  t.after(async () => {
+    for (const socket of sockets.clients) {
+      socket.terminate();
+    }
+    await new Promise<void>((resolve) => sockets.close(() => resolve()));
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+  const client = new WorkerClient({
+    socketPath: path,
+    version: '1.0.0',
+    spawnWorker: () => {},
+    startTimeoutMs: 5000,
+    answerTimeoutMs: 200,
+  });
+  t.after(() => client.close());
+  await assert.rejects(client.ensure(), { message: 'the next-issue worker did not answer' });
+  await assert.rejects(client.reach(), { message: 'the next-issue worker did not answer' });
+});
+
+test('a pi tool call that reconnects while the worker has not finished closing the earlier connection closes that earlier connection', async (t) => {
+  const path = socketPath();
+  const server = createServer();
+  const sockets = new WebSocketServer({ noServer: true });
+  const raws: Socket[] = [];
+  server.on('upgrade', (request, raw: Socket, head) => {
+    sockets.handleUpgrade(request, raw, head, (socket) => {
+      raws.push(raw);
+      socket.send(JSON.stringify({ type: 'hello', version: '1.0.0' }));
+      socket.send(JSON.stringify({ type: 'runs', runs: {} }));
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(path, resolve));
+  t.after(async () => {
+    for (const raw of raws) {
+      raw.destroy();
+    }
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+  const client = new WorkerClient({
+    socketPath: path,
+    version: '1.0.0',
+    spawnWorker: () => {},
+    startTimeoutMs: 500,
+  });
+  t.after(() => client.close());
+  await client.reach();
+  const earlier = raws[0]!;
+  earlier.pause();
+  earlier.write(Buffer.from([0x88, 0x00]));
+  await until(() => !client.connected);
+  await client.reach();
+  assert.equal(raws.length, 2);
+  const written = await new Promise<Error | null | undefined>((resolve) => {
+    earlier.once('error', () => {});
+    earlier.write(Buffer.from([0x89, 0x00]), resolve);
+  });
+  assert.ok(written instanceof Error);
 });
