@@ -50,6 +50,7 @@ function landing(job: Run, work: () => Promise<Finished>): Promise<Finished> {
 }
 
 function inLandingLock(job: Run, work: () => Promise<Finished>): Promise<Finished> {
+  job.slot?.free();
   return oneAtATime(`${job.context.repo.root}#land`, async () => {
     if (job.context.halted) {
       return holdBack(job, 'run halted');

@@ -73,7 +73,7 @@ export async function skipReport(
   }
   if (blockers.length > 0) {
     log.event('issue.skip', { title: issue.title, reason: 'blocked', blockers });
-    return skipped(issue);
+    return { ...skipped(issue), blocked: true };
   }
   return undefined;
 }

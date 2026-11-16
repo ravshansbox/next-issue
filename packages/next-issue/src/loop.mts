@@ -1,10 +1,11 @@
 import type { Args } from './args.mts';
 import type { Issue } from './github.mts';
 import type { IssueReport } from './job.mts';
+import { type Slot, Slots } from './slots.mts';
 
 export type Loop = {
   issues: () => Promise<Issue[]>;
-  process: (issue: Issue, claimed?: () => void) => Promise<IssueReport>;
+  process: (issue: Issue, claimed?: () => void, slot?: Slot) => Promise<IssueReport>;
   stop: () => boolean;
   concurrency?: number;
 };
@@ -16,10 +17,13 @@ export type LoopResult = {
   crash?: { failure: unknown };
 };
 
-type Settled = { issue: number; report?: IssueReport; failure?: unknown };
+type Settled = { issue: number; slot: Slot; report?: IssueReport; failure?: unknown };
 
-/** Issues that may be claimed again in the pass once their labels differ from those of the first fetch after their attempt. */
-type Tried = { ended: Set<number>; labels: Map<number, string | undefined> };
+/**
+ * Issues that may be claimed again in the pass once their labels differ from those of the first fetch after their
+ * attempt, and issues skipped for an open blocker, claimed again once another issue is done.
+ */
+type Tried = { ended: Set<number>; labels: Map<number, string | undefined>; blocked: Set<number> };
 
 export async function runIssues(
   args: Pick<Args, 'max'>,
@@ -27,20 +31,21 @@ export async function runIssues(
   seen = new Set<number>(),
 ): Promise<LoopResult> {
   const limit = args.max;
-  const concurrency = loop.concurrency ?? 1;
+  const slots = new Slots(loop.concurrency ?? 1);
   const reports: IssueReport[] = [];
   const running = new Map<number, Promise<Settled>>();
   let stoppedAt: number | undefined;
   let error: unknown;
   let crash: { failure: unknown } | undefined;
   let claiming = true;
-  const tried: Tried = { ended: new Set(), labels: new Map() };
+  let unclaimed = true;
+  const tried: Tried = { ended: new Set(), labels: new Map(), blocked: new Set() };
   const room = (): boolean =>
-    running.size < concurrency && (limit === undefined || handled(reports) + running.size < limit);
+    slots.open() && (limit === undefined || handled(reports) + running.size < limit);
   for (;;) {
-    if (claiming && room()) {
+    if (claiming && unclaimed && room()) {
       try {
-        claiming = await claimIssues(loop, seen, tried, running, room);
+        ({ claiming, unclaimed } = await claimIssues(loop, seen, tried, { running, slots }, room));
       } catch (failure) {
         error = failure;
         claiming = false;
@@ -49,8 +54,14 @@ export async function runIssues(
     if (running.size === 0) {
       break;
     }
-    const { issue, report, failure } = await Promise.race(running.values());
+    const settled = await Promise.race([...running.values(), slots.freed()]);
+    if (settled === undefined) {
+      continue;
+    }
+    const { issue, slot, report, failure } = settled;
     running.delete(issue);
+    slot.free();
+    unclaimed = true;
     if (report === undefined) {
       crash ??= { failure };
       claiming = false;
@@ -59,6 +70,12 @@ export async function runIssues(
     reports.push(report);
     if (retryable(report)) {
       tried.ended.add(issue);
+    }
+    if (report.blocked === true) {
+      tried.blocked.add(issue);
+    }
+    if (report.outcome === 'done') {
+      readmitBlocked(seen, tried);
     }
     if (claiming && (loop.stop() || report.halt === true)) {
       stoppedAt = issue;
@@ -86,31 +103,32 @@ async function claimIssues(
   loop: Loop,
   seen: Set<number>,
   tried: Tried,
-  running: Map<number, Promise<Settled>>,
+  pool: { running: Map<number, Promise<Settled>>; slots: Slots },
   room: () => boolean,
-): Promise<boolean> {
+): Promise<{ claiming: boolean; unclaimed: boolean }> {
   if (loop.stop()) {
-    return false;
+    return { claiming: false, unclaimed: false };
   }
   const issues = await loop.issues();
   if (loop.stop()) {
-    return false;
+    return { claiming: false, unclaimed: false };
   }
   readmitChanged(issues, seen, tried);
   for (const issue of issues.filter((candidate) => !seen.has(candidate.number))) {
     if (!room()) {
-      break;
+      return { claiming: true, unclaimed: true };
     }
     seen.add(issue.number);
-    running.set(
+    const slot = pool.slots.claim();
+    pool.running.set(
       issue.number,
-      loop.process(issue).then(
-        (report) => ({ issue: issue.number, report }),
-        (failure: unknown) => ({ issue: issue.number, failure }),
+      loop.process(issue, undefined, slot).then(
+        (report) => ({ issue: issue.number, slot, report }),
+        (failure: unknown) => ({ issue: issue.number, slot, failure }),
       ),
     );
   }
-  return true;
+  return { claiming: true, unclaimed: false };
 }
 
 function retryable(report: IssueReport): boolean {
@@ -129,6 +147,15 @@ function readmitChanged(issues: Issue[], seen: Set<number>, tried: Tried): void 
     tried.labels.set(number, listed.get(number));
   }
   tried.ended.clear();
+}
+
+function readmitBlocked(seen: Set<number>, tried: Tried): void {
+  for (const number of tried.blocked) {
+    tried.ended.delete(number);
+    tried.labels.delete(number);
+    seen.delete(number);
+  }
+  tried.blocked.clear();
 }
 
 function labelKey(issue: Issue): string {

@@ -19,12 +19,14 @@ import {
   resetState,
 } from './state.mts';
 import { beforeBaseSettled } from './unsettled.mts';
+import type { Slot } from './slots.mts';
 import { setUp } from './worktree-setup.mts';
 
 export async function processIssue(
   context: Context,
   issue: Issue,
   claimed: () => void = () => undefined,
+  slot?: Slot,
 ): Promise<IssueReport> {
   const { repo } = context;
   const started = Date.now();
@@ -62,6 +64,7 @@ export async function processIssue(
           saved === undefined,
           handedOver,
           saved?.pendingHandOver,
+          slot,
         );
   } catch (error) {
     if (!runStopped()) {
@@ -113,9 +116,13 @@ async function work(
   start: boolean,
   handedOver: boolean,
   pending: PendingHandOver | undefined,
+  slot: Slot | undefined,
 ): Promise<IssueReport> {
   const { job, setup } = await beforeBaseSettled(state, context.base, async () => {
-    const opened = await openJob(context, issue, log, state, start, handedOver, pending);
+    const opened = {
+      ...(await openJob(context, issue, log, state, start, handedOver, pending)),
+      slot,
+    };
     await settleReview(opened);
     await settleSquash(opened);
     return { job: opened, setup: await setUp(opened) };

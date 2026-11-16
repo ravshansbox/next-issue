@@ -7,6 +7,7 @@ import type { Issue } from './github.mts';
 import type { Recorder } from './observe.mts';
 import type { Ports } from './ports.mts';
 import { notesBlock } from './prompts.mts';
+import type { Slot } from './slots.mts';
 import { type IssueState, notesPath } from './state.mts';
 import { paragraphs } from './text.mts';
 
@@ -33,6 +34,8 @@ export type IssueReport = {
   halt?: boolean;
   /** An error after the claim whose hand-over reached GitHub, so the label holds the issue until a person answers. */
   handedOver?: boolean;
+  /** Skipped for an open blocker, so it may be claimed again once another issue of the run is done. */
+  blocked?: boolean;
 };
 
 export type Run = {
@@ -49,6 +52,8 @@ export type Run = {
   repairing: boolean;
   /** The dispute branches that hold the edits a fixer left behind in this run. */
   asides: string[];
+  /** The `concurrency` slot of the issue, freed while it lands; absent when nothing limits the agents. */
+  slot?: Slot;
 };
 
 export type Finished = { done: true; report: IssueReport };
@@ -84,14 +89,22 @@ export async function runRole(
 ): Promise<AgentResult> {
   const { config, ports, repo } = job.context;
   const writable = role === 'implementer' || role === 'fixer';
-  return ports.runAgent(job.log, {
+  const request = {
     name: role,
     cwd: job.worktree,
     prompt: await withNotes(repo.root, prompt, writable),
     profile,
     model: config.models[role],
     timeoutMs: minutesToMs(config.agentTimeoutMinutes),
-  });
+  };
+  const took = (await job.slot?.take()) === true;
+  try {
+    return await ports.runAgent(job.log, request);
+  } finally {
+    if (took) {
+      job.slot?.free();
+    }
+  }
 }
 
 export function fallbackTitle(issue: Issue): string {

@@ -45,10 +45,10 @@ export async function watchIssues(args: Pick<Args, 'max'>, watch: Watch): Promis
   try {
     return await watchPasses(args, failed, {
       ...watch,
-      process: async (issue) => {
+      process: async (issue, _claimed, slot) => {
         running.add(issue.number);
         try {
-          return await watch.process(issue, claims.ring);
+          return await watch.process(issue, claims.ring, slot);
         } finally {
           running.delete(issue.number);
         }

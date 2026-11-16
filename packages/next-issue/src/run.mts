@@ -97,7 +97,7 @@ async function handle(
 
   const loop: Loop = {
     issues: () => pendingIssues(context),
-    process: (issue, claimed) => processIssue(context, issue, claimed),
+    process: (issue, claimed, slot) => processIssue(context, issue, claimed, slot),
     stop: interrupts.afterIssue,
     concurrency: config.concurrency,
   };
