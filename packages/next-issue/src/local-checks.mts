@@ -18,16 +18,38 @@ const COMMENT_OUTPUT_CHARS = 3000;
  * or the finished hand-over.
  */
 export async function localChecks(job: Run): Promise<Finished | boolean> {
-  const { context, log, worktree } = job;
-  const { config, ports } = context;
+  const { context, state, worktree } = job;
+  const { config, ports, repo } = context;
   if (config.checks.length === 0) {
     return true;
   }
+  const change = await ports.revision(worktree);
   const setup = await setUpBeforeChecks(job);
   if (setup !== undefined) {
     return setup;
   }
-  await ports.amendEdits(worktree);
+  state.squashing = change;
+  await writeState(repo, state);
+  await ports.saveSetupOutput(worktree);
+  let failed: Failed | undefined;
+  try {
+    failed = await runChecks(job);
+  } finally {
+    await evenWhenStopped(() => ports.discardChanges(worktree, change));
+    state.squashing = undefined;
+    await writeState(repo, state);
+  }
+  return failed === undefined ? true : failedCheck(job, failed.command, failed.result);
+}
+
+interface Failed {
+  command: string;
+  result: CheckResult;
+}
+
+async function runChecks(job: Run): Promise<Failed | undefined> {
+  const { context, log, worktree } = job;
+  const { config, ports } = context;
   const head = await ports.revision(worktree);
   for (const command of config.checks) {
     const result = await log.step('check', { cmd: command }, () =>
@@ -47,10 +69,10 @@ export async function localChecks(job: Run): Promise<Finished | boolean> {
       'verbose',
     );
     if (!succeeded(result) || result.timedOut) {
-      return failedCheck(job, command, result);
+      return { command, result };
     }
   }
-  return true;
+  return undefined;
 }
 
 function failure(job: Run, command: string, result: CheckResult): string {

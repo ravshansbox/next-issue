@@ -163,9 +163,16 @@ the run handles one issue. For each issue:
    `merge conflict`. When `checks` lists commands, the harness then runs
    the setup command again in the worktree, so the checks use the
    dependencies of the merged base. It runs the setup after it makes the
-   change one commit, and adds what the setup writes, unless git ignores
-   it, to that commit without hooks. Every check runs on that commit, and
-   the base gets the same files that the checks passed on. A change that
+   change one commit, and commits what the setup writes, unless git
+   ignores it, on top of that commit without hooks. Every check runs on
+   that setup commit. After the checks, the harness puts the branch back
+   at the change commit, so what this setup writes does not land on the
+   base; after a stop or kill during the checks, the next run puts the
+   branch back first. What the first setup writes, before the
+   implementer, is part of the implementer's commit and lands. When this
+   setup rewrites such a file, for example a lock file, the checks run on
+   the rewritten file, but the base gets the file of the change.
+   A change that
    the base already holds is an `empty change` before the setup runs. A
    setup that fails or does not finish in `setupTimeoutMinutes` keeps the
    merged commit, stops the landing before the push and hands the

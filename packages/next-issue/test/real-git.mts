@@ -5,7 +5,6 @@ import { commitAll } from '../src/git-commit.mts';
 import { pushToBase, revertOnBase, squashOnto } from '../src/git-land.mts';
 import { abortMerge, commitMerge, startMerge } from '../src/git-merge.mts';
 import {
-  amendEdits,
   diff,
   discardChanges,
   isDirty,
@@ -13,6 +12,7 @@ import {
   latestSubject,
   revision,
   saveEdits,
+  saveSetupOutput,
   setAside,
 } from '../src/git.mts';
 import type { Recorder } from '../src/observe.mts';
@@ -22,7 +22,6 @@ import type { Harness } from './harness.mts';
 
 const REAL_GIT = {
   abortMerge,
-  amendEdits,
   addWorktree,
   commitAll,
   commitMerge,
@@ -37,6 +36,7 @@ const REAL_GIT = {
   revertOnBase,
   revision,
   saveEdits,
+  saveSetupOutput,
   setAside,
   squashOnto,
   startMerge,

@@ -484,7 +484,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       }
       return { code, output: code === 0 ? 'ok' : `${command} broke`, timedOut: false };
     },
-    amendEdits: async () => {},
     saveEdits: async () => {
       if (plan.fixerWrites !== true) {
         return false;
@@ -493,6 +492,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       head += state.saves;
       return true;
     },
+    saveSetupOutput: async () => {},
     setAside: async (_worktree, target, branch) => {
       state.asides.push({ target, branch });
       head = Number(target);
