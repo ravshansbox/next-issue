@@ -349,6 +349,26 @@ test('a model that calls next_issue_start while the going run is stopping starts
   );
 });
 
+test('a model that calls next_issue_start while a going run does not watch starts nothing, sends no refresh and is told the run was not asked', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({ watching: false, issues: [working(7, { stage: 'implement' })] });
+  const { pi, emit, start } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const result = await start();
+  assert.deepEqual(result.details, { started: false, root: '/repo' });
+  assert.equal(
+    result.content[0]?.text,
+    'A run of /repo is going already, so nothing started: #7 · implement. It does not watch for new issues, so it was not asked to check for new issues.',
+  );
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(
+    fake.received.filter((message) => ['start', 'stop', 'refresh'].includes(message.type)),
+    [],
+  );
+});
+
 function refusingRefresh(path: string) {
   return startFakeWorker(path, '1.0.0', (self, message) => {
     if (message.type === 'refresh') {

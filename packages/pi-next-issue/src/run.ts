@@ -31,14 +31,16 @@ function goingAlready(root: string, progress: Progress): string {
   const asked =
     progress.status === 'stopping'
       ? 'It is stopping, so it was not asked to check for new issues.'
-      : 'Asked it to check for new issues now.';
+      : progress.watching === false
+        ? 'It does not watch for new issues, so it was not asked to check for new issues.'
+        : 'Asked it to check for new issues now.';
   return `A run of ${root} is going already, so nothing started: ${formatStatus(progress, Date.now())}. ${asked}`;
 }
 
 // Best effort: a worker that knows no refresh ignores it or answers with an error. So it goes
 // last, after any request whose answer counts.
 function sendRefresh(client: WorkerClient, root: string, progress: Progress): void {
-  if (progress.status !== 'stopping') {
+  if (progress.status !== 'stopping' && progress.watching !== false) {
     client.request({ type: 'refresh', root });
   }
 }
