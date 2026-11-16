@@ -8,6 +8,7 @@ import type { Finished, Run } from './job.mts';
 import type { CheckResult } from './ports.mts';
 import { writeState } from './state.mts';
 import { keepTail } from './text.mts';
+import { setUpBeforeChecks } from './worktree-setup.mts';
 
 const COMMENT_OUTPUT_CHARS = 3000;
 
@@ -19,6 +20,13 @@ const COMMENT_OUTPUT_CHARS = 3000;
 export async function localChecks(job: Run): Promise<Finished | boolean> {
   const { context, log, worktree } = job;
   const { config, ports } = context;
+  if (config.checks.length === 0) {
+    return true;
+  }
+  const setup = await setUpBeforeChecks(job);
+  if (setup !== undefined) {
+    return setup;
+  }
   const head = await ports.revision(worktree);
   for (const command of config.checks) {
     const result = await log.step('check', { cmd: command }, () =>

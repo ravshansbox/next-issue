@@ -159,14 +159,19 @@ the run handles one issue. For each issue:
    conflict marker or the merge unresolved, aborts the merge, or fails, the
    harness undoes the merge and hands the issue to a person with the reason
    `merge conflict`. When `checks` lists commands, the harness then runs
-   each one in the worktree, in order, with `bash -c` and stderr merged
-   into stdout, each for at most `checksTimeoutMinutes`. Their output goes
-   to the run log (`check.output`, and `check.fail` for a failure). After
-   each command, the harness resets the worktree to the commit it checked
-   and removes untracked files that git does not ignore, so a file that a
-   command writes never lands on the base. A
-   command that fails or does not finish stops the landing before the push:
-   the fixer gets the command and the tail of its output (at most
+   the setup command again in the worktree, so the checks use the
+   dependencies of the merged base. A setup that fails or does not finish
+   in `setupTimeoutMinutes` stops the landing before the push and hands the
+   issue to a person with the reason `setup failed` or `setup timeout`. The
+   harness then runs each command in `checks` in the worktree, in order,
+   with `bash -c` and stderr merged into stdout, each for at most
+   `checksTimeoutMinutes`. Their output goes to the run log
+   (`check.output`, and `check.fail` for a failure). After each command,
+   the harness resets the worktree to the commit it checked and removes
+   untracked files that git does not ignore, so a file that a command
+   writes never lands on the base. A command that fails or does not
+   finish stops the landing before the push: the fixer gets the command
+   and the tail of its output (at most
    `logMaxChars`) from the check budget, `maxCiFixes`, and its fix is
    squashed into the change, which keeps its subject. The harness then
    merges the base again and runs every command again, so nothing lands
@@ -665,7 +670,7 @@ because no pull request is opened.
 | `checks`                | `[]`               | Shell commands that must pass in the worktree, in order, before an approved change is pushed; a failure goes to the fixer                                                                                 |
 | `checksTimeoutMinutes`  | `30`               | The limit for one command in `checks`, at most `35791`                                                                                                                                                    |
 | `ignoredChecks`         | `[]`               | Names of GitHub Actions jobs, check runs and commit statuses, such as `release`, that the checks on the base branch do not wait for and whose failure does not count                                      |
-| `setupCommand`          | from the lock file | A shell command to run in a new worktree, before the implementer                                                                                                                                          |
+| `setupCommand`          | from the lock file | A shell command to run in a new worktree, before the implementer, and after each merge of the base before the `checks`                                                                                    |
 | `models`                | `null` per role    | The pi model per agent role, as `provider/model`: `implementer`, `reviewer`, `fixer`                                                                                                                      |
 | `labels`                | see above          | The names of the labels that the harness reads and sets                                                                                                                                                   |
 
@@ -688,8 +693,9 @@ The log gives the reason for a skipped issue as `stop-label`, `not-ready`,
 A role set to `null`, or with no entry in `models`, uses the default model of
 your pi settings.
 
-Without a `setupCommand`, the harness looks in the new worktree for a lock file
-and runs the install command that goes with it:
+Without a `setupCommand`, the harness looks for a lock file in the new
+worktree, and in the worktree after each merge of the base before the
+`checks`, and runs the install command that goes with it:
 
 | Lock file               | Command                                                                              |
 | ----------------------- | ------------------------------------------------------------------------------------ |
