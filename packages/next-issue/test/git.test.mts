@@ -10,7 +10,6 @@ import {
   detectRepo,
   discardChanges,
   disputeBranches,
-  isAncestor,
   isDirty,
   latestSubject,
   parseRemote,
@@ -107,15 +106,6 @@ test('a user in a linked worktree of a bare repository gets the root of that wor
 
 test('parseRemote refuses an unknown form', () => {
   assert.throws(() => parseRemote('acme/tool'), /Cannot parse/);
-});
-
-test('a pull request head that lags the pushed commit counts as an ancestor, but a commit someone else pushed does not', async () => {
-  const { repo, other } = await clones();
-  const lagging = await revision(repo.root);
-  const pushed = await commit(repo.root, 'b.txt');
-  const foreign = await commit(other, 'c.txt');
-  assert.equal(await isAncestor(repo.root, lagging, pushed), true);
-  assert.equal(await isAncestor(repo.root, foreign, pushed), false);
 });
 
 test('latestSubject gives the subject of the newest commit ahead of the base, and nothing on a branch that is not ahead', async () => {

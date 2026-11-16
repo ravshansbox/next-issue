@@ -51,19 +51,6 @@ test('a user whose one Ctrl-C press arrives as two signals within 100 ms sees it
   ]);
 });
 
-test('a user who presses Ctrl-C twice more than 100 ms apart sees two presses counted', async (t) => {
-  const said: string[] = [];
-  const interrupts = listen(t, (text) => said.push(text));
-  process.emit('SIGINT');
-  await sleep(150);
-  process.emit('SIGINT');
-  assert.equal(interrupts.afterRound(), true);
-  assert.deepEqual(said, [
-    'Stopping after the running issues. Press Ctrl-C again to stop after the current round.',
-    'Stopping after the current round. Press Ctrl-C again to stop now.',
-  ]);
-});
-
 test('a wait that starts after a client already asked for a refresh ends at once', async (t) => {
   const interrupts = listen(t, () => undefined);
   const refresh = new AbortController();

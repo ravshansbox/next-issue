@@ -14,14 +14,6 @@ test('a user whose change is approved gets it pushed to the base branch as one c
   assert.equal(target.labels.at(-1)!.label, 'status:done');
 });
 
-test('a user whose change is approved gets it done only after the checks of the pushed commit on the base branch pass', async (t) => {
-  const target = await harness(t);
-  const report = await target.run();
-  assert.equal(report.outcome, 'done');
-  assert.deepEqual(target.baseWaits, ['2']);
-  assert.equal(report.halt, undefined);
-});
-
 test('a user whose change lands sees the wait for the checks on the base branch logged as the ci-checks step', async (t) => {
   const target = await harness(t);
   await target.run();

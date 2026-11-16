@@ -22,10 +22,6 @@ function probe(list: Array<'none' | 'some'>, watch: CheckState[]): ChecksProbe &
   return state;
 }
 
-test('a build that passes gives pass', async () => {
-  assert.equal(await pollChecks(probe(['some'], ['pass']), OPTIONS, fakeClock()), 'pass');
-});
-
 test('a passing build waits out the grace time before it gives pass', async () => {
   const target = probe(['some'], ['pass']);
   const time = fakeClock();

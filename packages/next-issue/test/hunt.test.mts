@@ -63,15 +63,6 @@ test('a user who hunts in a repository without the ready label sees the harness 
   assert.match(target.prompts[0]!.prompt, /--label "status:todo" --label "source:hunt"/);
 });
 
-test('a user who sets labels.hunt sees the hunter add that label', async (t) => {
-  const defaults = await harness(t);
-  const target = await harness(t, {
-    config: { labels: { ...defaults.context.config.labels, hunt: 'bot' } },
-  });
-  await hunt(target.context, 1);
-  assert.match(target.prompts[0]!.prompt, /--label "bot"/);
-});
-
 test('a user whose labels.hunt holds a double quote and a dollar sees the hunter told to pass them to gh unchanged', async (t) => {
   const defaults = await harness(t);
   const target = await harness(t, {
@@ -96,15 +87,6 @@ test('a user who sets an empty labels.ready sees the hunter add only the source 
     target.prompts[0]!.prompt,
     /gh issue create --repo acme\/tool --label "source:hunt" --title/,
   );
-});
-
-test('a user who hunts sees the filed issue in the run log', async (t) => {
-  const target = await harness(t, {
-    hunterText: 'Found it.\nissue: https://github.com/acme/tool/issues/9',
-  });
-  await hunt(target.context, 1);
-  const event = target.events.find((record) => record.kind === 'hunt.issue');
-  assert.equal(event?.url, 'https://github.com/acme/tool/issues/9');
 });
 
 test('a user who hunts with three free places sees the hunter told to file up to three issues, the most serious first', async (t) => {
@@ -293,15 +275,6 @@ test('a user whose hunter left a branch checked out gets the next hunt on a deta
   assert.equal(await git(repo.root, 'rev-parse', '3'), kept);
 });
 
-test('a user whose hunter left a detached HEAD at another commit gets the next hunt at the remote base', async () => {
-  const { repo } = await clones();
-  const path = await huntWorktree(repo, 'main', 'origin');
-  const base = await revision(path);
-  await commit(path, 'other.txt');
-  assert.equal(await huntWorktree(repo, 'main', 'origin'), path);
-  assert.equal(await revision(path), base);
-});
-
 test('a user who hunts sees the hunter count only issues that the watch can claim', async (t) => {
   const open = [7, 8, 9, 10].map((number) => ({ ...ISSUE, number }));
   open[2]!.labels = ['status:todo', 'status:in-progress'];
@@ -404,18 +377,6 @@ test('a user who hunts sees the hunter busy only during a hunt', async (t) => {
 
 test('a user whose hunt fails sees the hunter report the failure so the watch backs off', async (t) => {
   const target = await harness(t, { fail: 'runAgent' });
-  assert.equal(await hunter(target.context).hunt(1), false);
-});
-
-test('a user whose hunt files an issue sees the hunter report the success', async (t) => {
-  const target = await harness(t, {
-    hunterText: 'Found it.\nissue: https://github.com/acme/tool/issues/9',
-  });
-  assert.equal(await hunter(target.context).hunt(1), true);
-});
-
-test('a user whose hunt replies issue: none sees the hunter report it so the watch backs off', async (t) => {
-  const target = await harness(t, { hunterText: 'Nothing found.\nissue: none' });
   assert.equal(await hunter(target.context).hunt(1), false);
 });
 

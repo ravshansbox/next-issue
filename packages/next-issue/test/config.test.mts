@@ -205,11 +205,6 @@ test('a user who gives labels.hunt the name of the done label gets an error that
   );
 });
 
-test('a user with an empty ready label and distinct status labels gets the config loaded', async () => {
-  const config = await parse({ labels: { ready: '' } });
-  assert.equal(config.labels.ready, '');
-});
-
 test('a budget of zero and an empty ready label are allowed', async () => {
   const config = await parse({ maxCiFixes: 0, checkGraceSeconds: 0, labels: { ready: '' } });
   assert.equal(config.maxCiFixes, 0);

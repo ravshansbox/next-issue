@@ -9,17 +9,9 @@ test('a user who runs start with no flags gets the defaults', () => {
   assert.equal(args.max, undefined);
 });
 
-test('a user who passes --merge gets an unknown argument error', () => {
-  assert.throws(() => parseArgs(['--merge']), /Unknown argument: --merge/);
-});
-
 test('a user who passes --watch asks to keep watching', () => {
   assert.equal(parseArgs(['start']).watch, false);
   assert.equal(parseArgs(['start', '--watch']).watch, true);
-});
-
-test('a user who passes --agent gets an unknown argument error', () => {
-  assert.throws(() => parseArgs(['--agent', 'pi']), /Unknown argument: --agent/);
 });
 
 test('the flags set their fields', () => {

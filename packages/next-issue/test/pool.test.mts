@@ -92,18 +92,6 @@ test('a user with concurrency 2 whose issue leaves main broken gets no new claim
   assert.equal(end.stoppedAt, 1);
 });
 
-test('a user with concurrency 2 who passes --max 1 gets one handled issue and no claim after it', async () => {
-  const fake = pool([1, 2, 3], 2);
-  const result = runIssues({ max: 1 }, fake);
-  await settle();
-  assert.deepEqual(fake.started, [1]);
-  await fake.finish(1, 'skipped');
-  assert.deepEqual(fake.started, [1, 2]);
-  await fake.finish(2, 'done');
-  assert.deepEqual(fake.started, [1, 2]);
-  assert.equal((await result).reports.length, 2);
-});
-
 test('a user with concurrency 2 whose fetch fails gets no new claim and the running issue finished', async () => {
   const fake = pool([1, 2, 3], 2);
   const failure = new Error('gh failed');

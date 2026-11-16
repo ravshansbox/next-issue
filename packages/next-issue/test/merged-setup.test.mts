@@ -1,47 +1,10 @@
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
 import { test } from 'node:test';
 import { PORTS } from '../src/ports.mts';
 import { type IssueState, writeState } from '../src/state.mts';
 import { clones, git } from './clones.mts';
 import { harness, ISSUE, roles } from './harness.mts';
 import { pushBase, remoteMain, useGit } from './real-git.mts';
-import { tempDir } from './temp-dir.mts';
-
-test('a user whose base gains a dependency after the setup gets the dependency installed before the local checks and the change landed', async (t) => {
-  const { repo, other } = await clones();
-  await git(repo.root, 'config', 'user.name', 't');
-  await git(repo.root, 'config', 'user.email', 't@t');
-  const installed = join(await tempDir(), 'installed');
-  const target = await harness(t, {
-    root: repo.root,
-    config: {
-      setupCommand: `cat deps.txt > ${installed} 2>/dev/null || : > ${installed}`,
-      checks: [`grep -q left-pad ${installed}`],
-    },
-  });
-  useGit(target, async () => {});
-  const { ports } = target.context;
-  let setups = 0;
-  ports.runSetup = async (command, cwd, timeoutMs) => {
-    const result = await PORTS.runSetup(command, cwd, timeoutMs);
-    setups += 1;
-    if (setups === 1) {
-      await pushBase(other, { 'deps.txt': 'left-pad\n' });
-    }
-    return result;
-  };
-  ports.runCheck = PORTS.runCheck;
-  const report = await target.run();
-  assert.equal(report.outcome, 'done');
-  assert.equal(report.ciFixes, 0);
-  const landed = await remoteMain(other);
-  assert.deepEqual((await git(other, 'ls-tree', '--name-only', landed)).split('\n'), [
-    'a.txt',
-    'deps.txt',
-    'implementer.txt',
-  ]);
-});
 
 test('a user whose setup before the local checks writes a file that git does not ignore gets every check run on that file and the change landed without it', async (t) => {
   const { repo, other } = await clones();

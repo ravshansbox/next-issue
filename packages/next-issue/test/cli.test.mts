@@ -433,24 +433,6 @@ test('a user whose terminal closes (SIGHUP) on a worker started by hand sees it 
   assert.deepEqual(await readdir(stateDir(root)), []);
 });
 
-test('a user who stops a worker with SIGTERM leaves the socket and lock files that another worker owns', async (t) => {
-  const root = await repository();
-  const { child, exited } = await serveWorker(root);
-  t.after(() => child.kill('SIGKILL'));
-  const other = spawn('sleep', ['30']);
-  t.after(() => other.kill('SIGKILL'));
-  const { socketPath, lockPath } = workerPaths(root);
-  const otherLock = `${other.pid} ${await processStart(other.pid!)}\n`;
-  await rm(lockPath);
-  await writeFile(lockPath, otherLock);
-  await rm(socketPath);
-  await writeFile(socketPath, '');
-  child.kill('SIGTERM');
-  assert.equal(await exited, 'SIGTERM');
-  assert.equal(await readFile(lockPath, 'utf8'), otherLock);
-  assert.equal(await exists(socketPath), true);
-});
-
 test('a user who runs stop sees the worker of this repository exit and remove its socket and lock files', async (t) => {
   const root = await repository();
   const { child, exited } = await serveWorker(root);

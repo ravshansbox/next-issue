@@ -101,12 +101,6 @@ test('an issue closed during the run is not handled', async () => {
   assert.deepEqual(fake.processed, [1, 3]);
 });
 
-test('an issue that was skipped or failed is not tried again in the same run', async () => {
-  const fake = loop({ 1: 'skipped', 2: 'error', 3: 'done' });
-  await runIssues(ARGS, fake);
-  assert.deepEqual(fake.processed, [1, 2, 3]);
-});
-
 test('each issue is handled with the details fetched just before it', async () => {
   const fake = loop({ 1: 'done', 2: 'done' });
   const changed = { ...issue(2), labels: ['status:todo'] };

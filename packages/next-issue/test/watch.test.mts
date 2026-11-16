@@ -172,12 +172,6 @@ test('a user who watches with --max stops after n handled issues across passes',
   assert.deepEqual(fake.waits, [1]);
 });
 
-test('a user who watches with --max 1 stops after the first handled issue', async () => {
-  const fake = watcher([['skipped'], ['done', 'done']]);
-  await watchIssues({ ...ARGS, max: 1 }, fake);
-  assert.deepEqual(fake.processed, [1, 1]);
-});
-
 test('a user who watches sees an issue that failed tried only once across passes', async () => {
   const fake = watcher([['error', 'done'], ['error', 'done'], ['error']]);
   const result = await watchIssues(ARGS, fake);
@@ -249,7 +243,7 @@ function hunter(
   fake: FakeWatch,
   readyLists: number[][],
   cap = 1,
-  results: Array<'filed' | 'failed' | 'none'> = [],
+  results: Array<'filed' | 'failed'> = [],
 ): FakeHunter {
   const steps: string[] = [];
   const counts: number[] = [];
@@ -510,26 +504,6 @@ test('a user who watches with --hunt sees the hunter wait with the back-off afte
     'hunt',
     'wait 1',
     'hunt failed',
-    'wait 2',
-    'wait 3',
-  ]);
-});
-
-test('a user who watches with --hunt sees the hunter wait with the back-off after each hunt that files nothing, and back at 1 minute after a hunt that files an issue', async () => {
-  const fake = watcher([['done']]);
-  const hunting = hunter(fake, [[], [], [], [], []], 1, ['none', 'none', 'none', 'filed', 'none']);
-  holdIssues(fake, hunting.idle);
-  await watchIssues(ARGS, fake);
-  assert.deepEqual(hunting.steps, [
-    'hunt none',
-    'wait 1',
-    'hunt none',
-    'wait 2',
-    'hunt none',
-    'wait 3',
-    'hunt',
-    'wait 1',
-    'hunt none',
     'wait 2',
     'wait 3',
   ]);

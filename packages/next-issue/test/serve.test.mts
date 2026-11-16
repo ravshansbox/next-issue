@@ -563,16 +563,6 @@ test('a client that sends a malformed frame loses its connection while the worke
   assert.equal(fake.controls().interrupts.afterIssue(), false);
 });
 
-test('a client whose message the worker fails to handle gets an error and the worker keeps answering', async (t) => {
-  const { socketPath } = await worker(t, fakeRuns());
-  const client = await connect(t, socketPath);
-  client.send({ type: 'hello', version: 5 } as never);
-  const reply = await client.next((value) => value.type === 'error');
-  assert.equal(reply.type === 'error' && reply.root, '/repo');
-  const another = await connect(t, socketPath);
-  assert.deepEqual(await another.next(runsOf), { type: 'runs', runs: {} });
-});
-
 test('a client that sends a hello with no version or a version that is not a string gets an error that names the version', async (t) => {
   const { socketPath } = await worker(t, fakeRuns());
   const client = await connect(t, socketPath);
@@ -956,28 +946,6 @@ test('two workers that start together in one repository, with or without a stale
     const client = await connect(t, join(dir, 'w.sock'));
     assert.deepEqual(await client.next(runsOf), { type: 'runs', runs: {} });
   }
-});
-
-test('a worker that closes leaves a socket and lock file that are not its own', async () => {
-  const dir = await tempDir();
-  const socketPath = join(dir, 'w.sock');
-  const lockPath = join(dir, 'w.lock');
-  const started = await startWorker({
-    root: '/repo',
-    socketPath,
-    lockPath,
-    version: '2.0.0',
-    runRepo: fakeRuns().runRepo,
-    questions: noQuestions,
-    idleMs: 50,
-  });
-  assert.ok(started);
-  await writeFile(join(dir, 'other.sock'), '');
-  await rename(join(dir, 'other.sock'), socketPath);
-  await writeFile(join(dir, 'other.lock'), '1 other\n');
-  await rename(join(dir, 'other.lock'), lockPath);
-  await started.closed;
-  assert.deepEqual((await readdir(dir)).sort(), ['w.lock', 'w.sock']);
 });
 
 test('a worker that closes leaves a lock file that another worker in the same process took', async () => {

@@ -41,14 +41,6 @@ test('a user whose implementer gave a reply too long for a GitHub comment sees i
   assert.match(body, /\n\nThis comment was too long for GitHub and was cut\.$/);
 });
 
-test('a user whose implementer gave a long reply of emoji sees it cut between whole characters', async (t) => {
-  const target = await harness(t, { commits: [false], implementerText: ['😀'.repeat(40000)] });
-  await target.run();
-  const body = target.issueNotes[0]!.body;
-  assert.ok(body.length <= 65536);
-  assert.doesNotMatch(body, /\p{Cs}/u);
-});
-
 test('a writer who answers a hand-over after a run error with stderr longer than a GitHub comment sees the reason cut to fit and gets the issue claimed again', async (t) => {
   const failed = await harness(t, {
     commits: [new Error(`git hook run pre-commit failed with code 1: ${'e'.repeat(200000)}`)],

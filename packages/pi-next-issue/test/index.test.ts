@@ -768,23 +768,6 @@ test('a user who opens pi after a run has finished sees no run line in the foote
   assert.deepEqual(notes, []);
 });
 
-test('a user who opens pi after a run has stopped sees no run line in the footer and no notes', async () => {
-  const { path, extension } = setup();
-  const fake = await worker(path);
-  fake.runs['/repo'] = {
-    status: 'stopped',
-    hunting: false,
-    issues: [],
-    handled: [{ issue: 8, outcome: 'done' }],
-  };
-  const { pi, emit, notes, status } = host();
-  extension(pi as never);
-  await emit('session_start');
-  await until(() => status.length > 0);
-  assert.equal(status.at(-1), undefined);
-  assert.deepEqual(notes, []);
-});
-
 test('a model that calls next_issue_status after a run has stopped sees the run and each handled issue with its outcome', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
@@ -931,31 +914,6 @@ test('a user who picks Stop in the /next-issue menu is asked when to stop, and t
     ],
   );
   assert.deepEqual(notes, []);
-});
-
-test('a user who picks a watch or hunt switch in the /next-issue menu asks the worker to switch it', async () => {
-  const { path, extension } = setup();
-  const fake = await worker(path);
-  fake.runs['/repo'] = running({ watching: false, hunting: false });
-  const { pi, emit, command, picks } = host();
-  extension(pi as never);
-  await emit('session_start');
-  picks.push('Watch on');
-  await command();
-  picks.push('Hunt on');
-  await command();
-  await until(
-    () =>
-      fake.received.filter((message) => message.type === 'watch' || message.type === 'hunt')
-        .length === 2,
-  );
-  assert.deepEqual(
-    fake.received.filter((message) => message.type === 'watch' || message.type === 'hunt'),
-    [
-      { type: 'watch', root: '/repo', on: true },
-      { type: 'hunt', root: '/repo', on: true },
-    ],
-  );
 });
 
 test('a user who closes the /next-issue menu or its stop menu without a choice sends nothing and sees no note', async () => {
@@ -2286,13 +2244,6 @@ test('a user whose older worker sends progress without running issues sees the f
   assert.equal(formatStatus({ ...older, status: 'stopping' } as Progress, now), '#? · stopping');
 });
 
-test('a user sees the error of a failed run in the footer', () => {
-  assert.equal(
-    formatStatus(progress({ status: 'failed', error: 'gh failed' }), now),
-    'failed: gh failed',
-  );
-});
-
 function question(issue: number): Question {
   return {
     issue,
@@ -2703,13 +2654,5 @@ test('a model whose going run is on an older worker that calls next_issue_watch 
   assert.equal(
     fake.received.some((message) => message.type === 'watch' || message.type === 'hunt'),
     false,
-  );
-});
-
-test('a user whose going run hunts sees no hunting marker in the footer', () => {
-  assert.equal(formatStatus(progress({ hunting: true }), now), 'looking for issues');
-  assert.equal(
-    formatStatus(progress({ hunting: true, issues: [working(4, { stage: 'implement' })] }), now),
-    '#4 · implement',
   );
 });

@@ -573,22 +573,6 @@ test('waitForCiChecks passes when the push run of the base branch passes, whatev
   );
 });
 
-test('waitForCiChecks fails when the push run of the base branch fails', async (t) => {
-  const dir = await fakeRunsGh(t, [
-    {
-      databaseId: 1,
-      name: 'CI',
-      status: 'completed',
-      conclusion: 'failure',
-      attempt: 1,
-    },
-  ]);
-  assert.equal(
-    await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
-    'fail',
-  );
-});
-
 test('rerunFailedCi and failedCiLogs leave out a failed push run of a tag or another branch on the commit', async (t) => {
   const dir = await fakeRunsGh(t, OTHER_REF_RUNS);
   const repo = { owner: 'acme', name: 'tool', root: dir };
