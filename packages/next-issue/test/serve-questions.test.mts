@@ -15,7 +15,7 @@ const QUESTION: Question = {
   reason: 'The reviewer gave no verdict.',
   url: 'https://github.com/acme/tool/issues/7#issuecomment-1',
   repo: 'acme/tool',
-  labels: { needsHuman: 'status:needs-human', skip: 'status:blocked' },
+  labels: { needsHuman: 'status:needs-human', skip: 'status:blocked', ready: 'status:todo' },
 };
 
 const questionsOf = (value: WorkerMessage) => value.type === 'questions';

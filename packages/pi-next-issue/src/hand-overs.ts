@@ -40,5 +40,7 @@ export async function answerHandOver(gh: Gh, question: Question, answer: Answer)
   if (answer.guidance !== undefined) {
     await gh(['issue', 'comment', ...issue, '--body', answer.guidance]);
   }
-  await gh(['issue', 'edit', ...issue, ...remove]);
+  const ready = question.labels.ready;
+  const add = ready === undefined || ready === '' ? [] : ['--add-label', ready];
+  await gh(['issue', 'edit', ...issue, ...remove, ...add]);
 }

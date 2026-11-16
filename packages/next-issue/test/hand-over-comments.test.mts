@@ -31,7 +31,11 @@ test('the worker lists each open issue that waits for a person with the reason a
   );
   const repo = { owner: 'acme', name: 'tool', root };
   const config = await loadConfig(root);
-  const questionLabels = { needsHuman: config.labels.needsHuman, skip: config.labels.skip };
+  const questionLabels = {
+    needsHuman: config.labels.needsHuman,
+    skip: config.labels.skip,
+    ready: config.labels.ready,
+  };
   const threads: Record<number, Comment[]> = {
     7: [
       { author: 'bot', body: 'next-issue needs help: old', url: 'u1' },

@@ -56,7 +56,11 @@ test('an agent who answers a hand-over asks numbered questions with lettered opt
 
 test('an agent who retries, guides or gives up changes the labels of the issue on GitHub', async () => {
   const skill = await readFile(skillFile, 'utf8');
-  assert.match(skill, /gh issue edit --repo <repo> <number> --remove-label "<needs-human>"\n/);
+  assert.match(
+    skill,
+    /gh issue edit --repo <repo> <number> --remove-label "<needs-human>" --add-label "<ready>"\n/,
+  );
+  assert.doesNotMatch(skill, /--remove-label "<needs-human>"\n/);
   assert.match(skill, /gh issue comment --repo <repo> <number> --body-file <file>/);
   assert.match(skill, /`### Review:`/);
   assert.match(skill, /`### Fixer:`/);
@@ -69,6 +73,8 @@ test('an agent who retries, guides or gives up changes the labels of the issue o
   );
   assert.match(skill, /`labels\.needsHuman`[^\n]*`status:needs-human`/);
   assert.match(skill, /`labels\.skip`[^\n]*`status:blocked`/);
+  assert.match(skill, /`labels\.ready`[^\n]*`status:todo`/);
+  assert.match(skill, /When `labels\.ready` is `""`, leave out `--add-label "<ready>"`/);
 });
 
 test('an agent who retries an issue nudges the going run and offers a start only when no run is going', async () => {

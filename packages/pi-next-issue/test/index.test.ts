@@ -1593,14 +1593,24 @@ test('a user who opens the Hand-overs tab of the dashboard sees each issue waiti
   await opened;
 });
 
-test('a user who retries a hand-over from the dashboard removes the needs-human label, asks the going run to check now and sees the issue leave the list', async () => {
+test('a user who retries a hand-over from the dashboard swaps the needs-human label for the ready label, asks the going run to check now and sees the issue leave the list', async () => {
   const { fake, ghCalls, overlay, opened } = await handOvers();
   overlay.press('enter');
   assert.match(overlay.screen(), /> Retry/);
   overlay.press('enter');
   await until(() => fake.received.some((message) => message.type === 'refresh'), 500);
   assert.deepEqual(ghCalls, [
-    ['issue', 'edit', '--repo', 'owner/name', '4', '--remove-label', 'status:needs-human'],
+    [
+      'issue',
+      'edit',
+      '--repo',
+      'owner/name',
+      '4',
+      '--remove-label',
+      'status:needs-human',
+      '--add-label',
+      'status:todo',
+    ],
   ]);
   await until(() => overlay.screen().includes('Retried #4'), 500);
   assert.doesNotMatch(overlay.screen(), /#4 Title 4/);
@@ -1609,7 +1619,21 @@ test('a user who retries a hand-over from the dashboard removes the needs-human 
   await opened;
 });
 
-test('a user who retries a hand-over with guidance from the dashboard posts the typed guidance as a comment, then removes the needs-human label and asks the going run to check now', async () => {
+test('a user whose config has an empty ready label retries a hand-over from the dashboard and only removes the needs-human label', async () => {
+  const { ghCalls, overlay, opened } = await handOvers({
+    waiting: [{ ...question(4), labels: { ...question(4).labels, ready: '' } }],
+  });
+  overlay.press('enter');
+  overlay.press('enter');
+  await until(() => overlay.screen().includes('Retried #4'), 500);
+  assert.deepEqual(ghCalls, [
+    ['issue', 'edit', '--repo', 'owner/name', '4', '--remove-label', 'status:needs-human'],
+  ]);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user who retries a hand-over with guidance from the dashboard posts the typed guidance as a comment, then swaps the needs-human label for the ready label and asks the going run to check now', async () => {
   const { fake, ghCalls, overlay, opened } = await handOvers();
   overlay.press('down');
   overlay.press('enter');
@@ -1628,7 +1652,17 @@ test('a user who retries a hand-over with guidance from the dashboard posts the 
   await until(() => fake.received.some((message) => message.type === 'refresh'), 500);
   assert.deepEqual(ghCalls, [
     ['issue', 'comment', '--repo', 'owner/name', '5', '--body', 'Use the v2 api'],
-    ['issue', 'edit', '--repo', 'owner/name', '5', '--remove-label', 'status:needs-human'],
+    [
+      'issue',
+      'edit',
+      '--repo',
+      'owner/name',
+      '5',
+      '--remove-label',
+      'status:needs-human',
+      '--add-label',
+      'status:todo',
+    ],
   ]);
   await until(() => !overlay.screen().includes('#5 Title 5'), 500);
   assert.match(overlay.screen(), /#4 Title 4/);
@@ -1768,13 +1802,23 @@ test('a user with more hand-overs than the overlay fits sees a window of them wi
   await opened;
 });
 
-test('a user who retries a hand-over from the dashboard while no run is going removes the needs-human label and is told no run was asked', async () => {
+test('a user who retries a hand-over from the dashboard while no run is going swaps the needs-human label for the ready label and is told no run was asked', async () => {
   const { fake, ghCalls, overlay, opened } = await handOvers({ going: false });
   overlay.press('enter');
   overlay.press('enter');
   await until(() => overlay.screen().includes('Retried #4'), 500);
   assert.deepEqual(ghCalls, [
-    ['issue', 'edit', '--repo', 'owner/name', '4', '--remove-label', 'status:needs-human'],
+    [
+      'issue',
+      'edit',
+      '--repo',
+      'owner/name',
+      '4',
+      '--remove-label',
+      'status:needs-human',
+      '--add-label',
+      'status:todo',
+    ],
   ]);
   assert.match(overlay.screen(), /Retried #4\. No run of \/repo is going, so nothing was asked\./);
   assert.equal(
@@ -2381,7 +2425,7 @@ function question(issue: number): Question {
     reason: `Reason ${issue}`,
     url: '',
     repo: 'owner/name',
-    labels: { needsHuman: 'status:needs-human', skip: 'status:blocked' },
+    labels: { needsHuman: 'status:needs-human', skip: 'status:blocked', ready: 'status:todo' },
   };
 }
 

@@ -149,7 +149,11 @@ async function waitingQuestion(
     reason: comment?.body.slice(HAND_OVER.length).trim() ?? pending?.reason ?? '',
     url: comment?.url ?? '',
     repo: repoArg(repo),
-    labels: { needsHuman: config.labels.needsHuman, skip: config.labels.skip },
+    labels: {
+      needsHuman: config.labels.needsHuman,
+      skip: config.labels.skip,
+      ready: config.labels.ready,
+    },
   };
 }
 

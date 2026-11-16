@@ -30,7 +30,7 @@ export type Question = {
   reason: string;
   url: string;
   repo: string;
-  labels: { needsHuman: string; skip: string };
+  labels: { needsHuman: string; skip: string; ready?: string };
 };
 
 export type UpcomingIssue = { issue: number; title: string };

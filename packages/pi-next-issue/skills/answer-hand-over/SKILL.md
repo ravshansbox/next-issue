@@ -8,7 +8,7 @@ description: Investigate an issue that the next-issue worker handed over to a pe
 Help the user understand why the worker handed an issue over, then answer the hand-over on GitHub. Do not fix the code of the issue yourself. The worker does the work.
 
 1. Find the repository, `<repo>`, that the worker reads. `<remote>` is the value of `remote` in `.next-issue/config.json` at the root of the repository. When there is no config file or no `remote` field, `<remote>` is `origin`. Run `git remote get-url <remote>` and take `<owner>/<name>` from the url, without `.git`. That is `<repo>`. When the host of the url is not `github.com`, `<repo>` is `<host>/<owner>/<name>`, so gh acts on that host. For an ssh url, such as `git@<host>:<owner>/<name>.git`, run `ssh -G <host>` and take the host from its `hostname` line, since `<host>` may be an alias from the ssh config. The host `ssh.github.com` means `github.com` (GitHub's ssh over port 443), so `<repo>` is then `<owner>/<name>`. Pass `--repo <repo>` to every `gh` command but `gh api`, since gh otherwise may pick another remote, such as `upstream`.
-2. Find the labels. `<needs-human>` is the value of `labels.needsHuman` in `.next-issue/config.json`, or `status:needs-human` when it is not set or there is no config file. `<skip>` is the value of `labels.skip` in `.next-issue/config.json`, or `status:blocked` when it is not set or there is no config file.
+2. Find the labels. `<needs-human>` is the value of `labels.needsHuman` in `.next-issue/config.json`, or `status:needs-human` when it is not set or there is no config file. `<skip>` is the value of `labels.skip` in `.next-issue/config.json`, or `status:blocked` when it is not set or there is no config file. `<ready>` is the value of `labels.ready` in `.next-issue/config.json`, or `status:todo` when it is not set or there is no config file. When `labels.ready` is `""`, leave out `--add-label "<ready>"` below, since the worker then claims every open issue.
 3. List the waiting issues:
 
    ```bash
@@ -65,17 +65,17 @@ Help the user understand why the worker handed an issue over, then answer the ha
 8. Ask numbered questions, with the answers of the questions of the hand-over among them. Label options with letters and recommend one. Ask again until you know whether to retry, retry with guidance or give up, and, for guidance, its text.
 9. Answer the hand-over:
 
-   - Retry: remove the label, so the next run resumes the issue.
+   - Retry: swap the label for `<ready>`, so the next run resumes the issue.
 
      ```bash
-     gh issue edit --repo <repo> <number> --remove-label "<needs-human>"
+     gh issue edit --repo <repo> <number> --remove-label "<needs-human>" --add-label "<ready>"
      ```
 
-   - Retry with guidance: write the guidance into a temporary file, post it as one comment, then remove the label. The guidance must not start with `next-issue needs help:`, `### Review:` or `### Fixer:`, since a comment that starts with a heading of the harness never counts as an answer.
+   - Retry with guidance: write the guidance into a temporary file, post it as one comment, then swap the label for `<ready>`. The guidance must not start with `next-issue needs help:`, `### Review:` or `### Fixer:`, since a comment that starts with a heading of the harness never counts as an answer.
 
      ```bash
      gh issue comment --repo <repo> <number> --body-file <file>
-     gh issue edit --repo <repo> <number> --remove-label "<needs-human>"
+     gh issue edit --repo <repo> <number> --remove-label "<needs-human>" --add-label "<ready>"
      ```
 
    - Give up: find the `<skip>` label in the repository. Compare label names without case, as GitHub does, and use the name that the repository has:
