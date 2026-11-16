@@ -140,6 +140,7 @@ function readmitChanged(issues: Issue[], seen: Set<number>, tried: Tried): void 
   for (const [number, labels] of tried.labels) {
     if (listed.has(number) && listed.get(number) !== labels) {
       tried.labels.delete(number);
+      tried.blocked.delete(number);
       seen.delete(number);
     }
   }

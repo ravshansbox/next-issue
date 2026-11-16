@@ -225,3 +225,65 @@ test('an issue that is done is not claimed again in the same run even when its l
   await runIssues(ARGS, fake);
   assert.deepEqual(fake.processed, [1, 2]);
 });
+
+function reclaimedBlocked(
+  outcome: Outcome,
+  otherEnds: 'while it runs' | 'after it ends',
+): Fake & { overlapped: boolean } {
+  const before = labelled(1, ['status:todo']);
+  const after = labelled(1, ['status:todo', 'status:ready']);
+  const lists = [
+    [before, issue(2)],
+    [before, issue(2), issue(3)],
+    [after, issue(2)],
+  ];
+  let endOther = (): void => {};
+  const otherEnded = new Promise<void>((resolve) => {
+    endOther = resolve;
+  });
+  const fake = { ...listed([], []), overlapped: false };
+  fake.issues = async () => {
+    fake.fetches += 1;
+    return lists[fake.fetches - 1] ?? [after];
+  };
+  let running = 0;
+  fake.process = async (target) => {
+    fake.processed.push(target.number);
+    if (target.number === 2) {
+      await otherEnded;
+      return report(2, 'done');
+    }
+    if (target.number === 3) {
+      return report(3, 'skipped');
+    }
+    if (fake.processed.filter((number) => number === 1).length === 1) {
+      return { ...report(1, 'skipped'), blocked: true };
+    }
+    running += 1;
+    fake.overlapped ||= running > 1;
+    if (otherEnds === 'while it runs') {
+      endOther();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    } else {
+      setTimeout(endOther, 20);
+    }
+    running -= 1;
+    return report(1, outcome);
+  };
+  return fake;
+}
+
+test('a person who changes the labels of a blocked issue gets it claimed once while it runs, even when another issue ends done meanwhile', async () => {
+  const fake = reclaimedBlocked('done', 'while it runs');
+  await runIssues(ARGS, { ...fake, concurrency: 2 });
+  assert.equal(fake.overlapped, false);
+  assert.deepEqual(fake.processed, [1, 2, 3, 1]);
+});
+
+for (const outcome of ['done', 'error'] as const) {
+  test(`a person who changes the labels of a blocked issue that then ends ${outcome} does not get it claimed again when another issue ends done`, async () => {
+    const fake = reclaimedBlocked(outcome, 'after it ends');
+    await runIssues(ARGS, { ...fake, concurrency: 2 });
+    assert.deepEqual(fake.processed, [1, 2, 3, 1]);
+  });
+}
