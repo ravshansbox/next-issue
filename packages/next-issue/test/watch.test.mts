@@ -96,7 +96,7 @@ esac
 `,
   );
   let waits = 0;
-  const code = await runRepo(root, parseArgs(['start', '--watch']), {
+  const code = await runRepo(root, parseArgs(['start', '--watch', 'on']), {
     interrupts: {
       afterIssue: () => false,
       afterRound: () => false,

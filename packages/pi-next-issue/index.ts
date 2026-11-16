@@ -304,7 +304,7 @@ export function createExtension(options: Options) {
       name: 'next_issue_start',
       label: 'Start next-issue',
       description:
-        'Start a next-issue run of the GitHub issues of this repository when none is going: one pass, with watching and hunting off (next_issue_watch and next_issue_hunt switch them). Starts the worker when needed. When a run is going, starts nothing, asks that run to check for new issues now and reports that run.',
+        'Start a next-issue run of the GitHub issues of this repository when none is going: it watches for new issues after each pass and does not hunt (next_issue_watch and next_issue_hunt switch them). Starts the worker when needed. When a run is going, starts nothing, asks that run to check for new issues now and reports that run.',
       promptSnippet: 'Start a next-issue run of this repository when none is going',
       parameters: Type.Object({}),
       async execute(_toolCallId, _params, signal, _onUpdate, ctx) {

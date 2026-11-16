@@ -29,7 +29,7 @@ esac
 `,
   );
   const records: Fields[] = [];
-  await runRepo(root, parseArgs(['start']), {
+  await runRepo(root, parseArgs(['start', '--watch', 'off']), {
     interrupts: { afterIssue: () => false, afterRound: () => false, sleep: async () => false },
     onEvent: (record) => {
       records.push(record);

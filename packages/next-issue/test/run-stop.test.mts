@@ -64,14 +64,14 @@ function stopDuringWait(): Interrupts {
 }
 
 test('a person who stops a watch run while it waits between passes sees a run stop in its run log', async (t) => {
-  const kinds = await runLogKinds(t, ['start', '--watch'], stopDuringWait());
+  const kinds = await runLogKinds(t, ['start', '--watch', 'on'], stopDuringWait());
   assert.ok(kinds.includes('watch.wait'));
   assert.ok(kinds.includes('run.stop'));
   assert.ok(kinds.includes('run.end'));
 });
 
 test('a person who stops a run before it fetches issues sees a run stop in its run log', async (t) => {
-  const kinds = await runLogKinds(t, ['start'], {
+  const kinds = await runLogKinds(t, ['start', '--watch', 'off'], {
     afterIssue: () => true,
     afterRound: () => false,
     sleep: async () => false,
@@ -83,7 +83,7 @@ test('a worker client who turns watching off during a wait sees no run stop in t
   const watching = onOff(true);
   const kinds = await runLogKinds(
     t,
-    ['start', '--watch'],
+    ['start', '--watch', 'on'],
     {
       afterIssue: () => false,
       afterRound: () => false,
@@ -99,7 +99,7 @@ test('a worker client who turns watching off during a wait sees no run stop in t
 });
 
 test('a user whose run ends on its own sees no run stop in its run log', async (t) => {
-  const kinds = await runLogKinds(t, ['start'], {
+  const kinds = await runLogKinds(t, ['start', '--watch', 'off'], {
     afterIssue: () => false,
     afterRound: () => false,
     sleep: async () => false,

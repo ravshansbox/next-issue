@@ -371,8 +371,9 @@ export class WorkerClient {
     for (const [root, progress] of upgraded) {
       if (!going(this.runs[root])) {
         const args = [
-          ...(progress.watching === true ? ['--watch'] : []),
-          ...(progress.hunting ? ['--hunt'] : []),
+          '--watch',
+          progress.watching === true ? 'on' : 'off',
+          ...(progress.hunting ? ['--hunt', 'on'] : []),
         ];
         this.send({ type: 'start', root, args, resume: true });
       }

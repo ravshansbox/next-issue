@@ -45,7 +45,7 @@ esac
 `,
   );
   await assert.rejects(
-    runRepo(root, parseArgs(['start']), {
+    runRepo(root, parseArgs(['start', '--watch', 'off']), {
       interrupts: { afterIssue: () => false, afterRound: () => false, sleep: async () => false },
       output: () => undefined,
       onEvent,

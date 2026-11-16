@@ -34,7 +34,7 @@ esac
 }
 
 function start(root: string): Promise<number> {
-  return runRepo(root, parseArgs(['start']), {
+  return runRepo(root, parseArgs(['start', '--watch', 'off']), {
     interrupts: {
       afterIssue: () => false,
       afterRound: () => false,

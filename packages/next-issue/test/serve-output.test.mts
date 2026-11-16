@@ -69,7 +69,7 @@ async function outputUntilEnd(
 
 test('a client that starts a run gets the milestone and normal lines but not the commands, then the summary and exit code, while the run log keeps every event', async (t) => {
   const { root, client } = await repoWorker(t, WORKING_GH);
-  client.send({ type: 'start', root });
+  client.send({ type: 'start', root, args: ['--watch', 'off'] });
   const { lines, end } = await outputUntilEnd(client, root);
   assert.match(lines, / run\.start /);
   assert.match(lines, / issue\.skip /);
@@ -94,7 +94,7 @@ echo "gh is broken" >&2
 exit 1
 `,
   );
-  client.send({ type: 'start', root });
+  client.send({ type: 'start', root, args: ['--watch', 'off'] });
   const { end } = await outputUntilEnd(client, root);
   assert.equal(end.type === 'end' && end.code, 1);
   assert.match(end.type === 'end' ? String(end.error) : '', /gh is broken/);

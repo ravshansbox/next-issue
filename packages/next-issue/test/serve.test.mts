@@ -102,11 +102,11 @@ test('a client that starts a second run in the same repository gets an error', a
   assert.equal(fake.calls.length, 1);
 });
 
-test('a client that starts a run with --hunt gets a run that hunts and watches', async (t) => {
+test('a client that starts a run with --hunt on gets a run that hunts and watches', async (t) => {
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo', args: ['--hunt'] });
+  client.send({ type: 'start', root: '/repo', args: ['--hunt', 'on'] });
   await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
   assert.equal(fake.calls[0]!.args.hunt, true);
   assert.equal(fake.calls[0]!.args.watch, true);
@@ -114,8 +114,9 @@ test('a client that starts a run with --hunt gets a run that hunts and watches',
 
 test('a client sees in the progress of each run whether it watches for new issues', async (t) => {
   for (const [args, watching] of [
-    [['--watch'], true],
-    [[], false],
+    [['--watch', 'on'], true],
+    [['--watch', 'off'], false],
+    [[], true],
   ] as const) {
     const { socketPath } = await worker(t, fakeRuns());
     const client = await connect(t, socketPath);
@@ -134,7 +135,7 @@ test('a client that switches hunting off and on during a run with --hunt sees th
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo', args: ['--hunt'] });
+  client.send({ type: 'start', root: '/repo', args: ['--hunt', 'on'] });
   await client.next(huntingIs(true));
   const controls = fake.controls();
   assert.equal(controls.hunting?.on(), true);
@@ -160,7 +161,7 @@ test('a client that starts a run with --watch alone sees hunting off, and can sw
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo', args: ['--watch'] });
+  client.send({ type: 'start', root: '/repo', args: ['--watch', 'on'] });
   await client.next(huntingIs(false));
   assert.equal(fake.controls().hunting?.on(), false);
   client.send({ type: 'hunt', root: '/repo', on: true });
@@ -185,11 +186,11 @@ test('a client that switches hunting on for a run that does not watch sees the r
 const watchingIs = (on: boolean) => (value: WorkerMessage) =>
   value.type === 'runs' && value.runs['/repo']?.watching === on;
 
-test('a client that starts a run with no args gets a run that neither watches nor hunts, and can switch watching on and off with no restart', async (t) => {
+test('a client that starts a run with --watch off gets a run that neither watches nor hunts, and can switch watching on and off with no restart', async (t) => {
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo' });
+  client.send({ type: 'start', root: '/repo', args: ['--watch', 'off'] });
   const started = await client.next(watchingIs(false));
   assert.equal(started.type === 'runs' && started.runs['/repo']!.hunting, false);
   const controls = fake.controls();
@@ -212,7 +213,7 @@ test('a client that switches watching off for a run that hunts sees hunting turn
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo', args: ['--hunt'] });
+  client.send({ type: 'start', root: '/repo', args: ['--hunt', 'on'] });
   await client.next(huntingIs(true));
   client.send({ type: 'watch', root: '/repo', on: false });
   const off = await client.next(watchingIs(false));
@@ -238,7 +239,7 @@ test('a client that asks a run to refresh after it switched watching on wakes it
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo' });
+  client.send({ type: 'start', root: '/repo', args: ['--watch', 'off'] });
   await client.next(watchingIs(false));
   client.send({ type: 'watch', root: '/repo', on: true });
   await client.next(watchingIs(true));
@@ -260,7 +261,7 @@ test('a client that switches hunting with no run going gets an error and no run 
     message: 'no run is going in this repository',
   });
   assert.equal(fake.calls.length, 0);
-  client.send({ type: 'start', root: '/repo', args: ['--hunt'] });
+  client.send({ type: 'start', root: '/repo', args: ['--hunt', 'on'] });
   await client.next(huntingIs(true));
   fake.finish();
   await client.next((value) => value.type === 'runs' && value.runs['/repo']?.status === 'finished');
@@ -341,7 +342,7 @@ test('a client that asks a waiting watch run to refresh wakes its wait, and the 
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo', args: ['--watch'] });
+  client.send({ type: 'start', root: '/repo', args: ['--watch', 'on'] });
   await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
   const controls = fake.controls();
   const refreshed = controls.refreshed!();
@@ -359,7 +360,7 @@ test('a client that asks a stopping run to refresh changes nothing and the run s
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo', args: ['--watch'] });
+  client.send({ type: 'start', root: '/repo', args: ['--watch', 'on'] });
   await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
   client.send({ type: 'stop', root: '/repo' });
   await client.next(stopping);
@@ -1029,7 +1030,7 @@ test('a worker that meets a newer client closes once no run is going', async (t)
   const fake = fakeRuns();
   const { socketPath, worker: started } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo' });
+  client.send({ type: 'start', root: '/repo', args: ['--watch', 'off'] });
   await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
   client.send({ type: 'hello', version: '2.1.0' });
   client.send({ type: 'start', root: '/repo' });
@@ -1051,7 +1052,7 @@ test('a worker that meets a newer client during a watching run stops it after th
   const fake = fakeRuns();
   const { socketPath, worker: started } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo', args: ['--hunt'] });
+  client.send({ type: 'start', root: '/repo', args: ['--hunt', 'on'] });
   await client.next(huntingIs(true));
   const controls = fake.controls();
   controls.onEvent!({ kind: 'issue.start', issue: 7, ts: '2026-11-02T10:00:00.000Z' });
@@ -1073,7 +1074,7 @@ test('a worker that meets a newer client and then sees watching turn on stops th
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo' });
+  client.send({ type: 'start', root: '/repo', args: ['--watch', 'off'] });
   await client.next(watchingIs(false));
   client.send({ type: 'hello', version: '2.1.0' });
   client.send({ type: 'watch', root: '/repo', on: true });
@@ -1085,7 +1086,7 @@ test('a person who stops a run that stops for an upgrade sees the upgrade droppe
   const fake = fakeRuns();
   const { socketPath, worker: started } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo', args: ['--watch'] });
+  client.send({ type: 'start', root: '/repo', args: ['--watch', 'on'] });
   await client.next(watchingIs(true));
   client.send({ type: 'hello', version: '2.1.0' });
   await client.next(upgrading);
@@ -1102,7 +1103,7 @@ test('a person who turns watching off on a run that stops for an upgrade sees th
   const fake = fakeRuns();
   const { socketPath, worker: started } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo', args: ['--watch'] });
+  client.send({ type: 'start', root: '/repo', args: ['--watch', 'on'] });
   await client.next(watchingIs(true));
   client.send({ type: 'hello', version: '2.1.0' });
   await client.next(upgrading);
@@ -1119,9 +1120,9 @@ test('a client that resumes a run while a run is going gets no error and no seco
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo', args: ['--watch'], resume: true });
+  client.send({ type: 'start', root: '/repo', args: ['--watch', 'on'], resume: true });
   await client.next(watchingIs(true));
-  client.send({ type: 'start', root: '/repo', args: ['--watch'], resume: true });
+  client.send({ type: 'start', root: '/repo', args: ['--watch', 'on'], resume: true });
   client.send({ type: 'questions', root: '/repo', id: 'after' });
   const first = await client.next((value) => value.type === 'error' || answered('after')(value));
   assert.equal(first.type, 'questions');
@@ -1261,8 +1262,8 @@ test('a client of a watch run gets the summary of each pass, and a client of any
     issues: [],
   };
   for (const { args, sent } of [
-    { args: ['--watch'], sent: true },
-    { args: [], sent: false },
+    { args: ['--watch', 'on'], sent: true },
+    { args: ['--watch', 'off'], sent: false },
   ]) {
     const fake = fakeRuns();
     const { socketPath, worker: started } = await worker(t, fake);

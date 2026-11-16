@@ -73,7 +73,7 @@ test('a user whose event listener fails on the pruned runs event is left with no
   });
   const openBefore = (await readdir('/dev/fd')).length;
   await assert.rejects(
-    runRepo(root, parseArgs(['start']), {
+    runRepo(root, parseArgs(['start', '--watch', 'off']), {
       interrupts: { afterIssue: () => false, afterRound: () => false, sleep: async () => false },
       onEvent: (record) => {
         if (record.kind === 'runs.pruned') {

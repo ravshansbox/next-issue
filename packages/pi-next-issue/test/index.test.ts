@@ -2222,7 +2222,7 @@ test('a user with a newer extension whose watching run stops for an upgrade sees
   assert.deepEqual(spawns, ['2.0.0']);
   assert.deepEqual(
     fresh!.received.filter((message) => message.type === 'start'),
-    [{ type: 'start', root: '/repo', args: ['--watch', '--hunt'], resume: true }],
+    [{ type: 'start', root: '/repo', args: ['--watch', 'on', '--hunt', 'on'], resume: true }],
   );
   assert.deepEqual(notes, ['next-issue: worker 1.0.0 upgrades to 2.0.0 after the running issues']);
 });

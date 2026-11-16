@@ -43,7 +43,7 @@ function parse(text: string): WorkerMessage | undefined {
   }
 }
 
-function open(socketPath: string, version: string): Promise<Connection> {
+function open(socketPath: string, version?: string): Promise<Connection> {
   return new Promise((resolve, reject) => {
     const socket = new WebSocket('ws://localhost/', {
       createConnection: () => createConnection(socketPath),
@@ -81,7 +81,7 @@ function open(socketPath: string, version: string): Promise<Connection> {
       } else if (message.type === 'runs') {
         ready = true;
         clearTimeout(timer);
-        if (!Object.values(message.runs).some(going)) {
+        if (version !== undefined && !Object.values(message.runs).some(going)) {
           socket.send(JSON.stringify({ type: 'hello', version }));
         }
         resolve({
@@ -100,7 +100,7 @@ function open(socketPath: string, version: string): Promise<Connection> {
   });
 }
 
-async function tryOpen(socketPath: string, version: string): Promise<Connection | undefined> {
+async function tryOpen(socketPath: string, version?: string): Promise<Connection | undefined> {
   try {
     return await open(socketPath, version);
   } catch (error) {
@@ -175,6 +175,12 @@ export async function reachWorker(root: string, version: string): Promise<Connec
     await Promise.race([found.closed, delay(ANSWER_TIMEOUT_MS)]);
     found.close();
   }
+}
+
+export function findWorker(root: string): Promise<Connection | undefined> {
+  const { socketPath } = workerPaths(root);
+  checkSocketPath(socketPath);
+  return tryOpen(socketPath);
 }
 
 function exitText(code: number | null, signal: NodeJS.Signals | null): string {

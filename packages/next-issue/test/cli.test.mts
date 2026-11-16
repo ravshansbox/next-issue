@@ -164,7 +164,7 @@ case "$1 $2" in
 esac
 `;
   await writeFile(join(bin, 'gh'), script, { mode: 0o755 });
-  const child = spawn(process.execPath, [CLI, 'start', '--watch'], {
+  const child = spawn(process.execPath, [CLI, 'start', '--watch', 'on'], {
     cwd: root,
     env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
   });
@@ -239,7 +239,7 @@ async function watchingRun(root: string) {
   await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/watch.git'], {
     cwd: root,
   });
-  const child = spawn(process.execPath, [CLI, 'start', '--watch'], {
+  const child = spawn(process.execPath, [CLI, 'start', '--watch', 'on'], {
     cwd: root,
     env: await idleGh(),
   });
@@ -309,7 +309,7 @@ test('a user who runs next-issue while the worker has a run going sees that a ru
   const { child } = await serveWorker(root, await idleGh());
   t.after(() => child.kill('SIGKILL'));
   const client = await connect(t, workerPaths(root).socketPath);
-  client.send({ type: 'start', root, args: ['--watch'] });
+  client.send({ type: 'start', root, args: ['--watch', 'on'] });
   await client.next(
     (value) =>
       value.type === 'runs' &&
@@ -747,7 +747,7 @@ test('a user who runs logs in a terminal sees every event of the new run log fro
 
 test('a user who runs --help sees the logs command', async () => {
   const { stdout } = await promisify(execFile)(process.execPath, [CLI, '--help']);
-  assert.match(stdout, /^ {2}logs {9}show the latest run log and follow it$/m);
+  assert.match(stdout, /^ {2}logs {14}show the latest run log and follow it$/m);
 });
 
 function cliFails(args: string[], options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}) {
@@ -768,10 +768,10 @@ test('a user who runs next-issue with no argument sees the usage on standard err
   assert.equal(await exists(called), false);
 });
 
-test('a user who runs next-issue --watch sees an error that says to use next-issue start, exit code 1 and no issue read', async () => {
+test('a user who runs next-issue --watch on sees an error that says to use next-issue start, exit code 1 and no issue read', async () => {
   const root = await repository();
   const { env, called } = await oldGit('2.50.0');
-  const error = await cliFails(['--watch'], { cwd: root, env });
+  const error = await cliFails(['--watch', 'on'], { cwd: root, env });
   assert.equal(error?.code, 1);
   assert.match(error?.stderr ?? '', /no command given: use next-issue start/);
   assert.equal(await exists(called), false);
@@ -815,15 +815,18 @@ test('a user who runs start --help sees the usage and exit code 0', async () => 
   assert.equal(startHelp.stdout, help.stdout);
 });
 
-test('a user who runs --help sees start as a command with the run flags under it', async () => {
+test('a user who runs --help sees start as a command with the on|off run flags under it, then the watch and hunt commands', async () => {
   const { stdout } = await promisify(execFile)(process.execPath, [CLI, '--help']);
   assert.match(stdout, /^next-issue <command> \[options\]$/m);
-  assert.match(stdout, /^ {2}start {8}.*\n {4}--watch {4}.*\n {4}--hunt {5}.*\n {2}init /m);
+  assert.match(
+    stdout,
+    /^ {2}start {13}.*\n {4}--watch on\|off {2}.*default on.*\n {4}--hunt on\|off {3}.*default off.*\n {2}watch on\|off {6}.*\n {2}hunt on\|off {7}.*\n {2}init /m,
+  );
 });
 
 for (const args of [
-  ['logs', '--watch'],
-  ['stop', '--hunt'],
+  ['logs', '--watch', 'on'],
+  ['stop', '--hunt', 'off'],
 ]) {
   test(`a user who runs ${args.join(' ')} sees an error that says the flag belongs to start and exit code 1`, async () => {
     const root = await repository();
@@ -836,10 +839,10 @@ for (const args of [
   });
 }
 
-test('a user who runs serve --hunt gets an error, exit code 1 and no worker', async () => {
+test('a user who runs serve --hunt on gets an error, exit code 1 and no worker', async () => {
   const root = await repository();
   await assert.rejects(
-    promisify(execFile)(process.execPath, [CLI, 'serve', '--hunt'], { cwd: root }),
+    promisify(execFile)(process.execPath, [CLI, 'serve', '--hunt', 'on'], { cwd: root }),
     (error: { code: number; stderr: string }) => {
       assert.equal(error.code, 1);
       assert.match(error.stderr, /serve does not take --hunt/);

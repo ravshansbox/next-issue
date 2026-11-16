@@ -93,7 +93,7 @@ async function until(done: () => boolean): Promise<void> {
 
 test('a worker client who turns hunting on for a run started with --watch alone sees that run hunt with its own hunter', async (t) => {
   const hunting = onOff(false);
-  const run = await startWatch(t, parseArgs(['start', '--watch']), { hunting });
+  const run = await startWatch(t, parseArgs(['start', '--watch', 'on']), { hunting });
   await delay(50);
   assert.equal(run.hunts(), 0);
   hunting.set(true);
@@ -103,7 +103,7 @@ test('a worker client who turns hunting on for a run started with --watch alone 
 
 test('a worker client who turns hunting off for a run started with --hunt sees that run start no new hunt', async (t) => {
   const hunting = onOff(true);
-  const run = await startWatch(t, parseArgs(['start', '--hunt']), { hunting });
+  const run = await startWatch(t, parseArgs(['start', '--hunt', 'on']), { hunting });
   hunting.set(false);
   await delay(50);
   assert.equal(run.hunts(), 0);
@@ -111,13 +111,13 @@ test('a worker client who turns hunting off for a run started with --hunt sees t
 });
 
 test('a user who runs with --hunt and no worker switch sees the run hunt', async (t) => {
-  const run = await startWatch(t, parseArgs(['start', '--hunt']));
+  const run = await startWatch(t, parseArgs(['start', '--hunt', 'on']));
   await until(() => run.hunts() === 1);
   await run.end();
 });
 
 test('a user who runs with --watch alone and no worker switch sees the run never hunt', async (t) => {
-  const run = await startWatch(t, parseArgs(['start', '--watch']));
+  const run = await startWatch(t, parseArgs(['start', '--watch', 'on']));
   await delay(50);
   assert.equal(run.hunts(), 0);
   await run.end();
@@ -125,7 +125,7 @@ test('a user who runs with --watch alone and no worker switch sees the run never
 
 test('a worker client who asks a waiting watch run to refresh sees it start a new pass at once and wait 1 minute again', async (t) => {
   const refresh = refresher();
-  const run = await startWatch(t, parseArgs(['start', '--watch']), { refresher: refresh });
+  const run = await startWatch(t, parseArgs(['start', '--watch', 'on']), { refresher: refresh });
   await until(() => run.sleeps.length === 1);
   refresh.refresh();
   await until(() => run.sleeps.length === 2);
@@ -141,7 +141,7 @@ test('a worker client who asks a watch run to refresh while a pass runs leaves t
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
-  const run = await startWatch(t, parseArgs(['start', '--watch']), {
+  const run = await startWatch(t, parseArgs(['start', '--watch', 'on']), {
     refresher: refresh,
     issues: async () => {
       await held;
@@ -160,7 +160,7 @@ test('a worker client who asks a watch run to refresh while a pass runs leaves t
 
 test('a person who takes the label off an issue that a watch handed over after an error sees a later pass of the same watch try it again', async (t) => {
   const refresh = refresher();
-  const run = await startWatch(t, parseArgs(['start', '--watch']), {
+  const run = await startWatch(t, parseArgs(['start', '--watch', 'on']), {
     refresher: refresh,
     plan: { fail: 'runAgent' },
     issues: async () => [ISSUE],
@@ -175,7 +175,7 @@ test('a person who takes the label off an issue that a watch handed over after a
 
 test('a user whose watch fails on an issue before the claim sees no later pass of the same watch try it again', async (t) => {
   const refresh = refresher();
-  const run = await startWatch(t, parseArgs(['start', '--watch']), {
+  const run = await startWatch(t, parseArgs(['start', '--watch', 'on']), {
     refresher: refresh,
     plan: { fail: 'openBlockers' },
     issues: async () => [ISSUE],
@@ -189,7 +189,9 @@ test('a user whose watch fails on an issue before the claim sees no later pass o
 });
 
 test('a worker client whose run does not watch sees it end after one pass with no wait', async (t) => {
-  const run = await startWatch(t, parseArgs(['start']), { watching: onOff(false) });
+  const run = await startWatch(t, parseArgs(['start', '--watch', 'off']), {
+    watching: onOff(false),
+  });
   await until(run.ended);
   assert.equal(run.passes(), 1);
   assert.deepEqual(run.sleeps, []);
@@ -201,7 +203,7 @@ test('a worker client who turns watching on during the pass of a run sees it wai
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
-  const run = await startWatch(t, parseArgs(['start']), {
+  const run = await startWatch(t, parseArgs(['start', '--watch', 'off']), {
     watching,
     issues: async () => {
       await held;
@@ -217,7 +219,7 @@ test('a worker client who turns watching on during the pass of a run sees it wai
 
 test('a worker client who turns watching off during a wait sees the run end at once with no new pass', async (t) => {
   const watching = onOff(true);
-  const run = await startWatch(t, parseArgs(['start', '--watch']), { watching });
+  const run = await startWatch(t, parseArgs(['start', '--watch', 'on']), { watching });
   await until(() => run.sleeps.length === 1);
   watching.set(false);
   await until(run.ended);

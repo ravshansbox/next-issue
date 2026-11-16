@@ -45,7 +45,7 @@ Turn the problem of the user into one GitHub issue, or a split of linked issues 
 8. Once the issue exists, or the last issue of a split, call the `next_issue_refresh` tool, with no question first.
 9. When it reports that it asked the run, give the user the issue url, or each url of a split, and say that the going run was asked to check for new issues now. Ask no question.
 
-   When it reports that no run is going, give the user the url or urls and ask only whether to start a run. On yes, call the `next_issue_start` tool, and tell the user what it reports. The run does one pass; Watch on in `/next-issue` keeps it watching for new issues. On no, do nothing.
+   When it reports that no run is going, give the user the url or urls and ask only whether to start a run. On yes, call the `next_issue_start` tool, and tell the user what it reports. The run watches for new issues. On no, do nothing.
 
    When it reports that the going run is stopping, give the user the url or urls and say that the stopping run will not claim the issue. Ask no question.
 

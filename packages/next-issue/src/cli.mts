@@ -10,6 +10,7 @@ import { followLog, newestRunLog } from './logs.mts';
 import { serve } from './serve.mts';
 import { startInWorker } from './start.mts';
 import { STATE_DIR } from './state.mts';
+import { switchInWorker } from './switch-run.mts';
 import { workerPaths } from './worker-paths.mts';
 import { WORKTREE_DIR } from './worktree.mts';
 
@@ -37,6 +38,10 @@ async function main(): Promise<number> {
   await rejectOldConfig(root);
   if (args.command === 'stop') {
     return stop(root);
+  }
+  if (args.command === 'watch' || args.command === 'hunt') {
+    await write(process.stdout, await switchInWorker(root, args.command, args.on!));
+    return 0;
   }
   if (args.command === 'logs') {
     return logs(root);

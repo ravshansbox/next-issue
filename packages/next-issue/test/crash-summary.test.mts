@@ -11,9 +11,9 @@ import { installGh } from './fake-gh.mts';
 import { tempDir } from './temp-dir.mts';
 
 const runs = [
-  { argv: ['start'], description: 'a user whose run crashes on one issue' },
+  { argv: ['start', '--watch', 'off'], description: 'a user whose run crashes on one issue' },
   {
-    argv: ['start', '--watch'],
+    argv: ['start', '--watch', 'on'],
     description: 'a user whose watch run crashes on one issue',
   },
 ];
