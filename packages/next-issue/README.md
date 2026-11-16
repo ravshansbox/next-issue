@@ -178,72 +178,74 @@ npx -y next-issue@latest init
 
 The command writes `.next-issue/config.json` in the main worktree and adds `.next-issue/` and `.worktrees/` to `info/exclude` in the git directory, which linked worktrees share. It removes those two lines from `.gitignore`, and deletes `.gitignore` when nothing else is left in it. It moves a `next-issue.config.json` in the root to `.next-issue/config.json`; every other command stops while that old file is there. It stops when the config file is there already; `--force` replaces it. The file holds no `setupCommand`, because the harness deduces one from the lock file of the project.
 
-`start` and `serve` also add the two lines to `info/exclude` and remove them from `.gitignore`, so a repository needs no `init` to run. They do not write the config file.
+`start` and `serve` also add the two lines to `info/exclude` and remove them from `.gitignore`, so a repository needs no `init` to run. They do not create the config file.
+
+The harness writes its JSON files (the config file, the state files and the run summary) with the keys sorted alphabetically at every level. Each run that `start` or `serve` begins sorts the keys of an existing config file the same way, and sorts `ignoredChecks`; it keeps the fields and values you wrote, adds no default and keeps the order of `checks`. It leaves a file that is already sorted, or that stops the run, untouched.
 
 With no file, every field keeps its default. A field that is not in the file keeps its default. A file that cannot be read, a file that is not valid JSON, a field with a value of the wrong type and a field name that the harness does not know all stop the run, so a typo cannot pass without a word. An old `draftPullRequest` field stops the run with an error that says to remove it, because no pull request is opened.
 
 ```json
 {
-  "remote": "origin",
-  "issueLimit": 100,
+  "agentTimeoutMinutes": 30,
+  "checkGraceSeconds": 60,
+  "checkIntervalSeconds": 15,
+  "checkTimeoutMinutes": 60,
+  "checks": [],
+  "checksTimeoutMinutes": 30,
+  "commandTimeoutMinutes": 10,
   "concurrency": 1,
+  "diffMaxChars": 60000,
   "huntCap": 1,
+  "ignoredChecks": [],
+  "issueLimit": 100,
+  "keepRunDays": 7,
+  "labels": {
+    "done": "status:done",
+    "hunt": "source:hunt",
+    "inProgress": "status:in-progress",
+    "inReview": "status:in-review",
+    "needsHuman": "status:needs-human",
+    "ready": "status:todo",
+    "skip": "status:blocked"
+  },
+  "logMaxChars": 20000,
   "maxCiFixes": 5,
   "maxCommitFixes": 10,
   "maxReviewRounds": 5,
-  "checkIntervalSeconds": 15,
-  "checkGraceSeconds": 60,
-  "checkTimeoutMinutes": 60,
-  "agentTimeoutMinutes": 30,
-  "setupTimeoutMinutes": 15,
-  "commandTimeoutMinutes": 10,
-  "logMaxChars": 20000,
-  "diffMaxChars": 60000,
-  "keepRunDays": 7,
-  "checks": [],
-  "checksTimeoutMinutes": 30,
-  "ignoredChecks": [],
   "models": {
+    "fixer": null,
     "implementer": null,
-    "reviewer": null,
-    "fixer": null
+    "reviewer": null
   },
-  "labels": {
-    "ready": "status:todo",
-    "inProgress": "status:in-progress",
-    "inReview": "status:in-review",
-    "done": "status:done",
-    "needsHuman": "status:needs-human",
-    "skip": "status:blocked",
-    "hunt": "source:hunt"
-  }
+  "remote": "origin",
+  "setupTimeoutMinutes": 15
 }
 ```
 
 | Field                   | Default            | Effect                                                                                                                                                                                                                      |
 | ----------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `remote`                | `origin`           | The git remote for the repository and the branches                                                                                                                                                                          |
-| `issueLimit`            | `100`              | The maximum number of open issues to read. With `labels.ready` set, only issues with the ready, in-progress or in-review label count                                                                                        |
+| `agentTimeoutMinutes`   | `30`               | The limit for one agent call, opening its session included, at most `35791`                                                                                                                                                 |
+| `checkGraceSeconds`     | `60`               | The time to wait for the first check to show, and for more checks after they all pass; the grace ends at the `checkTimeoutMinutes` limit, where checks that all pass, or no checks, still count as a pass                   |
+| `checkIntervalSeconds`  | `15`               | The time between two check states, at most `2147483`                                                                                                                                                                        |
+| `checkTimeoutMinutes`   | `60`               | The limit for one check wait, at most `35791`                                                                                                                                                                               |
+| `checks`                | `[]`               | Shell commands that must pass in the worktree, in order, before an approved change is pushed; a failure goes to the fixer                                                                                                   |
+| `checksTimeoutMinutes`  | `30`               | The limit for one command in `checks`, at most `35791`                                                                                                                                                                      |
+| `commandTimeoutMinutes` | `10`               | The limit for one `git` or `gh` command, at most `35791`                                                                                                                                                                    |
 | `concurrency`           | `1`                | The most issues that an agent works on at the same time; an issue waiting to land or for checks holds no slot                                                                                                               |
+| `diffMaxChars`          | `60000`            | The maximum length of the diff that the reviewer reads                                                                                                                                                                      |
 | `huntCap`               | `1`                | With `--hunt`, the hunter hunts only while fewer ready issues than this wait besides the running ones                                                                                                                       |
+| `ignoredChecks`         | `[]`               | Names of GitHub Actions jobs, check runs and commit statuses, such as `release`, that the checks on the base branch do not wait for and whose failure does not count, unless GitHub cancels or skips another job of its run |
+| `issueLimit`            | `100`              | The maximum number of open issues to read. With `labels.ready` set, only issues with the ready, in-progress or in-review label count                                                                                        |
+| `keepRunDays`           | `7`                | The number of days to keep the run files; `0` keeps them all                                                                                                                                                                |
+| `labels`                | see above          | The names of the labels that the harness reads and sets                                                                                                                                                                     |
+| `logMaxChars`           | `20000`            | The maximum length of the failed job logs, shared between the failed GitHub Actions runs (failed external checks are listed by name and link only)                                                                          |
 | `maxCiFixes`            | `5`                | The budget for check fixes per issue                                                                                                                                                                                        |
 | `maxCommitFixes`        | `10`               | The budget for fixes of a commit that a git hook stopped, per issue                                                                                                                                                         |
 | `maxReviewRounds`       | `5`                | The budget for review rounds per issue                                                                                                                                                                                      |
-| `checkIntervalSeconds`  | `15`               | The time between two check states, at most `2147483`                                                                                                                                                                        |
-| `checkGraceSeconds`     | `60`               | The time to wait for the first check to show, and for more checks after they all pass; the grace ends at the `checkTimeoutMinutes` limit, where checks that all pass, or no checks, still count as a pass                   |
-| `checkTimeoutMinutes`   | `60`               | The limit for one check wait, at most `35791`                                                                                                                                                                               |
-| `agentTimeoutMinutes`   | `30`               | The limit for one agent call, opening its session included, at most `35791`                                                                                                                                                 |
-| `setupTimeoutMinutes`   | `15`               | The limit for the setup command, at most `35791`                                                                                                                                                                            |
-| `commandTimeoutMinutes` | `10`               | The limit for one `git` or `gh` command, at most `35791`                                                                                                                                                                    |
-| `logMaxChars`           | `20000`            | The maximum length of the failed job logs, shared between the failed GitHub Actions runs (failed external checks are listed by name and link only)                                                                          |
-| `diffMaxChars`          | `60000`            | The maximum length of the diff that the reviewer reads                                                                                                                                                                      |
-| `keepRunDays`           | `7`                | The number of days to keep the run files; `0` keeps them all                                                                                                                                                                |
-| `checks`                | `[]`               | Shell commands that must pass in the worktree, in order, before an approved change is pushed; a failure goes to the fixer                                                                                                   |
-| `checksTimeoutMinutes`  | `30`               | The limit for one command in `checks`, at most `35791`                                                                                                                                                                      |
-| `ignoredChecks`         | `[]`               | Names of GitHub Actions jobs, check runs and commit statuses, such as `release`, that the checks on the base branch do not wait for and whose failure does not count, unless GitHub cancels or skips another job of its run |
-| `setupCommand`          | from the lock file | A shell command to run in a new worktree, before the implementer, and after each merge of the base before the `checks`                                                                                                      |
 | `models`                | `null` per role    | The pi model per agent role, as `provider/model`: `implementer`, `reviewer`, `fixer`                                                                                                                                        |
-| `labels`                | see above          | The names of the labels that the harness reads and sets                                                                                                                                                                     |
+| `remote`                | `origin`           | The git remote for the repository and the branches                                                                                                                                                                          |
+| `setupCommand`          | from the lock file | A shell command to run in a new worktree, before the implementer, and after each merge of the base before the `checks`                                                                                                      |
+| `setupTimeoutMinutes`   | `15`               | The limit for the setup command, at most `35791`                                                                                                                                                                            |
 
 The hunter adds `labels.hunt` to each issue it files, so you can tell those issues apart from your own and filter them.
 
