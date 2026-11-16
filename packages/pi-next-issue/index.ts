@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 import { shared } from './src/clients.ts';
+import { dashboard, type DashboardAction } from './src/dashboard.ts';
 import { errorText } from './src/errors.ts';
 import { repoRoot } from './src/git.ts';
 import { going, type Progress, type Question, STOP_POINTS } from './src/protocol.ts';
@@ -46,6 +47,7 @@ const QUESTIONS_KEY = 'next-issue-questions';
 const RENDER_MS = 1000;
 const QUESTIONS_MS = 60_000;
 const SUBCOMMANDS: Action[] = ['start', 'stop', 'watch', 'hunt'];
+const DASHBOARD = 'dashboard';
 const VALUES: Partial<Record<Action, Array<{ value: string; description: string }>>> = {
   stop: [
     { value: 'issue', description: 'Stop after the running issues' },
@@ -70,6 +72,7 @@ const USAGE = [
   '                            stop the run of this repository after the running issues (issue, the default), after the current round (round), or at once (now)',
   '/next-issue watch on|off    keep the going run of this repository watching for new issues after the current pass, or end it after the current pass with hunting off, with no restart',
   '/next-issue hunt on|off     switch hunting of the going run of this repository on (which turns watching on too) or off, with no restart',
+  '/next-issue dashboard       open the dashboard of the run of this repository',
 ].join('\n');
 
 function menuChoices(progress: Progress | undefined): Record<string, string> {
@@ -83,12 +86,25 @@ function menuChoices(progress: Progress | undefined): Record<string, string> {
   };
 }
 
+function dashboardActions(progress: Progress | undefined): DashboardAction[] {
+  return Object.entries(menuChoices(progress)).flatMap(([label, args]) =>
+    args === 'stop'
+      ? (VALUES.stop ?? []).map(({ value, description }) => ({
+          label: description,
+          args: `stop ${value}`,
+        }))
+      : [{ label, args }],
+  );
+}
+
 function completions(prefix: string) {
   if (!prefix.includes(' ')) {
-    return SUBCOMMANDS.filter((name) => name.startsWith(prefix)).map((name) => ({
-      value: name,
-      label: name,
-    }));
+    return [...SUBCOMMANDS, DASHBOARD]
+      .filter((name) => name.startsWith(prefix))
+      .map((name) => ({
+        value: name,
+        label: name,
+      }));
   }
   const [subcommand = '', partial = '', ...rest] = prefix.split(' ');
   if (rest.length > 0) {
@@ -416,7 +432,7 @@ export function createExtension(options: Options) {
 
     pi.registerCommand('next-issue', {
       description:
-        '"start" starts working through the GitHub issues of this repository, one pass. "stop [issue|round|now]" stops the run after the running issues (the default), after the current round, or at once. "watch on|off" keeps the going run watching for new issues, or ends it after the current pass. "hunt on|off" switches hunting of the going run',
+        '"start" starts working through the GitHub issues of this repository, one pass. "stop [issue|round|now]" stops the run after the running issues (the default), after the current round, or at once. "watch on|off" keeps the going run watching for new issues, or ends it after the current pass. "hunt on|off" switches hunting of the going run. "dashboard" opens the dashboard of the run',
       getArgumentCompletions: (prefix) => {
         const matches = completions(prefix);
         return matches.length === 0 ? null : matches;
@@ -433,7 +449,10 @@ export function createExtension(options: Options) {
       const root = await options.root(ctx.cwd).catch(() => undefined);
       const client = root === undefined ? undefined : clientOf(root);
       await client?.attach();
-      const choices = menuChoices(root === undefined ? undefined : client?.runs[root]);
+      const choices: Record<string, string> = {
+        ...menuChoices(root === undefined ? undefined : client?.runs[root]),
+        Dashboard: DASHBOARD,
+      };
       const choice = await ctx.ui.select('next-issue', Object.keys(choices));
       const picked = choice === undefined ? undefined : choices[choice];
       if (picked !== 'stop') {
@@ -448,8 +467,36 @@ export function createExtension(options: Options) {
       return value === undefined ? undefined : `stop ${value}`;
     };
 
+    const openDashboard = async (ctx: ExtensionContext) => {
+      if (ctx.mode !== 'tui') {
+        ctx.ui.notify('next-issue dashboard needs the terminal UI', 'error');
+        return;
+      }
+      const root = await options.root(ctx.cwd).catch(() => undefined);
+      const client = root === undefined ? undefined : clientOf(root);
+      await client?.attach();
+      await ctx.ui.custom<void>(
+        (tui, theme, keybindings, done) =>
+          dashboard({
+            progress: () => (root === undefined ? undefined : client?.runs[root]),
+            actions: dashboardActions,
+            act: (args) => void act(args, ctx),
+            subscribe: (listener) => client?.subscribe(listener) ?? (() => {}),
+            tui,
+            theme,
+            keybindings,
+            done: () => done(undefined),
+          }),
+        { overlay: true, overlayOptions: { width: '80%', maxHeight: '90%', anchor: 'center' } },
+      );
+    };
+
     const act = async (args: string, ctx: ExtensionContext) => {
       const [subcommand, ...values] = args.trim().split(/\s+/).filter(Boolean);
+      if (subcommand === DASHBOARD && values.length === 0) {
+        await openDashboard(ctx);
+        return;
+      }
       if (subcommand === undefined || !SUBCOMMANDS.includes(subcommand as Action)) {
         ctx.ui.notify(USAGE, 'info');
         return;

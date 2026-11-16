@@ -33,6 +33,27 @@ type ToolExecute = (
   ctx: unknown,
 ) => Promise<ToolResult>;
 
+type Overlay = {
+  options: unknown;
+  closed: boolean;
+  screen: () => string;
+  press: (key: string) => void;
+};
+type OverlayFactory = (
+  tui: { requestRender: () => void },
+  theme: unknown,
+  keybindings: { matches: (data: string, id: string) => boolean },
+  done: (result: unknown) => void,
+) => { render: (width: number) => string[]; handleInput: (data: string) => void };
+
+const KEY_IDS: Record<string, string> = {
+  up: 'tui.select.up',
+  down: 'tui.select.down',
+  enter: 'tui.select.confirm',
+  escape: 'tui.select.cancel',
+};
+const KEYBINDINGS = { matches: (data: string, id: string) => KEY_IDS[data] === id };
+
 const shutdowns: Array<() => Promise<void>> = [];
 
 function host(mode = 'tui', cwd = '/repo') {
@@ -74,13 +95,45 @@ function host(mode = 'tui', cwd = '/repo') {
   const menus: string[][] = [];
   const picks: Array<string | undefined> = [];
   const notes: string[] = [];
+  const overlays: Overlay[] = [];
   const plain = (text: string) => /^<dim>(.*)<\/dim>$/s.exec(text)?.[1] ?? text;
+  const theme = {
+    fg: (color: string, text: string) => `<${color}>${text}</${color}>`,
+    bold: (text: string) => text,
+  };
   const ctx = {
     hasUI: true,
     mode,
     cwd,
     ui: {
-      theme: { fg: (color: string, text: string) => `<${color}>${text}</${color}>` },
+      theme,
+      custom: (factory: OverlayFactory, options: unknown) =>
+        new Promise((resolve) => {
+          const overlay: Overlay = {
+            options,
+            closed: false,
+            screen: () => '',
+            press: () => {},
+          };
+          let frame = '';
+          const draw = () => {
+            frame = component
+              .render(200)
+              .map((line) => line.replace(/<\/?[a-z]+>/g, ''))
+              .join('\n');
+          };
+          const component = factory({ requestRender: draw }, theme, KEYBINDINGS, (result) => {
+            overlay.closed = true;
+            resolve(result);
+          });
+          draw();
+          overlay.screen = () => frame;
+          overlay.press = (key) => {
+            component.handleInput(key);
+            draw();
+          };
+          overlays.push(overlay);
+        }),
       setStatus: (key: string, text: string | undefined) => {
         if (key === 'next-issue-questions') {
           waiting.push(text);
@@ -124,6 +177,7 @@ function host(mode = 'tui', cwd = '/repo') {
     asked,
     menus,
     picks,
+    overlays,
     painted,
     widgets,
     notes,
@@ -877,6 +931,7 @@ test('a user who runs /next-issue with an unknown argument or answer sees the us
     assert.match(note, /\/next-issue stop \[issue\|round\|now\]/);
     assert.match(note, /\/next-issue watch on\|off/);
     assert.match(note, /\/next-issue hunt on\|off/);
+    assert.match(note, /\/next-issue dashboard/);
     assert.doesNotMatch(note, /answer/);
     assert.doesNotMatch(note, /--/);
   }
@@ -888,7 +943,7 @@ test('a user who runs /next-issue with an unknown argument or answer sees the us
   );
 });
 
-test('a user who runs /next-issue with no run going is offered only Start in a menu, and picking it starts a run', async () => {
+test('a user who runs /next-issue with no run going is offered Start and Dashboard in a menu, and picking it starts a run', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
   const { pi, emit, command, notes, menus, picks } = host();
@@ -896,7 +951,7 @@ test('a user who runs /next-issue with no run going is offered only Start in a m
   await emit('session_start');
   picks.push('Start');
   await command();
-  assert.deepEqual(menus, [['Start']]);
+  assert.deepEqual(menus, [['Start', 'Dashboard']]);
   assert.deepEqual(notes, []);
   await until(() => fake.received.some((message) => message.type === 'start'));
   assert.deepEqual(
@@ -917,7 +972,7 @@ test('a user who runs /next-issue with no worker going is offered Start, and pic
   await emit('session_start');
   picks.push('Start');
   await command();
-  assert.deepEqual(menus, [['Start']]);
+  assert.deepEqual(menus, [['Start', 'Dashboard']]);
   assert.equal(spawns.length, 1);
   await until(() => started?.received.some((message) => message.type === 'start') === true);
 });
@@ -934,8 +989,8 @@ test('a user who runs /next-issue while a run is going is offered Stop and the s
   await new Promise((resolve) => setTimeout(resolve, 50));
   await command();
   assert.deepEqual(menus, [
-    ['Stop', 'Watch on', 'Hunt on'],
-    ['Stop', 'Watch off', 'Hunt off'],
+    ['Stop', 'Watch on', 'Hunt on', 'Dashboard'],
+    ['Stop', 'Watch off', 'Hunt off', 'Dashboard'],
   ]);
 });
 
@@ -1026,6 +1081,142 @@ test('a user who closes the /next-issue menu or its stop menu without a choice s
     fake.received.filter((message) => ['start', 'stop', 'watch', 'hunt'].includes(message.type)),
     [],
   );
+});
+
+async function openDashboard(hosted: ReturnType<typeof host>, args = 'dashboard') {
+  const opened = hosted.command(args);
+  await until(() => hosted.overlays.length > 0);
+  return { overlay: hosted.overlays.at(-1)!, opened };
+}
+
+test('a user who runs /next-issue dashboard sees the going run on the Active tab of an overlay, kept up to date, and closes it with Esc', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({
+    watching: true,
+    open: 5,
+    issues: [working(7, { stage: 'implement', tools: 3 })],
+    handled: [
+      { issue: 3, outcome: 'done' },
+      { issue: 4, outcome: 'needs-human' },
+    ],
+  });
+  const hosted = host();
+  extension(hosted.pi as never);
+  await hosted.emit('session_start');
+  const { overlay, opened } = await openDashboard(hosted);
+  assert.equal((overlay.options as { overlay: boolean }).overlay, true);
+  const screen = overlay.screen();
+  assert.match(screen, /Active/);
+  assert.match(screen, /Status: running/);
+  assert.match(screen, /Watching: on/);
+  assert.match(screen, /Hunting: off/);
+  assert.match(screen, /Open issues: 5/);
+  assert.match(screen, /#7 · implement · 3 tools/);
+  assert.match(screen, /#3 done/);
+  assert.match(screen, /#4 needs a human/);
+  fake.update(
+    '/repo',
+    running({ watching: true, issues: [working(7, { stage: 'review 1/5', tools: 9 })] }),
+  );
+  await until(() => overlay.screen().includes('#7 · review 1/5 · 9 tools'), 500);
+  overlay.press('escape');
+  await opened;
+  assert.equal(overlay.closed, true);
+});
+
+test('a user who picks Dashboard in the /next-issue menu opens the dashboard overlay', async () => {
+  const { path, extension } = setup();
+  await worker(path);
+  const hosted = host();
+  extension(hosted.pi as never);
+  await hosted.emit('session_start');
+  hosted.picks.push('Dashboard');
+  const { overlay, opened } = await openDashboard(hosted, '');
+  assert.match(overlay.screen(), /Active/);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user whose last run failed sees on the Active tab that no run is going, its error and a Start action, and starting shows the new run', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = {
+    status: 'failed',
+    hunting: false,
+    issues: [],
+    handled: [],
+    error: 'gh failed',
+  };
+  const hosted = host();
+  extension(hosted.pi as never);
+  await hosted.emit('session_start');
+  const { overlay, opened } = await openDashboard(hosted);
+  assert.match(overlay.screen(), /No run is going/);
+  assert.match(overlay.screen(), /Error: gh failed/);
+  assert.match(overlay.screen(), /> Start/);
+  overlay.press('enter');
+  await until(() => fake.received.some((message) => message.type === 'start'));
+  assert.deepEqual(
+    fake.received.find((message) => message.type === 'start'),
+    { type: 'start', root: '/repo' },
+  );
+  fake.update('/repo', running({ issues: [working(9)] }));
+  await until(() => overlay.screen().includes('Status: running'), 500);
+  assert.match(overlay.screen(), /#9/);
+  assert.doesNotMatch(overlay.screen(), /No run is going/);
+  assert.match(overlay.screen(), /> Stop after the running issues/);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user who picks each action on the Active tab of a going run sends what the typed stop, watch and hunt commands send', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({ watching: false, hunting: false, issues: [working(7)] });
+  const hosted = host();
+  extension(hosted.pi as never);
+  await hosted.emit('session_start');
+  const { overlay, opened } = await openDashboard(hosted);
+  const screen = overlay.screen();
+  for (const action of [
+    'Stop after the running issues',
+    'Stop after the current round of each running issue',
+    'Stop at once',
+    'Watch on',
+    'Hunt on',
+  ]) {
+    assert.match(screen, new RegExp(action));
+  }
+  overlay.press('enter');
+  for (let index = 1; index < 5; index += 1) {
+    overlay.press('down');
+    overlay.press('enter');
+  }
+  const sent = () =>
+    fake.received.filter((message) => ['stop', 'watch', 'hunt'].includes(message.type));
+  await until(() => sent().length === 5);
+  assert.deepEqual(sent(), [
+    { type: 'stop', root: '/repo', after: 'issue' },
+    { type: 'stop', root: '/repo', after: 'round' },
+    { type: 'stop', root: '/repo', after: 'now' },
+    { type: 'watch', root: '/repo', on: true },
+    { type: 'hunt', root: '/repo', on: true },
+  ]);
+  assert.deepEqual(hosted.notes, []);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user of an rpc client who runs /next-issue dashboard is told it needs the terminal and sees no overlay', async () => {
+  const { path, extension } = setup();
+  await worker(path);
+  const hosted = host('rpc');
+  extension(hosted.pi as never);
+  await hosted.emit('session_start');
+  await hosted.command('dashboard');
+  assert.deepEqual(hosted.overlays, []);
+  assert.deepEqual(hosted.notes, ['next-issue dashboard needs the terminal UI']);
 });
 
 test('a user who runs /next-issue start after a run has stopped starts a new run', async () => {
@@ -1476,7 +1667,14 @@ test('a user who types /next-issue followed by nothing or a start of a subcomman
   const { pi, complete } = host();
   extension(pi as never);
   const item = (value: string) => ({ value, label: value });
-  assert.deepEqual(complete(''), [item('start'), item('stop'), item('watch'), item('hunt')]);
+  assert.deepEqual(complete(''), [
+    item('start'),
+    item('stop'),
+    item('watch'),
+    item('hunt'),
+    item('dashboard'),
+  ]);
+  assert.deepEqual(complete('d'), [item('dashboard')]);
   assert.deepEqual(complete('h'), [item('hunt')]);
   assert.deepEqual(complete('w'), [item('watch')]);
   assert.deepEqual(complete('st'), [item('start'), item('stop')]);
