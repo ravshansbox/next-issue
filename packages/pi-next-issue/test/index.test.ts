@@ -1207,7 +1207,7 @@ test('a user who presses Tab on the dashboard sees the past runs newest first, w
   assert.match(chosen, /#3 done/);
   assert.match(chosen, /#4 needs a human: no fix commit/);
   assert.match(chosen, /Tokens: 1,500/);
-  assert.match(chosen, /implementer: 1,200 tokens · 2m05s/);
+  assert.match(chosen, /implementer: 1,200 tokens · 2m\b/);
   assert.match(chosen, /reviewer: 300 tokens · 4s/);
   overlay.press('tab');
   overlay.press('tab');
@@ -2307,7 +2307,7 @@ test('a user sees each running issue with its stage and time spent in the footer
       }),
       now,
     ),
-    '#12 · review 1 · 4m12s',
+    '#12 · review 1 · 4m',
   );
   assert.equal(
     formatStatus(
@@ -2319,9 +2319,24 @@ test('a user sees each running issue with its stage and time spent in the footer
       }),
       now,
     ),
-    '#12 · review 1 · 4m12s | #13 · prepare · 40s',
+    '#12 · review 1 · 4m | #13 · prepare · 40s',
   );
   assert.equal(formatStatus(progress({}), now), 'looking for issues');
+});
+
+test('a user sees seconds in the footer time only under 2 minutes, then whole minutes, then hours', () => {
+  const spent = (ms: number): string =>
+    formatStatus(progress({ issues: [working(12, { startedAt: now - ms })] }), now);
+  assert.equal(spent(40_900), '#12 · prepare · 40s');
+  assert.equal(spent(60_000), '#12 · prepare · 1m00s');
+  assert.equal(spent(119_900), '#12 · prepare · 1m59s');
+  assert.equal(spent(120_000), '#12 · prepare · 2m');
+  assert.equal(spent(245_000), '#12 · prepare · 4m');
+  assert.equal(spent(290_000), '#12 · prepare · 5m');
+  assert.equal(spent(3_570_000), '#12 · prepare · 1h');
+  assert.equal(spent(4_500_000), '#12 · prepare · 1h15m');
+  assert.equal(spent(7_200_000), '#12 · prepare · 2h');
+  assert.equal(spent(32_400_000), '#12 · prepare · 9h');
 });
 
 test('a user sees the open-issue count of the latest fetch once, before the running issues, in the footer', () => {

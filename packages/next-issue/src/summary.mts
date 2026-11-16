@@ -52,8 +52,15 @@ function issueLine(report: IssueReport): string {
 
 function duration(ms: number): string {
   const seconds = Math.round(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  return minutes === 0 ? `${seconds}s` : `${minutes}m${String(seconds % 60).padStart(2, '0')}s`;
+  if (seconds < 120) {
+    return seconds < 60 ? `${seconds}s` : `1m${String(seconds - 60).padStart(2, '0')}s`;
+  }
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  const spare = minutes % 60;
+  return spare === 0 ? `${Math.floor(minutes / 60)}h` : `${Math.floor(minutes / 60)}h${spare}m`;
 }
 
 function tokens(value: number): string {

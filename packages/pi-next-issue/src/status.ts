@@ -2,8 +2,15 @@ import type { Handled, IssueProgress, Progress, Question, Upgrade } from './prot
 
 export function duration(ms: number): string {
   const seconds = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(seconds / 60);
-  return minutes > 0 ? `${minutes}m${String(seconds % 60).padStart(2, '0')}s` : `${seconds}s`;
+  if (seconds < 120) {
+    return seconds < 60 ? `${seconds}s` : `1m${String(seconds - 60).padStart(2, '0')}s`;
+  }
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  const spare = minutes % 60;
+  return spare === 0 ? `${Math.floor(minutes / 60)}h` : `${Math.floor(minutes / 60)}h${spare}m`;
 }
 
 const OUTCOME_NOTES = { done: 'done', 'needs-human': 'needs a human', error: 'failed' } as const;

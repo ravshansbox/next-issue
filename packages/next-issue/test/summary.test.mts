@@ -37,8 +37,30 @@ test('formatSummary drops the empty fields of an issue', () => {
   const lines = formatSummary(SUMMARY).split('\n');
   assert.match(lines[2]!, /#41 done\b.*reviews 2 .*1m12s$/);
   assert.doesNotMatch(lines[2]!, /ci fixes/);
-  assert.match(lines[3]!, /#43 needs-human\b.*ci fixes 1 .*reviews 3 .*4m05s .*\(review budget\)$/);
+  assert.match(lines[3]!, /#43 needs-human\b.*ci fixes 1 .*reviews 3 .*4m .*\(review budget\)$/);
   assert.equal(lines[4], '  #44 skipped');
+});
+
+test('a user sees seconds in an issue time of the summary only under 2 minutes, then whole minutes, then hours', () => {
+  const spent = (ms: number): string => {
+    const issue = { issue: 41, outcome: 'done' as const, ciFixes: 0, reviewRounds: 0, ms };
+    return formatSummary({ ...SUMMARY, issues: [issue] })
+      .split('\n')[2]!
+      .split(' ')
+      .at(-1)!;
+  };
+  assert.equal(spent(40_400), '40s');
+  assert.equal(spent(59_400), '59s');
+  assert.equal(spent(59_600), '1m00s');
+  assert.equal(spent(72_000), '1m12s');
+  assert.equal(spent(119_400), '1m59s');
+  assert.equal(spent(119_600), '2m');
+  assert.equal(spent(245_000), '4m');
+  assert.equal(spent(290_000), '5m');
+  assert.equal(spent(3_570_000), '1h');
+  assert.equal(spent(4_500_000), '1h15m');
+  assert.equal(spent(7_200_000), '2h');
+  assert.equal(spent(32_400_000), '9h');
 });
 
 test('formatSummary shortens the token totals', () => {
