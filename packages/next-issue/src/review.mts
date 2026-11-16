@@ -127,9 +127,8 @@ async function runReviewer(job: Run, earlier: string[]): Promise<string> {
     diffChars: full.length,
     cut: full.length > config.diffMaxChars,
   };
-  let review: { text: string };
-  try {
-    review = await log.step('review', fields, () =>
+  const review = await undoingReview(job, before, () =>
+    log.step('review', fields, () =>
       runRole(
         job,
         'reviewer',
@@ -142,11 +141,23 @@ async function runReviewer(job: Run, earlier: string[]): Promise<string> {
         ),
         REVIEWING,
       ),
-    );
+    ),
+  );
+  return review.text;
+}
+
+export async function undoingReview<T>(
+  job: Run,
+  before: string,
+  review: () => Promise<T>,
+): Promise<T> {
+  let result: T;
+  try {
+    result = await review();
   } catch (error) {
     if (!runStopped()) {
       await undoReview(job, before).catch((cleanup: unknown) => {
-        log.event('review.discard.error', { error: message(cleanup) }, 'quiet');
+        job.log.event('review.discard.error', { error: message(cleanup) }, 'quiet');
       });
     }
     throw error;
@@ -154,7 +165,7 @@ async function runReviewer(job: Run, earlier: string[]): Promise<string> {
   if (!runStopped()) {
     await undoReview(job, before);
   }
-  return review.text;
+  return result;
 }
 
 export async function settleReview(job: Run): Promise<void> {

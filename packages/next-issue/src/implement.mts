@@ -13,6 +13,7 @@ import {
   runRole,
 } from './job.mts';
 import { donePrompt, implementPrompt } from './prompts.mts';
+import { undoingReview } from './review.mts';
 import { writeState } from './state.mts';
 import { agentHeading } from './text.mts';
 import { blockingFindings, formatFindings, parseVerdict } from './verdict.mts';
@@ -94,13 +95,15 @@ function noChangeNote(reply: string): string {
 }
 
 async function closeIfDone(job: Run, evidence: string): Promise<Finished> {
-  const { context, issue, log, worktree, comments, branch } = job;
-  const { ports } = context;
-  const before = await ports.revision(worktree);
-  const review = await log.step('review', { alreadyDone: true }, () =>
-    runRole(job, 'reviewer', donePrompt(issue, comments, evidence), REVIEWING),
+  const { context, issue, log, state, worktree, comments } = job;
+  const before = await context.ports.revision(worktree);
+  state.reviewing = before;
+  await writeState(context.repo, state);
+  const review = await undoingReview(job, before, () =>
+    log.step('review', { alreadyDone: true }, () =>
+      runRole(job, 'reviewer', donePrompt(issue, comments, evidence), REVIEWING),
+    ),
   );
-  await ports.discardChanges(worktree, before, branch);
   const verdict = parseVerdict(review.text);
   const blocking = verdict === undefined ? [] : blockingFindings(verdict);
   if (verdict === undefined || blocking.length > 0) {

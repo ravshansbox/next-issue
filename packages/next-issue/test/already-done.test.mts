@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import { APPROVE, changes, harness, type Plan } from './harness.mts';
+import { type TestContext, test } from 'node:test';
+import { clones, git } from './clones.mts';
+import { APPROVE, changes, harness, ISSUE, type Plan } from './harness.mts';
+import { type Files, remoteMain, useGit, writeFiles } from './real-git.mts';
 
 const DONE = 'I changed nothing.\ndone: src/flag.mts already reads the flag at line 12.';
 
@@ -98,4 +100,74 @@ test('a user whose worker is killed while it posts the already done comment gets
   assert.deepEqual(resumed.closed, [7]);
   assert.deepEqual(resumed.prompts, []);
   assert.deepEqual(resumed.issueNotes, []);
+});
+
+async function doneThenReviewer(
+  t: TestContext,
+  plan: Plan,
+  reviewer: (worktree: string) => Promise<void>,
+): Promise<{ root: string; other: string; outcome: string }> {
+  const { repo, other } = await clones();
+  await git(repo.root, 'config', 'user.name', 't');
+  await git(repo.root, 'config', 'user.email', 't@t');
+  const first = await harness(t, { root: repo.root, implementerText: [DONE], ...plan });
+  const { ports } = first.context;
+  const fake = ports.runAgent;
+  useGit(first, async () => undefined);
+  const real = ports.runAgent;
+  ports.runAgent = async (recorder, request) => {
+    if (request.name === 'implementer') {
+      return fake(recorder, request);
+    }
+    await writeFiles(request.cwd, { 'a.txt': 'reviewer\n', 'reviewer.txt': 'reviewer\n' });
+    await git(request.cwd, 'add', 'reviewer.txt');
+    await git(request.cwd, 'commit', '-q', '-m', 'reviewer');
+    await reviewer(request.cwd);
+    return real(recorder, request);
+  };
+  const { outcome } = await first.run();
+  return { root: repo.root, other, outcome };
+}
+
+async function landedFiles(other: string): Promise<Files> {
+  const landed = await remoteMain(other);
+  const names = (await git(other, 'ls-tree', '--name-only', landed)).split('\n');
+  const files: Files = {};
+  for (const name of names) {
+    files[name] = await git(other, 'show', `${landed}:${name}`);
+  }
+  return files;
+}
+
+test('a person who retries an issue after its already done reviewer edited and committed files and then timed out gets only the change of the next implementer landed', async (t) => {
+  const { root, other, outcome } = await doneThenReviewer(t, {}, async () => {
+    throw new Error('The reviewer agent did not finish in 60000 ms.');
+  });
+  assert.equal(outcome, 'error');
+  const retry = await harness(t, { root, issue: { ...ISSUE, labels: [] } });
+  useGit(retry, async () => undefined);
+  assert.equal((await retry.run()).outcome, 'done');
+  assert.deepEqual(await landedFiles(other), {
+    'a.txt': 'a.txt',
+    'implementer.txt': 'implementer',
+  });
+});
+
+test('a user who resumes an issue after a stop now during the already done reviewer that edited and committed files gets only the change of the next implementer landed', async (t) => {
+  const { root, other, outcome } = await doneThenReviewer(
+    t,
+    { stopNowDuring: 'reviewer' },
+    async () => undefined,
+  );
+  assert.equal(outcome, 'stopped');
+  const resumed = await harness(t, {
+    root,
+    issue: { ...ISSUE, labels: ['status:in-progress'] },
+  });
+  useGit(resumed, async () => undefined);
+  assert.equal((await resumed.run()).outcome, 'done');
+  assert.deepEqual(await landedFiles(other), {
+    'a.txt': 'a.txt',
+    'implementer.txt': 'implementer',
+  });
 });
