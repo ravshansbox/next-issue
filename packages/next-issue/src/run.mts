@@ -91,7 +91,7 @@ async function handle(
     args.watch || controls.watching !== undefined
       ? await watchRun(args, loop, context, controls, print)
       : await runIssues(args, loop);
-  recordLoopEnd(recorder, stoppedAt, error);
+  recordLoopEnd(recorder, stoppedAt, interrupts.afterIssue(), error);
 
   const summary = await endRun(recorder, reports);
   if (crash !== undefined) {
@@ -130,9 +130,16 @@ export function watchRun(
   });
 }
 
-function recordLoopEnd(recorder: Recorder, stoppedAt: number | undefined, error: unknown): void {
+function recordLoopEnd(
+  recorder: Recorder,
+  stoppedAt: number | undefined,
+  stopped: boolean,
+  error: unknown,
+): void {
   if (stoppedAt !== undefined) {
     recorder.event('run.stop', { issue: stoppedAt }, 'quiet');
+  } else if (stopped) {
+    recorder.event('run.stop', {}, 'quiet');
   }
   if (error !== undefined) {
     recorder.event('issues.fail', { error: message(error) }, 'quiet');
