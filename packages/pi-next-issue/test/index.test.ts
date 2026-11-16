@@ -16,7 +16,13 @@ import {
 type Handler = (event: unknown, ctx: unknown) => unknown;
 type ToolResult = {
   content: Array<{ type: string; text: string }>;
-  details: { started?: boolean; hunting?: boolean; after?: string; root: string };
+  details: {
+    started?: boolean;
+    hunting?: boolean;
+    refreshed?: boolean;
+    after?: string;
+    root: string;
+  };
 };
 type ToolExecute = (
   toolCallId: string,
@@ -92,6 +98,7 @@ function host(mode = 'tui', cwd = '/repo', answers: Array<string | undefined> = 
   const start = (signal?: AbortSignal, params: unknown = {}) =>
     tools.get('next_issue_start')!('call', params, signal, undefined, ctx);
   const report = () => tools.get('next_issue_status')!('call', {}, undefined, undefined, ctx);
+  const refresh = () => tools.get('next_issue_refresh')!('call', {}, undefined, undefined, ctx);
   const hunt = (params: unknown, signal?: AbortSignal) =>
     tools.get('next_issue_hunt')!('call', params, signal, undefined, ctx);
   const stop = (params: unknown = {}) =>
@@ -110,6 +117,7 @@ function host(mode = 'tui', cwd = '/repo', answers: Array<string | undefined> = 
     complete,
     start,
     report,
+    refresh,
     hunt,
     stop,
   };
@@ -475,6 +483,51 @@ test('a model that calls next_issue_status with no worker going is told so and n
   await emit('session_start');
   const result = await report();
   assert.equal(result.content[0]?.text, 'no worker is running');
+  assert.equal(spawns.length, 0);
+});
+
+test('a model that calls next_issue_refresh while a run is going asks that run to check for new issues now and is told so', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({ issues: [working(7)] });
+  const { pi, emit, refresh } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const result = await refresh();
+  assert.deepEqual(result.details, { refreshed: true, root: '/repo' });
+  assert.equal(result.content[0]?.text, 'Asked the run of /repo to check for new issues now.');
+  await until(() => fake.received.some((message) => message.type === 'refresh'));
+  assert.deepEqual(
+    fake.received.filter((message) => ['start', 'stop', 'refresh'].includes(message.type)),
+    [{ type: 'refresh', root: '/repo' }],
+  );
+});
+
+test('a model that calls next_issue_refresh while the worker has no run of this repository is told no run is going and nothing starts', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/other'] = running({ issues: [working(3)] });
+  const { pi, emit, refresh } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const result = await refresh();
+  assert.deepEqual(result.details, { refreshed: false, root: '/repo' });
+  assert.equal(result.content[0]?.text, 'No run of /repo is going, so nothing was asked.');
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(
+    fake.received.filter((message) => ['start', 'stop', 'refresh'].includes(message.type)),
+    [],
+  );
+});
+
+test('a model that calls next_issue_refresh with no worker going is told no run is going and no worker starts', async () => {
+  const { spawns, extension } = setup();
+  const { pi, emit, refresh } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const result = await refresh();
+  assert.deepEqual(result.details, { refreshed: false, root: '/repo' });
+  assert.equal(result.content[0]?.text, 'No run of /repo is going, so nothing was asked.');
   assert.equal(spawns.length, 0);
 });
 

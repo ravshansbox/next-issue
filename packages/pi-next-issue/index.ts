@@ -15,6 +15,7 @@ import {
   requestHunt,
   requestStart,
   requestStop,
+  refreshRun,
   startRun,
   statusOf,
   stopRun,
@@ -312,7 +313,7 @@ export function createExtension(options: Options) {
     pi.registerTool({
       name: 'next_issue_start',
       label: 'Start next-issue',
-      description: `Start a next-issue run of the GitHub issues of this repository when none is going. Starts the worker when needed. When a run is going, starts nothing, asks that run to check for new issues now (call it after filing an issue) and reports that run. Optional args take the flags ${FLAGS}, for example ["--hunt"] to hunt for bugs and keep watching.`,
+      description: `Start a next-issue run of the GitHub issues of this repository when none is going. Starts the worker when needed. When a run is going, starts nothing, asks that run to check for new issues now and reports that run. Optional args take the flags ${FLAGS}, for example ["--hunt"] to hunt for bugs and keep watching.`,
       promptSnippet: 'Start a next-issue run of this repository when none is going',
       parameters: Type.Object({
         args: Type.Optional(
@@ -325,6 +326,21 @@ export function createExtension(options: Options) {
         const { client, root, progress } = await connect(ctx);
         asked = going(progress) ? 'hunt' : 'start';
         return startRun(client, root, progress, params.args ?? [], signal, () => {
+          asked = 'refresh';
+        });
+      },
+    });
+
+    pi.registerTool({
+      name: 'next_issue_refresh',
+      label: 'Refresh next-issue',
+      description:
+        'Ask the going next-issue run of this repository to check for new issues now (call it after filing an issue). Never starts a worker or a run: when no run is going, it says so.',
+      promptSnippet: 'Ask the going next-issue run of this repository to check for new issues now',
+      parameters: Type.Object({}),
+      async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
+        const root = await options.root(ctx.cwd);
+        return refreshRun(clientOf(root), root, () => {
           asked = 'refresh';
         });
       },

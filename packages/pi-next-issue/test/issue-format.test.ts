@@ -162,3 +162,15 @@ test('a user who reads the pi-next-issue README learns which repository the crea
   const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
   assert.match(readme, /repository of the `remote` of `\.next-issue\/config\.json`/);
 });
+
+test('an agent who files an issue with the create-issue skill nudges the going run first and asks only whether to start a run when none is going', async () => {
+  const skill = await readFile(new URL('SKILL.md', skillFolder), 'utf8');
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
+  assert.match(
+    skill,
+    /call the `next_issue_refresh` tool, with no question first[\s\S]*Ask no question[\s\S]*ask only whether to start a run\. On yes, call the `next_issue_start` tool/,
+  );
+  assert.doesNotMatch(skill, /c\) change the issue/);
+  assert.match(readme, /The `next_issue_refresh` tool/);
+  assert.match(readme, /calls `next_issue_refresh` with no question first/);
+});

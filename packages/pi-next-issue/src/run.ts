@@ -40,6 +40,25 @@ function sendRefresh(client: WorkerClient, root: string, refreshing: () => void)
   refreshing();
 }
 
+export async function refreshRun(
+  client: WorkerClient,
+  root: string,
+  refreshing: () => void = () => {},
+) {
+  await client.attach();
+  if (!client.connected || !going(client.runs[root])) {
+    return report(`No run of ${root} is going, so nothing was asked.`, {
+      refreshed: false,
+      root,
+    });
+  }
+  sendRefresh(client, root, refreshing);
+  return report(`Asked the run of ${root} to check for new issues now.`, {
+    refreshed: true,
+    root,
+  });
+}
+
 export async function startRun(
   client: WorkerClient,
   root: string,
