@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { processIssue } from '../src/pipeline.mts';
 import { readState, type IssueState } from '../src/state.mts';
-import { APPROVE, harness, ISSUE, roles } from './harness.mts';
+import { APPROVE, harness, ISSUE, PUSH_REJECTED, roles } from './harness.mts';
 
 test('a user whose change is approved gets it pushed to the base branch as one commit, the issue closed and done', async (t) => {
   const target = await harness(t, { implementerText: ['Done.\ncommit: feat: add the flag'] });
@@ -172,6 +172,38 @@ test('a user whose push to the base branch keeps failing gets the issue handed o
   assert.equal(report.outcome, 'needs-human');
   assert.equal(report.reason, 'push failed');
   assert.deepEqual(target.closed, []);
+  assert.equal(target.baseMerges, 3);
+  assert.match(
+    target.comments.at(-1)!,
+    /The push to main failed 3 times\. The last error of git:\n\n```\n! \[rejected\] HEAD -> main \(fetch first\)\n```/,
+  );
+});
+
+test('a user whose push to the base branch is refused while the base stays put gets the issue handed over at once with the error of git and the checks run once', async (t) => {
+  const target = await harness(t, {
+    config: { checks: ['npm test'] },
+    pushRefused: 'remote: Permission to acme/tool.git denied to bot.',
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'push failed');
+  assert.equal(target.checks.length, 1);
+  assert.equal(target.baseMerges, 1);
+  assert.deepEqual(target.landed, []);
+  assert.match(
+    target.comments.at(-1)!,
+    /needs help: The push to main failed, and main did not move, so the harness did not try again\. The error of git:\n\n```\nremote: Permission to acme\/tool\.git denied to bot\.\n```/,
+  );
+});
+
+test('a user whose push is refused with no error from git gets a hand-over that names no error of git', async (t) => {
+  const target = await harness(t, { pushRefused: '' });
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.match(
+    target.comments.at(-1)!,
+    /needs help: The push to main failed, and main did not move, so the harness did not try again\.$/,
+  );
 });
 
 test('a user whose checks on main fail once and pass on the rerun gets the issue done with no fixer', async (t) => {
@@ -382,7 +414,8 @@ test('a user whose fix for main cannot be pushed gets the change reverted', asyn
   });
   const ports = target.context.ports;
   const pushToBase = ports.pushToBase;
-  ports.pushToBase = async (...args) => (target.landed.length > 0 ? false : pushToBase(...args));
+  ports.pushToBase = async (...args) =>
+    target.landed.length > 0 ? { pushed: false, error: PUSH_REJECTED } : pushToBase(...args);
   const report = await target.run();
   assert.equal(report.reason, 'push failed');
   assert.deepEqual(
@@ -391,7 +424,7 @@ test('a user whose fix for main cannot be pushed gets the change reverted', asyn
   );
   assert.match(
     target.comments.at(-1)!,
-    /failed 3 times\. The harness reverted the change on main\./,
+    /failed 3 times\. The last error of git:\n\n```\n.+\n```\n The harness reverted the change on main\./,
   );
 });
 
@@ -408,7 +441,8 @@ test('a user whose fix for main cannot be pushed and whose revert throws gets th
   });
   const ports = target.context.ports;
   const pushToBase = ports.pushToBase;
-  ports.pushToBase = async (...args) => (target.landed.length > 0 ? false : pushToBase(...args));
+  ports.pushToBase = async (...args) =>
+    target.landed.length > 0 ? { pushed: false, error: PUSH_REJECTED } : pushToBase(...args);
   revertThrows(target);
   const report = await target.run();
   assert.equal(report.outcome, 'needs-human');
@@ -416,7 +450,7 @@ test('a user whose fix for main cannot be pushed and whose revert throws gets th
   assert.equal(report.halt, true);
   assert.match(
     target.comments.at(-1)!,
-    /needs help: The push to main failed 3 times\. The revert of the change on main failed: git: fetch failed\. The landed commits stay on main\./,
+    /needs help: The push to main failed 3 times\. The last error of git:\n\n```\n.+\n```\n The revert of the change on main failed: git: fetch failed\. The landed commits stay on main\./,
   );
   assert.deepEqual((await target.state())?.landed, ['2']);
 });
@@ -430,7 +464,8 @@ test('a user whose push of the fix for main reports a failure and whose fetch of
   const pushToBase = ports.pushToBase;
   ports.pushToBase = async (...args) => {
     const fix = first.landed.length > 0;
-    return (await pushToBase(...args)) && !fix;
+    const push = await pushToBase(...args);
+    return fix ? { pushed: false, error: PUSH_REJECTED } : push;
   };
   ports.isOnBase = async () => {
     throw new Error('fetch failed');

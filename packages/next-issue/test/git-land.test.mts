@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { runChildren, stopRunChildren, withRunChildren } from '../src/children.mts';
 import { HookError } from '../src/git-commit.mts';
 import {
+  baseMoved,
   pushToBase,
   reapplyRevert,
   type Revert,
@@ -37,7 +38,7 @@ test('squashOnto makes one commit on top of the base, and pushToBase lands it th
   assert.equal(await squashOnto(path, 'origin/main', 'feat: add b and c'), true);
   assert.equal(await git(path, 'rev-parse', 'HEAD^'), await git(path, 'rev-parse', 'origin/main'));
   assert.equal(await git(path, 'log', '-1', '--format=%s'), 'feat: add b and c');
-  assert.equal(await pushToBase(path, 'origin', 'main'), true);
+  assert.equal((await pushToBase(path, 'origin', 'main')).pushed, true);
   await git(other, 'pull', '-q', 'origin', 'main');
   assert.equal(await git(other, 'rev-parse', 'HEAD'), await git(path, 'rev-parse', 'HEAD'));
 });
@@ -80,7 +81,25 @@ test('pushToBase refuses a change that is behind the base', async () => {
   const { path, other } = await branch();
   await commit(other, 'd.txt');
   await git(other, 'push', '-q', 'origin', 'main');
-  assert.equal(await pushToBase(path, 'origin', 'main'), false);
+  const push = await pushToBase(path, 'origin', 'main');
+  assert.equal(push.pushed, false);
+  assert.match(push.error, /rejected/);
+  await git(path, 'fetch', '-q', 'origin');
+  assert.equal(await baseMoved(path, 'main', 'origin'), true);
+});
+
+test('pushToBase that the remote refuses on an unchanged base returns the error of git, and baseMoved says the base did not move', async () => {
+  const { path } = await branch();
+  const hooks = join(path, '..', 'hooks');
+  await mkdir(hooks, { recursive: true });
+  await writeFile(join(hooks, 'pre-push'), '#!/bin/sh\necho permission denied >&2\nexit 1\n');
+  await chmod(join(hooks, 'pre-push'), 0o755);
+  await git(path, 'config', 'core.hooksPath', hooks);
+  const push = await pushToBase(path, 'origin', 'main');
+  assert.equal(push.pushed, false);
+  assert.match(push.error, /permission denied/);
+  await git(path, 'fetch', '-q', 'origin');
+  assert.equal(await baseMoved(path, 'main', 'origin'), false);
 });
 
 test('revertOnBase pushes a revert to the base and leaves the change on the branch on top of it', async () => {
@@ -292,7 +311,7 @@ test('revertOnBase whose push reports a failure and whose fetch of the base fail
 test('isLanded tells a branch whose head the base already holds from one with a commit the base lacks', async () => {
   const { path, other } = await branch();
   assert.equal(await isLanded(path, 'main', 'origin'), false);
-  assert.equal(await pushToBase(path, 'origin', 'main'), true);
+  assert.equal((await pushToBase(path, 'origin', 'main')).pushed, true);
   await commit(other, 'd.txt');
   await git(other, 'pull', '-q', '--rebase', 'origin', 'main');
   await git(other, 'push', '-q', 'origin', 'main');

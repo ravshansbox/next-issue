@@ -103,7 +103,7 @@ test('a user who resumes a run that died after the fix of main was committed get
   );
   assert.match(
     target.comments.at(-1)!,
-    /failed 3 times\. The harness reverted the change on main\./,
+    /failed 3 times\. The last error of git:\n\n```\n.+\n```\n The harness reverted the change on main\./,
   );
 });
 

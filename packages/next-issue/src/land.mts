@@ -8,7 +8,10 @@ import { escalateAndFinish, finishDone, stop } from './handover.mts';
 import type { Finished, Run } from './job.mts';
 import { oneAtATime } from './lock.mts';
 import { readState, savedIssues, writeState } from './state.mts';
+import { outputBlock } from './text.mts';
 import { beforeBaseSettled, blocksLanding, HALT_NOTE, releaseSettled } from './unsettled.mts';
+
+const GIT_ERROR_CHARS = 1000;
 
 export function landApproved(job: Run): Promise<Finished> {
   return landing(job, () => landLoop(job));
@@ -142,18 +145,20 @@ async function pushChange(job: Run): Promise<Finished | string> {
     state.pushing = sha;
     state.halted = true;
     await writeState(repo, state);
-    const pushed = await log.step(
-      'land',
-      { base, sha },
-      async () =>
-        (await ports.pushToBase(worktree, config.remote, base)) ||
-        ports.isOnBase(worktree, base, config.remote, sha).catch((error: unknown) => {
-          if (runStopped()) {
-            throw error;
-          }
-          return undefined;
-        }),
-    );
+    let failure = '';
+    const pushed = await log.step('land', { base, sha }, async () => {
+      const push = await ports.pushToBase(worktree, config.remote, base);
+      if (push.pushed) {
+        return true;
+      }
+      failure = push.error;
+      return ports.isOnBase(worktree, base, config.remote, sha).catch((error: unknown) => {
+        if (runStopped()) {
+          throw error;
+        }
+        return undefined;
+      });
+    });
     if (pushed === undefined) {
       job.mainBroken = true;
       return escalateAndFinish(
@@ -174,13 +179,25 @@ async function pushChange(job: Run): Promise<Finished | string> {
       await updateLocalBase(job);
       return sha;
     }
+    if (!(await ports.baseMoved(worktree, base, config.remote))) {
+      return escalateAndFinish(
+        job,
+        `The push to ${base} failed, and ${base} did not move, so the harness did not try again.${gitError('The error of git:', failure)}`,
+        'push failed',
+      );
+    }
     attempt += 1;
     if (attempt > PUSH_TRIES) {
       return escalateAndFinish(
         job,
-        `The push to ${base} failed ${PUSH_TRIES} times.`,
+        `The push to ${base} failed ${PUSH_TRIES} times.${gitError('The last error of git:', failure)}`,
         'push failed',
       );
     }
   }
+}
+
+function gitError(label: string, failure: string): string {
+  const block = outputBlock(failure, GIT_ERROR_CHARS);
+  return block === '' ? '' : ` ${label}${block}`;
 }

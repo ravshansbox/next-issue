@@ -30,3 +30,15 @@ export function fitComment(comment: string, cut: string): string {
   const splitsPair = /[\uD800-\uDBFF]/.test(comment.charAt(end - 1));
   return `${comment.slice(0, splitsPair ? end - 1 : end)}${cut}`;
 }
+
+const COMMENT_OUTPUT_CHARS = 3000;
+
+export function outputBlock(output: string, limit = COMMENT_OUTPUT_CHARS): string {
+  const kept = keepTail(output.trim(), limit);
+  if (kept === '') {
+    return '';
+  }
+  const longest = Math.max(2, ...(kept.match(/`+/g) ?? []).map((run) => run.length));
+  const fence = '`'.repeat(longest + 1);
+  return `\n\n${fence}\n${kept}\n${fence}\n`;
+}

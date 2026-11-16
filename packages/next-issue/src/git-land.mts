@@ -1,4 +1,5 @@
 import { evenWhenStopped } from './children.mts';
+import { run, succeeded } from './exec.mts';
 import {
   fetchBase,
   git,
@@ -7,6 +8,7 @@ import {
   isLanded,
   isOnBase,
   oneFetchAtATime,
+  remoteRef,
   revision,
   succeeds,
 } from './git.mts';
@@ -29,8 +31,18 @@ export async function squashOnto(cwd: string, target: string, message: string): 
   return true;
 }
 
-export async function pushToBase(cwd: string, remote: string, base: string): Promise<boolean> {
-  return oneFetchAtATime(() => succeeds(cwd, ['push', remote, `HEAD:refs/heads/${base}`]));
+export type Push = { pushed: true } | { pushed: false; error: string };
+
+export async function pushToBase(cwd: string, remote: string, base: string): Promise<Push> {
+  const result = await oneFetchAtATime(() =>
+    run('git', ['push', remote, `HEAD:refs/heads/${base}`], { cwd }),
+  );
+  return succeeded(result) ? { pushed: true } : { pushed: false, error: result.stderr };
+}
+
+/** Whether the last fetched base holds a commit that `HEAD` lacks. */
+export async function baseMoved(cwd: string, base: string, remote: string): Promise<boolean> {
+  return !(await isAncestor(cwd, remoteRef(remote, base), 'HEAD'));
 }
 
 export type Revert = {
@@ -101,7 +113,10 @@ async function pushRevert(cwd: string, revert: Revert): Promise<boolean> {
     await git(cwd, ['commit', '--no-verify', '-m', message]);
     const reverted = await revision(cwd);
     await pushing(reverted);
-    if ((await pushToBase(cwd, remote, base)) || (await isOnBase(cwd, base, remote, reverted))) {
+    if (
+      (await pushToBase(cwd, remote, base)).pushed ||
+      (await isOnBase(cwd, base, remote, reverted))
+    ) {
       await commitReapply(cwd, reverted, reapply, branch);
       return true;
     }

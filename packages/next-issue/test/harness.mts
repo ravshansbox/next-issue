@@ -66,6 +66,8 @@ export function result(text: string): AgentResult {
   };
 }
 
+export const PUSH_REJECTED = '! [rejected] HEAD -> main (fetch first)';
+
 export type Plan = {
   config?: Partial<Config>;
   verdicts?: Verdict[];
@@ -98,6 +100,8 @@ export type Plan = {
   mergeResolved?: boolean;
   mergeHook?: string;
   pushRejects?: number;
+  /** The error of git for a push that the remote refuses while the base stays put. */
+  pushRefused?: string;
   pushLandsAndFails?: boolean;
   pushLandsAndStops?: boolean;
   baseFetchFails?: boolean;
@@ -354,18 +358,24 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       return true;
     },
     pushToBase: async () => {
+      if (plan.pushRefused !== undefined) {
+        return { pushed: false, error: plan.pushRefused };
+      }
       if (rejects > 0) {
         rejects -= 1;
-        return false;
+        return { pushed: false, error: PUSH_REJECTED };
       }
       state.landed.push(String(head));
       remoteBase = String(head);
       if (plan.pushLandsAndStops === true) {
         stopRunChildren(children);
-        return false;
+        return { pushed: false, error: PUSH_REJECTED };
       }
-      return plan.pushLandsAndFails !== true;
+      return plan.pushLandsAndFails === true
+        ? { pushed: false, error: PUSH_REJECTED }
+        : { pushed: true };
     },
+    baseMoved: async () => plan.pushRefused === undefined,
     isOnBase: async (_worktree, _base, _remote, sha) => {
       refuseWhenStopped();
       if (plan.baseFetchFails === true) {

@@ -2,7 +2,7 @@ import { runAgent } from './agents.mts';
 import { failedCiLogs, rerunFailedCi, waitForCiChecks } from './ci-checks.mts';
 import { run } from './exec.mts';
 import { commitAll } from './git-commit.mts';
-import { pushToBase, reapplyRevert, revertOnBase, squashOnto } from './git-land.mts';
+import { baseMoved, pushToBase, reapplyRevert, revertOnBase, squashOnto } from './git-land.mts';
 import { abortMerge, commitMerge, startMerge } from './git-merge.mts';
 import {
   changedFiles,
@@ -62,6 +62,7 @@ async function runCheck(
 export const PORTS = {
   abortMerge,
   addWorktree,
+  baseMoved,
   canWrite,
   changedFiles,
   closeIssue,

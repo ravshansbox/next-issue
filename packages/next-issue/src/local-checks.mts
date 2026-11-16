@@ -7,10 +7,8 @@ import { escalateAndFinish } from './handover.mts';
 import type { Finished, Run } from './job.mts';
 import type { CheckResult } from './ports.mts';
 import { writeState } from './state.mts';
-import { keepTail } from './text.mts';
+import { outputBlock } from './text.mts';
 import { setUpBeforeChecks } from './worktree-setup.mts';
-
-const COMMENT_OUTPUT_CHARS = 3000;
 
 /**
  * Runs the configured check commands in the worktree before a push.
@@ -79,16 +77,6 @@ function failure(job: Run, command: string, result: CheckResult): string {
   return result.timedOut
     ? `The local check \`${command}\` did not finish in ${job.context.config.checksTimeoutMinutes} minutes.`
     : `The local check \`${command}\` failed with code ${result.code}.`;
-}
-
-function outputBlock(output: string): string {
-  const kept = keepTail(output.trim(), COMMENT_OUTPUT_CHARS);
-  if (kept === '') {
-    return '';
-  }
-  const longest = Math.max(2, ...(kept.match(/`+/g) ?? []).map((run) => run.length));
-  const fence = '`'.repeat(longest + 1);
-  return `\n\n${fence}\n${kept}\n${fence}`;
 }
 
 async function failedCheck(

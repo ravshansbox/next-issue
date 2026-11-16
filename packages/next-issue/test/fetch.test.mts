@@ -63,7 +63,7 @@ test('the harness pushes issue 3 and lands it while it sets up the worktree of i
     pushToBase(path, 'origin', 'main'),
     addWorktree(repo, 4, '4', 'main', 'origin', false),
   ]);
-  assert.equal(landed, true);
+  assert.equal(landed.pushed, true);
   assert.ok(await git(other, 'ls-remote', 'origin', 'refs/heads/3'));
   assert.ok(added.path);
 });
