@@ -477,6 +477,26 @@ test('a user whose landing of the fix for main fails with an error gets the chan
   assert.equal((await target.state())?.landed, undefined);
 });
 
+test('a user who stops the run now while the fix for main lands gets the run stopped with no revert tried and the landed commits kept', async (t) => {
+  const target = await harness(t, {
+    baseChecks: ['fail'],
+    fixerText: 'Done.\ncommit: fix: repair main',
+  });
+  const ports = target.context.ports;
+  const startMerge = ports.startMerge;
+  ports.startMerge = async (...args) => {
+    if (target.landed.length > 0) {
+      target.stopNow();
+      throw new Error('The run stopped.');
+    }
+    return startMerge(...args);
+  };
+  const report = await target.run();
+  assert.equal(report.outcome, 'stopped');
+  assert.deepEqual(target.reverts, []);
+  assert.deepEqual((await target.state())?.landed, ['2']);
+});
+
 test('a user whose landing of the fix for main fails with an error and whose revert fails gets the landed commits kept, the issue handed over and the run halted', async (t) => {
   const target = await fixLandingFails(t, { revertFails: true });
   const report = await target.run();

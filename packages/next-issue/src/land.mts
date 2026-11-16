@@ -6,7 +6,6 @@ import { localChecks } from './local-checks.mts';
 import { escalateAndFinish, finishDone, stop } from './handover.mts';
 import type { Finished, Run } from './job.mts';
 import { oneAtATime } from './lock.mts';
-import { revertFailedFix } from './revert.mts';
 import { readState, savedIssues, writeState } from './state.mts';
 import { beforeBaseSettled, blocksLanding, HALT_NOTE, releaseSettled } from './unsettled.mts';
 
@@ -96,7 +95,6 @@ async function landLoop(job: Run): Promise<Finished> {
   for (;;) {
     const pushed = await pushChange(job).catch(async (error: unknown) => {
       if (!job.repairing || runStopped()) {
-        await revertFailedFix(job);
         throw error;
       }
       job.repairing = false;

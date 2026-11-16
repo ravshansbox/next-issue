@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { runChildren, stopRunChildren, withRunChildren } from '../src/children.mts';
 import { HookError } from '../src/git-commit.mts';
 import {
   pushToBase,
@@ -187,6 +188,32 @@ test('revertOnBase whose revert commit fails puts the branch back', async () => 
   await git(other, 'revert', '--no-edit', sha);
   await git(other, 'push', '-q', 'origin', 'main');
   await assert.rejects(revertOnBase(path, revertOf(sha)));
+  assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');
+  assert.equal(await git(path, 'rev-parse', 'HEAD'), sha);
+});
+
+test('revertOnBase whose revert commit fails and whose branch cannot be checked out again reports the commit error', async () => {
+  const { path, other, sha } = await landed();
+  await git(other, 'revert', '--no-edit', sha);
+  await git(other, 'push', '-q', 'origin', 'main');
+  await assert.rejects(
+    revertOnBase(path, { ...revertOf(sha), branch: 'missing' }),
+    (error: Error) => {
+      assert.doesNotMatch(error.message, /missing/);
+      assert.match(error.message, /commit/);
+      return true;
+    },
+  );
+});
+
+test('revertOnBase of a run stopped before the push reports the stop and puts the branch back', async () => {
+  const { path, sha } = await landed();
+  const children = runChildren();
+  const pushing = async () => stopRunChildren(children);
+  await assert.rejects(
+    withRunChildren(children, () => revertOnBase(path, { ...revertOf(sha), pushing })),
+    /The run stopped\./,
+  );
   assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');
   assert.equal(await git(path, 'rev-parse', 'HEAD'), sha);
 });

@@ -43,17 +43,23 @@ export type Revert = {
 };
 
 export async function revertOnBase(cwd: string, revert: Revert): Promise<boolean> {
-  const { branch } = revert;
-  let moved = false;
   try {
-    moved = await pushRevert(cwd, revert);
-    return moved;
-  } finally {
-    if (!moved) {
-      await succeeds(cwd, ['revert', '--abort']);
-      await git(cwd, ['checkout', '--force', branch]);
+    if (await pushRevert(cwd, revert)) {
+      return true;
     }
+  } catch (error) {
+    await putBranchBack(cwd, revert.branch).catch(() => undefined);
+    throw error;
   }
+  await putBranchBack(cwd, revert.branch);
+  return false;
+}
+
+function putBranchBack(cwd: string, branch: string): Promise<void> {
+  return evenWhenStopped(async () => {
+    await succeeds(cwd, ['revert', '--abort']);
+    await git(cwd, ['checkout', '--force', branch]);
+  });
 }
 
 export type Reapply = Pick<Revert, 'base' | 'remote' | 'branch' | 'reapply'> & {
