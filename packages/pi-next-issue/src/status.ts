@@ -87,7 +87,7 @@ export function formatQuestions(count: number): string {
 }
 
 export function issueLine(item: IssueProgress, now: number): string {
-  const parts = [`#${item.issue}`, item.stage ?? 'prepare', `${item.tools} tools`];
+  const parts = [`#${item.issue}`, item.stage ?? 'prepare'];
   if (item.startedAt !== undefined) {
     parts.push(duration(now - item.startedAt));
   }

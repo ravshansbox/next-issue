@@ -334,7 +334,7 @@ test('a model that calls next_issue_start while a run is going starts nothing an
   assert.deepEqual(result.details, { started: false, root: '/repo' });
   assert.equal(
     result.content[0]?.text,
-    'A run of /repo is going already, so nothing started: #7 · implement · 3 tools. Asked it to check for new issues now.',
+    'A run of /repo is going already, so nothing started: #7 · implement. Asked it to check for new issues now.',
   );
   await until(() => fake.received.some((message) => message.type === 'refresh'));
   assert.deepEqual(
@@ -495,7 +495,7 @@ test('a model that calls next_issue_status sees the run of this repository and e
   const result = await report();
   assert.equal(
     result.content[0]?.text,
-    '#191 · implement · 12 tools\nwatching off\nhunting off\n#190 done\n#189 needs a human\n#188 failed',
+    '#191 · implement\nwatching off\nhunting off\n#190 done\n#189 needs a human\n#188 failed',
   );
 });
 
@@ -667,7 +667,7 @@ test('a user sees the run of this repository in the footer in the dim colour of 
     }),
   );
   await until(() => painted.at(-1)?.includes('#7') === true);
-  assert.match(painted.at(-1) ?? '', /^<dim>#7 · implement · 1 tools · \d+s<\/dim>$/);
+  assert.match(painted.at(-1) ?? '', /^<dim>#7 · implement · \d+s<\/dim>$/);
   assert.deepEqual(widgets, []);
 });
 
@@ -714,7 +714,7 @@ test('a user of an rpc client sees the footer status without colour codes', asyn
     '/repo',
     running({ issues: [working(7, { stage: 'review 1', tools: 3, lastTool: 'read a.ts' })] }),
   );
-  await until(() => painted.at(-1) === '#7 · review 1 · 3 tools');
+  await until(() => painted.at(-1) === '#7 · review 1');
 });
 
 test('a user sees a note per handled issue and a note when the run finishes, and the run line cleared from the footer', async () => {
@@ -926,7 +926,7 @@ test('a user who runs /next-issue start while a run is going is told so and noth
   await emit('session_start');
   await command('start');
   assert.deepEqual(notes, [
-    'A run of /repo is going already, so nothing started: #7 · implement · 3 tools. Asked it to check for new issues now.',
+    'A run of /repo is going already, so nothing started: #7 · implement. Asked it to check for new issues now.',
   ]);
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert.deepEqual(
@@ -1131,14 +1131,14 @@ test('a user who runs /next-issue dashboard sees the going run on the Active tab
   assert.match(screen, /Watching: on/);
   assert.match(screen, /Hunting: off/);
   assert.match(screen, /Open issues: 5/);
-  assert.match(screen, /#7 · implement · 3 tools/);
+  assert.match(screen, /#7 · implement +│/);
   assert.match(screen, /#3 done/);
   assert.match(screen, /#4 needs a human/);
   fake.update(
     '/repo',
     running({ watching: true, issues: [working(7, { stage: 'review 1/5', tools: 9 })] }),
   );
-  await until(() => overlay.screen().includes('#7 · review 1/5 · 9 tools'), 500);
+  await until(() => /#7 · review 1\/5 +│/.test(overlay.screen()), 500);
   overlay.press('escape');
   await opened;
   assert.equal(overlay.closed, true);
@@ -1976,7 +1976,7 @@ test('a user in a second pi sees the run that the first pi started', async () =>
   const { pi, emit, status } = host();
   extension(pi as never);
   await emit('session_start');
-  await until(() => status.at(-1) === '#9 · checks · 0 tools');
+  await until(() => status.at(-1) === '#9 · checks');
 });
 
 test('a user sees why the worker could not start a run in this repository', async () => {
@@ -2292,7 +2292,7 @@ function progress(fields: Partial<Progress>): Progress {
   return { status: 'running', hunting: false, issues: [], handled: [], ...fields };
 }
 
-test('a user sees each running issue with its stage, tool count and time spent in the footer', () => {
+test('a user sees each running issue with its stage and time spent in the footer', () => {
   assert.equal(
     formatStatus(
       progress({
@@ -2300,7 +2300,7 @@ test('a user sees each running issue with its stage, tool count and time spent i
       }),
       now,
     ),
-    '#12 · review 1 · 37 tools · 4m12s',
+    '#12 · review 1 · 4m12s',
   );
   assert.equal(
     formatStatus(
@@ -2312,7 +2312,7 @@ test('a user sees each running issue with its stage, tool count and time spent i
       }),
       now,
     ),
-    '#12 · review 1 · 37 tools · 4m12s | #13 · prepare · 2 tools · 40s',
+    '#12 · review 1 · 4m12s | #13 · prepare · 40s',
   );
   assert.equal(formatStatus(progress({}), now), 'looking for issues');
 });
@@ -2329,14 +2329,14 @@ test('a user sees the open-issue count of the latest fetch once, before the runn
       }),
       now,
     ),
-    '7 issues · #12 · implement · 3 tools · 41s | #13 · review fix 2/5 · 1 tools',
+    '7 issues · #12 · implement · 41s | #13 · review fix 2/5',
   );
   assert.equal(
     formatStatus(
       progress({ open: 1, issues: [working(225, { stage: 'implement', tools: 0 })] }),
       now,
     ),
-    '1 issue · #225 · implement · 0 tools',
+    '1 issue · #225 · implement',
   );
 });
 
@@ -2888,6 +2888,6 @@ test('a user whose going run hunts sees no hunting marker in the footer', () => 
   assert.equal(formatStatus(progress({ hunting: true }), now), 'looking for issues');
   assert.equal(
     formatStatus(progress({ hunting: true, issues: [working(4, { stage: 'implement' })] }), now),
-    '#4 · implement · 0 tools',
+    '#4 · implement',
   );
 });
