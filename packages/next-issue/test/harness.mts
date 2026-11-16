@@ -87,6 +87,7 @@ export type Plan = {
   /** The issue as GitHub holds it when the harness reads it again during the run. */
   fresh?: Issue;
   baseUpdated?: boolean;
+  branchUpdated?: boolean;
   landedBaseUpdated?: boolean;
   landedFetchFails?: boolean;
   blockers?: string[];
@@ -263,7 +264,11 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     addWorktree: async (_repo, _issue, branch, _base, _remote, start) => {
       state.branches.push(branch);
       state.starts.push(start);
-      return { path: join(root, 'worktree'), baseUpdated: plan.baseUpdated ?? true };
+      return {
+        path: join(root, 'worktree'),
+        baseUpdated: plan.baseUpdated ?? true,
+        branchUpdated: plan.branchUpdated ?? true,
+      };
     },
     fastForwardBase: async () => {
       if (plan.landedFetchFails === true) {

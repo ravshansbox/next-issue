@@ -258,7 +258,7 @@ export function huntPrompt(
   const kept = instructions?.trim() ?? '';
   const label = [ready, source]
     .filter((name) => name !== '')
-    .map((name) => ` --label "${name}"`)
+    .map((name) => ` --label "${name.replace(/[\\"$`]/g, '\\$&')}"`)
     .join('');
   return paragraphs([
     `You are the hunter. Find the most serious problems in this repository and file up to ${issues} for them.`,

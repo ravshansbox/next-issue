@@ -66,8 +66,11 @@ the run handles one issue. For each issue:
    state keeps the branch name that the state holds, and a worktree that
    holds that branch already stays in use. A branch that exists on the
    remote is the start, and a local branch that fell behind the remote is
-   fast-forwarded. A local branch that the remote does not hold and that has
-   no commits of its own starts again from the remote base. An issue with no
+   fast-forwarded; a local branch that cannot be fast-forwarded stays as it
+   is and the harness writes a `branch.behind` event. The fetch prunes
+   remote branches, so a remote branch that was deleted does not count. A
+   local branch that the remote does not hold and that has no commits of
+   its own starts again from the remote base. An issue with no
    saved state does not reuse a local `<n>` branch: it resets that branch,
    and any worktree that holds it, to the remote branch, or to the remote
    base when there is none. A worktree at `.worktrees/<n>` left on a
@@ -708,7 +711,7 @@ because no pull request is opened.
 | `checkIntervalSeconds`  | `15`               | The time between two check states, at most `2147483`                                                                                                                                                                        |
 | `checkGraceSeconds`     | `60`               | The time to wait for the first check to show, and for more checks after they all pass; the grace ends at the `checkTimeoutMinutes` limit, where checks that all pass, or no checks, still count as a pass                   |
 | `checkTimeoutMinutes`   | `60`               | The limit for one check wait, at most `35791`                                                                                                                                                                               |
-| `agentTimeoutMinutes`   | `30`               | The limit for one agent call, at most `35791`                                                                                                                                                                               |
+| `agentTimeoutMinutes`   | `30`               | The limit for one agent call, opening its session included, at most `35791`                                                                                                                                                 |
 | `setupTimeoutMinutes`   | `15`               | The limit for the setup command, at most `35791`                                                                                                                                                                            |
 | `commandTimeoutMinutes` | `10`               | The limit for one `git` or `gh` command, at most `35791`                                                                                                                                                                    |
 | `logMaxChars`           | `20000`            | The maximum length of the failed job logs, shared between the failed GitHub Actions runs (failed external checks are listed by name and link only)                                                                          |
@@ -724,9 +727,9 @@ because no pull request is opened.
 The hunter adds `labels.hunt` to each issue it files, so you can tell those
 issues apart from your own and filter them.
 
-The names in `labels.ready`, `inProgress`, `inReview`, `done`, `needsHuman`
-and `skip` must be distinct, also when case is ignored; two equal names stop
-the run with an error that names both fields. `labels.hunt` may share a name.
+The names in `labels.ready`, `inProgress`, `inReview`, `done`, `needsHuman`,
+`skip` and `hunt` must be distinct, also when case is ignored; two equal names
+stop the run with an error that names both fields.
 
 An empty `labels.ready` turns the ready requirement off. The harness then
 claims every open issue that no other label holds back.
@@ -909,7 +912,7 @@ The watch stops:
 
 ## Hunt for bugs
 
-With `next-issue start --hunt`, which turns on `--watch`, the harness runs a hunter agent at the same time as the issues. Before each hunt it reads the open issues with the `labels.ready` label and counts those that are ready to claim and are not running. An issue that failed earlier in the run does not count, since the watch does not try it again. It counts a blocked issue only when each of its open blockers is in the same repository and is running or ready to claim, since those blockers can land and close; a blocker that cannot move, such as one with `labels.needsHuman`, `labels.skip` or `labels.done`, one without `labels.ready`, or one in another repository, leaves it out. It looks only at the direct blockers, and reads them one issue at a time, so it runs one `gh` call at a time. It hunts only while that count is less than `huntCap`, 1 by default. Otherwise it waits and checks again, with the same back-off as the watch: 1, 2, 3, 5, 10, then 10 minutes. After a hunt that files an issue, it waits 1 minute before it checks the count again, even when the count is still less than `huntCap`, for example when `labels.hunt` shares a name with `labels.skip` so the filed issues never count. Each wait writes a `hunt.wait` event with the `minutes` to the run log. A hunt that files nothing backs off like a failed one. When the harness claims an issue, the hunter wakes: it ends its wait at once, or skips the wait after a hunt that is going, and checks the count again. A wake keeps the back-off where it was. The hunter:
+With `next-issue start --hunt`, which turns on `--watch`, the harness runs a hunter agent at the same time as the issues. Before each hunt it reads the open issues with the `labels.ready` label and counts those that are ready to claim and are not running. An issue that failed earlier in the run does not count, since the watch does not try it again. It counts a blocked issue only when each of its open blockers is in the same repository and is running or ready to claim, since those blockers can land and close; a blocker that cannot move, such as one with `labels.needsHuman`, `labels.skip` or `labels.done`, one without `labels.ready`, or one in another repository, leaves it out. It looks only at the direct blockers, and reads them one issue at a time, so it runs one `gh` call at a time. It hunts only while that count is less than `huntCap`, 1 by default. Otherwise it waits and checks again, with the same back-off as the watch: 1, 2, 3, 5, 10, then 10 minutes. After a hunt that files an issue, it waits 1 minute before it checks the count again, even when the count is still less than `huntCap`. Each wait writes a `hunt.wait` event with the `minutes` to the run log. A hunt that files nothing backs off like a failed one. When the harness claims an issue, the hunter wakes: it ends its wait at once, or skips the wait after a hunt that is going, and checks the count again. A wake keeps the back-off where it was. The hunter:
 
 - works in its own worktree at `.worktrees/hunt`, on a detached `HEAD` at the remote base branch, which the harness fetches and checks out before each hunt. A branch that the hunter checks out keeps its commits, and an issue that resumes never uses the hunt worktree as its own;
 - follows `next-issue.hunt.md` in the repository root, or a short built-in prompt when the file is missing;
@@ -999,7 +1002,8 @@ affect another. The worker:
   an `error` and starts nothing. The setting lasts for the run only: a new run
   takes it from its own flags. Only runs of the worker can switch; a
   command-line run keeps what `--hunt` gave it. The progress of each run
-  carries `hunting`, `true` while hunting is on;
+  carries `hunting`, `true` while hunting is on, and `watching`, `true` when
+  the run watches for issues;
 - asks a watching run to check for new issues now when a client sends
   `{ "type": "refresh", "root": "<path>" }`. A run that waits between passes
   starts a new pass at once, and its next wait starts again at 1 minute; a

@@ -197,8 +197,15 @@ test('a user who gives labels.inProgress the ready name in another case gets an 
   );
 });
 
+test('a user who gives labels.hunt the name of the done label gets an error that names both', async () => {
+  await assert.rejects(
+    parse({ labels: { hunt: 'Status:Done' } }),
+    /labels\.done and labels\.hunt must be different labels, but both are Status:Done/,
+  );
+});
+
 test('a user with an empty ready label and distinct status labels gets the config loaded', async () => {
-  const config = await parse({ labels: { ready: '', hunt: 'status:blocked' } });
+  const config = await parse({ labels: { ready: '' } });
   assert.equal(config.labels.ready, '');
 });
 

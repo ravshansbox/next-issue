@@ -104,7 +104,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       send(socket, { type: 'error', root, message: message(error) });
       return;
     }
-    const run = newRun(startProgress(args.hunt), args.watch);
+    const run = newRun({ ...startProgress(args.hunt), watching: args.watch }, args.watch);
     runs.set(root, run);
     const update = (next: Progress): void => {
       run.progress = next;
@@ -149,6 +149,9 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
 
   const receive = (socket: WebSocket, value: ClientMessage): void => {
     if (value.type === 'hello') {
+      if (typeof value.version !== 'string') {
+        throw new Error('a hello message needs its version as a string');
+      }
       if (isNewer(value.version, options.version)) {
         restart = true;
         closeWhenIdle();

@@ -18,6 +18,7 @@ import {
 type Worktree = {
   path: string;
   baseUpdated: boolean;
+  branchUpdated: boolean;
 };
 
 export const WORKTREE_DIR = '.worktrees';
@@ -59,10 +60,8 @@ export async function addWorktree(
   } else if (start) {
     await discardChanges(path, target);
   }
-  if (pushed) {
-    await succeeds(path, ['merge', '--ff-only', upstream]);
-  }
-  return { path, baseUpdated };
+  const branchUpdated = !pushed || (await succeeds(path, ['merge', '--ff-only', upstream]));
+  return { path, baseUpdated, branchUpdated };
 }
 
 async function keepDetachedEdits(path: string, branch: string): Promise<void> {
@@ -94,7 +93,7 @@ async function hasBranch(repo: Repo, name: string, ...flags: string[]): Promise<
 }
 
 export async function fastForwardBase(repo: Repo, base: string, remote: string): Promise<boolean> {
-  await gitFetch(repo.root, [remote]);
+  await gitFetch(repo.root, ['--prune', remote]);
   return updateBase(repo, base, remote);
 }
 

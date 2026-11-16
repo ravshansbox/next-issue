@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { mkdir, readdir, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { parseArgs } from '../src/args.mts';
+import { must } from '../src/exec.mts';
 import { pruneRuns } from '../src/prune-runs.mts';
+import { runRepo } from '../src/run.mts';
 import { runsDir } from '../src/state.mts';
 import { tempDir } from './temp-dir.mts';
 
@@ -60,4 +63,30 @@ test('pruneRuns with a limit of zero keeps every run', async () => {
 
 test('pruneRuns says nothing about a run directory that is not there', async () => {
   assert.equal(await pruneRuns(await tempDir(), 7), 0);
+});
+
+test('a user whose event listener fails on the pruned runs event is left with no open run log', async () => {
+  const root = await withRuns({ 'old.jsonl': 30 });
+  await must('git', ['init', '-q'], { cwd: root });
+  await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/prune.git'], {
+    cwd: root,
+  });
+  const openBefore = (await readdir('/dev/fd')).length;
+  await assert.rejects(
+    runRepo(
+      root,
+      { ...parseArgs(['start']), level: 'quiet' },
+      {
+        interrupts: { afterIssue: () => false, afterRound: () => false, sleep: async () => false },
+        onEvent: (record) => {
+          if (record.kind === 'runs.pruned') {
+            throw new Error('listener failed');
+          }
+        },
+      },
+    ),
+    /listener failed/,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal((await readdir('/dev/fd')).length, openBefore);
 });

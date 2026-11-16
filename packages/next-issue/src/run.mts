@@ -72,11 +72,11 @@ async function runWithConfig(
   await checkGitVersion();
   const repo = await detectRepo(root, config.remote);
   const recorder = await Recorder.create(repo.root, args.level, controls.onEvent);
-  const pruned = await pruneRuns(repo.root, config.keepRunDays);
-  if (pruned > 0) {
-    recorder.event('runs.pruned', { files: pruned, keepDays: config.keepRunDays }, 'verbose');
-  }
   try {
+    const pruned = await pruneRuns(repo.root, config.keepRunDays);
+    if (pruned > 0) {
+      recorder.event('runs.pruned', { files: pruned, keepDays: config.keepRunDays }, 'verbose');
+    }
     return await recordCommands(recorder, () => handle(args, config, repo, recorder, controls));
   } finally {
     await recorder.close();

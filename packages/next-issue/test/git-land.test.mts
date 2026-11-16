@@ -50,6 +50,15 @@ test('squashOnto makes no commit for a change that the base already holds', asyn
   assert.equal(await git(path, 'rev-parse', 'HEAD'), head);
 });
 
+test('squashOnto commits a change made only of new untracked files', async () => {
+  const { path } = await branch();
+  await git(path, 'reset', '-q', '--hard', 'origin/main');
+  await writeFile(join(path, 'new.txt'), 'new\n');
+  assert.equal(await squashOnto(path, 'origin/main', 'feat: add new'), true);
+  assert.equal(await git(path, 'rev-parse', 'HEAD^'), await git(path, 'rev-parse', 'origin/main'));
+  assert.equal(await git(path, 'show', '--format=', '--name-only', 'HEAD'), 'new.txt');
+});
+
 test('squashOnto that a pre-commit hook stops keeps the branch head, and a retry still squashes onto the base', async () => {
   const { path } = await branch();
   const head = await git(path, 'rev-parse', 'HEAD');

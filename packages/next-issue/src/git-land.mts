@@ -3,6 +3,7 @@ import {
   fetchBase,
   git,
   isAncestor,
+  isDirty,
   isLanded,
   isOnBase,
   oneFetchAtATime,
@@ -14,7 +15,7 @@ import { commitEverything } from './git-commit.mts';
 export const PUSH_TRIES = 3;
 
 export async function squashOnto(cwd: string, target: string, message: string): Promise<boolean> {
-  if (await succeeds(cwd, ['diff', '--quiet', target])) {
+  if ((await succeeds(cwd, ['diff', '--quiet', target])) && !(await isDirty(cwd))) {
     return false;
   }
   const head = await revision(cwd);

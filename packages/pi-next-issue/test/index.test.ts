@@ -489,6 +489,26 @@ test('a model that calls next_issue_refresh while a run is going asks that run t
   );
 });
 
+test('a model that calls next_issue_refresh while the going run does not watch is told the run would ignore it and nothing is asked', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({ watching: false, issues: [working(7)] });
+  const { pi, emit, refresh } = host();
+  extension(pi as never);
+  await emit('session_start');
+  const result = await refresh();
+  assert.deepEqual(result.details, { refreshed: false, root: '/repo' });
+  assert.equal(
+    result.content[0]?.text,
+    'The run of /repo does not watch for new issues, so it would ignore the request and nothing was asked.',
+  );
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(
+    fake.received.filter((message) => ['start', 'stop', 'refresh'].includes(message.type)),
+    [],
+  );
+});
+
 test('a model that calls next_issue_refresh while the worker has no run of this repository is told no run is going and nothing starts', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);

@@ -72,16 +72,33 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
   process.env.GIT_OPTIONAL_LOCKS = '0';
   process.argv[1] = PI_CLI;
   log.event('agent.start', { model: request.model, timeoutMs: request.timeoutMs });
-  const session = await openSession(recorder, log, request, agentDir);
 
   // pi drops an abort that comes before its run starts (during bindExtensions or the prompt
   // preflight), so remember it and abort again once the run is active, before its first turn.
+  let opened: AgentSession | undefined;
   let ended = false;
+  let expire = (): void => undefined;
+  const expired = new Promise<undefined>((resolve) => {
+    expire = () => resolve(undefined);
+  });
   const end = (): void => {
     ended = true;
-    void session.abort();
+    void opened?.abort();
   };
-  const timer = deadline(request.timeoutMs, end);
+  const timer = deadline(request.timeoutMs, () => {
+    expire();
+    end();
+  });
+  const session = await openWithin(openSession(recorder, log, request, agentDir), expired).catch(
+    (error: unknown) => {
+      timer.clear();
+      throw error;
+    },
+  );
+  if (session === undefined) {
+    throw timeoutError(request);
+  }
+  opened = session;
   const unsubscribe = session.subscribe((event) => observe(log, event));
   const release = onStop(end);
   try {
@@ -105,7 +122,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     }
     refuseWhenStopped();
     if (timer.timedOut()) {
-      throw new Error(`The ${request.name} agent did not finish in ${request.timeoutMs} ms.`);
+      throw timeoutError(request);
     }
     const failure = lastFailure(session);
     if (failure !== undefined) {
@@ -118,6 +135,24 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
     unsubscribe();
     session.dispose();
   }
+}
+
+async function openWithin(
+  opening: Promise<AgentSession>,
+  expired: Promise<undefined>,
+): Promise<AgentSession | undefined> {
+  const session = await Promise.race([opening, expired]);
+  if (session === undefined) {
+    opening.then(
+      (late) => late.dispose(),
+      () => undefined,
+    );
+  }
+  return session;
+}
+
+function timeoutError(request: AgentRequest): Error {
+  return new Error(`The ${request.name} agent did not finish in ${request.timeoutMs} ms.`);
 }
 
 function lastFailure(session: AgentSession): string | undefined {

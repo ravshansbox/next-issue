@@ -51,7 +51,9 @@ function toIssue(item: RawIssue): Issue {
 }
 
 function labelFilter(labels: string[]): string {
-  return labels.length === 0 ? '' : ` label:${labels.map((label) => `"${label}"`).join(',')}`;
+  return labels.length === 0
+    ? ''
+    : ` label:${labels.map((label) => `"${label.replace(/[\\"]/g, '\\$&')}"`).join(',')}`;
 }
 
 export async function openIssues(repo: Repo, limit: number, labels: string[]): Promise<Issue[]> {

@@ -52,6 +52,12 @@ test('a base that the harness fast-forwards writes no such event', async (t) => 
   assert.equal(target.context.recorder.summary().counts['base.behind'], undefined);
 });
 
+test('a user whose issue branch cannot be fast-forwarded to its remote branch finds a branch.behind event in the log', async (t) => {
+  const target = await harness(t, { branchUpdated: false });
+  await target.run();
+  assert.equal(target.context.recorder.summary().counts['branch.behind'], 1);
+});
+
 test('the status labels go to the issue alone', async (t) => {
   const target = await harness(t);
   await target.run();

@@ -14,6 +14,7 @@ export type IssueProgress = {
 export type Progress = {
   status: RunStatus;
   hunting: boolean;
+  watching?: boolean;
   issues: IssueProgress[];
   handled: Handled[];
   open?: number;

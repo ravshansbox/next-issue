@@ -20,13 +20,26 @@ export function trimLog(path: string): void {
       const read = readSync(file, tail, 0, LOG_KEEP_BYTES, size - LOG_KEEP_BYTES);
       const kept = tail.subarray(tail.indexOf(10) + 1, read);
       writeSync(file, kept, 0, kept.length, 0);
-      ftruncateSync(file, kept.length);
+      ftruncateSync(file, kept.length + copyAppended(file, size, kept.length));
     } finally {
       closeSync(file);
     }
   } catch {
     return;
   }
+}
+
+function copyAppended(file: number, from: number, to: number): number {
+  let read = from;
+  let written = to;
+  for (let size = fstatSync(file).size; read < size; size = fstatSync(file).size) {
+    const appended = Buffer.alloc(size - read);
+    const length = readSync(file, appended, 0, appended.length, read);
+    writeSync(file, appended, 0, length, written);
+    read += length;
+    written += length;
+  }
+  return written - to;
 }
 
 export function keepLogTrimmed(path: string, checkMs: number): () => void {

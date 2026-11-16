@@ -258,7 +258,7 @@ function parseLabels(value: unknown, defaultLabels: Config['labels']): Config['l
 function rejectSameLabels(labels: Config['labels']): void {
   const seen = new Map<string, string>();
   for (const name of LABEL_NAMES) {
-    if (name === 'hunt' || labels[name] === '') {
+    if (labels[name] === '') {
       continue;
     }
     const key = labels[name].toLowerCase();

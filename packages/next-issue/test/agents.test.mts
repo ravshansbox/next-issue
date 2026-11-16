@@ -305,6 +305,21 @@ for (const [event, window] of [
   });
 }
 
+test('a user whose agent takes too long to load its extensions gets a timeout', async () => {
+  const { recorder, request } = await fakePi([fauxAssistantMessage('done')]);
+  await mkdir(join(request.cwd, '.pi', 'extensions'), { recursive: true });
+  await writeFile(
+    join(request.cwd, '.pi', 'extensions', 'slow-load.ts'),
+    `export default async function () {
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+}
+`,
+  );
+  await assert.rejects(runAgent(recorder, { ...request, timeoutMs: 200 }), {
+    message: 'The coder agent did not finish in 200 ms.',
+  });
+});
+
 async function assertFailedUsage(
   recorder: Recorder,
   request: { name: string; model: string },

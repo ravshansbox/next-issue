@@ -52,6 +52,12 @@ export async function refreshRun(
       root,
     });
   }
+  if (client.runs[root]?.watching === false) {
+    return report(
+      `The run of ${root} does not watch for new issues, so it would ignore the request and nothing was asked.`,
+      { refreshed: false, root },
+    );
+  }
   sendRefresh(client, root, refreshing);
   return report(`Asked the run of ${root} to check for new issues now.`, {
     refreshed: true,

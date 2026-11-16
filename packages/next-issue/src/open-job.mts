@@ -67,5 +67,8 @@ async function openWorktree(
   if (!added.baseUpdated) {
     log.event('base.behind', { base: context.base }, 'quiet');
   }
+  if (!added.branchUpdated) {
+    log.event('branch.behind', { branch }, 'quiet');
+  }
   return added.path;
 }

@@ -212,6 +212,24 @@ esac
   );
 });
 
+test('a user whose ready label holds a double quote gets its issues listed', async (t) => {
+  const dir = await tempDir();
+  const script = `#!/bin/sh
+case "$*" in
+  *'label:"say \\"hi\\""'*)
+    echo '[{"number":4,"title":"quoted","body":"","createdAt":"2026-02-01T00:00:00Z","labels":[{"name":"say \\"hi\\""}]}]' ;;
+  *) echo '[]' ;;
+esac
+`;
+  await installGh(t, dir, script);
+  const repo = { owner: 'acme', name: 'quoted', root: dir };
+  const issues = await openIssues(repo, 10, ['say "hi"']);
+  assert.deepEqual(
+    issues.map((issue) => issue.number),
+    [4],
+  );
+});
+
 async function fakeAnyGh(t: TestContext): Promise<string> {
   const dir = await tempDir();
   const script = `#!/bin/sh

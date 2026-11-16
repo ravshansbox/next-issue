@@ -27,6 +27,30 @@ test('addWorktree fast-forwards a local branch that the remote left behind', asy
   assert.equal(await revision(path), pushed);
 });
 
+test('a user who starts issue 3 after its remote branch was deleted gets the base, not the deleted branch', async () => {
+  const { repo, other } = await clones();
+  await git(other, 'checkout', '-q', '-b', '3');
+  await commit(other, 'b.txt');
+  await git(other, 'push', '-q', 'origin', '3');
+  await git(repo.root, 'fetch', '-q', 'origin');
+  await git(other, 'push', '-q', 'origin', '--delete', '3');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', true);
+  assert.equal(await revision(path), await git(repo.root, 'rev-parse', 'origin/main'));
+});
+
+test('a user whose local branch 3 has drifted from the remote branch 3 is told it was not fast-forwarded', async () => {
+  const { repo, other } = await clones();
+  await git(repo.root, 'checkout', '-q', '-b', '3');
+  const kept = await commit(repo.root, 'local.txt');
+  await git(repo.root, 'checkout', '-q', 'main');
+  await git(other, 'checkout', '-q', '-b', '3');
+  await commit(other, 'remote.txt');
+  await git(other, 'push', '-q', 'origin', '3');
+  const { path, branchUpdated } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  assert.equal(branchUpdated, false);
+  assert.equal(await revision(path), kept);
+});
+
 test('addWorktree starts a new branch from the base', async () => {
   const { repo } = await clones();
   const { path, baseUpdated } = await addWorktree(repo, 3, '3', 'main', 'origin', false);

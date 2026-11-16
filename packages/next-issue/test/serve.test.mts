@@ -112,6 +112,21 @@ test('a client that starts a run with --hunt gets a run that hunts and watches',
   assert.equal(fake.calls[0]!.args.max, 3);
 });
 
+test('a client sees in the progress of each run whether it watches for new issues', async (t) => {
+  for (const [args, watching] of [
+    [['--watch'], true],
+    [['--max', '1'], false],
+  ] as const) {
+    const { socketPath } = await worker(t, fakeRuns());
+    const client = await connect(t, socketPath);
+    client.send({ type: 'start', root: '/repo', args: [...args] });
+    const runs = await client.next(
+      (value) => value.type === 'runs' && value.runs['/repo'] !== undefined,
+    );
+    assert.equal(runs.type === 'runs' && runs.runs['/repo']!.watching, watching);
+  }
+});
+
 const huntingIs = (on: boolean) => (value: WorkerMessage) =>
   value.type === 'runs' && value.runs['/repo']?.hunting === on;
 
@@ -472,6 +487,20 @@ test('a client whose message the worker fails to handle gets an error and the wo
   assert.equal(reply.type === 'error' && reply.root, '/repo');
   const another = await connect(t, socketPath);
   assert.deepEqual(await another.next(runsOf), { type: 'runs', runs: {} });
+});
+
+test('a client that sends a hello with no version or a version that is not a string gets an error that names the version', async (t) => {
+  const { socketPath } = await worker(t, fakeRuns());
+  const client = await connect(t, socketPath);
+  for (const hello of [{ type: 'hello' }, { type: 'hello', version: 5 }]) {
+    client.send(hello as never);
+    const reply = await client.next((value) => value.type === 'error');
+    assert.deepEqual(reply, {
+      type: 'error',
+      root: '/repo',
+      message: 'a hello message needs its version as a string',
+    });
+  }
 });
 
 test('a second worker does not start while the first one holds the lock', async (t) => {

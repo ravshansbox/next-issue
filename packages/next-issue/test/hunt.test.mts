@@ -72,6 +72,15 @@ test('a user who sets labels.hunt sees the hunter add that label', async (t) => 
   assert.match(target.prompts[0]!.prompt, /--label "bot"/);
 });
 
+test('a user whose labels.hunt holds a double quote and a dollar sees the hunter told to pass them to gh unchanged', async (t) => {
+  const defaults = await harness(t);
+  const target = await harness(t, {
+    config: { labels: { ...defaults.context.config.labels, hunt: 'say "hi" $HOME' } },
+  });
+  await hunt(target.context, 1);
+  assert.ok(target.prompts[0]!.prompt.includes('--label "say \\"hi\\" \\$HOME"'));
+});
+
 test('a user who sets an empty labels.ready sees the hunter add only the source label, and the harness create only that label', async (t) => {
   const defaults = await harness(t);
   const target = await harness(t, {
