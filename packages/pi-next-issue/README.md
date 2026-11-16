@@ -41,7 +41,7 @@ Other lines read, for example, `looking for issues`, `finished: 2 done` or `stop
 
 ## Answer questions
 
-When an issue waits for a person, with the `needsHuman` label of the [config](../next-issue/README.md), the footer shows the count, for example `2 questions waiting`, and a note appears once for each new question. Neither interrupts what you do. Pi asks the worker for the list when it connects and every minute, and the worker also sends it after each issue of a run. A question answered on GitHub or in another pi leaves the count with the next list.
+When an issue waits for a person, with the `needsHuman` label of the [config](../next-issue/README.md), the footer shows the count, for example `2 questions waiting`, and a note appears once for each new question, for example `next-issue: #12 has a question: Fix the parser. Ask pi to answer it with the answer-hand-over skill.` Neither interrupts what you do. Pi asks the worker for the list when it connects and every minute, and the worker also sends it after each issue of a run. A question answered on GitHub or in another pi leaves the count with the next list.
 
 Run `/next-issue answer` to go through the waiting questions one at a time. Each shows the issue, the title and the reason of the hand-over. Choose:
 
@@ -52,6 +52,19 @@ Run `/next-issue answer` to go through the waiting questions one at a time. Each
 To drop an issue for good, close it on GitHub instead. The next run removes its saved state, branches and worktree, see [Retry an issue that waits for a person](../next-issue/README.md#retry-an-issue-that-waits-for-a-person).
 
 Press Escape, or leave the guidance empty, to stop. Pi reads the list again before each question, so it skips a question answered elsewhere in the meantime. The worker sends the repository and the label names with each question, from `.next-issue/config.json` and its `remote`. Pi uses `gh` for the comment and the labels.
+
+### Investigate a hand-over
+
+The package ships the `answer-hand-over` skill. Ask pi to answer a question or a hand-over, or run `/skill:answer-hand-over`. Pi then:
+
+1. lists the open issues with the `needsHuman` label and lets you pick one;
+2. reads the latest `next-issue needs help:` comment from a user with write access and its `question:` lines, the commits and the diff of the issue branch when there is one, and the logs of the failed checks when the hand-over names them;
+3. explains the blocker in plain words;
+4. asks numbered questions, with lettered options and a recommendation, until it knows whether to retry, retry with guidance or give up;
+5. answers as `/next-issue answer` does: Retry takes the `needsHuman` label off, Retry with guidance posts one comment that does not start with a heading of the harness and then takes the label off, and Give up takes the label off and adds the `skip` label, which it creates first when the repository lacks it and reuses when it differs only in case;
+6. after a retry, calls `next_issue_refresh`, and asks only whether to start a run when none is going.
+
+Pi finds the repository as the `create-issue` skill does and passes `--repo` to every `gh` command. It does not fix the code of the issue.
 
 ## Create an issue
 

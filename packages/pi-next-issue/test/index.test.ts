@@ -1284,7 +1284,33 @@ test('a user sees how many questions wait in the footer and a note for each new 
   await until(() => waiting.at(-1) === '<dim>2 questions waiting</dim>');
   fake.reply({ type: 'questions', root: '/repo', questions: [question(4), question(5)] });
   await until(() => waiting.length === 3);
-  assert.deepEqual(notes, ['next-issue: #5 has a question: Title 5']);
+  assert.deepEqual(notes, [
+    'next-issue: #5 has a question: Title 5. Ask pi to answer it with the answer-hand-over skill.',
+  ]);
+});
+
+test('a user sees a note for a question whose title ends in a stop mark with no extra full stop', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  const { pi, emit, notes } = host();
+  extension(pi as never);
+  await emit('session_start');
+  fake.reply({ type: 'questions', root: '/repo', questions: [] });
+  fake.reply({
+    type: 'questions',
+    root: '/repo',
+    questions: [
+      { ...question(4), title: 'Fix the parser?' },
+      { ...question(5), title: 'Fix the lexer.' },
+      { ...question(6), title: 'Fix it now!' },
+    ],
+  });
+  await until(() => notes.length === 3);
+  assert.deepEqual(notes, [
+    'next-issue: #4 has a question: Fix the parser? Ask pi to answer it with the answer-hand-over skill.',
+    'next-issue: #5 has a question: Fix the lexer. Ask pi to answer it with the answer-hand-over skill.',
+    'next-issue: #6 has a question: Fix it now! Ask pi to answer it with the answer-hand-over skill.',
+  ]);
 });
 
 test('a user sees the count drop when a question is answered elsewhere, with no action in this pi', async () => {

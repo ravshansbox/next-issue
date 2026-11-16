@@ -63,7 +63,7 @@ export function questionNotes(questions: Question[], known: number[] | undefined
   return questions
     .filter((question) => !known.includes(question.issue))
     .map((question) => ({
-      text: `next-issue: #${question.issue} has a question: ${question.title}`,
+      text: `next-issue: #${question.issue} has a question: ${question.title}${/[.?!]$/.test(question.title) ? '' : '.'} Ask pi to answer it with the answer-hand-over skill.`,
       level: 'warning',
     }));
 }
