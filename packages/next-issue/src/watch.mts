@@ -22,10 +22,7 @@ export type Watch = Loop & {
 
 const BACK_OFF_MINUTES = [1, 2, 3, 5, 10];
 
-export async function watchIssues(
-  args: Pick<Args, 'max' | 'once'>,
-  watch: Watch,
-): Promise<LoopResult> {
+export async function watchIssues(args: Pick<Args, 'max'>, watch: Watch): Promise<LoopResult> {
   const running = new Set<number>();
   const failed = new Set<number>();
   const ended = new AbortController();
@@ -143,16 +140,16 @@ async function huntIssues(
 }
 
 async function watchPasses(
-  args: Pick<Args, 'max' | 'once'>,
+  args: Pick<Args, 'max'>,
   failed: Set<number>,
   watch: Watch,
 ): Promise<LoopResult> {
-  const limit = args.once ? 1 : args.max;
+  const limit = args.max;
   const reports: IssueReport[] = [];
   let step = 0;
   for (;;) {
     const pass = await runIssues(
-      { once: false, max: limit === undefined ? undefined : limit - handled(reports) },
+      { max: limit === undefined ? undefined : limit - handled(reports) },
       watch,
       new Set(failed),
     );

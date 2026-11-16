@@ -37,12 +37,6 @@ test('--max counts the handled issues, not the skipped ones', async () => {
   assert.deepEqual(fake.processed, [1, 2]);
 });
 
-test('--once stops after the first handled issue', async () => {
-  const fake = loop({ 1: 'skipped', 2: 'error', 3: 'done' });
-  await runIssues({ ...ARGS, once: true }, fake);
-  assert.deepEqual(fake.processed, [1, 2]);
-});
-
 test('a user who asks to stop ends the run after the current issue', async () => {
   const fake = loop({ 1: 'done', 2: 'done', 3: 'done' });
   let stopped = false;

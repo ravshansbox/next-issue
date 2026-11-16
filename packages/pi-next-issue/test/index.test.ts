@@ -1154,7 +1154,6 @@ test('a user who types /next-issue followed by nothing or a start of a subcomman
 });
 
 const flagItems = {
-  once: { label: '--once', description: 'Stop after the first handled issue' },
   max: { label: '--max', description: 'Handle at most n issues' },
   watch: {
     label: '--watch',
@@ -1169,12 +1168,11 @@ const flagItems = {
   quiet: { label: '--quiet', description: 'Show only the milestones and the summary' },
 };
 
-test('a user who types /next-issue start followed by a space is offered all seven flags', () => {
+test('a user who types /next-issue start followed by a space is offered all six flags', () => {
   const { extension } = setup();
   const { pi, complete } = host();
   extension(pi as never);
   assert.deepEqual(complete('start '), [
-    { value: 'start --once', ...flagItems.once },
     { value: 'start --max ', ...flagItems.max },
     { value: 'start --watch', ...flagItems.watch },
     { value: 'start --hunt', ...flagItems.hunt },
@@ -1204,7 +1202,6 @@ test('a user who already typed a flag after /next-issue start is not offered it 
     (item) => item.value,
   );
   assert.deepEqual(values, [
-    'start --hunt --max 3 --once',
     'start --hunt --max 3 --watch',
     'start --hunt --max 3 --reset',
     'start --hunt --max 3 --verbose',

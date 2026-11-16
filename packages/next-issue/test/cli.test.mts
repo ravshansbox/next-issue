@@ -208,7 +208,7 @@ async function refusedRun(root: string, cwd = root) {
   const bin = await tempDir();
   const called = join(bin, 'called');
   await writeFile(join(bin, 'gh'), `#!/bin/sh\ntouch "${called}"\nexit 1\n`, { mode: 0o755 });
-  const error = await promisify(execFile)(process.execPath, [CLI, 'start', '--once'], {
+  const error = await promisify(execFile)(process.execPath, [CLI, 'start', '--max', '1'], {
     cwd,
     env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
   }).then(
@@ -353,8 +353,8 @@ test('a user who serves the repository while a command-line run is going sees th
   assert.deepEqual((await readdir(stateDir(root))).includes('worker.lock'), false);
 });
 
-async function onceRun(root: string) {
-  return promisify(execFile)(process.execPath, [CLI, 'start', '--once'], { cwd: root }).then(
+async function singleRun(root: string) {
+  return promisify(execFile)(process.execPath, [CLI, 'start', '--max', '1'], { cwd: root }).then(
     () => '',
     (failure: { stderr: string }) => failure.stderr,
   );
@@ -362,7 +362,7 @@ async function onceRun(root: string) {
 
 test('a user whose run ends finds no worker.lock and no run.lock left in the repository', async () => {
   const root = await repository();
-  assert.match(await onceRun(root), /No such remote 'origin'/);
+  assert.match(await singleRun(root), /No such remote 'origin'/);
   assert.equal(await exists(workerPaths(root).lockPath), false);
   assert.equal(await exists(join(stateDir(root), 'run.lock')), false);
 });
@@ -373,7 +373,7 @@ test('a user who runs next-issue over a worker.lock that a dead process left tak
   await new Promise((resolve) => dead.on('exit', resolve));
   await mkdir(stateDir(root), { recursive: true });
   await writeFile(workerPaths(root).lockPath, `${dead.pid} gone\n`);
-  const stderr = await onceRun(root);
+  const stderr = await singleRun(root);
   assert.doesNotMatch(stderr, /is going in this repository/);
   assert.match(stderr, /No such remote 'origin'/);
   assert.equal(await exists(workerPaths(root).lockPath), false);
@@ -783,12 +783,21 @@ test('a user who runs next-issue with no argument sees the usage on standard err
   assert.equal(await exists(called), false);
 });
 
-test('a user who runs next-issue --once sees an error that says to use next-issue start, exit code 1 and no issue read', async () => {
+test('a user who runs next-issue --max 1 sees an error that says to use next-issue start, exit code 1 and no issue read', async () => {
   const root = await repository();
   const { env, called } = await oldGit('2.50.0');
-  const error = await cliFails(['--once'], { cwd: root, env });
+  const error = await cliFails(['--max', '1'], { cwd: root, env });
   assert.equal(error?.code, 1);
   assert.match(error?.stderr ?? '', /no command given: use next-issue start/);
+  assert.equal(await exists(called), false);
+});
+
+test('a user who runs next-issue start --once sees an unknown argument error, exit code 1 and no issue read', async () => {
+  const root = await repository();
+  const { env, called } = await oldGit('2.50.0');
+  const error = await cliFails(['start', '--once'], { cwd: root, env });
+  assert.equal(error?.code, 1);
+  assert.match(error?.stderr ?? '', /Unknown argument: --once/);
   assert.equal(await exists(called), false);
 });
 
@@ -803,13 +812,13 @@ test('a user who runs --help sees start as a command with the run flags under it
   assert.match(stdout, /^next-issue <command> \[options\]$/m);
   assert.match(
     stdout,
-    /^ {2}start {8}.*\n {4}--once {5}.*\n {4}--max <n> {2}.*\n {4}--watch {4}.*\n {4}--hunt {5}.*\n {4}--reset {4}.*\n {2}init /m,
+    /^ {2}start {8}.*\n {4}--max <n> {2}.*\n {4}--watch {4}.*\n {4}--hunt {5}.*\n {4}--reset {4}.*\n {2}init /m,
   );
 });
 
 for (const args of [
   ['logs', '--watch'],
-  ['stop', '--once'],
+  ['stop', '--reset'],
 ]) {
   test(`a user who runs ${args.join(' ')} sees an error that says the flag belongs to start and exit code 1`, async () => {
     const root = await repository();
@@ -854,7 +863,7 @@ test('a user who runs next-issue on git 2.39 sees an error that names the found 
   const root = await repository();
   await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/old.git'], { cwd: root });
   const { env, called } = await oldGit('2.39.5');
-  const error = await promisify(execFile)(process.execPath, [CLI, 'start', '--once'], {
+  const error = await promisify(execFile)(process.execPath, [CLI, 'start', '--max', '1'], {
     cwd: root,
     env,
   }).then(
@@ -873,7 +882,7 @@ test('a user who starts a run in the worker on git 2.39 sees the run end with an
   const { child } = await serveWorker(root, env);
   t.after(() => child.kill('SIGKILL'));
   const client = await connect(t, workerPaths(root).socketPath);
-  client.send({ type: 'start', root, args: ['--once'] });
+  client.send({ type: 'start', root, args: ['--max', '1'] });
   const ended = await client.next(
     (value) => value.type === 'runs' && value.runs[root]?.error !== undefined,
   );

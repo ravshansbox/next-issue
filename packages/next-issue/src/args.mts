@@ -5,7 +5,6 @@ type Command = 'start' | 'init' | 'serve' | 'stop' | 'logs';
 
 export type Args = {
   command?: Command;
-  once: boolean;
   max?: number;
   help: boolean;
   json: boolean;
@@ -16,7 +15,7 @@ export type Args = {
   level: Level;
 };
 
-type Switch = 'once' | 'help' | 'json' | 'reset' | 'force' | 'watch' | 'hunt';
+type Switch = 'help' | 'json' | 'reset' | 'force' | 'watch' | 'hunt';
 
 const SWITCHES = new Map<string, Switch>([
   ['--force', 'force'],
@@ -25,7 +24,6 @@ const SWITCHES = new Map<string, Switch>([
   ['--watch', 'watch'],
   ['--hunt', 'hunt'],
   ['--reset', 'reset'],
-  ['--once', 'once'],
 ]);
 
 const LEVELS = new Map<string, Level>([
@@ -36,7 +34,6 @@ const LEVELS = new Map<string, Level>([
 export const USAGE = `next-issue <command> [options]
 
   start        start a run: claim issues, fix them and push them to the base branch
-    --once     stop after the first handled issue
     --max <n>  handle at most n issues
     --watch    keep running and read the issues again after each pass
     --hunt     hunt the repository for bugs and file issues alongside the issues, turns on --watch
@@ -53,7 +50,7 @@ export const USAGE = `next-issue <command> [options]
   --help       show this text
 `;
 
-const RUN_FLAGS = new Set(['--once', '--max', '--watch', '--hunt', '--reset']);
+const RUN_FLAGS = new Set(['--max', '--watch', '--hunt', '--reset']);
 
 export function parseArgs(argv: string[]): Args {
   const { args, flag, runFlag } = readArgs(argv);
@@ -76,7 +73,6 @@ export function parseArgs(argv: string[]): Args {
 
 function readArgs(argv: string[]): { args: Args; flag?: string; runFlag?: string } {
   const args: Args = {
-    once: false,
     help: false,
     json: false,
     reset: false,

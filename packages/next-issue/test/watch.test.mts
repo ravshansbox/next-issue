@@ -172,9 +172,9 @@ test('a user who watches with --max stops after n handled issues across passes',
   assert.deepEqual(fake.waits, [1]);
 });
 
-test('a user who watches with --once stops after the first handled issue', async () => {
+test('a user who watches with --max 1 stops after the first handled issue', async () => {
   const fake = watcher([['skipped'], ['done', 'done']]);
-  await watchIssues({ ...ARGS, once: true }, fake);
+  await watchIssues({ ...ARGS, max: 1 }, fake);
   assert.deepEqual(fake.processed, [1, 1]);
 });
 

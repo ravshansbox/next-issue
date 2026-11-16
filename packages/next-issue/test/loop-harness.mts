@@ -9,4 +9,4 @@ export function report(number: number, outcome: Outcome): IssueReport {
   return { issue: number, outcome, ciFixes: 0, reviewRounds: 0, ms: 0 };
 }
 
-export const ARGS = { once: false };
+export const ARGS = {};

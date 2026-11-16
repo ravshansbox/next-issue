@@ -7,7 +7,6 @@ test('a user who runs start with no flags gets the defaults', () => {
   assert.equal(args.command, 'start');
   assert.equal(args.level, 'normal');
   assert.equal(args.max, undefined);
-  assert.equal(args.once, false);
 });
 
 test('a user who passes --merge gets an unknown argument error', () => {
@@ -24,8 +23,7 @@ test('a user who passes --agent gets an unknown argument error', () => {
 });
 
 test('the flags set their fields', () => {
-  const args = parseArgs(['start', '--once', '--reset', '--json', '--verbose']);
-  assert.equal(args.once, true);
+  const args = parseArgs(['start', '--reset', '--json', '--verbose']);
   assert.equal(args.reset, true);
   assert.equal(args.json, true);
   assert.equal(args.level, 'verbose');
@@ -51,7 +49,7 @@ test('a value that is not a whole number of 1 or more stops the run', () => {
 
 test('start, init, serve and stop are commands, and only in the first place', () => {
   assert.equal(parseArgs(['start']).command, 'start');
-  assert.throws(() => parseArgs(['--once', 'start']), /Unknown argument: start/);
+  assert.throws(() => parseArgs(['--reset', 'start']), /Unknown argument: start/);
   assert.equal(parseArgs(['stop']).command, 'stop');
   assert.equal(parseArgs(['init', '--force']).command, 'init');
   assert.throws(() => parseArgs(['--force', 'init']), /Unknown argument: init/);
@@ -75,7 +73,6 @@ test('a user who passes a flag to serve gets an error that serve does not take i
   for (const argv of [
     ['--hunt'],
     ['--watch'],
-    ['--once'],
     ['--max', '2'],
     ['--reset'],
     ['--verbose'],
@@ -101,14 +98,7 @@ test('a user who passes no argument gets no command', () => {
 });
 
 test('a user who passes a run flag with no command gets an error that says to use next-issue start', () => {
-  for (const argv of [
-    ['--once'],
-    ['--max', '2'],
-    ['--watch'],
-    ['--hunt'],
-    ['--reset'],
-    ['--quiet'],
-  ]) {
+  for (const argv of [['--max', '2'], ['--watch'], ['--hunt'], ['--reset'], ['--quiet']]) {
     assert.throws(() => parseArgs(argv), /no command given: use next-issue start/);
   }
 });
@@ -122,7 +112,7 @@ test('a user who passes --help with or without start asks for the usage', () => 
 
 test('a user who passes a run flag to another command gets an error that names the flag and says it belongs to start', () => {
   for (const command of ['init', 'stop', 'logs']) {
-    for (const flag of ['--once', '--watch', '--hunt', '--reset']) {
+    for (const flag of ['--watch', '--hunt', '--reset']) {
       assert.throws(
         () => parseArgs([command, flag]),
         new RegExp(`^Error: ${command} does not take ${flag}: it belongs to start$`),

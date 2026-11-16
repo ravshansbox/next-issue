@@ -50,7 +50,6 @@ const HUNT_VALUES = [
   { value: 'off', description: 'Start no new hunt in the going run, and let a going hunt finish' },
 ];
 const START_FLAGS = [
-  { flag: '--once', insert: '--once', description: 'Stop after the first handled issue' },
   { flag: '--max', insert: '--max ', argument: '<n>', description: 'Handle at most n issues' },
   {
     flag: '--watch',
@@ -335,7 +334,7 @@ export function createExtension(options: Options) {
       name: 'next_issue_hunt',
       label: 'Switch next-issue hunting',
       description:
-        'Switch hunting for bugs on or off for the going next-issue run of this repository, with no restart: the run keeps its issues. Off lets a hunt that is going finish and starts no new one. A run that does not watch (started with --once, or --max without --watch) cannot hunt. Fails when no run is going.',
+        'Switch hunting for bugs on or off for the going next-issue run of this repository, with no restart: the run keeps its issues. Off lets a hunt that is going finish and starts no new one. A run that does not watch (started with neither --watch nor --hunt) cannot hunt. Fails when no run is going.',
       promptSnippet: 'Switch hunting of the going next-issue run on or off',
       parameters: Type.Object({
         on: Type.Boolean({ description: 'true to hunt, false to stop hunting' }),

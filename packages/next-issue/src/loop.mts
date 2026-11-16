@@ -14,11 +14,11 @@ export type LoopResult = { reports: IssueReport[]; stoppedAt?: number; error?: u
 type Settled = { issue: number; report?: IssueReport; failure?: unknown };
 
 export async function runIssues(
-  args: Pick<Args, 'max' | 'once'>,
+  args: Pick<Args, 'max'>,
   loop: Loop,
   seen = new Set<number>(),
 ): Promise<LoopResult> {
-  const limit = args.once ? Math.min(1, args.max ?? 1) : args.max;
+  const limit = args.max;
   const concurrency = loop.concurrency ?? 1;
   const reports: IssueReport[] = [];
   const running = new Map<number, Promise<Settled>>();

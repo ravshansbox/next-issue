@@ -154,7 +154,7 @@ test('a client that starts a run with --watch alone sees hunting off, and can sw
 });
 
 test('a client that switches hunting on for a run that does not watch gets an error that says why, and the run goes on unchanged', async (t) => {
-  for (const args of [['--once'], ['--max', '2'], []]) {
+  for (const args of [['--max', '1'], ['--max', '2'], []]) {
     const fake = fakeRuns();
     const { socketPath } = await worker(t, fake);
     const client = await connect(t, socketPath);
@@ -206,7 +206,8 @@ test('a client that starts a run with a command or a flag that start does not ta
   for (const [args, message] of [
     [['init'], 'start does not take init'],
     [['start'], 'start does not take start'],
-    [['start', '--once'], 'start does not take start'],
+    [['start', '--max', '1'], 'start does not take start'],
+    [['--once'], 'Unknown argument: --once'],
     [['--json'], 'start does not take --json'],
     [['--force'], 'start does not take --force'],
     [['--help'], 'start does not take --help'],

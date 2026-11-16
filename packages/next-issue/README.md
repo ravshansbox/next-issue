@@ -46,7 +46,7 @@ issue ends, the run fetches the open issues again and claims the oldest unseen
 one for the free slot. Each issue has its own worktree and branch. Step 3 below
 and the removal of a worktree or branch run for one issue at a time, so two
 issues never change the git refs or worktrees of the repository at once. An issue blocked by a running issue is skipped and not tried again in
-that run, even when the blocker closes before the run ends. `--max <n>` counts the handled issues across the run, and with `--once`
+that run, even when the blocker closes before the run ends. `--max <n>` counts the handled issues across the run, so with `--max 1`
 the run handles one issue. For each issue:
 
 1. Claim the issue only when it holds the `status:todo` label and holds no
@@ -824,7 +824,7 @@ that waits for a person and for one that a stop left behind. The run starts no
 agent and makes no push, revert, label change, close or comment, so a change
 that already landed stays on the base branch. A worktree or branch that cannot be
 removed stays, and the run log says so. The issue shows as `skipped` (`closed`)
-in the summary and does not count for `--max` or `--once`. A `--watch` run does
+in the summary and does not count for `--max`. A `--watch` run does
 not claim an issue again once it ended in `error` in that run, so it leaves such
 an issue for the next run to clean up.
 
@@ -838,7 +838,6 @@ an issue for the next run to clean up.
 | `stop`      | Stop the worker of this repository, see [Worker](#worker)                                            |
 | `logs`      | Show the latest run log and follow it, see [Observability](#observability)                           |
 | `--force`   | Replace an existing config file, with `init`                                                         |
-| `--once`    | Stop after the first handled issue, with `start`                                                     |
 | `--max <n>` | Handle at most n issues, with `start`                                                                |
 | `--watch`   | Keep running, and read the open issues again after each pass, with `start`                           |
 | `--hunt`    | Hunt the repository for bugs alongside the issues, with `start`, see [Hunt for bugs](#hunt-for-bugs) |
@@ -848,7 +847,7 @@ an issue for the next run to clean up.
 | `--quiet`   | Show only the milestones and the summary                                                             |
 | `--help`    | Show the option list                                                                                 |
 
-`--once`, `--max <n>`, `--watch`, `--hunt` and `--reset` belong to `start`, and
+`--max <n>`, `--watch`, `--hunt` and `--reset` belong to `start`, and
 any other command refuses them. `next-issue` with no command prints the option
 list on standard error, starts nothing and exits with 1.
 
@@ -858,7 +857,9 @@ of the run.
 
 Versions before 7.0.0 started a run with no command, as `next-issue` or
 `next-issue --once`. From 7.0.0 a run needs `next-issue start`, and the old
-form starts nothing and exits with 1.
+form starts nothing and exits with 1. Later versions dropped `--once`:
+`next-issue start --once` fails with `Unknown argument: --once` and exits with
+1, so use `next-issue start --max 1`.
 
 ## Watch for new issues
 
@@ -880,8 +881,7 @@ pass.
 
 After each pass that handled an issue, the harness prints the summary of that
 pass. The token totals in it cover that pass only. The exit code at the end
-covers all passes. `--max <n>` counts the handled issues across all passes,
-and `--once` is the same as `--max 1`.
+covers all passes. `--max <n>` counts the handled issues across all passes.
 
 The watch stops:
 
@@ -937,7 +937,7 @@ affect another. The worker:
 - runs at most one run at a time. A client starts it with
   `{ "type": "start", "root": "<path>", "args": [...] }`. Each run is like
   `next-issue start` with those args, or with none when `args` is left out. It takes
-  `--once`, `--max <n>`, `--watch`, `--hunt`, `--reset`, `--verbose` and
+  `--max <n>`, `--watch`, `--hunt`, `--reset`, `--verbose` and
   `--quiet`, and refuses a command (`start` too), `--json`, `--force`, `--help` or an
   unknown argument with an `error` message;
 - sends every client the progress of every run when it connects and on every
@@ -978,8 +978,8 @@ affect another. The worker:
   started with `--watch` alone starts with it off. Off lets a hunt that is
   going finish, so the issues it files stay, and starts no new hunt. On wakes
   the hunter at once, with no back-off wait. A run that does not watch
-  (`--once`, or `--max` without `--watch`) refuses on with an `error` message
-  that says why, and goes on unchanged. With no run going, the message gets
+  (one started with neither `--watch` nor `--hunt`) refuses on with an
+  `error` message that says why, and goes on unchanged. With no run going, the message gets
   an `error` and starts nothing. The setting lasts for the run only: a new run
   takes it from its own flags. Only runs of the worker can switch; a
   command-line run keeps what `--hunt` gave it. The progress of each run
