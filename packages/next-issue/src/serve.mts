@@ -11,6 +11,7 @@ import { startProgress } from './progress.mts';
 import { type ClientMessage, isNewer, type Progress } from './protocol.mts';
 import { type ListQuestions, listQuestions, questionSender, send } from './questions.mts';
 import { runRepo, type RunControls } from './run.mts';
+import { type ListUpcoming, listUpcoming, sendUpcoming } from './upcoming.mts';
 import { packageVersion } from './version.mts';
 import { keepLogTrimmed, LOG_CHECK_MS } from './worker-log.mts';
 import { checkSocketPath, workerPaths } from './worker-paths.mts';
@@ -52,6 +53,7 @@ type WorkerOptions = {
   version: string;
   runRepo: RunRepo;
   questions: ListQuestions;
+  upcoming?: ListUpcoming;
   lockWaitMs?: number;
   idleMs?: number;
 };
@@ -196,6 +198,8 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       requestRefresh(runs.get(value.root));
     } else if (value.type === 'questions') {
       void sendQuestions(value.root, () => [socket], value.id);
+    } else if (value.type === 'upcoming') {
+      void sendUpcoming(options.upcoming ?? listUpcoming, socket, value.root);
     }
   };
 

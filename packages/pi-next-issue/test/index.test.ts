@@ -246,6 +246,7 @@ function setup(
         },
         lockHolder: async () => options.holder?.(),
         startTimeoutMs: options.startTimeoutMs ?? 2000,
+        upcomingWaitMs: 100,
         reconnectMs: 50,
       }),
     root: async (cwd) => {
@@ -1286,6 +1287,7 @@ test('a user who presses Tab on the dashboard sees the past runs newest first, w
   assert.match(chosen, /reviewer: 300 tokens · 4s/);
   overlay.press('tab');
   overlay.press('tab');
+  overlay.press('tab');
   assert.match(overlay.screen(), /No run is going/);
   overlay.press('escape');
   await opened;
@@ -1795,6 +1797,136 @@ test('a user who opens the Hand-overs tab with no worker running is told pi cann
     overlay.screen(),
     /No worker is running, so pi cannot list the hand-overs\. Answer them with the answer-hand-over skill\./,
   );
+  overlay.press('escape');
+  await opened;
+});
+
+async function upcomingTab(
+  options: {
+    version?: string;
+    reply?: (fake: FakeWorker) => void;
+  } = {},
+) {
+  const { path, extension } = setup(
+    options.version === undefined ? {} : { version: options.version },
+  );
+  const fake = await startFakeWorker(path, '1.0.0', (self, message) => {
+    if (message.type === 'upcoming') {
+      options.reply?.(self);
+    }
+  });
+  workers.push(fake);
+  fake.runs['/repo'] = running({ watching: true });
+  const hosted = host();
+  extension(hosted.pi as never);
+  await hosted.emit('session_start');
+  const { overlay, opened } = await openDashboard(hosted);
+  for (let index = 0; index < 3; index += 1) {
+    overlay.press('tab');
+  }
+  return { fake, overlay, opened };
+}
+
+test('a user who opens the Upcoming tab of the dashboard sees the claimable issues in claim order and the blocked ones apart with their blockers', async () => {
+  let answer: () => void = () => {};
+  const { fake, overlay, opened } = await upcomingTab({
+    reply: (fake) => {
+      answer = () =>
+        fake.reply({
+          type: 'upcoming',
+          root: '/repo',
+          claimable: [
+            { issue: 3, title: 'Three' },
+            { issue: 8, title: 'Eight' },
+          ],
+          blocked: [{ issue: 4, title: 'Four', blockers: ['#2', 'other/repo#9'] }],
+        });
+    },
+  });
+  assert.match(overlay.screen(), /\[Upcoming\]/);
+  assert.match(overlay.screen(), /Loading the upcoming issues…/);
+  await until(() => fake.received.some((message) => message.type === 'upcoming'), 500);
+  answer();
+  await until(() => overlay.screen().includes('#3 Three'), 500);
+  const screen = overlay.screen();
+  const claimable = screen.indexOf('Claimable');
+  const three = screen.indexOf('#3 Three');
+  const eight = screen.indexOf('#8 Eight');
+  const blocked = screen.indexOf('Blocked');
+  const four = screen.indexOf('#4 Four, blocked by #2, other/repo#9');
+  assert.ok(claimable >= 0 && claimable < three && three < eight && eight < blocked);
+  assert.ok(blocked < four);
+  overlay.press('tab');
+  assert.match(overlay.screen(), /\[Active\]/);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user who opens the Upcoming tab when no issue is ready is told none is claimable or blocked', async () => {
+  const { overlay, opened } = await upcomingTab({
+    reply: (fake) => fake.reply({ type: 'upcoming', root: '/repo', claimable: [], blocked: [] }),
+  });
+  await until(() => !overlay.screen().includes('Loading'), 500);
+  assert.match(overlay.screen(), /Claimable[^\n]*\n[^\n]*none/);
+  assert.match(overlay.screen(), /Blocked[^\n]*\n[^\n]*none/);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user with more upcoming issues than the overlay fits sees them within its height and scrolls down to later ones', async () => {
+  const claimable = Array.from({ length: 40 }, (_, index) => ({
+    issue: index + 1,
+    title: `Title ${index + 1}`,
+  }));
+  const { overlay, opened } = await upcomingTab({
+    reply: (fake) => fake.reply({ type: 'upcoming', root: '/repo', claimable, blocked: [] }),
+  });
+  await until(() => overlay.screen().includes('#1 Title 1'), 500);
+  const height = Math.floor((ROWS * 90) / 100);
+  assert.ok(overlay.screen().split('\n').length <= height);
+  assert.doesNotMatch(overlay.screen(), /#40 Title 40/);
+  for (let index = 0; index < 30; index += 1) {
+    overlay.press('down');
+  }
+  assert.match(overlay.screen(), /#40 Title 40/);
+  assert.ok(overlay.screen().split('\n').length <= height);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user whose worker cannot read the upcoming issues sees the error on the Upcoming tab', async () => {
+  const { overlay, opened } = await upcomingTab({
+    reply: (fake) =>
+      fake.reply({ type: 'upcoming-error', root: '/repo', message: 'gh: not logged in' }),
+  });
+  await until(() => overlay.screen().includes('gh: not logged in'), 500);
+  assert.match(overlay.screen(), /Could not list the upcoming issues: gh: not logged in/);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user whose worker is older than pi and does not answer is told on the Upcoming tab that the worker needs an upgrade', async () => {
+  const { overlay, opened } = await upcomingTab({ version: '2.0.0' });
+  await until(() => overlay.screen().includes('needs an upgrade'), 1000);
+  assert.match(
+    overlay.screen(),
+    /The worker did not answer: it is older than pi and needs an upgrade to list the upcoming issues\./,
+  );
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user who opens the Upcoming tab with no worker running is told pi cannot list them', async () => {
+  const { extension } = setup();
+  const hosted = host();
+  extension(hosted.pi as never);
+  await hosted.emit('session_start');
+  const { overlay, opened } = await openDashboard(hosted);
+  for (let index = 0; index < 3; index += 1) {
+    overlay.press('tab');
+  }
+  await until(() => !overlay.screen().includes('Loading'), 500);
+  assert.match(overlay.screen(), /No worker is running, so pi cannot list the upcoming issues\./);
   overlay.press('escape');
   await opened;
 });

@@ -7,6 +7,7 @@ import {
   isNewer,
   type Progress,
   type Question,
+  type Upcoming,
   type WorkerMessage,
 } from './protocol.ts';
 
@@ -20,14 +21,19 @@ export type WorkerOptions = {
   startTimeoutMs?: number;
   holderGraceMs?: number;
   reconnectMs?: number;
+  upcomingWaitMs?: number;
 };
 
 const START_TIMEOUT_MS = 120_000;
 const RECONNECT_MS = 5_000;
 const POLL_MS = 200;
 const HOLDER_GRACE_MS = 2_000;
+const UPCOMING_WAIT_MS = 10_000;
 
 export const CLOSED = 'the worker closed the connection';
+export const NOT_RUNNING = 'No worker is running, so pi cannot list the upcoming issues.';
+export const OUTDATED_UPCOMING =
+  'The worker did not answer: it is older than pi and needs an upgrade to list the upcoming issues.';
 
 function checkSocketPath(path: string, platform = process.platform): void {
   const size = platform === 'linux' ? 108 : 104;
@@ -104,6 +110,40 @@ export class WorkerClient {
 
   send(message: ClientMessage): void {
     this.socket?.send(JSON.stringify(message));
+  }
+
+  // An older worker ignores the request, so it gets a time limit; a current one always answers.
+  upcoming(root: string): Promise<Upcoming> {
+    if (!this.connected) {
+      return Promise.reject(new Error(NOT_RUNNING));
+    }
+    return new Promise((resolve, reject) => {
+      const finish = (error: Error | undefined, upcoming?: Upcoming) => {
+        clearTimeout(timer);
+        stop();
+        if (error === undefined) {
+          resolve(upcoming!);
+        } else {
+          reject(error);
+        }
+      };
+      const timer = this.outdated
+        ? setTimeout(
+            () => finish(new Error(OUTDATED_UPCOMING)),
+            this.options.upcomingWaitMs ?? UPCOMING_WAIT_MS,
+          )
+        : undefined;
+      const stop = this.subscribe((event) => {
+        if (event.type === 'upcoming' && event.root === root) {
+          finish(undefined, { claimable: event.claimable, blocked: event.blocked });
+        } else if (event.type === 'upcoming-error' && event.root === root) {
+          finish(new Error(`Could not list the upcoming issues: ${event.message}`));
+        } else if (event.type === 'closed') {
+          finish(new Error(`Could not list the upcoming issues: ${CLOSED}`));
+        }
+      });
+      this.send({ type: 'upcoming', root });
+    });
   }
 
   async attach(): Promise<void> {
@@ -305,7 +345,12 @@ export class WorkerClient {
     } else if (message.type === 'questions') {
       this.questions[message.root] = message.questions;
       this.emit(message);
-    } else if (message.type === 'error' || message.type === 'questions-error') {
+    } else if (
+      message.type === 'error' ||
+      message.type === 'questions-error' ||
+      message.type === 'upcoming' ||
+      message.type === 'upcoming-error'
+    ) {
       this.emit(message);
     }
   }

@@ -33,6 +33,12 @@ export type Question = {
   labels: { needsHuman: string; skip: string };
 };
 
+export type UpcomingIssue = { issue: number; title: string };
+
+export type BlockedIssue = UpcomingIssue & { blockers: string[] };
+
+export type Upcoming = { claimable: UpcomingIssue[]; blocked: BlockedIssue[] };
+
 export const STOP_POINTS = ['issue', 'round', 'now'] as const;
 
 export type StopPoint = (typeof STOP_POINTS)[number];
@@ -42,6 +48,7 @@ export type ClientMessage =
   | { type: 'start'; root: string; args?: string[]; resume?: boolean }
   | { type: 'stop'; root: string; after?: StopPoint }
   | { type: 'questions'; root: string; id?: string }
+  | { type: 'upcoming'; root: string }
   | { type: 'hunt'; root: string; on: boolean }
   | { type: 'watch'; root: string; on: boolean }
   | { type: 'refresh'; root: string };
@@ -51,6 +58,8 @@ export type WorkerMessage =
   | { type: 'runs'; runs: Record<string, Progress> }
   | { type: 'questions'; root: string; questions: Question[]; id?: string }
   | { type: 'questions-error'; root: string; message: string; id?: string }
+  | ({ type: 'upcoming'; root: string } & Upcoming)
+  | { type: 'upcoming-error'; root: string; message: string }
   | { type: 'error'; root: string; message: string };
 
 export function going(progress: Progress | undefined): progress is Progress {

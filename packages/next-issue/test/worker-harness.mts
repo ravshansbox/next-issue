@@ -9,6 +9,7 @@ import type { ClientMessage, WorkerMessage } from '../src/protocol.mts';
 import type { ListQuestions } from '../src/questions.mts';
 import type { RunControls } from '../src/run.mts';
 import { type RunRepo, startWorker } from '../src/serve.mts';
+import type { ListUpcoming } from '../src/upcoming.mts';
 import { tempDir } from './temp-dir.mts';
 
 export type Client = {
@@ -104,6 +105,7 @@ export async function worker(
   version = '2.0.0',
   questions: ListQuestions = noQuestions,
   folder?: string,
+  upcoming?: ListUpcoming,
 ) {
   const dir = folder === undefined ? await tempDir() : join(await tempDir(), folder);
   await mkdir(dir, { recursive: true });
@@ -112,7 +114,13 @@ export async function worker(
     socketPath: join(dir, 'w.sock'),
     lockPath: join(dir, 'w.lock'),
   };
-  const started = await startWorker({ ...paths, version, runRepo: fake.runRepo, questions });
+  const started = await startWorker({
+    ...paths,
+    version,
+    runRepo: fake.runRepo,
+    questions,
+    upcoming,
+  });
   assert.ok(started);
   t.after(() => started.close());
   return { ...paths, dir, worker: started };

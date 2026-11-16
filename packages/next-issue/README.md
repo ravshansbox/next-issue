@@ -993,7 +993,7 @@ affect another. The worker:
   with `another worker is running`. A worker that stops removes the lock file
   only while it still holds the lock, and the socket file only while it is
   still the socket it bound;
-- refuses a `start`, `stop`, `watch`, `hunt` or `questions` message whose `root` is not
+- refuses a `start`, `stop`, `watch`, `hunt`, `questions` or `upcoming` message whose `root` is not
   the exact path of its repository with an `error` message, and starts or
   stops nothing;
 - runs at most one run at a time. A client starts it with
@@ -1024,6 +1024,14 @@ affect another. The worker:
   a newer one. When the client adds an `"id"` to its message, the list that
   answers it carries the same `id` and is read after the message arrived. When the list cannot be read, the client gets
   `{ "type": "questions-error", "root": "<path>", "message": "<text>" }`;
+- answers `{ "type": "upcoming", "root": "<path>" }` with
+  `{ "type": "upcoming", "root": "<path>", "claimable": [...], "blocked": [...] }`:
+  the open issues with the `ready` label that a run would claim, oldest first,
+  each with its `issue` number and `title`, without issues that have saved
+  state or a label that stops a claim. An issue blocked by open issues is in
+  `blocked` with their references in `blockers`. When the list cannot be read,
+  the client gets
+  `{ "type": "upcoming-error", "root": "<path>", "message": "<text>" }`;
 - stops a run when a client sends
   `{ "type": "stop", "root": "<path>", "after": "issue" | "round" | "now" }`.
   With no `after`, it stops after `issue`. `issue` works like a first

@@ -516,6 +516,10 @@ export function createExtension(options: Options) {
                 client?.send({ type: 'questions', root });
               }
             },
+            upcoming: () =>
+              root === undefined || client === undefined
+                ? Promise.reject(new Error('not in a git repository'))
+                : client.upcoming(root),
             answer: (question, given) =>
               root === undefined
                 ? Promise.reject(new Error('not in a git repository'))

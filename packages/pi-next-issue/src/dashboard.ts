@@ -12,7 +12,7 @@ import {
 import { errorText } from './errors.ts';
 import { type Answer, guidanceProblem } from './hand-overs.ts';
 import { ISSUES_LINE, type PastRun, runDetails, runLine } from './past.ts';
-import { going, type Progress, type Question } from './protocol.ts';
+import { going, type Progress, type Question, type Upcoming } from './protocol.ts';
 import { handledNote, issueLine } from './status.ts';
 
 export type DashboardAction = { label: string; args: string };
@@ -25,6 +25,7 @@ export type DashboardOptions = {
   questions: () => Question[] | undefined;
   connected: () => boolean;
   askQuestions: () => void;
+  upcoming: () => Promise<Upcoming>;
   answer: (question: Question, answer: Answer) => Promise<string>;
   act: (args: string) => void;
   subscribe: (listener: () => void) => () => void;
@@ -34,7 +35,7 @@ export type DashboardOptions = {
   done: () => void;
 };
 
-const TABS = ['Active', 'Past', 'Hand-overs'] as const;
+const TABS = ['Active', 'Past', 'Hand-overs', 'Upcoming'] as const;
 const ANSWERS = ['Retry', 'Retry with guidance', 'Give up'] as const;
 const QUESTION_ROWS = 3;
 const TICK_MS = 1000;
@@ -181,6 +182,28 @@ function handOverLines(
   ];
 }
 
+function upcomingLines(upcoming: Upcoming | string | undefined): string[] {
+  if (upcoming === undefined) {
+    return ['Loading the upcoming issues…'];
+  }
+  if (typeof upcoming === 'string') {
+    return [upcoming];
+  }
+  return [
+    ...listed(
+      'Claimable, in the order the worker claims them',
+      upcoming.claimable.map((item) => `  #${item.issue} ${item.title}`),
+    ),
+    '',
+    ...listed(
+      'Blocked',
+      upcoming.blocked.map(
+        (item) => `  #${item.issue} ${item.title}, blocked by ${item.blockers.join(', ')}`,
+      ),
+    ),
+  ];
+}
+
 export function dashboard(options: DashboardOptions): Component & { dispose(): void } {
   const { theme, keybindings } = options;
   let selectedKey: string | undefined;
@@ -194,6 +217,8 @@ export function dashboard(options: DashboardOptions): Component & { dispose(): v
   let detailsTop = 0;
   let detailsPage = 0;
   let chosenQuestion = 0;
+  let upcoming: Upcoming | string | undefined;
+  let upcomingTop = 0;
   let answering: Question | undefined;
   let answerChoice = 0;
   let guidance: { input: Input; question: Question } | undefined;
@@ -274,6 +299,21 @@ export function dashboard(options: DashboardOptions): Component & { dispose(): v
     outcome = undefined;
     options.askQuestions();
   };
+  const showUpcoming = () => {
+    tab = 'Upcoming';
+    answering = undefined;
+    upcoming = undefined;
+    upcomingTop = 0;
+    void options
+      .upcoming()
+      .catch((error: unknown) => errorText(error))
+      .then((value) => {
+        if (tab === 'Upcoming') {
+          upcoming = value;
+          redraw();
+        }
+      });
+  };
   const send = (question: Question, answer: Answer) => {
     answering = undefined;
     guidance = undefined;
@@ -339,6 +379,10 @@ export function dashboard(options: DashboardOptions): Component & { dispose(): v
     return rows().length;
   };
   const move = (step: number) => {
+    if (tab === 'Upcoming') {
+      upcomingTop = Math.max(0, upcomingTop + step);
+      return;
+    }
     const total = count();
     if (total === 0) {
       return;
@@ -476,30 +520,44 @@ export function dashboard(options: DashboardOptions): Component & { dispose(): v
         '',
         theme.fg('dim', help),
       ];
+      const room = height - FRAME_ROWS;
+      const allUpcoming = upcomingLines(upcoming);
+      const fits = allUpcoming.length <= room;
+      const upcomingPage = fits ? allUpcoming.length : Math.max(1, room - 1);
+      upcomingTop = fits ? 0 : Math.min(upcomingTop, allUpcoming.length - upcomingPage);
+      const upcomingEnd = Math.min(allUpcoming.length, upcomingTop + upcomingPage);
+      const upcomingView = [
+        ...allUpcoming.slice(upcomingTop, upcomingEnd),
+        ...(fits ? [] : [`lines ${upcomingTop + 1}–${upcomingEnd} of ${allUpcoming.length}`]),
+        '',
+        theme.fg('dim', fits ? 'tab switch · esc close' : '↑↓ scroll · tab switch · esc close'),
+      ];
       const body =
-        tab === 'Hand-overs'
-          ? handOvers
-          : tab === 'Past'
-            ? [
-                ...view.lines,
-                '',
-                theme.fg(
-                  'dim',
-                  pickedIssue === undefined
-                    ? '↑↓ choose · enter issues · tab switch · esc close'
-                    : '↑↓ choose · enter detail · esc back',
-                ),
-              ]
-            : [
-                ...activeLines(progress, Date.now(), mark),
-                '',
-                'Actions',
-                ...list.flatMap(({ key, action }) =>
-                  action === undefined ? [] : [mark(key, action.label)],
-                ),
-                '',
-                theme.fg('dim', '↑↓ choose · enter open or run · tab switch · esc close'),
-              ];
+        tab === 'Upcoming'
+          ? upcomingView
+          : tab === 'Hand-overs'
+            ? handOvers
+            : tab === 'Past'
+              ? [
+                  ...view.lines,
+                  '',
+                  theme.fg(
+                    'dim',
+                    pickedIssue === undefined
+                      ? '↑↓ choose · enter issues · tab switch · esc close'
+                      : '↑↓ choose · enter detail · esc back',
+                  ),
+                ]
+              : [
+                  ...activeLines(progress, Date.now(), mark),
+                  '',
+                  'Actions',
+                  ...list.flatMap(({ key, action }) =>
+                    action === undefined ? [] : [mark(key, action.label)],
+                  ),
+                  '',
+                  theme.fg('dim', '↑↓ choose · enter open or run · tab switch · esc close'),
+                ];
       return box([tabs, '', ...body], width);
     },
     handleInput(data: string): void {
@@ -545,8 +603,9 @@ export function dashboard(options: DashboardOptions): Component & { dispose(): v
           showPast();
         } else if (tab === 'Past') {
           showHandOvers();
+        } else if (tab === 'Hand-overs') {
+          showUpcoming();
         } else {
-          answering = undefined;
           tab = 'Active';
         }
       } else if (keybindings.matches(data, 'tui.select.up')) {
