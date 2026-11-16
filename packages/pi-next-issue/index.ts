@@ -36,6 +36,7 @@ import {
   upgradeNote,
 } from './src/status.ts';
 import { lockHolder } from './src/lock.ts';
+import { issueDetail } from './src/detail.ts';
 import { pastRuns } from './src/past.ts';
 import { spawnWorker, workerPaths } from './src/spawn-worker.ts';
 import { WorkerClient, type WorkerEvent } from './src/worker.ts';
@@ -504,6 +505,10 @@ export function createExtension(options: Options) {
             progress: () => (root === undefined ? undefined : client?.runs[root]),
             actions: dashboardActions,
             pastRuns: () => (root === undefined ? Promise.resolve([]) : pastRuns(root)),
+            issueDetail: (issue, runId) =>
+              root === undefined
+                ? Promise.reject(new Error('not in a git repository'))
+                : issueDetail(root, issue, runId),
             questions: () => (root === undefined ? undefined : client?.questions[root]),
             connected: () => client?.connected === true,
             askQuestions: () => {

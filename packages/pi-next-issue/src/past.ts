@@ -118,7 +118,9 @@ export function runLine(run: PastRun): string {
   return `${startTime(run.id)} · ${run.end}`;
 }
 
-export function runDetails(run: PastRun): string[] {
+export const ISSUES_LINE = 'Issues';
+
+export function runDetails(run: PastRun, picked?: number): string[] {
   const issues = run.issues.map(
     (item) =>
       `#${item.issue} ${outcomeNote(item.outcome)}${item.reason === undefined ? '' : `: ${item.reason}`}`,
@@ -135,8 +137,10 @@ export function runDetails(run: PastRun): string[] {
   return [
     `Run ${runLine(run)}`,
     ...(run.error === undefined ? [] : [`Error: ${run.error}`]),
-    'Issues',
-    ...(issues.length === 0 ? ['none'] : issues).map((line) => `  ${line}`),
+    ISSUES_LINE,
+    ...(issues.length === 0 ? ['none'] : issues).map(
+      (line, index) => `${index === picked ? '>' : ' '} ${line}`,
+    ),
     ...summary,
   ];
 }

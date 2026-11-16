@@ -1348,6 +1348,206 @@ test('a user with many past runs who chooses an old run on the dashboard sees al
   await opened;
 });
 
+function writeSession(root: string, runId: string, session: string, messages: object[]) {
+  const dir = join(root, '.next-issue', 'runs', runId, 'sessions');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, `2026-11-16T10-08-00-000Z_${session}.jsonl`),
+    [{ type: 'session', id: session }, ...messages.map((message) => ({ type: 'message', message }))]
+      .map((line) => JSON.stringify(line))
+      .join('\n'),
+  );
+}
+
+function writeIssueRun(root: string, runId: string, extra: object[] = []) {
+  const at = (second: number) => `2026-11-16T10:08:${String(second).padStart(2, '0')}.000Z`;
+  writeFileSync(
+    join(root, '.next-issue', 'runs', `${runId}.jsonl`),
+    [
+      { ts: at(1), kind: 'issue.start', issue: 7, title: 'Seven' },
+      { ts: at(2), kind: 'command', cmd: 'gh label list' },
+      { ts: at(3), kind: 'issue.start', issue: 8, title: 'Eight' },
+      { ts: at(4), kind: 'rebase.end', issue: 7, base: 'main', ms: 1932 },
+      { ts: at(5), kind: 'usage', issue: 7, role: 'implementer', session: 'impl-1' },
+      { ts: at(6), kind: 'usage', issue: 8, role: 'implementer', session: 'other-8' },
+      { ts: at(7), kind: 'usage', issue: 7, role: 'reviewer', session: 'review-1' },
+      ...extra,
+    ]
+      .map((event) => JSON.stringify({ runId, ...event }))
+      .join('\n'),
+  );
+}
+
+function issueFiles(root: string, runId: string, sessionLines = 1) {
+  mkdirSync(join(root, '.next-issue', 'runs'), { recursive: true });
+  writeIssueRun(root, runId);
+  writeFileSync(
+    join(root, '.next-issue', 'worker.log'),
+    [
+      '10:08:04 #7 rebase.end base=main ms=1932',
+      '10:08:05 #8 implement.start',
+      '10:08:06 #70 implement.start',
+    ].join('\n'),
+  );
+  writeSession(root, runId, 'impl-1', [
+    { role: 'user', content: [{ type: 'text', text: 'Solve issue seven' }] },
+    {
+      role: 'assistant',
+      content: [
+        { type: 'thinking', thinking: 'Look at the code' },
+        { type: 'toolCall', name: 'bash', arguments: { command: 'ls src' } },
+      ],
+    },
+    {
+      role: 'toolResult',
+      toolName: 'bash',
+      content: [
+        {
+          type: 'text',
+          text: Array.from({ length: sessionLines }, (_, index) => `file-${index}.ts`).join('\n'),
+        },
+      ],
+    },
+    { role: 'assistant', content: [{ type: 'text', text: 'Implemented seven' }] },
+  ]);
+  writeSession(root, runId, 'other-8', [
+    { role: 'assistant', content: [{ type: 'text', text: 'Implemented eight' }] },
+  ]);
+  writeSession(root, runId, 'review-1', [
+    { role: 'assistant', content: [{ type: 'text', text: '### Review: yes' }] },
+  ]);
+}
+
+test('a user who chooses a running issue on the Active tab and presses Enter sees its run events in time order, its worker log lines and each role session, kept up to date, and Esc goes back to the Active tab', async () => {
+  const root = tempFolder();
+  const runId = '2026-11-16T10-07-19-656Z';
+  issueFiles(root, runId);
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs[root] = running({ issues: [working(7), working(8)] });
+  const hosted = host('tui', root);
+  extension(hosted.pi as never);
+  await hosted.emit('session_start');
+  const { overlay, opened } = await openDashboard(hosted);
+  assert.match(overlay.screen(), /> Stop after the running issues/);
+  overlay.press('up');
+  overlay.press('up');
+  assert.match(overlay.screen(), /> #7/);
+  overlay.press('enter');
+  await until(() => overlay.screen().includes('Run events'), 500);
+  const screen = overlay.screen();
+  assert.match(screen, /Issue #7/);
+  const start = screen.indexOf('10:08:01 issue.start title=Seven');
+  const rebase = screen.indexOf('10:08:04 rebase.end base=main ms=1932');
+  assert.ok(start >= 0 && rebase > start);
+  assert.doesNotMatch(screen, /title=Eight/);
+  assert.doesNotMatch(screen, /gh label list/);
+  assert.match(screen, /Run events \(UTC\)/);
+  assert.match(screen, /Worker log \(local time\)/);
+  assert.match(screen, /10:08:04 #7 rebase\.end base=main ms=1932/);
+  assert.doesNotMatch(screen, /#8 implement\.start/);
+  assert.doesNotMatch(screen, /#70 implement\.start/);
+  const implementer = screen.indexOf('Session: implementer');
+  const reviewer = screen.indexOf('Session: reviewer');
+  assert.ok(implementer >= 0 && reviewer > implementer);
+  assert.match(screen, /user: Solve issue seven/);
+  assert.match(screen, /thinking: Look at the code/);
+  assert.match(screen, /tool call bash: \{"command":"ls src"\}/);
+  assert.match(screen, /tool result bash: file-0\.ts/);
+  assert.match(screen, /assistant: Implemented seven/);
+  assert.match(screen, /assistant: ### Review: yes/);
+  assert.doesNotMatch(screen, /Implemented eight/);
+  writeIssueRun(root, runId, [
+    { ts: '2026-11-16T10:08:09.000Z', kind: 'land.start', issue: 7, base: 'main' },
+  ]);
+  fake.update(root, running({ issues: [working(7, { stage: 'land', tools: 4 }), working(8)] }));
+  await until(() => overlay.screen().includes('10:08:09 land.start base=main'), 2000);
+  overlay.press('escape');
+  assert.equal(overlay.closed, false);
+  assert.match(overlay.screen(), /\[Active\]/);
+  assert.match(overlay.screen(), /> #7/);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user who chooses a handled issue on the Active tab and presses Enter sees its detail, and Esc goes back to the Active tab', async () => {
+  const root = tempFolder();
+  const runId = '2026-11-16T10-07-19-656Z';
+  issueFiles(root, runId);
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs[root] = running({ issues: [working(8)], handled: [{ issue: 7, outcome: 'done' }] });
+  const hosted = host('tui', root);
+  extension(hosted.pi as never);
+  await hosted.emit('session_start');
+  const { overlay, opened } = await openDashboard(hosted);
+  overlay.press('up');
+  assert.match(overlay.screen(), /> #7/);
+  overlay.press('enter');
+  await until(() => overlay.screen().includes('Run events'), 500);
+  const screen = overlay.screen();
+  assert.match(screen, /Issue #7/);
+  assert.match(screen, /10:08:04 rebase\.end base=main ms=1932/);
+  assert.match(screen, /assistant: ### Review: yes/);
+  assert.doesNotMatch(screen, /Implemented eight/);
+  overlay.press('escape');
+  assert.match(overlay.screen(), /\[Active\]/);
+  assert.match(overlay.screen(), /> #7/);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user who presses Enter on a past run, chooses an issue and presses Enter sees its detail, scrolls through a long session within the overlay height, and Esc goes back to the Past tab', async () => {
+  const root = tempFolder();
+  const runId = '2026-11-16T10-07-19-656Z';
+  issueFiles(root, runId, 60);
+  const events = [
+    { kind: 'issue.end', issue: 8, outcome: 'done', ms: 10 },
+    { kind: 'issue.end', issue: 7, outcome: 'done', ms: 10 },
+    { kind: 'run.end' },
+  ];
+  writeIssueRun(root, runId, events);
+  const { path, extension } = setup();
+  await worker(path);
+  const hosted = host('tui', root);
+  extension(hosted.pi as never);
+  await hosted.emit('session_start');
+  const { overlay, opened } = await openDashboard(hosted);
+  overlay.press('tab');
+  await until(() => overlay.screen().includes('Past runs'), 500);
+  overlay.press('enter');
+  assert.match(overlay.screen(), /> #8 done/);
+  overlay.press('down');
+  assert.match(overlay.screen(), /> #7 done/);
+  overlay.press('enter');
+  await until(() => overlay.screen().includes('Run events'), 500);
+  const height = Math.floor(ROWS * 0.9);
+  assert.ok(overlay.screen().split('\n').length <= height);
+  assert.match(overlay.screen(), /Issue #7/);
+  assert.match(overlay.screen(), /10:08:04 rebase\.end/);
+  const seen = new Set<string>();
+  for (let page = 0; page < 10; page += 1) {
+    for (const match of overlay.screen().matchAll(/file-(\d+)\.ts/g)) {
+      seen.add(match[1]!);
+    }
+    assert.ok(overlay.screen().split('\n').length <= height);
+    overlay.press('pageDown');
+  }
+  assert.equal(seen.size, 60);
+  assert.match(overlay.screen(), /### Review: yes/);
+  overlay.press('up');
+  assert.doesNotMatch(overlay.screen(), /### Review: yes/);
+  overlay.press('down');
+  assert.match(overlay.screen(), /### Review: yes/);
+  overlay.press('escape');
+  assert.match(overlay.screen(), /\[Past\]/);
+  assert.match(overlay.screen(), /> #7 done/);
+  overlay.press('escape');
+  assert.match(overlay.screen(), /> 2026-11-16 10:07:19 UTC/);
+  overlay.press('escape');
+  await opened;
+});
+
 async function handOvers(
   options: { gh?: (args: string[]) => string; waiting?: Question[]; going?: boolean } = {},
 ) {
