@@ -16,7 +16,7 @@ export type PastRun = {
   summary?: RunSummary;
 };
 
-const KINDS = ['run.end', 'run.stop', 'issues.fail', 'issue.end', 'issue.error'];
+const KINDS = ['run.end', 'run.stop', 'run.fail', 'issues.fail', 'issue.end', 'issue.error'];
 const LOG = '.jsonl';
 
 function events(text: string): Array<Record<string, unknown>> {
@@ -34,7 +34,9 @@ function events(text: string): Array<Record<string, unknown>> {
 
 function endOf(records: Array<Record<string, unknown>>): Pick<PastRun, 'end' | 'error'> {
   const kinds = new Set(records.map((record) => record['kind']));
-  const failure = records.find((record) => record['kind'] === 'issues.fail');
+  const failure = records.find(
+    (record) => record['kind'] === 'run.fail' || record['kind'] === 'issues.fail',
+  );
   if (failure !== undefined) {
     return { end: 'failed', error: String(failure['error']) };
   }

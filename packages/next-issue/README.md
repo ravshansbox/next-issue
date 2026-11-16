@@ -137,7 +137,7 @@ No person checks a change before it lands. To replace those checks, [ADR 0004](h
 
 Every run has an id, `<timestamp>`, and writes these under `.next-issue/runs/`:
 
-- `<id>.jsonl` — one JSON object per event, with `ts`, `runId`, `kind`, and the `issue`, `role` or `round` in scope;
+- `<id>.jsonl` — one JSON object per event, with `ts`, `runId`, `kind`, and the `issue`, `role` or `round` in scope. A run whose fetch of the issues fails ends with an `issues.fail` event. A run that fails in any other way once this file is open, for example when `gh repo view` fails at the start or an issue crashes the run, ends with a `run.fail` event (after `run.end` when the run got that far). Both carry the `error`;
 - `<id>.summary.json` — token totals per agent role, event counts, and one report per issue with the outcome, the reason and the budgets used (in a watch run, an issue skipped in several passes gets one report, and an issue handled in more than one pass keeps a report for each; when an issue crashes the run, the file still holds the reports of the issues that finished);
 - `<id>/sessions/` — the full pi session of each agent call, with every message, tool call and tool result. The session id in a `usage` event is part of the file name.
 

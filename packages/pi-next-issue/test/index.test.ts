@@ -1152,6 +1152,36 @@ test('a user who presses Tab on the dashboard sees the past runs newest first, w
   await opened;
 });
 
+test('a user who presses Tab on the dashboard sees a run that failed at start or that an issue crashed as failed, with its error', async () => {
+  const root = tempFolder();
+  writeRun(root, '2026-11-15T19-21-25-787Z', [
+    { kind: 'run.start' },
+    { kind: 'issue.end', issue: 3, outcome: 'done', ms: 1000 },
+    { kind: 'run.end', done: 1, needsHuman: 0, failed: 0, skipped: 0, tokens: 0 },
+    { kind: 'run.fail', error: 'issue 4 crashed' },
+  ]);
+  writeRun(root, '2026-11-16T10-07-19-656Z', [
+    { kind: 'command.fail', cmd: 'gh repo view', code: 1 },
+    { kind: 'run.fail', error: 'gh repo view failed: not logged in' },
+  ]);
+  const { path, extension } = setup();
+  await worker(path);
+  const hosted = host('tui', root);
+  extension(hosted.pi as never);
+  await hosted.emit('session_start');
+  const { overlay, opened } = await openDashboard(hosted);
+  overlay.press('tab');
+  await until(() => overlay.screen().includes('Past runs'), 500);
+  const screen = overlay.screen();
+  assert.match(screen, /2026-11-16 10:07:19 UTC · failed/);
+  assert.match(screen, /2026-11-15 19:21:25 UTC · failed/);
+  assert.match(screen, /Error: gh repo view failed: not logged in/);
+  overlay.press('down');
+  assert.match(overlay.screen(), /Error: issue 4 crashed/);
+  overlay.press('escape');
+  await opened;
+});
+
 test('a user with many past runs who chooses an old run on the dashboard sees all its issues and summary within the overlay height, paging through a long run', async () => {
   const root = tempFolder();
   const summary = { roles: { implementer: { total: 900, ms: 60000 } }, total: { total: 900 } };

@@ -65,6 +65,9 @@ async function runWithConfig(
       recorder.event('runs.pruned', { files: pruned, keepDays: config.keepRunDays }, 'verbose');
     }
     return await recordCommands(recorder, () => handle(args, config, repo, recorder, controls));
+  } catch (error) {
+    recorder.event('run.fail', { error: message(error) }, 'verbose');
+    throw error;
   } finally {
     await recorder.close();
   }
