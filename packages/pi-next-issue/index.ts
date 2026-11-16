@@ -72,6 +72,17 @@ const USAGE = [
   '/next-issue hunt on|off     switch hunting of the going run of this repository on (which turns watching on too) or off, with no restart',
 ].join('\n');
 
+function menuChoices(progress: Progress | undefined): Record<string, string> {
+  if (!going(progress)) {
+    return { Start: 'start' };
+  }
+  return {
+    Stop: 'stop',
+    ...(progress.watching === true ? { 'Watch off': 'watch off' } : { 'Watch on': 'watch on' }),
+    ...(progress.hunting ? { 'Hunt off': 'hunt off' } : { 'Hunt on': 'hunt on' }),
+  };
+}
+
 function completions(prefix: string) {
   if (!prefix.includes(' ')) {
     return SUBCOMMANDS.filter((name) => name.startsWith(prefix)).map((name) => ({
@@ -411,42 +422,68 @@ export function createExtension(options: Options) {
         return matches.length === 0 ? null : matches;
       },
       handler: async (args, ctx) => {
-        const [subcommand, ...values] = args.trim().split(/\s+/).filter(Boolean);
-        if (subcommand === undefined || !SUBCOMMANDS.includes(subcommand as Action)) {
-          ctx.ui.notify(USAGE, 'info');
-          return;
-        }
-        const notify = (note: Note | undefined) => {
-          if (note !== undefined) {
-            ctx.ui.notify(note.text, note.level);
-          }
-        };
-        try {
-          if (subcommand === 'start') {
-            parseStartArgs(values);
-          }
-          const after = subcommand === 'stop' ? parseStopArgs(values) : undefined;
-          const toggled = subcommand === 'watch' || subcommand === 'hunt' ? subcommand : undefined;
-          const on = toggled === undefined ? undefined : parseSwitchArgs(toggled, values);
-          const { client, root, progress } = await connect(ctx, subcommand === 'start');
-          if (after !== undefined) {
-            notify(requestStop(client, root, progress, after));
-          } else if (toggled !== undefined && on !== undefined) {
-            asked = toggled;
-            notify(requestSwitch(client, root, progress, toggled, on));
-          } else {
-            asked = 'start';
-            notify(
-              requestStart(client, root, progress, () => {
-                asked = 'refresh';
-              }),
-            );
-          }
-        } catch (error) {
-          notify(cannotNote(subcommand as Action, errorText(error)));
+        const picked = args.trim() === '' ? await pickAction(ctx) : args;
+        if (picked !== undefined) {
+          await act(picked, ctx);
         }
       },
     });
+
+    const pickAction = async (ctx: ExtensionContext): Promise<string | undefined> => {
+      const root = await options.root(ctx.cwd).catch(() => undefined);
+      const client = root === undefined ? undefined : clientOf(root);
+      await client?.attach();
+      const choices = menuChoices(root === undefined ? undefined : client?.runs[root]);
+      const choice = await ctx.ui.select('next-issue', Object.keys(choices));
+      const picked = choice === undefined ? undefined : choices[choice];
+      if (picked !== 'stop') {
+        return picked;
+      }
+      const points = VALUES.stop ?? [];
+      const point = await ctx.ui.select(
+        'Stop next-issue when?',
+        points.map(({ description }) => description),
+      );
+      const value = points.find(({ description }) => description === point)?.value;
+      return value === undefined ? undefined : `stop ${value}`;
+    };
+
+    const act = async (args: string, ctx: ExtensionContext) => {
+      const [subcommand, ...values] = args.trim().split(/\s+/).filter(Boolean);
+      if (subcommand === undefined || !SUBCOMMANDS.includes(subcommand as Action)) {
+        ctx.ui.notify(USAGE, 'info');
+        return;
+      }
+      const notify = (note: Note | undefined) => {
+        if (note !== undefined) {
+          ctx.ui.notify(note.text, note.level);
+        }
+      };
+      try {
+        if (subcommand === 'start') {
+          parseStartArgs(values);
+        }
+        const after = subcommand === 'stop' ? parseStopArgs(values) : undefined;
+        const toggled = subcommand === 'watch' || subcommand === 'hunt' ? subcommand : undefined;
+        const on = toggled === undefined ? undefined : parseSwitchArgs(toggled, values);
+        const { client, root, progress } = await connect(ctx, subcommand === 'start');
+        if (after !== undefined) {
+          notify(requestStop(client, root, progress, after));
+        } else if (toggled !== undefined && on !== undefined) {
+          asked = toggled;
+          notify(requestSwitch(client, root, progress, toggled, on));
+        } else {
+          asked = 'start';
+          notify(
+            requestStart(client, root, progress, () => {
+              asked = 'refresh';
+            }),
+          );
+        }
+      } catch (error) {
+        notify(cannotNote(subcommand as Action, errorText(error)));
+      }
+    };
   };
 }
 

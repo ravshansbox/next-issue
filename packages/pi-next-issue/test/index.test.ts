@@ -71,6 +71,8 @@ function host(mode = 'tui', cwd = '/repo') {
   const status: Array<string | undefined> = [];
   const waiting: Array<string | undefined> = [];
   const asked: string[] = [];
+  const menus: string[][] = [];
+  const picks: Array<string | undefined> = [];
   const notes: string[] = [];
   const plain = (text: string) => /^<dim>(.*)<\/dim>$/s.exec(text)?.[1] ?? text;
   const ctx = {
@@ -87,9 +89,10 @@ function host(mode = 'tui', cwd = '/repo') {
         painted.push(text);
         status.push(text === undefined ? undefined : plain(text));
       },
-      select: async (title: string) => {
+      select: async (title: string, options: string[]) => {
         asked.push(title);
-        return undefined;
+        menus.push(options);
+        return picks.shift();
       },
       setWidget: (_key: string, lines: string[] | undefined) => widgets.push(lines),
       notify: (text: string) => notes.push(text),
@@ -119,6 +122,8 @@ function host(mode = 'tui', cwd = '/repo') {
     status,
     waiting,
     asked,
+    menus,
+    picks,
     painted,
     widgets,
     notes,
@@ -857,17 +862,16 @@ test('a user who runs /next-issue start while a run is going is told so and noth
   );
 });
 
-test('a user who runs /next-issue with no argument, an unknown one or answer sees the usage without answer and nothing starts or stops', async () => {
+test('a user who runs /next-issue with an unknown argument or answer sees the usage without answer and nothing starts or stops', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
   fake.runs['/repo'] = running();
-  const { pi, emit, command, notes } = host();
+  const { pi, emit, command, notes, menus } = host();
   extension(pi as never);
   await emit('session_start');
-  await command();
   await command('go');
   await command('answer');
-  assert.equal(notes.length, 3);
+  assert.equal(notes.length, 2);
   for (const note of notes) {
     assert.match(note, /\/next-issue start /);
     assert.match(note, /\/next-issue stop \[issue\|round\|now\]/);
@@ -876,9 +880,150 @@ test('a user who runs /next-issue with no argument, an unknown one or answer see
     assert.doesNotMatch(note, /answer/);
     assert.doesNotMatch(note, /--/);
   }
+  assert.deepEqual(menus, []);
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert.deepEqual(
     fake.received.filter((message) => message.type === 'start' || message.type === 'stop'),
+    [],
+  );
+});
+
+test('a user who runs /next-issue with no run going is offered only Start in a menu, and picking it starts a run', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  const { pi, emit, command, notes, menus, picks } = host();
+  extension(pi as never);
+  await emit('session_start');
+  picks.push('Start');
+  await command();
+  assert.deepEqual(menus, [['Start']]);
+  assert.deepEqual(notes, []);
+  await until(() => fake.received.some((message) => message.type === 'start'));
+  assert.deepEqual(
+    fake.received.find((message) => message.type === 'start'),
+    { type: 'start', root: '/repo' },
+  );
+});
+
+test('a user who runs /next-issue with no worker going is offered Start, and picking it starts a worker and a run', async () => {
+  let started: FakeWorker | undefined;
+  const { spawns, extension } = setup({
+    spawn: async (path) => {
+      started = await worker(path);
+    },
+  });
+  const { pi, emit, command, menus, picks } = host();
+  extension(pi as never);
+  await emit('session_start');
+  picks.push('Start');
+  await command();
+  assert.deepEqual(menus, [['Start']]);
+  assert.equal(spawns.length, 1);
+  await until(() => started?.received.some((message) => message.type === 'start') === true);
+});
+
+test('a user who runs /next-issue while a run is going is offered Stop and the switches that change the run', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({ watching: false, hunting: false });
+  const { pi, emit, command, menus } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command();
+  fake.update('/repo', running({ watching: true, hunting: true }));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  await command();
+  assert.deepEqual(menus, [
+    ['Stop', 'Watch on', 'Hunt on'],
+    ['Stop', 'Watch off', 'Hunt off'],
+  ]);
+});
+
+test('a user who picks Stop in the /next-issue menu is asked when to stop, and the run is asked to stop at that point', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({ issues: [working(7)] });
+  const { pi, emit, command, menus, picks, notes } = host();
+  extension(pi as never);
+  await emit('session_start');
+  picks.push('Stop', 'Stop after the current round of each running issue');
+  await command();
+  picks.push('Stop', 'Stop at once');
+  await command();
+  picks.push('Stop', 'Stop after the running issues');
+  await command();
+  assert.deepEqual(menus[1], [
+    'Stop after the running issues',
+    'Stop after the current round of each running issue',
+    'Stop at once',
+  ]);
+  await until(() => fake.received.filter((message) => message.type === 'stop').length === 3);
+  assert.deepEqual(
+    fake.received.filter((message) => message.type === 'stop'),
+    [
+      { type: 'stop', root: '/repo', after: 'round' },
+      { type: 'stop', root: '/repo', after: 'now' },
+      { type: 'stop', root: '/repo', after: 'issue' },
+    ],
+  );
+  assert.deepEqual(notes, []);
+});
+
+test('a user who picks a watch or hunt switch in the /next-issue menu asks the worker to switch it', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running({ watching: false, hunting: false });
+  const { pi, emit, command, picks } = host();
+  extension(pi as never);
+  await emit('session_start');
+  picks.push('Watch on');
+  await command();
+  picks.push('Hunt on');
+  await command();
+  await until(
+    () =>
+      fake.received.filter((message) => message.type === 'watch' || message.type === 'hunt')
+        .length === 2,
+  );
+  assert.deepEqual(
+    fake.received.filter((message) => message.type === 'watch' || message.type === 'hunt'),
+    [
+      { type: 'watch', root: '/repo', on: true },
+      { type: 'hunt', root: '/repo', on: true },
+    ],
+  );
+});
+
+test('a user whose going run is on an older worker who picks Watch on in the /next-issue menu sees the same error as the typed command', async () => {
+  const { path, extension } = setup({ version: '2.0.0' });
+  const fake = await worker(path, '1.0.0');
+  fake.runs['/repo'] = running({ watching: false });
+  const { pi, emit, command, picks, notes } = host();
+  extension(pi as never);
+  await emit('session_start');
+  picks.push('Watch on');
+  await command();
+  await command('watch on');
+  assert.equal(notes.length, 2);
+  assert.match(notes[0] ?? '', /^next-issue cannot watch: /);
+  assert.equal(notes[0], notes[1]);
+});
+
+test('a user who closes the /next-issue menu or its stop menu without a choice sends nothing and sees no note', async () => {
+  const { path, extension } = setup();
+  const fake = await worker(path);
+  fake.runs['/repo'] = running();
+  const { pi, emit, command, picks, notes, menus } = host();
+  extension(pi as never);
+  await emit('session_start');
+  await command();
+  picks.push('Stop', undefined);
+  await command();
+  assert.equal(menus.length, 3);
+  assert.deepEqual(notes, []);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(
+    fake.received.filter((message) => ['start', 'stop', 'watch', 'hunt'].includes(message.type)),
     [],
   );
 });
