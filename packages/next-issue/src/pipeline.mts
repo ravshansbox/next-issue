@@ -1,3 +1,4 @@
+import { untrustedEditors } from './editors.mts';
 import { enterReview, settleSquash } from './enter-review.mts';
 import { branchName } from './git.mts';
 import type { Issue } from './github.mts';
@@ -121,6 +122,10 @@ async function work(
   });
   if (setup.done) {
     return setup.report;
+  }
+  const untrusted = await untrustedEditors(job);
+  if (untrusted !== undefined) {
+    return untrusted.report;
   }
 
   if (state.phase === 'claimed') {

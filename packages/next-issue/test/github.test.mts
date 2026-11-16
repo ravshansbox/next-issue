@@ -9,6 +9,7 @@ import {
   defaultBranch,
   canWrite,
   issueComments,
+  issueEditors,
   openBlockers,
   repositorySlug,
   openIssues,
@@ -308,4 +309,32 @@ esac`,
   assert.equal(await canWrite(repo, 'writer'), true);
   assert.equal(await canWrite(repo, 'reader'), false);
   assert.equal(await canWrite(repo, 'ghost'), false);
+});
+
+test('issueEditors gives the title and body and names the author for a title and body never changed, the last editor and renamer otherwise, and ghost for a deleted account', async (t) => {
+  const dir = await fakeApiGh(
+    t,
+    `case "$*" in
+  *"number=1 "*) echo '{"title":"T","body":"B","author":{"login":"stranger"},"editor":null,"lastEditedAt":null,"timelineItems":{"nodes":[]}}' ;;
+  *"number=2 "*) echo '{"title":"T","body":"B","author":{"login":"stranger"},"editor":{"login":"owner"},"lastEditedAt":"2026-01-02T00:00:00Z","timelineItems":{"nodes":[{"actor":{"login":"admin"}}]}}' ;;
+  *"number=3 "*) echo '{"title":"T","body":"B","author":null,"editor":null,"lastEditedAt":"2026-01-02T00:00:00Z","timelineItems":{"nodes":[{"actor":null}]}}' ;;
+  *) exit 1 ;;
+esac`,
+  );
+  const repo = { owner: 'acme', name: 'tool', root: dir };
+  assert.deepEqual(await issueEditors(repo, 1), {
+    title: 'T',
+    body: 'B',
+    editors: { body: 'stranger', title: 'stranger' },
+  });
+  assert.deepEqual(await issueEditors(repo, 2), {
+    title: 'T',
+    body: 'B',
+    editors: { body: 'owner', title: 'admin' },
+  });
+  assert.deepEqual(await issueEditors(repo, 3), {
+    title: 'T',
+    body: 'B',
+    editors: { body: 'ghost', title: 'ghost' },
+  });
 });

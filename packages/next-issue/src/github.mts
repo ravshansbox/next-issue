@@ -126,6 +126,69 @@ export async function canWrite(repo: Repo, login: string): Promise<boolean> {
   }
 }
 
+export type Editors = { body: string; title: string };
+
+export type IssueText = { title: string; body: string; editors: Editors };
+
+const EDITORS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    issue(number: $number) {
+      title
+      body
+      author { login }
+      editor { login }
+      lastEditedAt
+      timelineItems(itemTypes: [RENAMED_TITLE_EVENT], last: 1) {
+        nodes { ... on RenamedTitleEvent { actor { login } } }
+      }
+    }
+  }
+}`;
+
+const GHOST = 'ghost';
+
+type Login = { login: string } | null;
+
+/** The title and body of an issue with the last people to change them; the author when never changed, `ghost` for a deleted account. */
+export async function issueEditors(repo: Repo, issue: number): Promise<IssueText> {
+  const raw = await repeatable(repo, [
+    'api',
+    'graphql',
+    ...hostname(repo),
+    '-f',
+    `query=${EDITORS_QUERY}`,
+    '-f',
+    `owner=${repo.owner}`,
+    '-f',
+    `name=${repo.name}`,
+    '-F',
+    `number=${issue}`,
+    '--jq',
+    '.data.repository.issue',
+  ]);
+  const parsed = parseJson(
+    raw,
+    () => `gh gave editors of #${issue} that are not valid JSON: ${raw}`,
+  ) as {
+    title: string;
+    body: string;
+    author: Login;
+    editor: Login;
+    lastEditedAt: string | null;
+    timelineItems: { nodes: Array<{ actor: Login }> };
+  };
+  const author = parsed.author?.login ?? GHOST;
+  const renamed = parsed.timelineItems.nodes[0];
+  return {
+    title: parsed.title,
+    body: parsed.body,
+    editors: {
+      body: parsed.lastEditedAt === null ? author : (parsed.editor?.login ?? GHOST),
+      title: renamed === undefined ? author : (renamed.actor?.login ?? GHOST),
+    },
+  };
+}
+
 const REPOSITORY_SLUG = '(.repository_url | split("/") | .[-2:] | join("/"))';
 
 export async function openBlockers(repo: Repo, issue: number): Promise<string[]> {

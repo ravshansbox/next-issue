@@ -406,6 +406,8 @@ and comments the reason on the issue, when:
   end. It halts this way even when the hand-over fails; the issue then ends
   in error with both the reason and the hand-over error;
 - the implementer asks questions about the issue (reason `questions`);
+- a person without write access last changed the title or body of the issue
+  (reason `untrusted editor`, see [Safety](#safety));
 - an agent does not finish in `agentTimeoutMinutes`;
 - the setup command fails, or does not finish in `setupTimeoutMinutes`. On a
   resume whose state holds a landed commit, or a push or revert that may have
@@ -547,9 +549,22 @@ admin access to the repository. The harness leaves out every other comment and
 writes a `comment.skip` event with its author to the run log. If an access check
 fails for a reason other than a 404, the issue stops with an error.
 
-Thus a person who can write an issue, or a writer who can comment, can try to
-give an instruction to the agent. Use the harness only on a repository where you
-trust the issue authors, or run it in a container.
+After the setup, and before any agent runs, the harness finds the last person to
+change the body (the author when nobody edited it) and the last person to change
+the title (the author when nobody renamed it). When either has no write or admin
+access, no agent gets the issue: the harness hands it to a person with the
+reason `untrusted editor`, and the comment names each such person. The agent
+gets the title and body read in the same query as their editors, so an edit made
+after the harness listed the issue is never sent unchecked. A writer who
+checks the text and then changes the named title or body makes the issue go on
+after the answer. This matters most on a public repository: anyone can open an
+issue there, and its author can edit the body after a maintainer adds the ready
+label, before the harness claims it. An issue opened by a person without write
+access thus always waits for a writer to change it.
+
+Thus a writer can still give an instruction to the agent, and the agent can
+read other text, such as linked issues or files, by itself. Use the harness only
+on a repository where you trust the writers, or run it in a container.
 
 [ADR 0001](https://github.com/ravshansbox/next-issue/blob/main/docs/adr/0001-reviewer-isolation.md) records why the reviewer
 keeps a full shell, and which other options were considered.
@@ -578,7 +593,7 @@ get the full summary object there instead, so the harness fits in a pipe. All
 progress goes to standard error.
 
 Recorded for each step: `claim`, `comments`, `reply`, `worktree`, `setup`,
-`implement`, `review`, `fix`, `commit-fix`, `rebase`, `land`, `main-checks`, `revert` and `hunt`, each with a
+`editors`, `implement`, `review`, `fix`, `commit-fix`, `rebase`, `land`, `main-checks`, `revert` and `hunt`, each with a
 `.start`, `.end` or `.error` event and a duration in `ms`. Every `git` and `gh`
 command is recorded with its exit code and duration. A `tool` event holds the
 tool name, and for a `bash` tool the command too. Each agent call adds a `usage`

@@ -29,6 +29,8 @@ export const ISSUE: Issue = {
   labels: ['status:todo'],
 };
 
+const MAINTAINER = 'maintainer';
+
 export const APPROVE: Verdict = { summary: 'Good.', findings: [] };
 
 export const SAVED: IssueState = {
@@ -124,6 +126,10 @@ export type Plan = {
   earlier?: string;
   thread?: Array<{ author: string; body: string; url?: string; createdAt?: string }>;
   writers?: string[];
+  /** The last people to change the issue body and title; by default a person with write access. */
+  editors?: { body: string; title: string };
+  /** The title and body GitHub holds when the worker checks the editors; by default the listed ones. */
+  current?: { title: string; body: string };
   issueComments?: Array<{ author: string; body: string }>;
   accessFails?: boolean;
   hunterText?: string;
@@ -259,7 +265,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       if (plan.accessFails === true) {
         throw new Error('gh: HTTP 500');
       }
-      return (plan.writers ?? []).includes(login);
+      return login === MAINTAINER || (plan.writers ?? []).includes(login);
     },
     addWorktree: async (_repo, _issue, branch, _base, _remote, start) => {
       state.branches.push(branch);
@@ -511,6 +517,10 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
         refuseWhenStopped();
       }
     },
+    issueEditors: async () => ({
+      ...(plan.current ?? { title: issue.title, body: issue.body }),
+      editors: plan.editors ?? { body: MAINTAINER, title: MAINTAINER },
+    }),
     threadComments: async (_repo, number) => {
       state.threads.push(number);
       return plan.thread ?? [];
