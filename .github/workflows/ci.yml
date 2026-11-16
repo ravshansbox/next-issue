@@ -9,8 +9,8 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
       - run: npm ci
@@ -36,15 +36,15 @@ jobs:
       contents: write
       id-token: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
       - run: .github/scripts/check-npm.sh
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - env:
           GH_TOKEN: ${{ github.token }}
         run: .github/scripts/repair-release.sh
@@ -54,14 +54,16 @@ jobs:
       - if: github.event_name == 'push' && steps.bump.outputs.bump != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          LAST: ${{ steps.bump.outputs.last }}
+          BUMP: ${{ steps.bump.outputs.bump }}
         run: |
-          last=${{ steps.bump.outputs.last }}
+          last=$LAST
           base=${last#v}
           if [ -n "$base" ]; then
             .github/scripts/wait-for-npm.sh "$base" 600
           fi
           npm version --no-git-tag-version --allow-same-version -w next-issue "${base:-0.0.0}" > /dev/null
-          npm version --no-git-tag-version -w next-issue "${{ steps.bump.outputs.bump }}" > /dev/null
+          npm version --no-git-tag-version -w next-issue "$BUMP" > /dev/null
           version=$(node -p "require('./packages/next-issue/package.json').version")
           npm version --no-git-tag-version --allow-same-version --workspaces "$version" > /dev/null
           tag="v$version"

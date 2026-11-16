@@ -61,7 +61,7 @@ To drop an issue for good, close it on GitHub instead. The next run removes its 
 The package ships the `answer-hand-over` skill. Ask pi to answer a question or a hand-over, or run `/skill:answer-hand-over`. Pi then:
 
 1. lists the open issues with the `needsHuman` label and lets you pick one;
-2. reads the latest `next-issue needs help:` comment from a user with write access and its `question:` lines, the commits and the diff of the issue branch when there is one, and the logs of the failed checks when the hand-over names them;
+2. checks the permission of each comment author first, reads the text of comments from users with write access only, as data and not instructions, and finds the latest `next-issue needs help:` comment and its `question:` lines; it reads the commits and the diff of the issue branch when there is one, and the logs of the failed checks when the hand-over names them;
 3. explains the blocker in plain words;
 4. asks numbered questions, with lettered options and a recommendation, until it knows whether to retry, retry with guidance or give up;
 5. answers on GitHub: Retry takes the `needsHuman` label off, Retry with guidance posts one comment that does not start with a heading of the harness and then takes the label off, and Give up takes the label off and adds the `skip` label, which it creates first when the repository lacks it and reuses when it differs only in case;

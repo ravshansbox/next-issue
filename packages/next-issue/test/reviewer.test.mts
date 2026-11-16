@@ -445,7 +445,7 @@ test('the reviewer gets the reply of the implementer in its prompt', async (t) =
   const reviewer = target.prompts.find((entry) => entry.role === 'reviewer')!;
   assert.match(
     reviewer.prompt,
-    /## Reply of the implementer\nThe test failed first: expected 2, got 1\./,
+    /## Reply of the implementer\n```untrusted\nThe test failed first: expected 2, got 1\./,
   );
 });
 
@@ -462,7 +462,10 @@ test('a user who resumes a run after the implementer gets its saved reply to the
   });
   assert.equal((await target.run()).outcome, 'done');
   const reviewer = target.prompts.find((entry) => entry.role === 'reviewer')!;
-  assert.match(reviewer.prompt, /## Reply of the implementer\nThe test failed first\./);
+  assert.match(
+    reviewer.prompt,
+    /## Reply of the implementer\n```untrusted\nThe test failed first\./,
+  );
 });
 
 test('a later reviewer gets the reply of the fixer in its prompt', async (t) => {
@@ -474,7 +477,7 @@ test('a later reviewer gets the reply of the fixer in its prompt', async (t) => 
   const reviewer = target.prompts.filter((entry) => entry.role === 'reviewer').at(-1)!;
   assert.match(
     reviewer.prompt,
-    /## Reply of the fixer\nThe test failed first: expected 2, got 1\./,
+    /## Reply of the fixer\n```untrusted\nThe test failed first: expected 2, got 1\./,
   );
 });
 

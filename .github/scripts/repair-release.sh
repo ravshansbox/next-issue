@@ -24,7 +24,7 @@ for manifest in packages/*/package.json; do
 done
 
 if [ "${#missing[@]}" -gt 0 ]; then
-  npm ci
+  npm ci --ignore-scripts
   npm version --no-git-tag-version --allow-same-version --workspaces "$version" > /dev/null
   for workspace in "${missing[@]}"; do
     if ! output=$(npm publish -w "$workspace" 2>&1); then
