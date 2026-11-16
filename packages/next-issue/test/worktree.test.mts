@@ -114,6 +114,8 @@ test('a user who resumes issue 3 while its old worktree holds the saved branch w
 test('a user who resumes issue 3 while .worktrees/3 is left detached gets branch 3 back in it', async () => {
   const { repo } = await clones();
   const { path: first } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  await git(first, 'config', 'user.name', 't');
+  await git(first, 'config', 'user.email', 't@t');
   const kept = await commit(first, 'kept.txt');
   await git(first, 'checkout', '-q', '--detach', 'origin/main');
   await writeFile(join(first, 'stray.txt'), 'x\n');
