@@ -147,3 +147,87 @@ test('the exit code is 1 only when an issue needs a person or failed', () => {
   assert.equal(exitCode([report(1, 'stopped')]), 0);
   assert.equal(exitCode([]), 0);
 });
+
+function labelled(number: number, labels: string[]): Issue {
+  return { ...issue(number), labels };
+}
+
+function listed(lists: Issue[][], outcomes: Outcome[]): Fake & { fetches: number } {
+  const fake = { ...loop({}), fetches: 0 };
+  fake.issues = async () => {
+    fake.fetches += 1;
+    return lists.shift() ?? [];
+  };
+  fake.process = async (target) => {
+    fake.processed.push(target.number);
+    return report(target.number, outcomes.shift()!);
+  };
+  return fake;
+}
+
+test('a person who answers a hand-over during the run gets the issue claimed again at the next fetch, in the usual order', async () => {
+  const waiting = labelled(1, ['status:todo', 'status:needs-human']);
+  const ready = labelled(1, ['status:todo']);
+  const fake = listed(
+    [[ready, issue(2)], [waiting, issue(2)], [ready, issue(3)], [issue(3)], []],
+    ['needs-human', 'done', 'done', 'done'],
+  );
+  await runIssues(ARGS, fake);
+  assert.deepEqual(fake.processed, [1, 2, 1, 3]);
+});
+
+test('a person who makes a skipped issue ready during the run gets it claimed again at the next fetch', async () => {
+  const blocked = labelled(1, ['status:in-progress']);
+  const ready = labelled(1, ['status:todo']);
+  const fake = listed(
+    [[blocked, issue(2)], [blocked, issue(2)], [ready], []],
+    ['skipped', 'done', 'done'],
+  );
+  await runIssues(ARGS, fake);
+  assert.deepEqual(fake.processed, [1, 2, 1]);
+});
+
+test('an issue that comes back with the labels it had after its attempt is not claimed again and the run ends', async () => {
+  const waiting = labelled(1, ['status:todo', 'status:needs-human']);
+  const fake = listed(
+    [[issue(1), issue(2)], [waiting, issue(2)], [waiting], [waiting], [waiting]],
+    ['needs-human', 'done'],
+  );
+  const result = await runIssues(ARGS, fake);
+  assert.deepEqual(fake.processed, [1, 2]);
+  assert.equal(fake.fetches, 3);
+  assert.equal(result.reports.length, 2);
+});
+
+test('an issue that failed with an error is not claimed again in the same run even when its labels change', async () => {
+  const fake = listed(
+    [[issue(1), issue(2)], [issue(1), issue(2)], [labelled(1, ['status:todo'])], []],
+    ['error', 'done'],
+  );
+  await runIssues(ARGS, fake);
+  assert.deepEqual(fake.processed, [1, 2]);
+});
+
+test('an issue that failed with an error and was handed over is claimed again once a person makes it ready', async () => {
+  const waiting = labelled(1, ['status:todo', 'status:needs-human']);
+  const fake = listed(
+    [[issue(1), issue(2)], [waiting, issue(2)], [labelled(1, ['status:todo'])], []],
+    [],
+  );
+  fake.process = async (target) => {
+    fake.processed.push(target.number);
+    const outcome = fake.processed.length === 1 ? 'error' : 'done';
+    return { ...report(target.number, outcome), handedOver: outcome === 'error' };
+  };
+  await runIssues(ARGS, fake);
+  assert.deepEqual(fake.processed, [1, 2, 1]);
+});
+
+test('an issue that is done is not claimed again in the same run even when its labels change', async () => {
+  const fake = listed(
+    [[issue(1), issue(2)], [issue(1), issue(2)], [labelled(1, ['status:done'])], []],
+    ['done', 'done'],
+  );
+  await runIssues(ARGS, fake);
+  assert.deepEqual(fake.processed, [1, 2]);
+});

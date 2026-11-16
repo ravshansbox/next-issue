@@ -18,6 +18,9 @@ export type LoopResult = {
 
 type Settled = { issue: number; report?: IssueReport; failure?: unknown };
 
+/** Issues that may be claimed again in the pass once their labels differ from those of the first fetch after their attempt. */
+type Tried = { ended: Set<number>; labels: Map<number, string | undefined> };
+
 export async function runIssues(
   args: Pick<Args, 'max'>,
   loop: Loop,
@@ -31,12 +34,13 @@ export async function runIssues(
   let error: unknown;
   let crash: { failure: unknown } | undefined;
   let claiming = true;
+  const tried: Tried = { ended: new Set(), labels: new Map() };
   const room = (): boolean =>
     running.size < concurrency && (limit === undefined || handled(reports) + running.size < limit);
   for (;;) {
     if (claiming && room()) {
       try {
-        claiming = await claimIssues(loop, seen, running, room);
+        claiming = await claimIssues(loop, seen, tried, running, room);
       } catch (failure) {
         error = failure;
         claiming = false;
@@ -53,6 +57,9 @@ export async function runIssues(
       continue;
     }
     reports.push(report);
+    if (retryable(report)) {
+      tried.ended.add(issue);
+    }
     if (claiming && (loop.stop() || report.halt === true)) {
       stoppedAt = issue;
       claiming = false;
@@ -78,6 +85,7 @@ function loopResult(
 async function claimIssues(
   loop: Loop,
   seen: Set<number>,
+  tried: Tried,
   running: Map<number, Promise<Settled>>,
   room: () => boolean,
 ): Promise<boolean> {
@@ -88,6 +96,7 @@ async function claimIssues(
   if (loop.stop()) {
     return false;
   }
+  readmitChanged(issues, seen, tried);
   for (const issue of issues.filter((candidate) => !seen.has(candidate.number))) {
     if (!room()) {
       break;
@@ -102,6 +111,28 @@ async function claimIssues(
     );
   }
   return true;
+}
+
+function retryable(report: IssueReport): boolean {
+  return report.outcome !== 'done' && (report.outcome !== 'error' || report.handedOver === true);
+}
+
+function readmitChanged(issues: Issue[], seen: Set<number>, tried: Tried): void {
+  const listed = new Map(issues.map((issue) => [issue.number, labelKey(issue)]));
+  for (const [number, labels] of tried.labels) {
+    if (listed.has(number) && listed.get(number) !== labels) {
+      tried.labels.delete(number);
+      seen.delete(number);
+    }
+  }
+  for (const number of tried.ended) {
+    tried.labels.set(number, listed.get(number));
+  }
+  tried.ended.clear();
+}
+
+function labelKey(issue: Issue): string {
+  return [...issue.labels].sort().join('\n');
 }
 
 export function exitCode(reports: IssueReport[]): number {
