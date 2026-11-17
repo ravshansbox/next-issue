@@ -166,3 +166,16 @@ test('withoutClosingReferences keeps a subject with no closing reference', () =>
     'fix: close the socket (refs #7)',
   );
 });
+
+test('withoutClosingReferences keeps a subject whose number is followed by word characters', () => {
+  for (const subject of [
+    'fix: resolve #1password sync',
+    'feat: close #12th item',
+    'fix: fixes #12345abc',
+    'fix: closes GH-12x thing',
+    'fix: closes o/r#3b thing',
+    'fix: closes https://github.com/o/r/issues/4a thing',
+  ]) {
+    assert.equal(withoutClosingReferences(subject, FALLBACK), subject);
+  }
+});

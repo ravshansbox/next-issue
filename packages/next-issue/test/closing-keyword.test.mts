@@ -14,3 +14,10 @@ test('an implementer whose subject closes the issue lands a commit that closes n
   }
   assert.match(target.messages.at(-1)!, /^fix: x\n/);
 });
+
+test('an implementer whose subject has letters right after an issue number lands the subject unchanged', async (t) => {
+  const target = await harness(t, { implementerText: ['commit: fix: resolve #1password sync'] });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.match(target.messages.at(-1)!, /^fix: resolve #1password sync\n/);
+});
