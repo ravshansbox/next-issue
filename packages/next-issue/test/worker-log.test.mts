@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, stat, writeFile } from 'node:fs/promises';
 import { syncBuiltinESMExports } from 'node:module';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { run } from '../src/exec.mts';
 import { LOG_KEEP_BYTES, LOG_LIMIT_BYTES, trimLog } from '../src/worker-log.mts';
+import { tempDir } from './temp-dir.mts';
 
 test('a worker leaves worker.log whole while a shown command can write to it, and trims it after', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'worker-log-'));
+  const root = await tempDir();
   const logPath = join(root, 'worker.log');
   const line = `${'x'.repeat(99)}\n`;
   await writeFile(logPath, line.repeat(LOG_LIMIT_BYTES / line.length + 10));
@@ -25,7 +25,7 @@ test('a worker leaves worker.log whole while a shown command can write to it, an
 });
 
 test('a worker that trims worker.log keeps a line that another process appends during the trim', async (t) => {
-  const root = await mkdtemp(join(tmpdir(), 'worker-log-'));
+  const root = await tempDir();
   const logPath = join(root, 'worker.log');
   const line = `${'x'.repeat(99)}\n`;
   await writeFile(logPath, line.repeat(LOG_LIMIT_BYTES / line.length + 10));

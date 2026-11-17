@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { Socket } from 'node:net';
 import { join } from 'node:path';
@@ -8,9 +8,10 @@ import { WebSocketServer } from 'ws';
 import { workerLaunch, workerPaths } from '../src/spawn-worker.ts';
 import { WorkerClient, type WorkerEvent } from '../src/worker.ts';
 import { type FakeWorker, running, socketPath, startFakeWorker, until } from './fake-worker.ts';
+import { tempFolder } from './temp-folder.ts';
 
 async function connectsIn(t: test.TestContext, name: string): Promise<void> {
-  const root = join(mkdtempSync('/tmp/pi-next-issue-'), name);
+  const root = join(tempFolder('/tmp'), name);
   const { socketPath } = workerPaths(root);
   mkdirSync(join(root, '.next-issue'), { recursive: true });
   const worker = await startFakeWorker(socketPath);

@@ -1,17 +1,18 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, realpath } from 'node:fs/promises';
+import { realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import { lockHolder } from '../src/lock.mts';
 import type { WorkerMessage } from '../src/protocol.mts';
 import { startWorker } from '../src/serve.mts';
 import { workerPaths } from '../src/worker-paths.mts';
+import { tempDir } from './temp-dir.mts';
 import { connect, fakeRuns, noQuestions, worker } from './worker-harness.mts';
 
 const SUCCESSOR = new URL('successor-worker.mts', import.meta.url).pathname;
 
 async function oldWorker(t: TestContext) {
-  const root = await realpath(await mkdtemp('/tmp/next-issue-'));
+  const root = await realpath(await tempDir('/tmp'));
   const { logPath: _logPath, ...paths } = workerPaths(root);
   const fake = fakeRuns();
   const started = await startWorker({
