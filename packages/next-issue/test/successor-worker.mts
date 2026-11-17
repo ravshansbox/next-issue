@@ -1,8 +1,10 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import { startWorker } from '../src/serve.mts';
 import { workerPaths } from '../src/worker-paths.mts';
 
 const root = process.cwd();
 const { logPath: _logPath, ...paths } = workerPaths(root);
+await delay(Number(process.argv[4] ?? '0'));
 const started = await startWorker({
   root,
   ...paths,

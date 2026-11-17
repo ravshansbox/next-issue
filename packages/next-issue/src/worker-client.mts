@@ -24,7 +24,7 @@ export type Connection = {
 };
 
 const ANSWER_TIMEOUT_MS = 5_000;
-const START_TIMEOUT_MS = 30_000;
+const START_TIMEOUT_MS = 120_000;
 const HOLDER_GRACE_MS = 2_000;
 const POLL_MS = 200;
 const UPGRADE_TRIES = 3;

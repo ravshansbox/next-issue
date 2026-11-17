@@ -63,6 +63,28 @@ test('a watching run that stops for a newer client comes back on the newer worke
   await fresh.next((value) => runOf(root, value)?.status === 'stopped');
 });
 
+test('a person whose watching run stops for a newer client sees it come back on a newer worker that starts listening only after 31 seconds', async (t) => {
+  const { root, fake, started, socketPath } = await oldWorker(t);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root, args: ['--watch', 'on'] });
+  await client.next((value) => runOf(root, value)?.watching === true);
+  client.send({
+    type: 'hello',
+    version: '2.1.0',
+    launch: { command: process.execPath, args: [SUCCESSOR, '2.1.0', '0', '31000'] },
+  });
+  await client.next((value) => runOf(root, value)?.upgrade !== undefined);
+  await client.close();
+  fake.finish();
+  await started.closed;
+  const fresh = await connect(t, socketPath);
+  const resumed = runOf(root, await fresh.next((value) => value.type === 'runs'));
+  assert.equal(resumed?.status, 'running');
+  assert.equal(resumed?.watching, true);
+  fresh.send({ type: 'stop', root });
+  await fresh.next((value) => runOf(root, value)?.status === 'stopped');
+});
+
 test('a client of a watching run whose worker cannot start the newer worker sees the run fail with the reason', async (t) => {
   const { root, fake, started, socketPath } = await oldWorker(t);
   const client = await connect(t, socketPath);

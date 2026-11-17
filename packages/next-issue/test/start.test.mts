@@ -352,6 +352,7 @@ test('a user who runs start while an older worker has a watch run going sees sta
 async function upgradingStart(
   t: TestContext,
   successorCode: string,
+  successorDelayMs = 0,
 ): Promise<{ root: string; started: Started; finish: (code?: number) => void }> {
   const root = await repository();
   const fake = fakeRuns();
@@ -368,7 +369,10 @@ async function upgradingStart(
   newer.send({
     type: 'hello',
     version: '999.0.0',
-    launch: { command: process.execPath, args: [SUCCESSOR, '999.0.0', successorCode] },
+    launch: {
+      command: process.execPath,
+      args: [SUCCESSOR, '999.0.0', successorCode, String(successorDelayMs)],
+    },
   });
   await newer.next((value) => value.type === 'runs' && value.runs[root]?.upgrade !== undefined);
   await newer.close();
@@ -392,6 +396,18 @@ test('a user whose start run watches while a newer client connects sees the run 
       .filter((line) => line.includes('updated')),
     [`next-issue: the worker was updated from ${version} to 999.0.0`],
   );
+});
+
+test('a user whose start run watches while a newer client connects sees the run go on in a newer worker that starts listening only after 31 seconds', async (t) => {
+  const { started, finish } = await upgradingStart(t, '3', 31_000);
+  finish();
+  for (let left = 600; !started.stderr().includes('updated'); left -= 1) {
+    assert.ok(left > 0 && started.child.exitCode === null, started.stderr());
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  started.child.kill('SIGINT');
+  assert.equal(await started.exited, 3, started.stderr());
+  assert.match(started.stderr(), /stopped: watching on, hunting on\n/);
 });
 
 test('a user whose start run had an issue that needed a person before an update sees start exit with 1 after the run ends with 0 on the newer worker', async (t) => {
