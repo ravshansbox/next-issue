@@ -26,18 +26,7 @@ import {
   stopRun,
   watchRun,
 } from './src/run.ts';
-import {
-  type Action,
-  cannotNote,
-  formatQuestions,
-  formatStatus,
-  handledNotes,
-  type Note,
-  questionNotes,
-  statusNote,
-  switchNote,
-  upgradeNote,
-} from './src/status.ts';
+import { type Action, cannotNote, formatQuestions, formatStatus, type Note } from './src/status.ts';
 import { lockHolder } from './src/lock.ts';
 import { issueDetail } from './src/detail.ts';
 import { pastRuns } from './src/past.ts';
@@ -117,25 +106,12 @@ export function createExtension(options: Options) {
     let poll: ReturnType<typeof setInterval> | undefined;
     let waiting: number[] | undefined;
     let unsubscribe: (() => void) | undefined;
-    let handled = 0;
-    let status: Progress['status'] | undefined;
-    let hunting: boolean | undefined;
-    let watching: boolean | undefined;
-    let upgrading = false;
     let baseline = false;
 
     const clientOf = (root: string) => shared(options.client, root);
 
     const current = (): Progress | undefined =>
       root === undefined ? undefined : clientOf(root).runs[root];
-
-    const remember = (progress: Progress | undefined) => {
-      handled = progress?.handled.length ?? 0;
-      status = progress?.status;
-      hunting = progress?.hunting;
-      watching = progress?.watching;
-      upgrading = progress?.upgrade !== undefined;
-    };
 
     const dim = (text: string) => (coloured && ui !== undefined ? ui.theme.fg('dim', text) : text);
 
@@ -158,16 +134,8 @@ export function createExtension(options: Options) {
       );
     };
 
-    const tell = (note: Note | undefined) => {
-      if (note !== undefined) {
-        ui?.notify(note.text, note.level);
-      }
-    };
-
     const onQuestions = (questions: Question[]) => {
-      const known = waiting;
       waiting = questions.map((question) => question.issue);
-      questionNotes(questions, known).forEach(tell);
       paintQuestions();
     };
 
@@ -177,64 +145,15 @@ export function createExtension(options: Options) {
       }
     };
 
-    const announce = (progress: Progress) => {
-      const wasGoing = status === 'running' || status === 'stopping';
-      const changed = (was: boolean | undefined, now: boolean | undefined): now is boolean =>
-        wasGoing && going(progress) && was !== undefined && now !== undefined && now !== was;
-      if (changed(watching, progress.watching)) {
-        tell(switchNote('watching', progress.watching));
-      }
-      if (changed(hunting, progress.hunting)) {
-        tell(switchNote('hunting', progress.hunting));
-      }
-      watching = progress.watching;
-      hunting = progress.hunting;
-      if (progress.upgrade !== undefined && !upgrading) {
-        tell(upgradeNote(progress.upgrade));
-      }
-      upgrading = progress.upgrade !== undefined;
-      if (progress.status === status) {
-        return;
-      }
-      status = progress.status;
-      tell(statusNote(progress));
-    };
-
-    const notifyHandled = (progress: Progress) => {
-      if (progress.handled.length < handled) {
-        handled = 0;
-      }
-      handledNotes(progress, handled).forEach(tell);
-      handled = progress.handled.length;
-    };
-
-    const onProgress = (progress: Progress | undefined) => {
-      if (progress === undefined) {
-        return;
-      }
-      notifyHandled(progress);
-      announce(progress);
-      render();
-    };
-
     const onEvent = (event: WorkerEvent) => {
       if (event.type === 'runs') {
-        const progress = root === undefined ? undefined : event.runs[root];
+        render();
         if (baseline) {
           baseline = false;
-          remember(progress);
-          render();
           askQuestions();
-        } else {
-          onProgress(progress);
         }
       } else if (event.type === 'questions' && event.root === root) {
         onQuestions(event.questions);
-      } else if (event.type === 'error' && event.root === root) {
-        const request = clientOf(root).requestOf(event);
-        if (request !== 'refresh') {
-          tell(cannotNote(request, event.message));
-        }
       } else if (event.type === 'closed') {
         baseline = true;
         waiting = undefined;
@@ -249,7 +168,6 @@ export function createExtension(options: Options) {
         return;
       }
       const client = clientOf(root);
-      remember(current());
       waiting = client.questions[root]?.map((question) => question.issue);
       baseline = !client.connected;
       unsubscribe = client.subscribe(onEvent);

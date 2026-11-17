@@ -747,7 +747,7 @@ test('a user of an rpc client sees the footer status without colour codes', asyn
   await until(() => painted.at(-1) === '#7 · review 1');
 });
 
-test('a user sees a note per handled issue and a note when the run finishes, and the run line cleared from the footer', async () => {
+test('a user sees the run line cleared from the footer and no note when the run finishes', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
   const { pi, emit, notes, status } = host();
@@ -765,16 +765,11 @@ test('a user sees a note per handled issue and a note when the run finishes, and
       { issue: 8, outcome: 'needs-human' },
     ],
   });
-  await until(() => notes.includes('next-issue finished'));
-  assert.deepEqual(notes, [
-    'next-issue: #7 done',
-    'next-issue: #8 needs a human',
-    'next-issue finished',
-  ]);
-  assert.equal(status.at(-1), undefined);
+  await until(() => status.at(-1) === undefined);
+  assert.deepEqual(notes, []);
 });
 
-test('a user whose worker sends run output and the run end sees only the run notes and no error', async () => {
+test('a user whose worker sends run output and the run end sees no note and no error', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
   const { pi, emit, notes, status } = host();
@@ -785,13 +780,13 @@ test('a user whose worker sends run output and the run end sees only the run not
   fake.reply({ type: 'output', root: '/repo', text: '10:00:00 #7 issue.start\n' });
   fake.update('/repo', { status: 'finished', hunting: false, issues: [], handled: [] });
   fake.reply({ type: 'end', root: '/repo', code: 0 });
-  await until(() => notes.includes('next-issue finished'));
+  await until(() => status.at(-1) === undefined);
   await new Promise((resolve) => setTimeout(resolve, 50));
-  assert.deepEqual(notes, ['next-issue finished']);
+  assert.deepEqual(notes, []);
   assert.equal(status.at(-1), undefined);
 });
 
-test('a user whose run stops while pi is open sees a note and the run line cleared from the footer', async () => {
+test('a user whose run stops while pi is open sees the run line cleared from the footer and no note', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
   const { pi, emit, notes, status } = host();
@@ -805,11 +800,11 @@ test('a user whose run stops while pi is open sees a note and the run line clear
     issues: [],
     handled: [{ issue: 7, outcome: 'done' }],
   });
-  await until(() => notes.includes('next-issue stopped'));
-  assert.equal(status.at(-1), undefined);
+  await until(() => status.at(-1) === undefined);
+  assert.deepEqual(notes, []);
 });
 
-test('a user whose run fails while pi is open sees the error in the footer', async () => {
+test('a user whose run fails while pi is open sees the error in the footer and no note', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
   const { pi, emit, notes, status } = host();
@@ -824,8 +819,8 @@ test('a user whose run fails while pi is open sees the error in the footer', asy
     handled: [],
     error: 'gh failed',
   });
-  await until(() => notes.includes('next-issue failed: gh failed'));
-  assert.equal(status.at(-1), 'failed: gh failed');
+  await until(() => status.at(-1) === 'failed: gh failed');
+  assert.deepEqual(notes, []);
 });
 
 test('a user who opens pi after a run has finished sees no run line in the footer and no notes', async () => {
@@ -2068,23 +2063,6 @@ test('a user in a second pi sees the run that the first pi started', async () =>
   await until(() => status.at(-1) === '#9 · checks');
 });
 
-test('a user sees why the worker could not start a run in this repository', async () => {
-  const { path, extension } = setup();
-  const fake = await worker(path);
-  const { pi, emit, pick, notes } = host('rpc');
-  extension(pi as never);
-  await emit('session_start');
-  await pick('Start');
-  fake.reply({ type: 'error', root: '/other', message: 'not this one' });
-  fake.reply({
-    type: 'error',
-    root: '/repo',
-    message: 'a run is going in this repository already',
-  });
-  await until(() => notes.length > 0);
-  assert.deepEqual(notes, ['next-issue cannot start: a run is going in this repository already']);
-});
-
 test('a user outside a git repository sees why a run could not start', async () => {
   const { extension } = setup();
   const { pi, pick, notes } = host('rpc', '/outside');
@@ -2272,7 +2250,7 @@ function upgradingWorker(path: string, fields: Partial<Progress>) {
   });
 }
 
-test('a user with a newer extension whose watching run stops for an upgrade sees why and no stopped note, then gets the newer worker and the run started again with the same settings', async () => {
+test('a user with a newer extension whose watching run stops for an upgrade sees no note, then gets the newer worker and the run started again with the same settings', async () => {
   let fresh: FakeWorker | undefined;
   const { path, spawns, extension } = setup({
     version: '2.0.0',
@@ -2287,7 +2265,7 @@ test('a user with a newer extension whose watching run stops for an upgrade sees
   extension(pi as never);
   await emit('session_start');
   await until(() => status.at(-1) === '#7 · upgrading to 2.0.0');
-  assert.deepEqual(notes, ['next-issue: worker 1.0.0 upgrades to 2.0.0 after the running issues']);
+  assert.deepEqual(notes, []);
   assert.match((await report()).content[0]!.text, /^#7 · upgrading to 2\.0\.0\n/);
   old.update('/repo', { ...old.runs['/repo']!, status: 'stopped', issues: [] });
   await until(() => status.at(-1) === undefined);
@@ -2298,7 +2276,7 @@ test('a user with a newer extension whose watching run stops for an upgrade sees
     fresh!.received.filter((message) => message.type === 'start'),
     [{ type: 'start', root: '/repo', args: ['--watch', 'on', '--hunt', 'on'], resume: true }],
   );
-  assert.deepEqual(notes, ['next-issue: worker 1.0.0 upgrades to 2.0.0 after the running issues']);
+  assert.deepEqual(notes, []);
 });
 
 test('a user with a newer extension whose run a person stopped gets no new worker and no new run once the old worker closes', async () => {
@@ -2485,7 +2463,7 @@ test('a user who types /next-issue followed by a space is offered nothing', () =
   assert.equal(complete('st'), undefined);
 });
 
-test('a user sees how many questions wait in the footer and a note for each new question', async () => {
+test('a user sees how many questions wait in the footer and no note for a new question', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
   const { pi, emit, waiting, notes } = host();
@@ -2498,33 +2476,7 @@ test('a user sees how many questions wait in the footer and a note for each new 
   await until(() => waiting.at(-1) === '<dim>2 questions waiting</dim>');
   fake.reply({ type: 'questions', root: '/repo', questions: [question(4), question(5)] });
   await until(() => waiting.length === 3);
-  assert.deepEqual(notes, [
-    'next-issue: #5 has a question: Title 5. Ask pi to answer it with the answer-hand-over skill.',
-  ]);
-});
-
-test('a user sees a note for a question whose title ends in a stop mark with no extra full stop', async () => {
-  const { path, extension } = setup();
-  const fake = await worker(path);
-  const { pi, emit, notes } = host();
-  extension(pi as never);
-  await emit('session_start');
-  fake.reply({ type: 'questions', root: '/repo', questions: [] });
-  fake.reply({
-    type: 'questions',
-    root: '/repo',
-    questions: [
-      { ...question(4), title: 'Fix the parser?' },
-      { ...question(5), title: 'Fix the lexer.' },
-      { ...question(6), title: 'Fix it now!' },
-    ],
-  });
-  await until(() => notes.length === 3);
-  assert.deepEqual(notes, [
-    'next-issue: #4 has a question: Fix the parser? Ask pi to answer it with the answer-hand-over skill.',
-    'next-issue: #5 has a question: Fix the lexer. Ask pi to answer it with the answer-hand-over skill.',
-    'next-issue: #6 has a question: Fix it now! Ask pi to answer it with the answer-hand-over skill.',
-  ]);
+  assert.deepEqual(notes, []);
 });
 
 test('a user sees the count drop when a question is answered elsewhere, with no action in this pi', async () => {
@@ -2585,12 +2537,15 @@ test('a user who picks Hunt on, then Hunt off in the /next-issue menu asks the w
   const { path, extension } = setup();
   const fake = await worker(path);
   fake.runs['/repo'] = running({ hunting: false, issues: [working(7)] });
-  const { pi, emit, pick, notes } = host('rpc');
+  const { pi, emit, pick, notes, menus } = host('rpc');
   extension(pi as never);
   await emit('session_start');
   await pick('Hunt on');
   fake.update('/repo', running({ hunting: true, issues: [working(7)] }));
-  await until(() => notes.length === 1);
+  await until(() => {
+    void pick(undefined);
+    return menus.at(-1)?.includes('Hunt off') === true;
+  });
   await pick('Hunt off');
   await until(() => fake.received.filter((message) => message.type === 'hunt').length === 2);
   assert.deepEqual(
@@ -2600,40 +2555,7 @@ test('a user who picks Hunt on, then Hunt off in the /next-issue menu asks the w
       { type: 'hunt', root: '/repo', on: false },
     ],
   );
-  assert.deepEqual(notes, ['next-issue: hunting on']);
-});
-
-test('a user whose worker refuses to switch hunting sees why', async () => {
-  const { path, extension } = setup();
-  const fake = await startFakeWorker(path, '1.0.0', (self, message) => {
-    if (message.type === 'hunt') {
-      self.reply({ type: 'error', root: message.root, message: 'the worker is restarting' });
-    }
-  });
-  workers.push(fake);
-  fake.runs['/repo'] = running();
-  const { pi, emit, pick, notes } = host('rpc');
-  extension(pi as never);
-  await emit('session_start');
-  await pick('Hunt on');
-  await until(() => notes.length > 0);
-  assert.deepEqual(notes, ['next-issue cannot hunt: the worker is restarting']);
-});
-
-test('a user sees a note when hunting of the going run turns on or off', async () => {
-  const { path, extension } = setup();
-  const fake = await worker(path);
-  fake.runs['/repo'] = running({ hunting: false });
-  const { pi, emit, notes, status } = host();
-  extension(pi as never);
-  await emit('session_start');
-  await until(() => status.at(-1) === 'looking for issues');
-  fake.update('/repo', running({ hunting: true }));
-  await until(() => notes.length === 1);
-  fake.update('/repo', running({ hunting: false }));
-  await until(() => notes.length === 2);
-  assert.deepEqual(notes, ['next-issue: hunting on', 'next-issue: hunting off']);
-  assert.ok(status.every((line) => !line?.includes('hunting')));
+  assert.deepEqual(notes, []);
 });
 
 function huntWorker(path: string) {
@@ -2719,22 +2641,22 @@ test('a model whose next_issue_hunt the worker refuses while its next_issue_watc
   const [hunted, watched] = await Promise.allSettled([hunting, watching]);
   assert.match(String(hunted.status === 'rejected' && hunted.reason), /the worker is restarting/);
   assert.equal(watched.status, 'fulfilled');
-  assert.deepEqual(
-    notes.filter((note) => note.includes('cannot')),
-    ['next-issue cannot hunt: the worker is restarting'],
-  );
+  assert.deepEqual(notes, []);
 });
 
 test('a user who picks Watch on, then Watch off in the /next-issue menu asks the worker to switch watching', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);
   fake.runs['/repo'] = running({ watching: false, issues: [working(7)] });
-  const { pi, emit, pick, notes } = host('rpc');
+  const { pi, emit, pick, notes, menus } = host('rpc');
   extension(pi as never);
   await emit('session_start');
   await pick('Watch on');
   fake.update('/repo', running({ watching: true, issues: [working(7)] }));
-  await until(() => notes.length === 1);
+  await until(() => {
+    void pick(undefined);
+    return menus.at(-1)?.includes('Watch off') === true;
+  });
   await pick('Watch off');
   await until(() => fake.received.filter((message) => message.type === 'watch').length === 2);
   assert.deepEqual(
@@ -2744,56 +2666,7 @@ test('a user who picks Watch on, then Watch off in the /next-issue menu asks the
       { type: 'watch', root: '/repo', on: false },
     ],
   );
-  assert.deepEqual(notes, ['next-issue: watching on']);
-});
-
-test('a user whose worker refuses to switch watching sees why', async () => {
-  const { path, extension } = setup();
-  const fake = await startFakeWorker(path, '1.0.0', (self, message) => {
-    if (message.type === 'watch') {
-      self.reply({ type: 'error', root: message.root, message: 'no run is going' });
-    }
-  });
-  workers.push(fake);
-  fake.runs['/repo'] = running();
-  const { pi, emit, pick, notes } = host('rpc');
-  extension(pi as never);
-  await emit('session_start');
-  await pick('Watch on');
-  await until(() => notes.length > 0);
-  assert.deepEqual(notes, ['next-issue cannot watch: no run is going']);
-});
-
-test('a user who picks Watch on for a run they stopped is told the run is stopping, not that it keeps watching', async () => {
-  const { path, extension } = setup();
-  const fake = await startFakeWorker(path, '1.0.0', (self, message) => {
-    if (message.type === 'watch') {
-      self.reply({ type: 'error', root: message.root, message: 'the run is stopping' });
-    }
-  });
-  workers.push(fake);
-  fake.runs['/repo'] = running({ status: 'stopping', watching: false });
-  const { pi, emit, pick, notes } = host('rpc');
-  extension(pi as never);
-  await emit('session_start');
-  await pick('Watch on');
-  await until(() => notes.length > 0);
-  assert.deepEqual(notes, ['next-issue cannot watch: the run is stopping']);
-});
-
-test('a user sees a note when watching of the going run turns on or off', async () => {
-  const { path, extension } = setup();
-  const fake = await worker(path);
-  fake.runs['/repo'] = running({ watching: false });
-  const { pi, emit, notes, status } = host();
-  extension(pi as never);
-  await emit('session_start');
-  await until(() => status.at(-1) === 'looking for issues');
-  fake.update('/repo', running({ watching: true }));
-  await until(() => notes.length === 1);
-  fake.update('/repo', running({ watching: false }));
-  await until(() => notes.length === 2);
-  assert.deepEqual(notes, ['next-issue: watching on', 'next-issue: watching off']);
+  assert.deepEqual(notes, []);
 });
 
 function watchWorker(path: string) {

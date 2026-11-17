@@ -1,4 +1,4 @@
-import type { Handled, IssueProgress, Progress, Question, Upgrade } from './protocol.ts';
+import type { Handled, IssueProgress, Progress } from './protocol.ts';
 
 export function duration(ms: number): string {
   const seconds = Math.max(0, Math.floor(ms / 1000));
@@ -40,53 +40,10 @@ export function handledNote(item: Handled): string {
 
 export type Note = { text: string; level: 'info' | 'warning' | 'error' };
 
-export function statusNote(progress: Progress): Note | undefined {
-  if (progress.status === 'stopped' && progress.upgrade !== undefined) {
-    return undefined;
-  }
-  if (progress.status === 'finished' || progress.status === 'stopped') {
-    return { text: `next-issue ${progress.status}`, level: 'info' };
-  }
-  if (progress.status === 'failed') {
-    return { text: `next-issue ${failedNote(progress)}`, level: 'error' };
-  }
-  return undefined;
-}
-
 export type Action = 'start' | 'stop' | 'watch' | 'hunt' | 'refresh';
 
 export function cannotNote(action: Action, message: string): Note {
   return { text: `next-issue cannot ${action}: ${message}`, level: 'error' };
-}
-
-export function switchNote(name: 'watching' | 'hunting', on: boolean): Note {
-  return { text: `next-issue: ${name} ${on ? 'on' : 'off'}`, level: 'info' };
-}
-
-export function upgradeNote(upgrade: Upgrade): Note {
-  return {
-    text: `next-issue: worker ${upgrade.from} upgrades to ${upgrade.to} after the running issues`,
-    level: 'info',
-  };
-}
-
-export function handledNotes(progress: Progress, from: number): Note[] {
-  return progress.handled.slice(from).map((item) => ({
-    text: `next-issue: ${handledNote(item)}`,
-    level: item.outcome === 'done' ? 'info' : 'warning',
-  }));
-}
-
-export function questionNotes(questions: Question[], known: number[] | undefined): Note[] {
-  if (known === undefined) {
-    return [];
-  }
-  return questions
-    .filter((question) => !known.includes(question.issue))
-    .map((question) => ({
-      text: `next-issue: #${question.issue} has a question: ${question.title}${/[.?!]$/.test(question.title) ? '' : '.'} Ask pi to answer it with the answer-hand-over skill.`,
-      level: 'warning',
-    }));
 }
 
 export function formatQuestions(count: number): string {
