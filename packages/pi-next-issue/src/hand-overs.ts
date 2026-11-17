@@ -22,17 +22,30 @@ export function guidanceProblem(text: string): string | undefined {
     : `The guidance must not start with ${heading}, since it would not count as an answer.`;
 }
 
-async function skipLabel(gh: Gh, question: Question): Promise<string> {
-  const wanted = question.labels.skip;
+async function existingLabel(gh: Gh, question: Question): Promise<string | undefined> {
+  const wanted = question.labels.skip.toLowerCase();
   const listed = JSON.parse(
     await gh(['label', 'list', '--repo', question.repo, '--limit', '1000', '--json', 'name']),
   ) as Array<{ name: string }>;
-  const found = listed.find((label) => label.name.toLowerCase() === wanted.toLowerCase());
+  return listed.find((label) => label.name.toLowerCase() === wanted)?.name;
+}
+
+async function skipLabel(gh: Gh, question: Question): Promise<string> {
+  const found = await existingLabel(gh, question);
   if (found !== undefined) {
-    return found.name;
+    return found;
   }
-  await gh(['label', 'create', '--repo', question.repo, wanted]);
-  return wanted;
+  const wanted = question.labels.skip;
+  try {
+    await gh(['label', 'create', '--repo', question.repo, wanted]);
+    return wanted;
+  } catch (error) {
+    const created = await existingLabel(gh, question);
+    if (created === undefined) {
+      throw error;
+    }
+    return created;
+  }
 }
 
 export async function answerHandOver(gh: Gh, question: Question, answer: Answer): Promise<void> {

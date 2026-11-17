@@ -1706,6 +1706,63 @@ test('a user who gives up on a hand-over from the dashboard in a repository with
   await opened;
 });
 
+test('a user who gives up from the dashboard while another session creates the skip label gets the issue labelled with the skip label', async () => {
+  let lists = 0;
+  const { ghCalls, overlay, opened } = await handOvers({
+    gh: (args) => {
+      if (args[1] === 'list') {
+        lists += 1;
+        return lists === 1 ? '[]' : JSON.stringify([{ name: 'Status:Blocked' }]);
+      }
+      if (args[1] === 'create') {
+        throw new Error('label with name "status:blocked" already exists');
+      }
+      return '';
+    },
+  });
+  overlay.press('enter');
+  overlay.press('down');
+  overlay.press('down');
+  overlay.press('enter');
+  await until(() => overlay.screen().includes('Gave up on #4'), 500);
+  assert.deepEqual(ghCalls.at(-1), [
+    'issue',
+    'edit',
+    '--repo',
+    'owner/name',
+    '4',
+    '--remove-label',
+    'status:needs-human',
+    '--add-label',
+    'Status:Blocked',
+  ]);
+  overlay.press('escape');
+  await opened;
+});
+
+test('a user who gives up from the dashboard when the skip label cannot be created sees the error and the issue keeps its labels', async () => {
+  const { ghCalls, overlay, opened } = await handOvers({
+    gh: (args) => {
+      if (args[1] === 'create') {
+        throw new Error('gh: no permission to create labels');
+      }
+      return args[1] === 'list' ? '[]' : '';
+    },
+  });
+  overlay.press('enter');
+  overlay.press('down');
+  overlay.press('down');
+  overlay.press('enter');
+  await until(() => overlay.screen().includes('no permission to create labels'), 500);
+  assert.equal(
+    ghCalls.some((args) => args[0] === 'issue'),
+    false,
+  );
+  assert.match(overlay.screen(), /#4 Title 4/);
+  overlay.press('escape');
+  await opened;
+});
+
 test('a user whose answer fails on GitHub sees the error on the Hand-overs tab and the issue stays listed', async () => {
   const { overlay, opened } = await handOvers({
     gh: () => {
