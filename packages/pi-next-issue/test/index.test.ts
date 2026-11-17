@@ -2768,3 +2768,52 @@ test('a model whose going run is on an older worker that calls next_issue_watch 
     false,
   );
 });
+
+for (const [choice, type, action] of [
+  ['Watch on', 'watch', 'watch'],
+  ['Hunt on', 'hunt', 'hunt'],
+  ['Stop', 'stop', 'stop'],
+] as const) {
+  test(`a user who picks ${choice} in the /next-issue menu for a run that the worker refuses sees the worker's message as a cannot ${action} note`, async () => {
+    const { path, extension } = setup();
+    const fake = await startFakeWorker(path, '1.0.0', (self, message) => {
+      if (message.type === type) {
+        self.reply({
+          type: 'error',
+          root: message.root,
+          message: 'the run is stopping',
+          ...(message.id === undefined ? {} : { id: message.id }),
+        });
+      }
+    });
+    workers.push(fake);
+    fake.runs['/repo'] = running({ watching: false, hunting: false });
+    const { pi, emit, pick, notes } = host('rpc');
+    extension(pi as never);
+    await emit('session_start');
+    await pick(choice, ...(type === 'stop' ? ['Stop at once'] : []));
+    await until(() => notes.length === 1);
+    assert.deepEqual(notes, [`next-issue cannot ${action}: the run is stopping`]);
+  });
+}
+
+test('a user who picks Start in the /next-issue menu for a busy worker sees the worker message as a cannot start note', async () => {
+  const { path, extension } = setup();
+  const fake = await startFakeWorker(path, '1.0.0', (self, message) => {
+    if (message.type === 'start') {
+      self.reply({
+        type: 'error',
+        root: message.root,
+        message: 'a run is going',
+        ...(message.id === undefined ? {} : { id: message.id }),
+      });
+    }
+  });
+  workers.push(fake);
+  const { pi, emit, pick, notes } = host('rpc');
+  extension(pi as never);
+  await emit('session_start');
+  await pick('Start');
+  await until(() => notes.length === 1);
+  assert.deepEqual(notes, ['next-issue cannot start: a run is going']);
+});

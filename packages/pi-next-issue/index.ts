@@ -107,6 +107,8 @@ export function createExtension(options: Options) {
     let waiting: number[] | undefined;
     let unsubscribe: (() => void) | undefined;
     let baseline = false;
+    const ASKED_LIMIT = 20;
+    const asked = new Map<string, Action>();
 
     const clientOf = (root: string) => shared(options.client, root);
 
@@ -154,6 +156,10 @@ export function createExtension(options: Options) {
         }
       } else if (event.type === 'questions' && event.root === root) {
         onQuestions(event.questions);
+      } else if (event.type === 'error' && event.id !== undefined && asked.has(event.id)) {
+        const note = cannotNote(asked.get(event.id)!, event.message);
+        asked.delete(event.id);
+        ui?.notify(note.text, note.level);
       } else if (event.type === 'closed') {
         baseline = true;
         waiting = undefined;
@@ -416,12 +422,18 @@ export function createExtension(options: Options) {
           return;
         }
         const { client, root, progress } = await connect(ctx, subcommand === 'start');
+        const track = (id: string) => {
+          asked.set(id, subcommand);
+          if (asked.size > ASKED_LIMIT) {
+            asked.delete(asked.keys().next().value!);
+          }
+        };
         if (subcommand === 'stop') {
-          notify(requestStop(client, root, progress, value as StopPoint));
+          notify(requestStop(client, root, progress, value as StopPoint, track));
         } else if (subcommand === 'watch' || subcommand === 'hunt') {
-          notify(requestSwitch(client, root, progress, subcommand, value === 'on'));
+          notify(requestSwitch(client, root, progress, subcommand, value === 'on', track));
         } else {
-          notify(requestStart(client, root, progress));
+          notify(requestStart(client, root, progress, track));
         }
       } catch (error) {
         notify(cannotNote(subcommand, errorText(error)));

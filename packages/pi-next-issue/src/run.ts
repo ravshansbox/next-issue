@@ -87,16 +87,19 @@ export async function startRun(
   return report(`Started a next-issue run of ${root}.`, { started: true, root });
 }
 
+export type Asked = (id: string) => void;
+
 export function requestStart(
   client: WorkerClient,
   root: string,
   progress: Progress | undefined,
+  asked: Asked = () => {},
 ): Note | undefined {
   if (going(progress)) {
     sendRefresh(client, root, progress);
     return { text: goingAlready(root, progress), level: 'info' };
   }
-  client.request({ type: 'start', root });
+  asked(client.request({ type: 'start', root }));
   return undefined;
 }
 
@@ -172,6 +175,7 @@ export function requestSwitch(
   progress: Progress | undefined,
   name: SwitchName,
   on: boolean,
+  asked: Asked = () => {},
 ): Note | undefined {
   if (!going(progress)) {
     return { text: `No run of ${root} is going.`, level: 'info' };
@@ -180,7 +184,7 @@ export function requestSwitch(
   if (refusal !== undefined) {
     return cannotNote(name, refusal);
   }
-  client.request({ type: name, root, on });
+  asked(client.request({ type: name, root, on }));
   return undefined;
 }
 
@@ -189,11 +193,12 @@ export function requestStop(
   root: string,
   progress: Progress | undefined,
   after: StopPoint,
+  asked: Asked = () => {},
 ): Note | undefined {
   if (!going(progress)) {
     return { text: `No run of ${root} is going.`, level: 'info' };
   }
-  client.request({ type: 'stop', root, after });
+  asked(client.request({ type: 'stop', root, after }));
   return undefined;
 }
 
