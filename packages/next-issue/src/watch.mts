@@ -149,8 +149,9 @@ async function watchPasses(failed: Set<number>, watch: Watch): Promise<LoopResul
   for (;;) {
     const pass = await runIssues(watch, new Set(failed));
     addReports(reports, pass.reports);
+    const { refreshed, ...result } = pass;
     if (pass.crash !== undefined) {
-      return { ...pass, reports };
+      return { ...result, reports };
     }
     recordFailures(failed, pass.reports);
     if (handled(pass.reports) > 0) {
@@ -158,14 +159,14 @@ async function watchPasses(failed: Set<number>, watch: Watch): Promise<LoopResul
       step = 0;
     }
     if (pass.error !== undefined || pass.stoppedAt !== undefined) {
-      return { ...pass, reports };
+      return { ...result, reports };
     }
     if (watch.stop() || !watching()) {
       return { reports };
     }
     const minutes = backOffMinutes(step);
     step += 1;
-    const signals = [watch.refreshed?.(), watch.watching?.changed()].filter(
+    const signals = [refreshed ?? watch.refreshed?.(), watch.watching?.changed()].filter(
       (signal) => signal !== undefined,
     );
     const woken = signals.length === 0 ? undefined : AbortSignal.any(signals);

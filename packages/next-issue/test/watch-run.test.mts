@@ -23,6 +23,7 @@ type Options = {
   watching?: Switch;
   refresher?: Refresher;
   issues?: () => Promise<Issue[]>;
+  print?: () => Promise<void>;
   plan?: Plan;
 };
 
@@ -55,6 +56,9 @@ async function startWatch(t: TestContext, args: Args, options: Options = {}): Pr
           new Promise((resolve) => {
             sleeps.push(ms / 60_000);
             wake = () => resolve(false);
+            if (refreshed?.aborted === true) {
+              resolve(false);
+            }
             refreshed?.addEventListener('abort', () => resolve(false), { once: true });
           }),
       },
@@ -62,7 +66,9 @@ async function startWatch(t: TestContext, args: Args, options: Options = {}): Pr
       watching: options.watching,
       refreshed: options.refresher?.refreshed,
     },
-    async () => undefined,
+    async () => {
+      await options.print?.();
+    },
   );
   let ended = false;
   void result.finally(() => {
@@ -135,7 +141,7 @@ test('a worker client who asks a waiting watch run to refresh sees it start a ne
   assert.equal(result.stoppedAt, undefined);
 });
 
-test('a worker client who asks a watch run to refresh while a pass runs leaves that pass and the next wait alone', async (t) => {
+test('a worker client who asks a watch run to refresh while its last read of the open issues runs sees a new pass start at once', async (t) => {
   const refresh = refresher();
   let release = (): void => undefined;
   const held = new Promise<void>((resolve) => {
@@ -151,10 +157,35 @@ test('a worker client who asks a watch run to refresh while a pass runs leaves t
   await until(() => run.passes() === 1);
   refresh.refresh();
   release();
-  await until(() => run.sleeps.length === 1);
-  await delay(50);
-  assert.equal(run.passes(), 1);
-  assert.deepEqual(run.sleeps, [1]);
+  await until(() => run.sleeps.length === 2);
+  assert.equal(run.passes(), 2);
+  assert.deepEqual(run.sleeps, [1, 1]);
+  await run.end();
+});
+
+test('a worker client who asks a watch run to refresh while it prints the summary of a pass sees a new pass start at once', async (t) => {
+  const refresh = refresher();
+  let listed = false;
+  let printed = false;
+  const run = await startWatch(t, parseArgs(['start', '--watch', 'on']), {
+    refresher: refresh,
+    issues: async () => {
+      if (listed) {
+        return [];
+      }
+      listed = true;
+      return [ISSUE];
+    },
+    print: async () => {
+      if (!printed) {
+        printed = true;
+        refresh.refresh();
+      }
+    },
+  });
+  await until(() => run.sleeps.length === 2);
+  assert.equal(run.passes(), 3);
+  assert.deepEqual(run.sleeps, [1, 1]);
   await run.end();
 });
 

@@ -16,6 +16,7 @@ export type LoopResult = {
   stoppedAt?: number;
   error?: unknown;
   crash?: { failure: unknown };
+  refreshed?: AbortSignal;
 };
 
 type Settled = { issue: number; slot: Slot; report?: IssueReport; failure?: unknown };
@@ -94,7 +95,11 @@ export async function runIssues(loop: Loop, seen = new Set<number>()): Promise<L
   } finally {
     ended.abort();
   }
-  return loopResult(reports, stoppedAt, error, crash);
+  return { ...loopResult(reports, stoppedAt, error, crash), ...refreshedOf(refresh) };
+}
+
+function refreshedOf(refresh: Refresh): { refreshed?: AbortSignal } {
+  return refresh.signal === undefined ? {} : { refreshed: refresh.signal };
 }
 
 type Refresh = { signal?: AbortSignal; asked: Promise<'refresh'> };
