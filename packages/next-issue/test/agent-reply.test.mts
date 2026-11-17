@@ -131,6 +131,15 @@ test('withoutClosingReferences drops each closing keyword with its issue referen
   assert.equal(withoutClosingReferences('closes #7', FALLBACK), FALLBACK);
 });
 
+test('withoutClosingReferences drops a closing keyword with a GH-number reference in any case', () => {
+  assert.equal(
+    withoutClosingReferences('fix: handle empty input, closes GH-42', FALLBACK),
+    'fix: handle empty input',
+  );
+  assert.equal(withoutClosingReferences('fix: x (Fixes gh-7)', FALLBACK), 'fix: x');
+  assert.equal(withoutClosingReferences('fix: resolves GH-12', FALLBACK), FALLBACK);
+});
+
 test('withoutClosingReferences leaves no leading punctuation when the subject starts with a closing reference', () => {
   assert.equal(withoutClosingReferences('Fix #12: handle crash', FALLBACK), 'handle crash');
   assert.equal(withoutClosingReferences('Closes #5 - add retry', FALLBACK), 'add retry');
