@@ -131,6 +131,14 @@ test('withoutClosingReferences drops each closing keyword with its issue referen
   assert.equal(withoutClosingReferences('closes #7', FALLBACK), FALLBACK);
 });
 
+test('withoutClosingReferences leaves no leading punctuation when the subject starts with a closing reference', () => {
+  assert.equal(withoutClosingReferences('Fix #12: handle crash', FALLBACK), 'handle crash');
+  assert.equal(withoutClosingReferences('Closes #5 - add retry', FALLBACK), 'add retry');
+  assert.equal(withoutClosingReferences('Fix #4 — add retry', FALLBACK), 'add retry');
+  assert.equal(withoutClosingReferences('Fix #4: -1 off by one', FALLBACK), '-1 off by one');
+  assert.equal(withoutClosingReferences('Fix #3 (api): x', FALLBACK), FALLBACK);
+});
+
 test('withoutClosingReferences gives the fallback when only the commit type is left', () => {
   assert.equal(withoutClosingReferences('fix: resolve #12', FALLBACK), FALLBACK);
   assert.equal(withoutClosingReferences('feat(api): closes #7', FALLBACK), FALLBACK);

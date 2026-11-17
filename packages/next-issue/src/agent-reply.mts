@@ -40,9 +40,11 @@ export function withoutClosingReferences(subject: string, fallback: string): str
     .replace(/\(\s*\)|\[\s*\]/g, '')
     .replace(/\s+/g, ' ')
     .replace(/[\s,;:]+$/, '')
+    .replace(/^(?:[\s,;:\u2013\u2014]|-(?!\d))+/, '')
     .trim();
-  const onlyType = subject.search(CLOSING_REFERENCE) !== -1 && BARE_TYPE.test(cleaned);
-  return cleaned && !onlyType ? cleaned : fallback;
+  const closes = subject.search(CLOSING_REFERENCE) !== -1;
+  const unusable = closes && (BARE_TYPE.test(cleaned) || /^[^\p{L}\p{N}-]/u.test(cleaned));
+  return cleaned && !unusable ? cleaned : fallback;
 }
 
 export function parseCommitSubject(text: string, fallback: string): string {
