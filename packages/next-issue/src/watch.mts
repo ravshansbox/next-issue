@@ -47,7 +47,9 @@ export async function watchIssues(watch: Watch): Promise<LoopResult> {
       process: async (issue, _claimed, slot) => {
         running.add(issue.number);
         try {
-          return await watch.process(issue, claims.ring, slot);
+          const report = await watch.process(issue, claims.ring, slot);
+          recordFailures(failed, [report]);
+          return report;
         } finally {
           running.delete(issue.number);
         }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { test } from 'node:test';
+import { test, type TestContext } from 'node:test';
 import { parseArgs } from '../src/args.mts';
 import { must } from '../src/exec.mts';
 import { runRepo } from '../src/run.mts';
@@ -10,9 +10,11 @@ import type { Outcome } from '../src/job.mts';
 import { exitCode } from '../src/loop.mts';
 import { applyEvent, startProgress } from '../src/progress.mts';
 import { onOff } from '../src/switch.mts';
+import { hunter as repoHunter } from '../src/hunt.mts';
 import { refresher } from '../src/refresh.mts';
 import { type Watch, watchIssues } from '../src/watch.mts';
 import { installGh } from './fake-gh.mts';
+import { harness, ISSUE } from './harness.mts';
 import { issue, report } from './loop-harness.mts';
 import { tempDir } from './temp-dir.mts';
 
@@ -387,6 +389,57 @@ test('a user who watches with --hunt sees the hunter told which issues failed ea
   };
   await watchIssues(fake);
   assert.deepEqual(seen[0], [1]);
+});
+
+async function huntDuringPass(
+  t: TestContext,
+  blockers: Record<number, string[]>,
+  handedOver = false,
+): Promise<number[]> {
+  const fake = watcher([['error', 'done']]);
+  const target = await harness(t, {
+    open: [1, 2, 3].map((number) => ({ ...ISSUE, number })),
+  });
+  target.context.ports.openBlockers = async (_repo, number) => blockers[number] ?? [];
+  const counted = repoHunter(target.context);
+  const hunting = hunter(fake, [[]]);
+  const ready = fake.hunter!.ready;
+  const failedEnded = deferred();
+  let first = true;
+  fake.hunter!.ready = async (running, failed) => {
+    if (!first) {
+      return ready(running, failed);
+    }
+    first = false;
+    await failedEnded.promise;
+    await sleep(0);
+    await ready(running, failed);
+    return counted.ready(running, failed);
+  };
+  const process = fake.process;
+  fake.process = async (issued, claimed) => {
+    const processed = await process(issued, claimed);
+    if (issued.number === 1) {
+      failedEnded.resolve();
+      return { ...processed, ...(handedOver ? { handedOver: true } : {}) };
+    }
+    await hunting.idle;
+    return processed;
+  };
+  await watchIssues(fake);
+  return hunting.counts;
+}
+
+test('a user who watches with --hunt sees the hunter leave out an issue that failed before the claim earlier in the same pass, and hunt while the pass goes on', async (t) => {
+  assert.deepEqual(await huntDuringPass(t, { 3: ['#30'] }), [1]);
+});
+
+test('a user who watches with --hunt sees the hunter leave out an issue whose only open blocker failed earlier in the same pass, and hunt while the pass goes on', async (t) => {
+  assert.deepEqual(await huntDuringPass(t, { 3: ['#1'] }), [1]);
+});
+
+test('a user who watches with --hunt sees the hunter still count an issue handed over after an error earlier in the same pass, and not hunt', async (t) => {
+  assert.deepEqual(await huntDuringPass(t, { 3: ['#30'] }, true), []);
 });
 
 test('a user who watches with --hunt and whose filed issues do not count as ready sees the hunter wait before each next hunt', async () => {
