@@ -217,6 +217,11 @@ test('a model role of null uses the default model', async () => {
   assert.deepEqual(config.models, { fixer: 'm' });
 });
 
+test('a user who sets models.default and models.hunter gets both models', async () => {
+  const config = await parse({ models: { default: 'a/all', hunter: 'a/hunt' } });
+  assert.deepEqual(config.models, { default: 'a/all', hunter: 'a/hunt' });
+});
+
 test('managedLabels holds every label the harness sets', async () => {
   const config = await loadConfig(await root());
   assert.deepEqual(managedLabels(config), [
@@ -237,9 +242,11 @@ test('writeDefaultConfig writes a file that gives the defaults', async () => {
   assert.equal(JSON.parse(await readFile(path, 'utf8')).agent, undefined);
   assert.deepEqual(JSON.parse(await readFile(path, 'utf8')).checks, []);
   assert.deepEqual(JSON.parse(await readFile(path, 'utf8')).models, {
+    default: null,
     implementer: null,
     reviewer: null,
     fixer: null,
+    hunter: null,
   });
 });
 
@@ -256,7 +263,13 @@ test('a user who runs init finds the keys of the config file sorted at every lev
     'ready',
     'skip',
   ]);
-  assert.deepEqual(Object.keys(written.models), ['fixer', 'implementer', 'reviewer']);
+  assert.deepEqual(Object.keys(written.models), [
+    'default',
+    'fixer',
+    'hunter',
+    'implementer',
+    'reviewer',
+  ]);
 });
 
 test('writeDefaultConfig keeps an existing file without force', async () => {

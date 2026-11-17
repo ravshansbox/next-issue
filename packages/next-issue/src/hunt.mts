@@ -70,6 +70,7 @@ export async function hunt(context: Context, count: number): Promise<boolean> {
         false,
       ),
       profile: REVIEWING,
+      model: config.models.hunter ?? config.models.default,
       timeoutMs: minutesToMs(config.agentTimeoutMinutes),
     });
     const urls = await issuesOf(

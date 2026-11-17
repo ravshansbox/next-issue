@@ -38,9 +38,11 @@ export type Config = {
   /** Names of GitHub Actions jobs, check runs and commit statuses that the checks of a landed commit leave out. */
   ignoredChecks: string[];
   models: {
+    default?: string;
     implementer?: string;
     reviewer?: string;
     fixer?: string;
+    hunter?: string;
   };
   labels: {
     ready: string;
@@ -119,7 +121,7 @@ const WHOLE_FIELDS: Array<[keyof Config, number, number?]> = [
   ['checksTimeoutMinutes', 1, MAX_MINUTES],
 ];
 
-const MODEL_ROLES = ['implementer', 'reviewer', 'fixer'] as const;
+const MODEL_ROLES = ['default', 'implementer', 'reviewer', 'fixer', 'hunter'] as const;
 
 const LABEL_NAMES = [
   'ready',

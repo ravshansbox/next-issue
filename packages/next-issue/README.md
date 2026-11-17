@@ -162,7 +162,7 @@ The console shows the run and issue milestones, verdicts, hand-overs, errors, ea
 - git 2.40 or later (every commit runs `git hook run`, every conflict with the base runs `git check-attr --source`). A run or `serve` run on an older git stops before it claims an issue, with an error that names both versions.
 - `gh`, authenticated with write access to the repository
 - a `remote` on GitHub: `github.com`, or a GitHub Enterprise host. Every `gh` call names the host of the remote url (`--repo <host>/<owner>/<name>`, `gh api --hostname <host>`) when it is not `github.com`, so `gh` must be logged in to that host. For an ssh url the harness reads the real host of an ssh alias with `ssh -G`. The host `ssh.github.com` (GitHub's ssh over port 443) means `github.com`. Other hosts, such as GitLab, are not supported.
-- pi, logged in to a model provider. The agents use the model, the thinking level, the extensions and the skills from your pi settings, except the extension and the skills of the `pi-next-issue` package. A repository under a folder named `pi-next-issue` keeps its project extensions and skills. The implementer and the fixer get the default tools of your pi settings, the `grep`, `find` and `ls` tools and the tools of your extensions. The reviewer gets all of them except `edit` and `write`. The agents run with `GIT_OPTIONAL_LOCKS=0`, so a `git status` from an agent or an extension does not hold the index lock while the harness commits. While an agent runs, `process.argv[1]` is the pi CLI, so an extension that starts a child pi with `process.execPath` and `process.argv[1]` (such as a `subagent` tool) runs pi, not next-issue.
+- pi, logged in to a model provider. The agents use the model (unless `models` sets one), the thinking level, the extensions and the skills from your pi settings, except the extension and the skills of the `pi-next-issue` package. A repository under a folder named `pi-next-issue` keeps its project extensions and skills. The implementer and the fixer get the default tools of your pi settings, the `grep`, `find` and `ls` tools and the tools of your extensions. The reviewer gets all of them except `edit` and `write`. The agents run with `GIT_OPTIONAL_LOCKS=0`, so a `git status` from an agent or an extension does not hold the index lock while the harness commits. While an agent runs, `process.argv[1]` is the pi CLI, so an extension that starts a child pi with `process.execPath` and `process.argv[1]` (such as a `subagent` tool) runs pi, not next-issue.
 
 ## Configuration
 
@@ -209,7 +209,9 @@ With no file, every field keeps its default. A field that is not in the file kee
   "maxCommitFixes": 10,
   "maxReviewRounds": 5,
   "models": {
+    "default": null,
     "fixer": null,
+    "hunter": null,
     "implementer": null,
     "reviewer": null
   },
@@ -238,7 +240,7 @@ With no file, every field keeps its default. A field that is not in the file kee
 | `maxCiFixes`            | `5`                | The budget for check fixes per issue                                                                                                                                                                                        |
 | `maxCommitFixes`        | `10`               | The budget for fixes of a commit that a git hook stopped, per issue                                                                                                                                                         |
 | `maxReviewRounds`       | `5`                | The budget for review rounds per issue                                                                                                                                                                                      |
-| `models`                | `null` per role    | The pi model per agent role, as `provider/model`: `implementer`, `reviewer`, `fixer`                                                                                                                                        |
+| `models`                | `null` per role    | The pi model per agent role, as `provider/model`: `default`, `implementer`, `reviewer`, `fixer`, `hunter`                                                                                                                   |
 | `remote`                | `origin`           | The git remote for the repository and the branches                                                                                                                                                                          |
 | `setupCommand`          | from the lock file | A shell command to run in a new worktree, before the implementer, and after each merge of the base before the `checks`                                                                                                      |
 | `setupTimeoutMinutes`   | `15`               | The limit for the setup command, at most `35791`                                                                                                                                                                            |
@@ -253,7 +255,7 @@ The harness compares the labels on an issue with the configured names without ca
 
 The log gives the reason for a skipped issue as `stop-label`, `not-ready`, `in-flight` or `blocked`, the last one with the open blockers.
 
-A role set to `null`, or with no entry in `models`, uses the default model of your pi settings.
+A role set to `null`, or with no entry in `models`, uses `models.default`. When `models.default` is `null` or missing too, it uses the default model of your pi settings.
 
 Without a `setupCommand`, the harness looks for a lock file in the new worktree, and in the worktree after each merge of the base before the `checks`, and runs the install command that goes with it:
 

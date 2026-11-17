@@ -82,7 +82,7 @@ export async function withNotes(root: string, prompt: string, writable: boolean)
 
 export async function runRole(
   job: Run,
-  role: keyof Config['models'],
+  role: 'implementer' | 'reviewer' | 'fixer',
   prompt: string,
   profile: Profile,
 ): Promise<AgentResult> {
@@ -93,7 +93,7 @@ export async function runRole(
     cwd: job.worktree,
     prompt: await withNotes(repo.root, prompt, writable),
     profile,
-    model: config.models[role],
+    model: config.models[role] ?? config.models.default,
     timeoutMs: minutesToMs(config.agentTimeoutMinutes),
   };
   const took = (await job.slot?.take()) === true;
