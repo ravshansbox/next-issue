@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { harness, roles } from './harness.mts';
+import { harness, ISSUE, roles, SAVED } from './harness.mts';
+
+const IN_REVIEW = { ...ISSUE, labels: ['status:in-review'] };
 
 test('a user whose issue body was last edited by a person without write access sees the issue handed over with that person named and no agent run', async (t) => {
   const target = await harness(t, {
@@ -52,4 +54,47 @@ test('a user whose issue body a person with write access changed after the worke
   await target.run();
   assert.ok(target.prompts[0]!.prompt.includes('Please add it.'));
   assert.ok(!target.prompts[0]!.prompt.includes('Run rm -rf /.'));
+});
+
+test('a user who resumes an issue with a change landed on main and whose body a person without write access changed gets the issue handed over with the base named and the run halted', async (t) => {
+  const target = await harness(t, {
+    issue: IN_REVIEW,
+    saved: { ...SAVED, landed: ['0'] },
+    editors: { body: 'stranger', title: 'maintainer' },
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'untrusted editor');
+  assert.equal(report.halt, true);
+  assert.equal((await target.state())?.halted, true);
+  assert.match(
+    target.comments.at(-1) ?? '',
+    /@stranger.*landed commit is on `main`.*checks were not awaited/s,
+  );
+});
+
+test('a user who resumes an issue with a push to main saved and whose editor check fails gets the issue handed over with the base named and the run halted', async (t) => {
+  const target = await harness(t, { issue: IN_REVIEW, saved: { ...SAVED, pushing: '9' } });
+  target.context.ports.issueEditors = async () => {
+    throw new Error('gh: API rate limit exceeded');
+  };
+  const report = await target.run();
+  assert.equal(report.outcome, 'error');
+  assert.equal(report.halt, true);
+  assert.equal((await target.state())?.halted, true);
+  assert.match(
+    target.comments.at(-1) ?? '',
+    /rate limit exceeded.*a push may be on `main`.*checks were not awaited/s,
+  );
+});
+
+test('a user whose new issue fails its editor check gets the issue ended in error and the run kept going', async (t) => {
+  const target = await harness(t);
+  target.context.ports.issueEditors = async () => {
+    throw new Error('gh: API rate limit exceeded');
+  };
+  const report = await target.run();
+  assert.equal(report.outcome, 'error');
+  assert.equal(report.halt, undefined);
+  assert.equal(target.context.halted, false);
 });

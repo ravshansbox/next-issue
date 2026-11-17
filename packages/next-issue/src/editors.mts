@@ -1,5 +1,6 @@
 import { escalateAndFinish } from './handover.mts';
 import type { Finished, Run } from './job.mts';
+import { heldOnBase, unsettledNote } from './unsettled.mts';
 
 /** Hands the issue over when a person without write access last changed its title or body; otherwise gives the job the title and body checked. */
 export async function untrustedEditors(job: Run): Promise<Finished | undefined> {
@@ -28,9 +29,15 @@ export async function untrustedEditors(job: Run): Promise<Finished | undefined> 
     )
     .join('; ');
   const parts = untrusted.map(({ part }) => `the ${part}`).join(' and ');
+  const held = heldOnBase(job.state, context.base);
+  if (held !== '') {
+    job.mainBroken = true;
+    job.state.halted = true;
+  }
+  const unsettled = held === '' ? '' : unsettledNote(held, 'This resume stopped');
   return escalateAndFinish(
     job,
-    `The worker did not send the issue to an agent: ${changed}. A person with write access can check the issue, then change ${parts} to go on.`,
+    `The worker did not send the issue to an agent: ${changed}. A person with write access can check the issue, then change ${parts} to go on.${unsettled}`,
     'untrusted editor',
   );
 }

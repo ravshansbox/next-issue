@@ -121,7 +121,7 @@ async function work(
   if (setup.done) {
     return setup.report;
   }
-  const untrusted = await untrustedEditors(job);
+  const untrusted = await beforeBaseSettled(state, context.base, () => untrustedEditors(job));
   if (untrusted !== undefined) {
     return untrusted.report;
   }
