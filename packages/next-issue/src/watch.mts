@@ -36,6 +36,7 @@ export async function watchIssues(watch: Watch): Promise<LoopResult> {
           running,
           failed,
           claims,
+          watch.issues,
           watch.refreshed,
           () => ended.signal.aborted || watch.stop(),
           ended.signal,
@@ -100,6 +101,7 @@ async function huntIssues(
   running: Set<number>,
   failed: ReadonlySet<number>,
   claims: ClaimAlarm,
+  issues: () => Promise<Issue[]>,
   refreshes: (() => AbortSignal) | undefined,
   stopped: () => boolean,
   signal: AbortSignal,
@@ -120,6 +122,7 @@ async function huntIssues(
     if (waiting !== undefined && waiting < hunter.cap && hunting.on()) {
       if (await hunter.hunt(hunter.cap - waiting)) {
         step = 0;
+        await issues().catch(() => undefined);
       }
     }
     if (claims.take() || stopped() || !hunting.on()) {

@@ -87,6 +87,9 @@ export async function runIssues(loop: Loop, seen = new Set<number>()): Promise<L
         stoppedAt = issue;
         claiming = false;
       }
+      if (report.outcome === 'done' && !claiming) {
+        await loop.issues().catch(() => undefined);
+      }
     }
   } finally {
     ended.abort();

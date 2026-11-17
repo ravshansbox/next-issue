@@ -368,3 +368,19 @@ test('a person who files an issue and asks for a refresh while every slot is tak
   await run;
   assert.deepEqual(fake.processed, [1, 2, 3]);
 });
+
+test('a person who reads the status sees the open count drop when the run closes an issue after a stop was asked for', async () => {
+  const fake = counted([1, 2]);
+  let stopped = false;
+  fake.process = async (target) => {
+    fake.processed.push(target.number);
+    fake.open.delete(target.number);
+    stopped = true;
+    return report(target.number, 'done');
+  };
+  fake.stop = () => stopped;
+  const result = await runIssues(fake);
+  assert.equal(result.stoppedAt, 1);
+  assert.deepEqual(fake.processed, [1]);
+  assert.equal(fake.status(), 1);
+});

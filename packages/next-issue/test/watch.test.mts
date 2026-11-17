@@ -8,6 +8,7 @@ import { runRepo } from '../src/run.mts';
 import { runsDir } from '../src/state.mts';
 import type { Outcome } from '../src/job.mts';
 import { exitCode } from '../src/loop.mts';
+import { applyEvent, startProgress } from '../src/progress.mts';
 import { onOff } from '../src/switch.mts';
 import { refresher } from '../src/refresh.mts';
 import { type Watch, watchIssues } from '../src/watch.mts';
@@ -282,6 +283,32 @@ test('a user who watches with --hunt sees the hunter hunt while an issue runs', 
   await watchIssues(fake);
   assert.deepEqual(hunting.steps, ['hunt', 'wait 1', 'wait 2']);
   assert.deepEqual(fake.processed, [1]);
+});
+
+test('a person who reads the status while an issue runs sees the open count rise right after the hunter files an issue', async () => {
+  const fake = watcher([['done', 'done']]);
+  const open = new Set([1]);
+  let progress = startProgress();
+  fake.issues = async () => {
+    progress = applyEvent(progress, { kind: 'issues', open: open.size });
+    return [...open].map(issue);
+  };
+  const hunting = hunter(fake, [[]]);
+  const hunt = fake.hunter!.hunt;
+  fake.hunter!.hunt = async (count) => {
+    open.add(2);
+    return hunt(count);
+  };
+  const statuses: Array<number | undefined> = [];
+  const wait = fake.hunter!.wait;
+  fake.hunter!.wait = async (minutes, signal) => {
+    statuses.push(progress.open);
+    return wait(minutes, signal);
+  };
+  holdIssues(fake, hunting.idle);
+  await watchIssues(fake);
+  assert.equal(statuses[0], 2);
+  assert.deepEqual(fake.processed, [1, 2]);
 });
 
 test('a user who watches with --hunt sees the hunter hunt only while fewer than huntCap issues are ready, and wait otherwise', async () => {
