@@ -180,7 +180,7 @@ test('a user with concurrency 1 whose only issue needs the fixer after failed ch
   const openIssues = ports.openIssues;
   let lists = 0;
   ports.openIssues = async (...args) => {
-    lists += 1;
+    lists += args[2].includes('status:todo') ? 1 : 0;
     return openIssues(...args);
   };
   const reports = await runLoop(target);

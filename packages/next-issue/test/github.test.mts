@@ -201,6 +201,53 @@ esac
   );
 });
 
+test('a user who leaves labels out of the issue list gets only the issues without them', async (t) => {
+  const dir = await tempDir();
+  const script = `#!/bin/sh
+case "$*" in
+  *'label:"status:todo" -label:"status:needs-human" -label:"status:blocked"'*)
+    echo '[{"number":150,"title":"ready","body":"","createdAt":"2026-02-01T00:00:00Z","labels":[{"name":"status:todo"}]}]' ;;
+  *) echo '[{"number":1,"title":"given up","body":"","createdAt":"2026-01-01T00:00:00Z","labels":[]}]' ;;
+esac
+`;
+  await installGh(t, dir, script);
+  const repo = { owner: 'acme', name: 'held', root: dir };
+  const issues = await openIssues(
+    repo,
+    1,
+    ['status:todo'],
+    ['status:needs-human', 'status:blocked'],
+  );
+  assert.deepEqual(
+    issues.map((issue) => issue.number),
+    [150],
+  );
+});
+
+test('a user who asks for issues with every one of some labels gets only the issues with all of them', async (t) => {
+  const dir = await tempDir();
+  const script = `#!/bin/sh
+case "$*" in
+  *'label:"status:needs-human" label:"status:todo" -label:"status:blocked"'*)
+    echo '[{"number":150,"title":"waiting","body":"","createdAt":"2026-02-01T00:00:00Z","labels":[{"name":"status:todo"}]}]' ;;
+  *) echo '[{"number":1,"title":"not ready","body":"","createdAt":"2026-01-01T00:00:00Z","labels":[]}]' ;;
+esac
+`;
+  await installGh(t, dir, script);
+  const repo = { owner: 'acme', name: 'waiting', root: dir };
+  const issues = await openIssues(
+    repo,
+    1,
+    ['status:needs-human'],
+    ['status:blocked'],
+    ['status:todo'],
+  );
+  assert.deepEqual(
+    issues.map((issue) => issue.number),
+    [150],
+  );
+});
+
 test('a user whose ready label holds a double quote gets its issues listed', async (t) => {
   const dir = await tempDir();
   const script = `#!/bin/sh

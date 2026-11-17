@@ -1,6 +1,7 @@
 import { errorMatches, message } from './errors.mts';
 import type { Issue } from './github.mts';
 import type { Context } from './job.mts';
+import { listedIssues, waitingIssues } from './skip.mts';
 import { type IssueState, readState, savedIssues, writeState } from './state.mts';
 import { blocksLanding, heldOnBase } from './unsettled.mts';
 
@@ -12,10 +13,15 @@ const ISSUE_GONE = /Could not resolve to an issue or pull request|HTTP 404/;
 
 export async function pendingIssues(context: Context): Promise<Issue[]> {
   const { repo, config, ports } = context;
-  const { ready, inProgress, inReview } = config.labels;
-  const labels = ready.length === 0 ? [] : [ready, inProgress, inReview];
-  const issues = await ports.openIssues(repo, config.issueLimit, labels);
+  const { inProgress, inReview } = config.labels;
+  const issues = await listedIssues(ports, repo, config, [inProgress, inReview]);
   const listed = new Set(issues.map((issue) => issue.number));
+  for (const issue of await waitingIssues(ports, repo, config)) {
+    if (!listed.has(issue.number)) {
+      listed.add(issue.number);
+      issues.push(issue);
+    }
+  }
   let openCount = issues.length;
   const saved = await savedIssues(repo);
   for (const number of saved) {

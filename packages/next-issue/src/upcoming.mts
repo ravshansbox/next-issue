@@ -5,7 +5,7 @@ import { detectRepo, type Repo } from './git.mts';
 import { type Ports, PORTS } from './ports.mts';
 import type { Upcoming } from './protocol.mts';
 import { send } from './questions.mts';
-import { skipReason } from './skip.mts';
+import { listedIssues, skipReason } from './skip.mts';
 import { savedIssues } from './state.mts';
 
 export type ListUpcoming = (root: string) => Promise<Upcoming>;
@@ -16,8 +16,7 @@ export async function upcomingIssues(
   config: Config,
   ports: Pick<Ports, 'openIssues' | 'openBlockers'>,
 ): Promise<Upcoming> {
-  const { ready } = config.labels;
-  const issues = await ports.openIssues(repo, config.issueLimit, ready.length === 0 ? [] : [ready]);
+  const issues = await listedIssues(ports, repo, config, []);
   const saved = new Set(await savedIssues(repo));
   const upcoming: Upcoming = { claimable: [], blocked: [] };
   for (const issue of issues) {

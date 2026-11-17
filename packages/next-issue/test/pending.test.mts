@@ -141,15 +141,21 @@ test('a watcher whose run cannot read a saved issue is not sent the question lis
   assert.equal(sent, 0);
 });
 
-test('a user with a ready label gets only the ready, in-progress and in-review issues asked for', async (t) => {
+test('a user with a ready label gets the ready, in-progress and in-review issues asked for apart from the waiting ones, and the given-up ones left out', async (t) => {
   const target = await harness(t);
-  const asked: string[][] = [];
-  target.context.ports.openIssues = async (_repo, _limit, labels) => {
-    asked.push(labels);
+  const asked: string[][][] = [];
+  target.context.ports.openIssues = async (_repo, _limit, labels, without = []) => {
+    asked.push([labels, without]);
     return [];
   };
   await pendingIssues(target.context);
-  assert.deepEqual(asked, [['status:todo', 'status:in-progress', 'status:in-review']]);
+  assert.deepEqual(asked, [
+    [
+      ['status:todo', 'status:in-progress', 'status:in-review'],
+      ['status:needs-human', 'status:blocked'],
+    ],
+    [['status:needs-human'], ['status:blocked']],
+  ]);
 });
 
 test('a user with no ready label gets every open issue asked for', async (t) => {

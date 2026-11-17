@@ -50,20 +50,30 @@ function toIssue(item: RawIssue): Issue {
   };
 }
 
-function labelFilter(labels: string[]): string {
-  return labels.length === 0
-    ? ''
-    : ` label:${labels.map((label) => `"${label.replace(/[\\"]/g, '\\$&')}"`).join(',')}`;
+function quoted(label: string): string {
+  return `"${label.replace(/[\\"]/g, '\\$&')}"`;
 }
 
-export async function openIssues(repo: Repo, limit: number, labels: string[]): Promise<Issue[]> {
+function labelFilter(labels: string[], without: string[], every: string[]): string {
+  const any = labels.length === 0 ? '' : ` label:${labels.map(quoted).join(',')}`;
+  const all = every.map((label) => ` label:${quoted(label)}`).join('');
+  return any + all + without.map((label) => ` -label:${quoted(label)}`).join('');
+}
+
+export async function openIssues(
+  repo: Repo,
+  limit: number,
+  labels: string[],
+  without: string[] = [],
+  every: string[] = [],
+): Promise<Issue[]> {
   const parsed = await ghJson<RawIssue[]>(repo, [
     'issue',
     'list',
     '--state',
     'open',
     '--search',
-    `sort:created-asc${labelFilter(labels)}`,
+    `sort:created-asc${labelFilter(labels, without, every)}`,
     '--limit',
     String(limit),
     '--json',

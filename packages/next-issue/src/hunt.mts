@@ -9,7 +9,7 @@ import { git, gitFetch, remoteRef, type Repo } from './git.mts';
 import { type Context, withNotes } from './job.mts';
 import { oneAtATime } from './lock.mts';
 import { huntPrompt } from './prompts.mts';
-import { skipReason } from './skip.mts';
+import { listedIssues, skipReason } from './skip.mts';
 import type { Hunter } from './watch.mts';
 import { huntPath } from './worktree.mts';
 
@@ -85,13 +85,11 @@ export async function hunt(context: Context, count: number): Promise<boolean> {
 
 export function hunter(context: Context): Hunter & { busy: () => boolean } {
   const { repo, config, recorder, ports } = context;
-  const { ready } = config.labels;
-  const labels = ready.length === 0 ? [] : [ready];
   let hunting = false;
   return {
     cap: config.huntCap,
     ready: async (running, failed) => {
-      const open = (await ports.openIssues(repo, config.issueLimit, labels)).filter(
+      const open = (await listedIssues(ports, repo, config, [])).filter(
         (issue) => !failed.has(issue.number) && skipReason(issue, config, false) === undefined,
       );
       const claimable = new Set(open.map((issue) => issue.number));

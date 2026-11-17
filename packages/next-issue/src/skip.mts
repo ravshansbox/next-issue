@@ -2,16 +2,42 @@ import type { Config } from './config.mts';
 import { runStopped } from './children.mts';
 import { elapsedMs } from './durations.mts';
 import { message } from './errors.mts';
+import type { Repo } from './git.mts';
 import type { Issue } from './github.mts';
 import { handOverReply } from './hand-over-comments.mts';
 import { stopNow } from './handover.mts';
 import type { Context, IssueReport } from './job.mts';
 import { hasLabel } from './labels.mts';
 import type { Recorder } from './observe.mts';
+import type { Ports } from './ports.mts';
 import { heldByPerson, type IssueState, writeState } from './state.mts';
 import { heldOnBase } from './unsettled.mts';
 
 type Skip = 'stop-label' | 'not-ready' | 'in-flight';
+
+export function listedIssues(
+  ports: Pick<Ports, 'openIssues'>,
+  repo: Repo,
+  config: Config,
+  labels: string[],
+): Promise<Issue[]> {
+  const { ready, needsHuman, skip } = config.labels;
+  return ready.length === 0
+    ? ports.openIssues(repo, config.issueLimit, [])
+    : ports.openIssues(repo, config.issueLimit, [ready, ...labels], [needsHuman, skip]);
+}
+
+export function waitingIssues(
+  ports: Pick<Ports, 'openIssues'>,
+  repo: Repo,
+  config: Config,
+): Promise<Issue[]> {
+  const { ready, needsHuman, skip } = config.labels;
+  if (ready.length === 0) {
+    return Promise.resolve([]);
+  }
+  return ports.openIssues(repo, config.issueLimit, [needsHuman], [skip], [ready]);
+}
 
 export function skipReason(
   issue: Issue,
