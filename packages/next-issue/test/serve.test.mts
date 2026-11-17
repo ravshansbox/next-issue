@@ -1116,6 +1116,52 @@ test('a person who turns watching off on a run that stops for an upgrade sees th
   await started.closed;
 });
 
+test('a person who turns watching off and then on for a run that stops for an upgrade sees the run end stopped for the upgrade', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath, worker: started } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo', args: ['--watch', 'on'] });
+  await client.next(watchingIs(true));
+  client.send({ type: 'hello', version: '2.1.0' });
+  await client.next(upgrading);
+  client.send({ type: 'watch', root: '/repo', on: false });
+  await client.next(watchingIs(false));
+  client.send({ type: 'watch', root: '/repo', on: true });
+  const resumed = await client.next(upgrading);
+  assert.equal(resumed.type === 'runs' && resumed.runs['/repo']!.watching, true);
+  fake.finish();
+  const ended = await client.next(stoppedRun);
+  assert.deepEqual(ended.type === 'runs' && ended.runs['/repo']!.upgrade, {
+    from: '2.0.0',
+    to: '2.1.0',
+  });
+  await started.closed;
+});
+
+test('a person who turns watching or hunting on for a run they stopped gets an error with the id of the request and the run still stops', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo', args: ['--watch', 'off'] });
+  await client.next(watchingIs(false));
+  client.send({ type: 'stop', root: '/repo' });
+  await client.next(stopping);
+  client.send({ type: 'watch', root: '/repo', on: true, id: 'watch-1' });
+  client.send({ type: 'hunt', root: '/repo', on: true, id: 'hunt-1' });
+  const errors: WorkerMessage[] = [];
+  for (let count = 0; count < 2; count += 1) {
+    errors.push(await client.next((value) => value.type === 'error'));
+  }
+  assert.deepEqual(errors, [
+    { type: 'error', root: '/repo', message: 'the run is stopping', id: 'watch-1' },
+    { type: 'error', root: '/repo', message: 'the run is stopping', id: 'hunt-1' },
+  ]);
+  const controls = fake.controls();
+  assert.equal(controls.watching?.on(), false);
+  assert.equal(controls.hunting?.on(), false);
+  assert.equal(controls.interrupts.afterIssue(), true);
+});
+
 test('a client that resumes a run while a run is going gets no error and no second run starts', async (t) => {
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);

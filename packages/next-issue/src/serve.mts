@@ -202,6 +202,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     }
     const run = runs.get(root);
     if (run !== undefined && active(run)) {
+      run.stoppedByPerson = true;
       send(socket, stoppingMessage(root, run, id));
     }
     const dropped = dropUpgrade(run);
@@ -217,7 +218,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     set: (run: Run, on: boolean) => void,
   ): void => {
     const run = runs.get(root);
-    const refusal = switchRefusal(run);
+    const refusal = switchRefusal(run, on);
     if (refusal !== undefined) {
       refuse(refusal);
       return;

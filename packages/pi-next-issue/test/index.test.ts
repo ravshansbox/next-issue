@@ -2707,6 +2707,23 @@ test('a user whose worker refuses to switch watching sees why', async () => {
   assert.deepEqual(notes, ['next-issue cannot watch: no run is going']);
 });
 
+test('a user who picks Watch on for a run they stopped is told the run is stopping, not that it keeps watching', async () => {
+  const { path, extension } = setup();
+  const fake = await startFakeWorker(path, '1.0.0', (self, message) => {
+    if (message.type === 'watch') {
+      self.reply({ type: 'error', root: message.root, message: 'the run is stopping' });
+    }
+  });
+  workers.push(fake);
+  fake.runs['/repo'] = running({ status: 'stopping', watching: false });
+  const { pi, emit, pick, notes } = host('rpc');
+  extension(pi as never);
+  await emit('session_start');
+  await pick('Watch on');
+  await until(() => notes.length > 0);
+  assert.deepEqual(notes, ['next-issue cannot watch: the run is stopping']);
+});
+
 test('a user sees a note when watching of the going run turns on or off', async () => {
   const { path, extension } = setup();
   const fake = await worker(path);

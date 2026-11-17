@@ -17,6 +17,7 @@ import type { RunControls } from './run.mts';
 export type Run = {
   progress: Progress;
   stop?: StopPoint;
+  stoppedByPerson?: boolean;
   children: RunChildren;
   wake?: () => void;
   huntBusy?: () => boolean;
@@ -100,9 +101,15 @@ export function stoppingMessage(root: string, run: Run, id?: string): WorkerMess
 }
 
 export function requestUpgrade(run: Run, upgrade: Upgrade): boolean {
-  if (!run.watching.on() || run.stop !== undefined || !requestStop(run, 'issue')) {
+  if (
+    !active(run) ||
+    !run.watching.on() ||
+    run.stoppedByPerson === true ||
+    run.progress.upgrade !== undefined
+  ) {
     return false;
   }
+  requestStop(run, 'issue');
   run.progress = { ...run.progress, upgrade };
   return true;
 }
@@ -115,8 +122,11 @@ export function dropUpgrade(run: Run | undefined): boolean {
   return true;
 }
 
-export function switchRefusal(run: Run | undefined): string | undefined {
-  return active(run) ? undefined : 'no run is going in this repository';
+export function switchRefusal(run: Run | undefined, on: boolean): string | undefined {
+  if (!active(run)) {
+    return 'no run is going in this repository';
+  }
+  return on && run!.stoppedByPerson === true ? 'the run is stopping' : undefined;
 }
 
 // Only a running watch run refreshes: it wakes the wait between passes, or reads the open issues again during a pass.
