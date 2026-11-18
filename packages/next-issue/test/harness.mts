@@ -384,7 +384,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       state.reverts.push({ shas: revert.shas, message: revert.message });
       state.reapplies.push(revert.reapply);
       if (plan.revertFails === true) {
-        return false;
+        return 'failed';
       }
       if (plan.revertLandsAndStops === true) {
         await revert.pushing(String(head + 1));
@@ -394,7 +394,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       }
       remoteBase = String(head + 1);
       head += 2;
-      return true;
+      return 'pushed';
     },
     commitMerge: async (_worktree, _merge, commitMessage) => {
       state.messages.push(commitMessage);

@@ -70,7 +70,7 @@ export async function revert(job: Run): Promise<string> {
   const { context, issue, log, state, branch, worktree } = job;
   const { repo, config, ports, base } = context;
   const shas = state.landed ?? [];
-  const pushed = await log.step('revert', { base, shas }, () =>
+  const reverted = await log.step('revert', { base, shas }, () =>
     ports.revertOnBase(worktree, {
       base,
       remote: config.remote,
@@ -85,13 +85,16 @@ export async function revert(job: Run): Promise<string> {
     }),
   );
   state.reverting = undefined;
-  if (!pushed) {
+  if (reverted === 'failed') {
     await writeState(repo, state);
     return ` The revert of the change on ${base} failed, so the landed commits stay on ${base}.`;
   }
   restoreChange(state);
   releaseSettled(state);
   await writeState(repo, state);
+  if (reverted === 'already reverted') {
+    return ` The change is already reverted on ${base}, so the harness pushed no revert.`;
+  }
   await updateLocalBase(job);
   return ` The harness reverted the change on ${base}.`;
 }

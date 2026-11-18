@@ -119,7 +119,7 @@ test('revertOnBase pushes a revert to the base and leaves the change on the bran
       saved.push(sha);
     },
   });
-  assert.equal(pushed, true);
+  assert.equal(pushed, 'pushed');
   await git(other, 'pull', '-q', 'origin', 'main');
   assert.equal(await git(other, 'log', '-1', '--format=%s'), 'revert: issue #3');
   assert.deepEqual(saved, [await git(other, 'rev-parse', 'HEAD')]);
@@ -173,7 +173,7 @@ test('revertOnBase that cannot push puts the branch back as it was', async () =>
     reapply: 'feat: add b and c',
     pushing: async () => {},
   });
-  assert.equal(pushed, false);
+  assert.equal(pushed, 'failed');
   assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');
   assert.equal(await git(path, 'rev-parse', 'HEAD'), landed);
 });
@@ -204,26 +204,44 @@ test('revertOnBase whose revert conflicts with the base aborts it and puts the b
   await writeFile(join(other, 'b.txt'), 'changed\n');
   await git(other, 'commit', '-q', '-am', 'change b');
   await git(other, 'push', '-q', 'origin', 'main');
-  assert.equal(await revertOnBase(path, revertOf(sha)), false);
+  assert.equal(await revertOnBase(path, revertOf(sha)), 'failed');
   assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');
   assert.equal(await git(path, 'rev-parse', 'HEAD'), sha);
   assert.equal(await git(path, 'status', '--porcelain'), '');
   await assert.rejects(git(path, 'rev-parse', '-q', '--verify', 'REVERT_HEAD'));
 });
 
-test('revertOnBase whose revert commit fails puts the branch back', async () => {
+test('revertOnBase of a change that the base already reverted pushes nothing and puts the change back on the branch on top of the base', async () => {
   const { path, other, sha } = await landed();
   await git(other, 'revert', '--no-edit', sha);
   await git(other, 'push', '-q', 'origin', 'main');
+  const base = await git(other, 'rev-parse', 'HEAD');
+  assert.equal(await revertOnBase(path, revertOf(sha)), 'already reverted');
+  await git(other, 'fetch', '-q', 'origin');
+  assert.equal(await git(other, 'rev-parse', 'origin/main'), base);
+  assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');
+  assert.equal(await git(path, 'rev-parse', 'HEAD^'), base);
+  assert.equal(await git(path, 'log', '-1', '--format=%s'), 'feat: add b and c');
+  assert.equal(await readFile(join(path, 'b.txt'), 'utf8'), 'b.txt\n');
+  assert.equal(await git(path, 'status', '--porcelain'), '');
+});
+
+async function failCommits(path: string): Promise<void> {
+  await git(path, 'config', 'commit.gpgSign', 'true');
+  await git(path, 'config', 'gpg.program', 'false');
+}
+
+test('revertOnBase whose revert commit fails puts the branch back', async () => {
+  const { path, sha } = await landed();
+  await failCommits(path);
   await assert.rejects(revertOnBase(path, revertOf(sha)));
   assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');
   assert.equal(await git(path, 'rev-parse', 'HEAD'), sha);
 });
 
 test('revertOnBase whose revert commit fails and whose branch cannot be checked out again reports the commit error', async () => {
-  const { path, other, sha } = await landed();
-  await git(other, 'revert', '--no-edit', sha);
-  await git(other, 'push', '-q', 'origin', 'main');
+  const { path, sha } = await landed();
+  await failCommits(path);
   await assert.rejects(
     revertOnBase(path, { ...revertOf(sha), branch: 'missing' }),
     (error: Error) => {
@@ -265,7 +283,7 @@ test('revertOnBase whose push loses a race retries on the new base tip', async (
   );
   await chmod(join(hooks, 'pre-push'), 0o755);
   await git(path, 'config', 'core.hooksPath', hooks);
-  assert.equal(await revertOnBase(path, revertOf(sha)), true);
+  assert.equal(await revertOnBase(path, revertOf(sha)), 'pushed');
   await git(other, 'pull', '-q', 'origin', 'main');
   assert.equal(await git(other, 'log', '-2', '--format=%s'), 'revert: issue #3\nrace');
   assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');
@@ -292,7 +310,7 @@ async function pushLandsAndFails(path: string, after = ''): Promise<void> {
 test('revertOnBase whose push lands although git push reports a failure treats the revert as landed', async () => {
   const { path, other, sha } = await landed();
   await pushLandsAndFails(path);
-  assert.equal(await revertOnBase(path, revertOf(sha)), true);
+  assert.equal(await revertOnBase(path, revertOf(sha)), 'pushed');
   await git(other, 'pull', '-q', 'origin', 'main');
   assert.equal(await git(other, 'log', '-2', '--format=%s'), 'revert: issue #3\nfeat: add b and c');
   assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');

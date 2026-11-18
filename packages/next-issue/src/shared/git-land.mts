@@ -55,22 +55,26 @@ export type Revert = {
   pushing: (sha: string) => Promise<void>;
 };
 
-export async function revertOnBase(cwd: string, revert: Revert): Promise<boolean> {
+export type Reverted = 'pushed' | 'failed' | 'already reverted';
+
+export async function revertOnBase(cwd: string, revert: Revert): Promise<Reverted> {
   try {
-    if (await pushRevert(cwd, revert)) {
-      return true;
+    const reverted = await pushRevert(cwd, revert);
+    if (reverted !== 'failed') {
+      return reverted;
     }
   } catch (error) {
     await putBranchBack(cwd, revert.branch).catch(() => undefined);
     throw error;
   }
   await putBranchBack(cwd, revert.branch);
-  return false;
+  return 'failed';
 }
 
 function putBranchBack(cwd: string, branch: string): Promise<void> {
   return evenWhenStopped(async () => {
     await succeeds(cwd, ['revert', '--abort']);
+    await succeeds(cwd, ['cherry-pick', '--abort']);
     await git(cwd, ['checkout', '--force', branch]);
   });
 }
@@ -101,14 +105,21 @@ async function commitReapply(
   await git(cwd, ['checkout', '-B', branch]);
 }
 
-async function pushRevert(cwd: string, revert: Revert): Promise<boolean> {
+async function pushRevert(cwd: string, revert: Revert): Promise<Reverted> {
   const { base, remote, branch, shas, message, reapply, pushing } = revert;
   for (let attempt = 1; attempt <= PUSH_TRIES; attempt += 1) {
     const target = await fetchBase(cwd, base, remote);
     await git(cwd, ['checkout', '--force', '--detach', target]);
     await git(cwd, ['clean', '-fd']);
     if (!(await succeeds(cwd, ['revert', '--no-commit', ...shas.toReversed()]))) {
-      return false;
+      return 'failed';
+    }
+    if (await succeeds(cwd, ['diff', '--cached', '--quiet', 'HEAD'])) {
+      await git(cwd, ['revert', '--abort']);
+      await git(cwd, ['cherry-pick', '--no-commit', ...shas]);
+      await git(cwd, ['commit', '--no-verify', '-m', reapply]);
+      await git(cwd, ['checkout', '-B', branch]);
+      return 'already reverted';
     }
     await git(cwd, ['commit', '--no-verify', '-m', message]);
     const reverted = await revision(cwd);
@@ -118,8 +129,8 @@ async function pushRevert(cwd: string, revert: Revert): Promise<boolean> {
       (await isOnBase(cwd, base, remote, reverted))
     ) {
       await commitReapply(cwd, reverted, reapply, branch);
-      return true;
+      return 'pushed';
     }
   }
-  return false;
+  return 'failed';
 }
