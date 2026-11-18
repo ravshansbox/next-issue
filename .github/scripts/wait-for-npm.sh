@@ -5,6 +5,9 @@ version=$1
 limit=${2:-600}
 deadline=$((SECONDS + limit))
 for manifest in packages/*/package.json; do
+  if [ "$(node -p "require('./$manifest').private === true")" = true ]; then
+    continue
+  fi
   name=$(node -p "require('./$manifest').name")
   until [ "$(npm view "$name@$version" version --prefer-online 2>/dev/null)" = "$version" ]; do
     if [ "$SECONDS" -ge "$deadline" ]; then

@@ -22,6 +22,7 @@ jobs:
       - run: .github/scripts/release-bump.test.sh
       - run: .github/scripts/repair-release.test.sh
       - run: .github/scripts/check-npm.test.sh
+      - run: .github/scripts/wait-for-npm.test.sh
       - run: .github/scripts/release-notes.test.sh
 
   release:

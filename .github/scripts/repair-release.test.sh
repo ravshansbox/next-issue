@@ -108,6 +108,16 @@ second" yes
 check 'the release job changes nothing when npm holds every package of the last tag and the release exists' ''
 
 setup
+mkdir -p "$repo/packages/plugin"
+echo '{"name":"plugin","version":"0.0.0","private":true}' > "$repo/packages/plugin/package.json"
+git -C "$repo" add .
+git -C "$repo" commit --quiet -m 'feat: plugin'
+git -C "$repo" tag v1.2.0
+repair "first
+second" yes
+check 'the release job publishes no private package' ''
+
+setup
 git -C "$repo" tag v1.2.0
 repair first '' second
 check 'the release job counts a package that npm refuses as previously published as held and makes the missing release' "npm ci --ignore-scripts

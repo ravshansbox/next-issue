@@ -15,6 +15,9 @@ cd "$tree"
 
 missing=()
 for manifest in packages/*/package.json; do
+  if [ "$(node -p "require('./$manifest').private === true")" = true ]; then
+    continue
+  fi
   name=$(node -p "require('./$manifest').name")
   if [ "$(npm view "$name@$version" version --prefer-online 2>/dev/null)" = "$version" ]; then
     echo "npm already holds $name@$version."
