@@ -22,7 +22,7 @@ test('the next reviewer reads the settled note of the fixer', async (t) => {
   const second = target.prompts.filter((entry) => entry.role === 'reviewer')[1]!.prompt;
   assert.match(
     second,
-    /The fixer settled every finding of this round with no code change: the new test failed/,
+    /The fixer settled every finding of this round with no code change:\n```untrusted\nthe new test failed/,
   );
 });
 

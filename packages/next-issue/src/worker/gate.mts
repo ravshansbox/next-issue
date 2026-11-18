@@ -3,6 +3,7 @@ import { budgetUse, refundBudget, refundOnKill } from './budget.mts';
 import { type CheckState, checkWaiting } from '../shared/check-poll.mts';
 import { runStopped } from '../shared/children.mts';
 import { asError, message } from '../shared/errors.mts';
+import { untrusted } from '../shared/prompts.mts';
 import { escalateCheckFix, type Fix, fixRound } from './fix.mts';
 import { escalateAndFinish } from '../shared/handover.mts';
 import { type Finished, type Gate, GATE_FIXED, GATE_PASSED, type Run } from '../shared/job.mts';
@@ -205,7 +206,7 @@ async function failedChecksFix(job: Run, sha: string, refused?: string): Promise
 function refusedNote(refused: string | undefined): string {
   return refused === undefined
     ? ''
-    : ` The last fixer called the failure unrelated, but the failed logs name \`${refused}\`, a file of this change, so the failure is not unrelated.`;
+    : ` The last fixer called the failure unrelated, but the failed logs name a file of this change, so the failure is not unrelated:\n${untrusted(refused)}`;
 }
 
 /** The first file of the change that the logs name, by its path or by a tail of its path that keeps a folder and has no folder before it. */

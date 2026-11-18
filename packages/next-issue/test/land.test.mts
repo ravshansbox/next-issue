@@ -282,7 +282,7 @@ test('a user whose fixer calls a failure in a test file that the change added un
   assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer', 'fixer']);
   assert.match(
     target.prompts[3]!.prompt,
-    /the failed logs name `test\/local-checks\.test\.mts`, a file of this change/,
+    /the failed logs name a file of this change, so the failure is not unrelated:\n```untrusted\ntest\/local-checks\.test\.mts\n```/,
   );
   assert.deepEqual(target.reverts, []);
 });
@@ -299,7 +299,7 @@ test('a user whose fixer calls a failure unrelated when the failed logs name a t
   assert.equal(report.ciFixes, 2);
   assert.match(
     target.prompts[3]!.prompt,
-    /the failed logs name `packages\/b\/src\/index\.ts`, a file of this change/,
+    /the failed logs name a file of this change, so the failure is not unrelated:\n```untrusted\npackages\/b\/src\/index\.ts\n```/,
   );
 });
 
