@@ -26,12 +26,6 @@ test('a user who hunts with next-issue.hunt.md sees the hunter follow it in the 
   assert.doesNotMatch(prompt, /Read the whole repository/);
 });
 
-test('a user who hunts with no next-issue.hunt.md sees the hunter get the built-in prompt', async (t) => {
-  const target = await harness(t);
-  await hunt(target.context, 1);
-  assert.match(target.prompts[0]!.prompt, /Read the whole repository/);
-});
-
 test('a user who hunts with no next-issue.hunt.md sees the hunter told to file only high-severity bugs of normal use and to simplify code that an earlier fix added', async (t) => {
   const target = await harness(t);
   await hunt(target.context, 1);

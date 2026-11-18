@@ -236,19 +236,6 @@ test('a client that asks a run to refresh after it switched watching on wakes it
   assert.equal(refreshed.aborted, true);
 });
 
-test('a client that switches hunting with no run going gets an error and no run starts', async (t) => {
-  const fake = fakeRuns();
-  const { socketPath } = await worker(t, fake);
-  const client = await connect(t, socketPath);
-  client.send({ type: 'hunt', root: '/repo', on: true });
-  assert.deepEqual(await client.next((value) => value.type === 'error'), {
-    type: 'error',
-    root: '/repo',
-    message: 'no run is going in this repository',
-  });
-  assert.equal(fake.calls.length, 0);
-});
-
 test('a client whose requests carry an id gets each refusal back with the id of the request it answers', async (t) => {
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);

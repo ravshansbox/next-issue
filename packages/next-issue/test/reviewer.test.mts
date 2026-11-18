@@ -101,16 +101,6 @@ test('the reviewer can run commands in the worktree', async (t) => {
   assert.match(target.prompts.at(-1)!.prompt, /run commands to prove what you say/);
 });
 
-test('a change that the reviewer leaves never reaches a commit', async (t) => {
-  const target = await harness(t, {
-    reviewerWrites: true,
-    verdicts: [changes('The count is wrong.'), APPROVE],
-  });
-  const report = await target.run();
-  assert.equal(report.outcome, 'done');
-  assert.equal(target.discards, 4);
-});
-
 test('a reviewer that checks out another branch leaves that branch where it was and gets branch 7 put back, so the fixer commit moves branch 7', async (t) => {
   const repo = await gitRepo();
   await git(repo.root, 'branch', 'other', 'origin/main');

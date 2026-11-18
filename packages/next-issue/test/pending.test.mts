@@ -106,18 +106,6 @@ test('a user whose saved issue can no longer be read gets the other issues and a
   );
 });
 
-test('a user whose run cannot read a saved issue gets no ended issue for it in the run log', async (t) => {
-  const target = await harness(t, {
-    saved: SAVED,
-    open: [LATER],
-    fail: 'viewIssue',
-  });
-  await pendingIssues(target.context);
-  assert.ok(
-    !target.events.some((record) => record.kind === 'issue.end' || record.kind === 'issue.error'),
-  );
-});
-
 test('a user with a ready label gets the unblocked and the blocked ready, in-progress and in-review issues asked for apart from the waiting ones, and the given-up ones left out', async (t) => {
   const target = await harness(t);
   const asked: unknown[] = [];

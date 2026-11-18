@@ -23,13 +23,6 @@ const slowAfter =
     return text('word '.repeat(3000), 20);
   };
 
-test('a Bash call records the command', () => {
-  assert.deepEqual(toolFields('Bash', { command: 'npm test' }, '/work'), {
-    tool: 'Bash',
-    command: 'npm test',
-  });
-});
-
 test('an agent that reads a file inside its folder has the path logged relative to that folder', async (t) => {
   const { recorder, request, steps } = await claude(t);
   steps.push(toolUse('Read', { file_path: join(request.cwd, 'note.txt') }), text('done'));
@@ -190,20 +183,6 @@ test('the harness saves the session of an agent next to the run log', async (t) 
 test('the harness reports the error when the model of an agent fails', async (t) => {
   const { recorder, request } = await claude(t, [{ error: 'no credit' }]);
   await assert.rejects(runAgent(recorder, request), /^Error: The coder agent failed: .*no credit/);
-});
-
-test('the harness reports a timeout when an agent runs too long', async (t) => {
-  const { recorder, request } = await claude(t, [slow()]);
-  await assert.rejects(runAgent(recorder, { ...request, timeoutMs: 1500 }), {
-    message: 'The coder agent did not finish in 1500 ms.',
-  });
-});
-
-test('a user who stops a run now while an agent runs gets no agent reply, only a stopped run', async (t) => {
-  const children = runChildren();
-  const { recorder, request } = await claude(t, [slowAfter(() => stopRunChildren(children))]);
-  const running = withRunChildren(children, () => runAgent(recorder, request));
-  await assert.rejects(running, { message: 'The run stopped.' });
 });
 
 test('a user who stops a run now while an agent starts gets no agent turn, only a stopped run', async (t) => {

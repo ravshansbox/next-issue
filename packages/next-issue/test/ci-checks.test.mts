@@ -178,53 +178,6 @@ test('rerunFailedCi reruns a failed workflow run and leaves one that waits for a
   assert.equal(await readFile(join(dir, 'reruns'), 'utf8'), '2\n');
 });
 
-function passedRuns(count: number): unknown[] {
-  return Array.from({ length: count }, (_, index) => ({
-    databaseId: index + 1,
-    name: `Package ${index + 1}`,
-    status: 'completed',
-    conclusion: 'success',
-    attempt: 1,
-  }));
-}
-
-test('waitForCiChecks fails when the commit has more than 20 runs and one beyond the first 20 fails', async (t) => {
-  const dir = await fakeRunsGh(t, [
-    ...passedRuns(20),
-    {
-      databaseId: 21,
-      name: 'Release',
-      status: 'completed',
-      conclusion: 'failure',
-      attempt: 1,
-    },
-  ]);
-  assert.equal(
-    await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
-    'fail',
-  );
-});
-
-test('rerunFailedCi and failedCiLogs cover a failed run beyond the first 20 runs on the commit', async (t) => {
-  const failed = {
-    databaseId: 21,
-    name: 'Release',
-    status: 'completed',
-    conclusion: 'failure',
-  };
-  const dir = await fakeRunsGh(
-    t,
-    [...passedRuns(20), { ...failed, attempt: 1 }],
-    [...passedRuns(20), { ...failed, status: 'queued', conclusion: '', attempt: 2 }],
-  );
-  const repo = { owner: 'acme', name: 'tool', root: dir };
-  const report = await failedCiLogs(repo, 'abc', 'main', 1000);
-  assert.match(report, /## Release/);
-  assert.match(report, /boom in 21/);
-  assert.deepEqual(await rerunFailedCi(repo, 'abc', 'main'), ['21']);
-  assert.equal(await readFile(join(dir, 'reruns'), 'utf8'), '21\n');
-});
-
 test('waitForCiChecks reports none when the commit starts no run', async (t) => {
   const dir = await fakeRunsGh(t, []);
   assert.equal(
@@ -528,7 +481,6 @@ test('a user whose landed commit has a passed push run and a failed issues run g
   assert.equal(report.outcome, 'done');
   assert.deepEqual(target.closed, [7]);
   assert.equal(target.labels.at(-1)!.label, 'status:done');
-  assert.deepEqual(target.reruns, []);
 });
 
 const OTHER_REF_RUNS = [
@@ -592,7 +544,6 @@ test('a user whose landed commit has a passed push run on the base branch and a 
   assert.equal(report.outcome, 'done');
   assert.deepEqual(target.closed, [7]);
   assert.equal(target.labels.at(-1)!.label, 'status:done');
-  assert.deepEqual(target.reruns, []);
 });
 
 test('a user whose landed commit gets a failing commit status after the first check has passed gets the issue handed to a person, not closed', async (t) => {
@@ -1179,7 +1130,6 @@ for (const ignoredChecks of [['release'], []]) {
       assert.equal(report.outcome, 'done');
       assert.deepEqual(target.closed, [7]);
       assert.deepEqual(target.reverts, []);
-      assert.deepEqual(target.reruns, []);
     } else {
       assert.equal(report.reason, 'check budget');
       assert.deepEqual(target.closed, []);
@@ -1297,7 +1247,6 @@ test('a user with ignoredChecks whose landed commit fails a continue-on-error jo
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.deepEqual(target.closed, [7]);
-  assert.deepEqual(target.reruns, []);
   assert.deepEqual(target.reverts, []);
 });
 

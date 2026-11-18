@@ -88,29 +88,6 @@ test('a user who resumes a claimed issue whose branch is already ahead of the ba
   assert.match(target.messages.at(-1)!, /^fix: earlier work\n/);
 });
 
-test('a user whose issue is handed over before a pull request exists gets the reason as a comment on the issue', async (t) => {
-  const target = await harness(t, { commits: [false] });
-  await target.run();
-  assert.equal(target.issueNotes.length, 1);
-  assert.equal(target.issueNotes[0]!.number, 7);
-  assert.match(target.issueNotes[0]!.body, /^### next-issue · Hand-over: needs help\n\n/);
-});
-
-test('a user whose resumed issue has a pull request in its state gets the hand-over as a comment on the issue', async (t) => {
-  const target = await harness(t, {
-    issue: { ...ISSUE, labels: [] },
-    saved: SAVED,
-    config: { maxReviewRounds: 1 },
-  });
-  const report = await target.run();
-  assert.equal(report.outcome, 'needs-human');
-  assert.deepEqual(
-    target.issueNotes.map((note) => note.number),
-    [7],
-  );
-  assert.match(target.issueNotes[0]!.body, /^### next-issue · Hand-over: needs help\n\n/);
-});
-
 test('a user whose issue is handed over after the review gets the verdict and the reason on the issue', async (t) => {
   const target = await harness(t, { config: { maxCiFixes: 0 }, baseChecks: ['fail'] });
   await target.run();

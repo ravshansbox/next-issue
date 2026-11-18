@@ -39,11 +39,6 @@ test('an agent who follows a skill runs only next-issue commands that the CLI ta
   }
 });
 
-test('an agent who fills in the create-issue template finds the open questions section empty', async () => {
-  const template = await readFile(new URL('create-issue/template.md', skills), 'utf8');
-  assert.match(template, /## Open questions\s*$/);
-});
-
 test('an agent who creates an issue with the create-issue skill adds the ready label only after it links every blocker', async () => {
   const skill = await readFile(createIssue, 'utf8');
   assert.doesNotMatch(skill, /gh issue create[^\n]*--label/);

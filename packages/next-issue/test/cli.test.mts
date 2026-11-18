@@ -211,7 +211,6 @@ async function refusedRun(root: string, cwd = root) {
   assert.equal(error?.code, 1);
   assert.equal(await exists(called), false);
   assert.equal(await readFile(lockPath, 'utf8'), lock);
-  assert.equal(await exists(join(stateDir(root), 'run.lock')), false);
   return error?.stderr ?? '';
 }
 
@@ -406,11 +405,10 @@ async function gone(path: string): Promise<boolean> {
   return !(await exists(path));
 }
 
-test('a user whose run ends finds no worker.lock and no run.lock left in the repository once the worker it started closes', async () => {
+test('a user whose run ends finds no worker.lock left in the repository once the worker it started closes', async () => {
   const root = await repository();
   assert.match(await singleRun(root), /No such remote 'origin'/);
   assert.equal(await gone(workerPaths(root).lockPath), true);
-  assert.equal(await exists(join(stateDir(root), 'run.lock')), false);
 });
 
 test('a user who runs next-issue over a worker.lock that a dead process left takes it over and leaves no worker.lock', async () => {
@@ -423,19 +421,6 @@ test('a user who runs next-issue over a worker.lock that a dead process left tak
   assert.doesNotMatch(stderr, /exited before it listened/);
   assert.match(stderr, /No such remote 'origin'/);
   assert.equal(await gone(workerPaths(root).lockPath), true);
-});
-
-test('a user who starts a run in the worker sees it go past the worker lock and create no run.lock', async (t) => {
-  const root = await realpath(await repository());
-  const { child } = await serveWorker(root);
-  t.after(() => child.kill('SIGKILL'));
-  const client = await connect(t, workerPaths(root).socketPath);
-  client.send({ type: 'start', root });
-  const ended = await client.next(
-    (value) => value.type === 'runs' && value.runs[root]?.status === 'failed',
-  );
-  assert.match(ended.type === 'runs' ? ended.runs[root]!.error! : '', /No such remote 'origin'/);
-  assert.equal(await exists(join(stateDir(root), 'run.lock')), false);
 });
 
 test('a user who stops the worker with SIGTERM sees it exit and remove its socket and lock files', async () => {

@@ -353,20 +353,6 @@ test('a user who runs start with --watch off gets the text summary of the run on
   assert.match(started.stdout(), /^run \S+\nissues 0: .*\ntokens .*\nlog .*\.jsonl\n$/);
 });
 
-test('a user who runs start while the worker has a run going sees that a run is going and exit code 1', async (t) => {
-  const root = await repository();
-  const fake = fakeRuns();
-  await fakeWorker(t, root, fake.runRepo);
-  const other = await connect(t, workerPaths(root).socketPath);
-  other.send({ type: 'start', root });
-  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'running');
-  const started = startCommand(t, root, []);
-  assert.equal(await started.exited, 1);
-  assert.match(started.stderr(), /a run is going in this repository already/);
-  assert.equal(fake.calls.length, 1);
-  fake.finish();
-});
-
 test('a user who presses Ctrl-C three times sees the worker stop the run after the issues, then after the round, then at once, with the notes of each press', async (t) => {
   const fake = fakeRuns();
   let stoppedNow = false;

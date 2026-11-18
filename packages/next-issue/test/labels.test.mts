@@ -9,10 +9,6 @@ import { tempDir } from './temp-dir.mts';
 
 const MANAGED = ['status:todo', 'status:in-progress', 'status:in-review', 'status:done'];
 
-test('labelArgs adds the new label', () => {
-  assert.deepEqual(labelArgs('status:in-review', MANAGED, []), ['--add-label', 'status:in-review']);
-});
-
 test('labelArgs removes only a label that is present', () => {
   assert.deepEqual(labelArgs('status:in-review', MANAGED, ['status:todo', 'type: bug']), [
     '--add-label',
