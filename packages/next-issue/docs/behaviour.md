@@ -101,9 +101,9 @@ The prompt puts the body of the issue, check logs, hook output, the diff, the re
 
 Thus a writer can still give an instruction to the agent, and the agent can read other text, such as linked issues or files, by itself. Use the harness only on a repository where you trust the writers, or run it in a container.
 
-[ADR 0001](https://github.com/ravshansbox/next-issue/blob/main/docs/adr/0001-reviewer-isolation.md) records why the reviewer keeps a full shell, and which other options were considered.
+[ADR 0007](https://github.com/ravshansbox/next-issue/blob/main/docs/adr/0007-agent-isolation.md) records why the agents keep a full shell, and which other options were considered.
 
-No person checks a change before it lands. To replace those checks, [ADR 0004](https://github.com/ravshansbox/next-issue/blob/main/docs/adr/0004-humanless-flow.md) recommends a non-empty `checks` gate, a different model for the reviewer than for the implementer and the fixer in `models`, and running the whole harness in a container.
+No person checks a change before it lands. To replace those checks, [ADR 0002](https://github.com/ravshansbox/next-issue/blob/main/docs/adr/0002-humanless-flow.md) recommends a non-empty `checks` gate, a different model for the reviewer than for the implementer and the fixer in `models`, and running the whole harness in a container.
 
 ## Observability
 
