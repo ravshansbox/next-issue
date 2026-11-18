@@ -148,7 +148,7 @@ export type Plan = {
 
 export type Harness = {
   context: Context;
-  profiles: Array<{ role: string; tools: string[] }>;
+  profiles: Array<{ role: string; disallowedTools: string[] }>;
   labels: Array<{ kind: string; number: number; label: string }>;
   removable: string[][];
   prompts: Array<{ role: string; prompt: string }>;
@@ -447,7 +447,10 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
         throw new Error('The run stopped.');
       }
       await hangIf(request.name);
-      state.profiles.push({ role: request.name, tools: request.profile.tools });
+      state.profiles.push({
+        role: request.name,
+        disallowedTools: request.profile.disallowedTools,
+      });
       if (request.name === 'reviewer') {
         if (plan.reviewerCommits === true) {
           head += 1;

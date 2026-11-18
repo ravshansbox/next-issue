@@ -12,10 +12,10 @@ const ENGINEERING_RULES = [
 ].join('\n');
 
 const OTHER_RULES =
-  'The other rules of `AGENTS.md`, such as code conventions and test style, still apply.';
+  'The other rules of `CLAUDE.md`, such as code conventions and test style, still apply.';
 
 const HARNESS_RULES = [
-  'The harness owns the issue, the worktree, the branch, git, the commit, the push and the checks. The workflow rules of `AGENTS.md` about these do not apply to you.',
+  'The harness owns the issue, the worktree, the branch, git, the commit, the push and the checks. The workflow rules of `CLAUDE.md` about these do not apply to you.',
   OTHER_RULES,
 ].join('\n');
 
@@ -296,7 +296,7 @@ export function huntPrompt(
     '## Rules',
     [
       'Run no test suite and no build. Change no file. Do not commit or push.',
-      'The harness owns the worktree, git and the checks. The workflow rules of `AGENTS.md` about these do not apply to you.',
+      'The harness owns the worktree, git and the checks. The workflow rules of `CLAUDE.md` about these do not apply to you.',
       OTHER_RULES,
       `File up to ${issues}, your most serious findings first. File nothing when you find no real problem.`,
       `Before you file an issue, search the open and closed issues for a duplicate, for example with \`gh issue list --repo ${repository} --state all --search "<words>"\`. Do not file a finding when a duplicate exists.`,

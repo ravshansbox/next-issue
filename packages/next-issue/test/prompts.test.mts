@@ -180,7 +180,7 @@ test('the implementer and every fixer kind are told the engineering rules', () =
   }
 });
 
-test('each editing and reviewing agent is told that the harness owns the workflow rules of AGENTS.md', () => {
+test('each editing and reviewing agent is told that the harness owns the workflow rules of CLAUDE.md', () => {
   const prompts = [
     implementPrompt(ISSUE, []),
     hookPrompt(ISSUE, [], 'implementer', 'hook output'),
@@ -190,11 +190,11 @@ test('each editing and reviewing agent is told that the harness owns the workflo
   for (const prompt of prompts) {
     assert.match(
       prompt,
-      /The harness owns the issue, the worktree, the branch, git, the commit, the push and the checks\. The workflow rules of `AGENTS\.md` about these do not apply to you\./,
+      /The harness owns the issue, the worktree, the branch, git, the commit, the push and the checks\. The workflow rules of `CLAUDE\.md` about these do not apply to you\./,
     );
     assert.match(
       prompt,
-      /The other rules of `AGENTS\.md`, such as code conventions and test style, still apply\./,
+      /The other rules of `CLAUDE\.md`, such as code conventions and test style, still apply\./,
     );
   }
 });
@@ -223,11 +223,11 @@ test('the hunter is told that the harness owns the worktree, git and the checks 
   const prompt = huntPrompt(undefined, 'status:todo', '', 1, 'owner/repo');
   assert.match(
     prompt,
-    /The harness owns the worktree, git and the checks\. The workflow rules of `AGENTS\.md` about these do not apply to you\./,
+    /The harness owns the worktree, git and the checks\. The workflow rules of `CLAUDE\.md` about these do not apply to you\./,
   );
   assert.match(
     prompt,
-    /The other rules of `AGENTS\.md`, such as code conventions and test style, still apply\./,
+    /The other rules of `CLAUDE\.md`, such as code conventions and test style, still apply\./,
   );
   assert.match(prompt, /gh issue create --repo owner\/repo/);
 });

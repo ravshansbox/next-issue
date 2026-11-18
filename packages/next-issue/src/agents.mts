@@ -1,28 +1,20 @@
-import { readFileSync } from 'node:fs';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import {
-  type AgentSession,
-  type AgentSessionEvent,
-  getAgentDir,
-  type ModelRuntime,
-  type SettingsManager,
-} from '@earendil-works/pi-coding-agent';
-import { openSession } from './agent-session.mts';
-import { onStop, refuseWhenStopped } from './children.mts';
+import { type ChildProcess, spawn } from 'node:child_process';
+import { mkdir, writeFile } from 'node:fs/promises';
+import type { Readable, Writable } from 'node:stream';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { query, type SDKMessage, type Settings } from '@anthropic-ai/claude-agent-sdk';
+import { killTree, onStop, refuseWhenStopped, watch } from './children.mts';
 import { deadline, elapsedMs } from './durations.mts';
 import type { Fields, Recorder } from './observe.mts';
 import { isRecord } from './records.mts';
 import { emptyUsage, type Usage } from './usage.mts';
 
 export type Profile = {
-  tools: string[];
+  disallowedTools: string[];
 };
 
 type Runtime = {
-  agentDir?: string;
-  modelRuntime?: ModelRuntime;
-  settingsManager?: SettingsManager;
+  env?: Record<string, string>;
 };
 
 export type AgentRequest = {
@@ -46,170 +38,240 @@ export type AgentResult = {
 };
 
 export const REVIEWING: Profile = {
-  tools: ['+grep', '+find', '+ls', '-edit', '-write'],
+  disallowedTools: ['Write', 'Edit', 'NotebookEdit'],
 };
 
 export const CODING: Profile = {
-  tools: ['+grep', '+find', '+ls'],
+  disallowedTools: [],
 };
 
-const PI_CLI = piCli();
+export const OWN_PLUGIN = 'next-issue@next-issue';
 
-function piCli(): string {
-  const root = dirname(
-    dirname(fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))),
-  );
-  const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
-    bin: { pi: string };
-  };
-  return join(root, manifest.bin.pi);
-}
+const OWN_SETTINGS: Settings = { enabledPlugins: { [OWN_PLUGIN]: false } };
+
+type Session = {
+  messages: SDKMessage[];
+  usages: Map<string, Usage>;
+  tools: Map<string, string>;
+  toolCalls: number;
+  text: string;
+  model?: string;
+  sessionId?: string;
+  failure?: string;
+  final?: Usage;
+};
 
 export async function runAgent(recorder: Recorder, request: AgentRequest): Promise<AgentResult> {
+  checkModel(request.model);
   const log = recorder.scope({ role: request.name });
-  const agentDir = request.runtime?.agentDir ?? getAgentDir();
   const started = Date.now();
-  process.env.GIT_OPTIONAL_LOCKS = '0';
-  process.argv[1] = PI_CLI;
   log.event('agent.start', { model: request.model, timeoutMs: request.timeoutMs });
-
-  // pi drops an abort that comes before its run starts (during bindExtensions or the prompt
-  // preflight), so remember it and abort again once the run is active, before its first turn.
-  let opened: AgentSession | undefined;
   let ended = false;
-  let expire = (): void => undefined;
-  const expired = new Promise<undefined>((resolve) => {
-    expire = () => resolve(undefined);
-  });
+  let child: ChildProcess | undefined;
   const end = (): void => {
     ended = true;
-    void opened?.abort();
+    if (child !== undefined) {
+      killTree(child);
+    }
   };
-  const timer = deadline(request.timeoutMs, () => {
-    expire();
-    end();
-  });
-  const session = await openWithin(openSession(recorder, log, request, agentDir), expired).catch(
-    (error: unknown) => {
-      timer.clear();
-      throw error;
-    },
-  );
-  if (session === undefined) {
-    throw timeoutError(request);
-  }
-  opened = session;
-  const unsubscribe = session.subscribe((event) => observe(log, event, request.cwd));
+  const timer = deadline(request.timeoutMs, end);
   const release = onStop(end);
+  const session: Session = {
+    messages: [],
+    usages: new Map(),
+    tools: new Map(),
+    toolCalls: 0,
+    text: '',
+  };
   try {
     refuseWhenStopped();
-    await session.bindExtensions({});
     let result: AgentResult;
     try {
-      if (!ended) {
-        await session.prompt(request.prompt, {
-          expandPromptTemplates: false,
-          preflightResult: (disposition) => {
-            if (disposition === 'started' && ended) {
-              void session.abort();
+      const agent = query({
+        prompt: request.prompt,
+        options: {
+          cwd: request.cwd,
+          disallowedTools: request.profile.disallowedTools,
+          permissionMode: 'bypassPermissions',
+          allowDangerouslySkipPermissions: true,
+          persistSession: false,
+          settings: OWN_SETTINGS,
+          env: { ...process.env, ...request.runtime?.env, GIT_OPTIONAL_LOCKS: '0' },
+          ...(request.model === undefined ? {} : { model: request.model }),
+          spawnClaudeCodeProcess: ({ command, args, cwd, env }) => {
+            child = spawn(command, args, {
+              cwd,
+              env,
+              detached: true,
+              stdio: ['pipe', 'pipe', 'ignore'],
+            });
+            const unwatch = watch(child.pid);
+            child.once('exit', unwatch);
+            if (ended) {
+              killTree(child);
             }
+            return child as ChildProcess & { stdin: Writable; stdout: Readable };
           },
-        });
+        },
+      });
+      for await (const message of agent) {
+        observe(log, session, message, request.cwd);
+      }
+    } catch (error) {
+      if (!ended && session.failure === undefined) {
+        throw error;
       }
     } finally {
       // A call that times out, fails or is stopped has spent tokens too.
-      result = sessionResult(recorder, request, session, started);
+      result = await sessionResult(recorder, request, session, started);
     }
     refuseWhenStopped();
     if (timer.timedOut()) {
-      throw timeoutError(request);
+      throw new Error(`The ${request.name} agent did not finish in ${request.timeoutMs} ms.`);
     }
-    const failure = lastFailure(session);
-    if (failure !== undefined) {
-      throw new Error(`The ${request.name} agent failed: ${failure}`);
+    if (session.failure !== undefined) {
+      throw new Error(`The ${request.name} agent failed: ${session.failure}`);
     }
     return result;
   } finally {
     timer.clear();
     release();
-    unsubscribe();
-    session.dispose();
   }
 }
 
-async function openWithin(
-  opening: Promise<AgentSession>,
-  expired: Promise<undefined>,
-): Promise<AgentSession | undefined> {
-  const session = await Promise.race([opening, expired]);
-  if (session === undefined) {
-    opening.then(
-      (late) => late.dispose(),
-      () => undefined,
+function checkModel(model: string | undefined): void {
+  if (model?.includes('/') === true) {
+    throw new Error(
+      `The model ${model} is not a Claude model ID. Use an ID such as claude-opus-5-5.`,
     );
   }
-  return session;
 }
 
-function timeoutError(request: AgentRequest): Error {
-  return new Error(`The ${request.name} agent did not finish in ${request.timeoutMs} ms.`);
-}
-
-function lastFailure(session: AgentSession): string | undefined {
-  const last = session.messages.findLast((message) => message.role === 'assistant');
-  if (last === undefined || !('stopReason' in last) || last.stopReason !== 'error') {
-    return undefined;
+function observe(log: Recorder, session: Session, message: SDKMessage, cwd: string): void {
+  session.messages.push(message);
+  if (message.type === 'system' && message.subtype === 'init') {
+    session.model = message.model;
+    session.sessionId = message.session_id;
+  } else if (
+    message.type === 'assistant' &&
+    message.parent_tool_use_id === null &&
+    message.error === undefined
+  ) {
+    const { id, usage, content } = message.message;
+    session.usages.set(id, {
+      ...emptyUsage(),
+      input: usage.input_tokens,
+      output: usage.output_tokens,
+      cacheRead: usage.cache_read_input_tokens ?? 0,
+      cacheWrite: usage.cache_creation_input_tokens ?? 0,
+    });
+    for (const block of content) {
+      if (block.type === 'tool_use') {
+        session.toolCalls += 1;
+        session.tools.set(block.id, block.name);
+        log.event('tool', toolFields(block.name, block.input, cwd));
+      } else if (block.type === 'text') {
+        session.text = block.text;
+      }
+    }
+  } else if (message.type === 'user' && Array.isArray(message.message.content)) {
+    for (const block of message.message.content) {
+      if (block.type === 'tool_result' && block.is_error === true) {
+        log.event('tool.error', { tool: session.tools.get(block.tool_use_id) });
+      }
+    }
+  } else if (message.type === 'result') {
+    session.final = emptyUsage();
+    for (const usage of Object.values(message.modelUsage)) {
+      session.final.input += usage.inputTokens;
+      session.final.output += usage.outputTokens;
+      session.final.cacheRead += usage.cacheReadInputTokens;
+      session.final.cacheWrite += usage.cacheCreationInputTokens;
+    }
+    if (message.subtype === 'success' && !message.is_error) {
+      session.text = message.result;
+    } else {
+      session.failure =
+        message.subtype === 'success'
+          ? message.result
+          : message.errors.join('; ') || message.subtype;
+    }
   }
-  return last.errorMessage ?? 'no reason given';
 }
 
-function sessionResult(
+function totalOf(usage: Usage): Usage {
+  return { ...usage, total: usage.input + usage.output + usage.cacheRead + usage.cacheWrite };
+}
+
+async function sessionResult(
   recorder: Recorder,
   request: AgentRequest,
-  session: AgentSession,
+  session: Session,
   started: number,
-): AgentResult {
-  const stats = session.getSessionStats();
-  const usage: Usage = { ...emptyUsage(), ...stats.tokens };
-  const name =
-    session.model === undefined ? undefined : `${session.model.provider}/${session.model.id}`;
+): Promise<AgentResult> {
+  let usage = session.final;
+  if (usage === undefined) {
+    usage = emptyUsage();
+    for (const each of session.usages.values()) {
+      usage.input += each.input;
+      usage.output += each.output;
+      usage.cacheRead += each.cacheRead;
+      usage.cacheWrite += each.cacheWrite;
+    }
+  }
+  usage = totalOf(usage);
+  const model = request.model ?? session.model;
+  const turns = session.usages.size;
   const ms = elapsedMs(started);
+  await saveSession(recorder, session);
   recorder.usage(request.name, usage, ms, {
-    turns: stats.assistantMessages,
-    toolCalls: stats.toolCalls,
-    model: name,
-    session: stats.sessionId,
+    turns,
+    toolCalls: session.toolCalls,
+    model,
+    session: session.sessionId,
   });
   return {
-    text: (session.getLastAssistantText() ?? '').trim(),
+    text: session.text.trim(),
     usage,
-    turns: stats.assistantMessages,
-    toolCalls: stats.toolCalls,
+    turns,
+    toolCalls: session.toolCalls,
     ms,
-    model: name,
-    sessionId: stats.sessionId,
+    model,
+    sessionId: session.sessionId,
   };
 }
 
-function observe(log: Recorder, event: AgentSessionEvent, cwd: string): void {
-  if (event.type === 'tool_execution_start') {
-    log.event('tool', toolFields(event.toolName, event.args, cwd));
-  } else if (event.type === 'tool_execution_end' && event.isError) {
-    log.event('tool.error', { tool: event.toolName });
+async function saveSession(recorder: Recorder, session: Session): Promise<void> {
+  if (session.sessionId === undefined) {
+    return;
   }
+  await mkdir(recorder.sessionDir, { recursive: true });
+  await writeFile(
+    join(recorder.sessionDir, `${session.sessionId}.jsonl`),
+    session.messages.map((message) => `${JSON.stringify(message)}\n`).join(''),
+  );
 }
 
-const PATH_TOOLS = new Set(['read', 'write', 'edit', 'grep', 'find', 'ls']);
+const PATH_FIELDS: Record<string, string> = {
+  Read: 'file_path',
+  Write: 'file_path',
+  Edit: 'file_path',
+  Grep: 'path',
+  Glob: 'path',
+  NotebookEdit: 'notebook_path',
+};
 
 export function toolFields(name: string, input: unknown, cwd: string): Fields {
   if (!isRecord(input)) {
     return { tool: name };
   }
-  const { command, path } = input;
-  if (name === 'bash' && typeof command === 'string') {
+  const { command } = input;
+  if (name === 'Bash' && typeof command === 'string') {
     return { tool: name, command };
   }
-  if (PATH_TOOLS.has(name) && typeof path === 'string') {
+  const field = PATH_FIELDS[name];
+  const path = field === undefined ? undefined : input[field];
+  if (typeof path === 'string') {
     return { tool: name, path: shortPath(path, cwd) };
   }
   return { tool: name };

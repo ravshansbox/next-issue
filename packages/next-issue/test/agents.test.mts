@@ -1,245 +1,135 @@
 import assert from 'node:assert/strict';
-import { access, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { access, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { test } from 'node:test';
-import {
-  fauxAssistantMessage,
-  fauxProvider,
-  fauxToolCall,
-  type FauxResponseStep,
-} from '@earendil-works/pi-ai';
-import { ModelRuntime, SettingsManager, VERSION } from '@earendil-works/pi-coding-agent';
-import { isOwnResource } from '../src/agent-session.mts';
-import { CODING, REVIEWING, runAgent, toolFields } from '../src/agents.mts';
+import { test, type TestContext } from 'node:test';
+import { REVIEWING, runAgent, toolFields } from '../src/agents.mts';
 import { runChildren, stopRunChildren, withRunChildren } from '../src/children.mts';
 import { Recorder } from '../src/observe.mts';
+import { addPluginSkills, addSkill, fakeClaude, type Step, text, toolUse } from './fake-claude.mts';
 import { logRecords } from './log-records.mts';
-import { tempDir } from './temp-dir.mts';
 
-async function fakePi(responses: FauxResponseStep[], tokensPerSecond?: number) {
-  const root = await tempDir();
-  const faux = fauxProvider(tokensPerSecond === undefined ? {} : { tokensPerSecond });
-  const modelRuntime = await ModelRuntime.create({
-    authPath: join(root, 'auth.json'),
-    modelsPath: null,
-    allowModelNetwork: false,
-  });
-  modelRuntime.registerNativeProvider(faux.provider);
-  faux.setResponses(responses);
-  const model = faux.getModel();
-  return {
-    recorder: await Recorder.create(root),
-    request: {
-      name: 'coder',
-      cwd: root,
-      prompt: 'hi',
-      profile: CODING,
-      model: `${model.provider}/${model.id}`,
-      runtime: { agentDir: root, modelRuntime, settingsManager: SettingsManager.inMemory() },
-    },
-  };
+async function claude(t: TestContext, steps: Step[] = []) {
+  const fake = await fakeClaude(steps);
+  t.after(fake.close);
+  return { ...fake, steps };
 }
 
-test('a bash call records the command', () => {
-  assert.deepEqual(toolFields('bash', { command: 'npm test' }, '/work'), {
-    tool: 'bash',
+const slow = (): Step => text('word '.repeat(500), 20);
+
+test('a Bash call records the command', () => {
+  assert.deepEqual(toolFields('Bash', { command: 'npm test' }, '/work'), {
+    tool: 'Bash',
     command: 'npm test',
   });
 });
 
-test('an agent that reads a file inside its folder has the path logged relative to that folder', async () => {
-  let folder = '';
-  const { recorder, request } = await fakePi([
-    () =>
-      fauxAssistantMessage([fauxToolCall('read', { path: join(folder, 'note.txt') })], {
-        stopReason: 'toolUse',
-      }),
-    fauxAssistantMessage('done'),
-  ]);
-  folder = request.cwd;
+test('an agent that reads a file inside its folder has the path logged relative to that folder', async (t) => {
+  const { recorder, request, steps } = await claude(t);
+  steps.push(toolUse('Read', { file_path: join(request.cwd, 'note.txt') }), text('done'));
   await runAgent(recorder, request);
   const tool = (await logRecords(recorder)).find((record) => record.kind === 'tool')!;
-  assert.equal(tool.tool, 'read');
+  assert.equal(tool.tool, 'Read');
   assert.equal(tool.path, 'note.txt');
 });
 
-test('an agent that calls read, write, edit, grep, find or ls has the path logged relative to its folder', () => {
-  for (const name of ['read', 'write', 'edit', 'grep', 'find', 'ls']) {
-    assert.deepEqual(toolFields(name, { path: '/work/src/a.mts' }, '/work'), {
+test('an agent that calls Read, Write, Edit, Grep, Glob or NotebookEdit has the path logged relative to its folder', () => {
+  for (const name of ['Read', 'Write', 'Edit']) {
+    assert.deepEqual(toolFields(name, { file_path: '/work/src/a.mts' }, '/work'), {
       tool: name,
       path: 'src/a.mts',
     });
   }
-  assert.deepEqual(toolFields('read', { path: 'src/a.mts' }, '/work'), {
-    tool: 'read',
-    path: 'src/a.mts',
+  for (const name of ['Grep', 'Glob']) {
+    assert.deepEqual(toolFields(name, { pattern: 'x', path: '/work/src' }, '/work'), {
+      tool: name,
+      path: 'src',
+    });
+  }
+  assert.deepEqual(toolFields('NotebookEdit', { notebook_path: '/work/a.ipynb' }, '/work'), {
+    tool: 'NotebookEdit',
+    path: 'a.ipynb',
   });
-  assert.deepEqual(toolFields('ls', { path: '.' }, '/work'), { tool: 'ls', path: '.' });
+  assert.deepEqual(toolFields('Glob', { path: '/work' }, '/work'), { tool: 'Glob', path: '.' });
 });
 
 test('an agent that reads a file outside its folder has the path logged as it passed it', () => {
-  assert.deepEqual(toolFields('read', { path: '/tmp/a.mts' }, '/work'), {
-    tool: 'read',
+  assert.deepEqual(toolFields('Read', { file_path: '/tmp/a.mts' }, '/work'), {
+    tool: 'Read',
     path: '/tmp/a.mts',
   });
-  assert.deepEqual(toolFields('read', { path: '../other/a.mts' }, '/work'), {
-    tool: 'read',
+  assert.deepEqual(toolFields('Read', { file_path: '../other/a.mts' }, '/work'), {
+    tool: 'Read',
     path: '../other/a.mts',
   });
 });
 
 test('an agent tool call without a path text logs only the tool name', () => {
-  assert.deepEqual(toolFields('read', {}, '/work'), { tool: 'read' });
-  assert.deepEqual(toolFields('read', { path: 12 }, '/work'), { tool: 'read' });
-  assert.deepEqual(toolFields('mark', { path: '/work/a' }, '/work'), { tool: 'mark' });
-  assert.deepEqual(toolFields('bash', { command: 'ls', path: '/work/a' }, '/work'), {
-    tool: 'bash',
+  assert.deepEqual(toolFields('Read', {}, '/work'), { tool: 'Read' });
+  assert.deepEqual(toolFields('Read', { file_path: 12 }, '/work'), { tool: 'Read' });
+  assert.deepEqual(toolFields('mark', { file_path: '/work/a' }, '/work'), { tool: 'mark' });
+  assert.deepEqual(toolFields('Bash', { command: 'ls', file_path: '/work/a' }, '/work'), {
+    tool: 'Bash',
     command: 'ls',
   });
 });
 
-test('a bash call without command text records only its name', () => {
-  assert.deepEqual(toolFields('bash', {}, '/work'), { tool: 'bash' });
-  assert.deepEqual(toolFields('bash', { command: 12 }, '/work'), { tool: 'bash' });
-  assert.deepEqual(toolFields('bash', null, '/work'), { tool: 'bash' });
-  assert.deepEqual(toolFields('bash', 'npm test', '/work'), { tool: 'bash' });
+test('a Bash call without command text records only its name', () => {
+  assert.deepEqual(toolFields('Bash', {}, '/work'), { tool: 'Bash' });
+  assert.deepEqual(toolFields('Bash', { command: 12 }, '/work'), { tool: 'Bash' });
+  assert.deepEqual(toolFields('Bash', null, '/work'), { tool: 'Bash' });
+  assert.deepEqual(toolFields('Bash', 'npm test', '/work'), { tool: 'Bash' });
 });
 
-test('an agent session leaves out the pi-next-issue extension and keeps the others', () => {
-  assert.equal(isOwnResource('/home/me/node_modules/@ravshansbox/pi-next-issue/index.ts'), true);
-  assert.equal(isOwnResource('/home/me/next-issue/packages/pi-next-issue/index.ts'), true);
-  assert.equal(isOwnResource('/home/me/node_modules/@ravshansbox/pi-statusline/index.ts'), false);
-});
-
-test('an implementer in a repository under a pi-next-issue folder gets its project extension and skill', async () => {
-  let transcript = '';
-  const { recorder, request } = await fakePi([
-    (context) => {
-      transcript = JSON.stringify(context.messages);
-      return fauxAssistantMessage([fauxToolCall('mark', {})], { stopReason: 'toolUse' });
-    },
-    fauxAssistantMessage('done'),
-  ]);
-  const worktree = join(request.cwd, 'pi-next-issue', '.worktrees', '7');
-  const mark = await markExtension(join(worktree, '.pi'));
-  await addSkill(join(worktree, '.pi', 'skills'), 'project-skill');
-  await runAgent(recorder, { ...request, cwd: worktree });
-  assert.match(transcript, /project-skill/);
-  assert.equal(await readFile(mark, 'utf8'), 'yes');
-});
-
-async function addSkill(folder: string, name: string): Promise<void> {
-  await mkdir(join(folder, name), { recursive: true });
-  await writeFile(
-    join(folder, name, 'SKILL.md'),
-    `---\nname: ${name}\ndescription: The ${name} skill.\n---\n\n# ${name}\n`,
-  );
-}
-
-test('an agent session leaves out the skills of pi-next-issue and keeps the others', async () => {
-  let transcript = '';
-  const { recorder, request } = await fakePi([
-    (context) => {
-      transcript = JSON.stringify(context.messages);
-      return fauxAssistantMessage('done');
-    },
-  ]);
-  await addSkill(join(request.cwd, 'skills', 'pi-next-issue', 'skills'), 'create-issue');
-  await addSkill(join(request.cwd, 'skills'), 'other-skill');
+test('an agent session leaves out the skills of the next-issue plugin and keeps the others', async (t) => {
+  const { recorder, request, config, bodies } = await claude(t, [text('done')]);
+  await addPluginSkills(config, { 'next-issue': 'create-issue', other: 'other-skill' });
   await runAgent(recorder, request);
-  assert.match(transcript, /other-skill/);
-  assert.doesNotMatch(transcript, /create-issue/);
+  assert.match(bodies[0]!, /other-skill/);
+  assert.doesNotMatch(bodies[0]!, /create-issue/);
 });
 
-async function markExtension(root: string, value = "'yes'"): Promise<string> {
-  const mark = join(root, 'marked');
-  await mkdir(join(root, 'extensions'), { recursive: true });
-  await writeFile(
-    join(root, 'extensions', 'mark.ts'),
-    `import { writeFileSync } from 'node:fs';
-export default function (pi) {
-  pi.registerTool({
-    name: 'mark',
-    label: 'Mark',
-    description: 'Leave a mark',
-    parameters: { type: 'object', properties: {} },
-    async execute() {
-      writeFileSync(${JSON.stringify(mark)}, ${value});
-      return { content: [{ type: 'text', text: 'marked' }], details: {} };
-    },
-  });
-}
-`,
-  );
-  return mark;
-}
-
-test('an implementer can call a tool that a pi extension adds', async () => {
-  const { recorder, request } = await fakePi([
-    fauxAssistantMessage([fauxToolCall('mark', {})], { stopReason: 'toolUse' }),
-    fauxAssistantMessage('done'),
-  ]);
-  const mark = await markExtension(request.cwd);
+test('an implementer gets the skills of its repository', async (t) => {
+  const { recorder, request, bodies } = await claude(t, [text('done')]);
+  await addSkill(join(request.cwd, '.claude', 'skills'), 'project-skill');
   await runAgent(recorder, request);
-  assert.equal(await readFile(mark, 'utf8'), 'yes');
+  assert.match(bodies[0]!, /project-skill/);
 });
 
-test('a pi extension in an agent session runs git without optional locks', async () => {
-  delete process.env.GIT_OPTIONAL_LOCKS;
-  const { recorder, request } = await fakePi([
-    fauxAssistantMessage([fauxToolCall('mark', {})], { stopReason: 'toolUse' }),
-    fauxAssistantMessage('done'),
-  ]);
-  const mark = await markExtension(request.cwd, 'String(process.env.GIT_OPTIONAL_LOCKS)');
+test('an agent runs git without optional locks', async (t) => {
+  const { recorder, request, steps } = await claude(t);
+  const mark = join(request.cwd, 'mark');
+  steps.push(
+    toolUse('Bash', { command: `printf %s "$GIT_OPTIONAL_LOCKS" > ${mark}` }),
+    text('done'),
+  );
   await runAgent(recorder, request);
   assert.equal(await readFile(mark, 'utf8'), '0');
 });
 
-test('an extension that relaunches the host through process.argv[1] gets a pi process', async () => {
-  const { recorder, request } = await fakePi([
-    fauxAssistantMessage([fauxToolCall('mark', {})], { stopReason: 'toolUse' }),
-    fauxAssistantMessage('done'),
-  ]);
-  const mark = await markExtension(
-    request.cwd,
-    `(() => { const { spawnSync } = require('node:child_process'); const child = spawnSync(process.execPath, [process.argv[1], '--version'], { encoding: 'utf8' }); return child.stdout + child.stderr; })()`,
+test('a reviewer that calls the Write tool leaves no file', async (t) => {
+  const { recorder, request, steps } = await claude(t);
+  steps.push(
+    toolUse('Write', { file_path: join(request.cwd, 'note.txt'), content: 'hi' }),
+    text('done'),
   );
-  const script = process.argv[1];
-  process.argv[1] = join(import.meta.dirname, '..', 'src', 'cli.mts');
-  try {
-    await runAgent(recorder, request);
-  } finally {
-    process.argv[1] = script;
-  }
-  assert.equal((await readFile(mark, 'utf8')).trim(), VERSION);
-});
-
-test('a reviewer that calls the write tool leaves no file', async () => {
-  const { recorder, request } = await fakePi([
-    fauxAssistantMessage([fauxToolCall('write', { path: 'note.txt', content: 'hi' })], {
-      stopReason: 'toolUse',
-    }),
-    fauxAssistantMessage('done'),
-  ]);
   await runAgent(recorder, { ...request, profile: REVIEWING });
   await assert.rejects(access(join(request.cwd, 'note.txt')));
 });
 
-test('an implementer that calls the write tool writes the file', async () => {
-  const { recorder, request } = await fakePi([
-    fauxAssistantMessage([fauxToolCall('write', { path: 'note.txt', content: 'hi' })], {
-      stopReason: 'toolUse',
-    }),
-    fauxAssistantMessage('done'),
-  ]);
+test('an implementer that calls the Write tool writes the file', async (t) => {
+  const { recorder, request, steps } = await claude(t);
+  steps.push(
+    toolUse('Write', { file_path: join(request.cwd, 'note.txt'), content: 'hi' }),
+    text('done'),
+  );
   await runAgent(recorder, request);
   assert.equal(await readFile(join(request.cwd, 'note.txt'), 'utf8'), 'hi');
 });
 
-test('the harness gets the last text, the tool calls and the model of a pi agent', async () => {
-  const { recorder, request } = await fakePi([
-    fauxAssistantMessage([fauxToolCall('ls', { path: '.' })], { stopReason: 'toolUse' }),
-    fauxAssistantMessage('  commit: fix: the thing  '),
+test('the harness gets the last text, the tool calls and the model of an agent', async (t) => {
+  const { recorder, request } = await claude(t, [
+    toolUse('Bash', { command: 'ls' }),
+    text('  commit: fix: the thing  '),
   ]);
   const result = await runAgent(recorder, request);
   assert.equal(result.text, 'commit: fix: the thing');
@@ -249,19 +139,19 @@ test('the harness gets the last text, the tool calls and the model of a pi agent
   assert.ok(result.usage.total > 0);
 });
 
-test('a user who runs a pi agent sees its events but not its text in the output of the recorder', async () => {
-  const { request } = await fakePi([fauxAssistantMessage('agent says hello')]);
+test('a user who runs an agent sees its events but not its text in the output of the recorder', async (t) => {
+  const { request } = await claude(t, [text('agent says hello')]);
   let output = '';
-  const recorder = await Recorder.create(request.cwd, undefined, undefined, (text) => {
-    output += text;
+  const recorder = await Recorder.create(request.cwd, undefined, undefined, (value) => {
+    output += value;
   });
   await runAgent(recorder, request);
   assert.match(output, / usage /);
   assert.doesNotMatch(output, /agent says hello/);
 });
 
-test('the harness records a usage event without a cost for a pi agent', async () => {
-  const { recorder, request } = await fakePi([fauxAssistantMessage('done')]);
+test('the harness records a usage event without a cost for an agent', async (t) => {
+  const { recorder, request } = await claude(t, [text('done')]);
   const result = await runAgent(recorder, request);
   const usage = (await logRecords(recorder)).find((record) => record.kind === 'usage')!;
   assert.equal(usage.role, request.name);
@@ -273,122 +163,56 @@ test('the harness records a usage event without a cost for a pi agent', async ()
   assert.equal('costUsd' in usage, false);
 });
 
-test('the harness saves the session of a pi agent next to the run log', async () => {
-  const { recorder, request } = await fakePi([
-    fauxAssistantMessage([fauxToolCall('ls', { path: '.' })], { stopReason: 'toolUse' }),
-    fauxAssistantMessage('done'),
-  ]);
+test('the harness saves the session of an agent next to the run log', async (t) => {
+  const { recorder, request } = await claude(t, [toolUse('Bash', { command: 'ls' }), text('done')]);
   const result = await runAgent(recorder, request);
   const dir = join(recorder.logFile.replace(/\.jsonl$/, ''), 'sessions');
   const files = await readdir(dir);
   assert.equal(files.length, 1);
   const saved = await readFile(join(dir, files[0]!), 'utf8');
   assert.ok(saved.includes(result.sessionId!));
-  assert.ok(saved.includes('"ls"'));
+  assert.ok(saved.includes('"Bash"'));
 });
 
-test('the harness reports the error when the model of a pi agent fails', async () => {
-  const { recorder, request } = await fakePi([
-    fauxAssistantMessage('', { stopReason: 'error', errorMessage: 'no credit' }),
-  ]);
-  request.runtime.settingsManager = SettingsManager.inMemory({ retry: { enabled: false } });
-  await assert.rejects(runAgent(recorder, request), {
-    message: 'The coder agent failed: no credit',
+test('the harness reports the error when the model of an agent fails', async (t) => {
+  const { recorder, request } = await claude(t, [{ error: 'no credit' }]);
+  await assert.rejects(runAgent(recorder, request), /^Error: The coder agent failed: .*no credit/);
+});
+
+test('the harness reports a timeout when an agent runs too long', async (t) => {
+  const { recorder, request } = await claude(t, [slow()]);
+  await assert.rejects(runAgent(recorder, { ...request, timeoutMs: 1500 }), {
+    message: 'The coder agent did not finish in 1500 ms.',
   });
 });
 
-test('the harness reports a timeout when a pi agent runs too long', async () => {
-  const { recorder, request } = await fakePi([fauxAssistantMessage('word '.repeat(500))], 5);
-  await assert.rejects(runAgent(recorder, { ...request, timeoutMs: 200 }), {
-    message: 'The coder agent did not finish in 200 ms.',
-  });
-});
-
-test('a user who stops a run now while a pi agent runs gets no agent reply, only a stopped run', async () => {
-  const { recorder, request } = await fakePi([fauxAssistantMessage('word '.repeat(500))], 5);
+test('a user who stops a run now while an agent runs gets no agent reply, only a stopped run', async (t) => {
+  const { recorder, request } = await claude(t, [slow()]);
   const children = runChildren();
   const running = withRunChildren(children, () => runAgent(recorder, request));
-  setTimeout(() => stopRunChildren(children), 200);
+  setTimeout(() => stopRunChildren(children), 1500);
   await assert.rejects(running, { message: 'The run stopped.' });
 });
 
-async function slowExtension(root: string, event: 'session_start' | 'input'): Promise<void> {
-  await mkdir(join(root, 'extensions'), { recursive: true });
-  const result = event === 'input' ? "{ action: 'continue' }" : 'undefined';
-  await writeFile(
-    join(root, 'extensions', 'slow.ts'),
-    `export default function (pi) {
-  pi.on('${event}', async () => {
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    return ${result};
-  });
-}
-`,
-  );
-}
-
-for (const [event, window] of [
-  ['session_start', 'its extensions bind'],
-  ['input', 'its prompt preflight runs'],
-] as const) {
-  test(`a user who stops a run now while ${window} gets no agent turn, only a stopped run`, async () => {
-    let turns = 0;
-    const { recorder, request } = await fakePi([
-      () => {
-        turns += 1;
-        return fauxAssistantMessage('done');
-      },
-    ]);
-    await slowExtension(request.cwd, event);
-    const children = runChildren();
-    const running = withRunChildren(children, () => runAgent(recorder, request));
-    setTimeout(() => stopRunChildren(children), 200);
-    await assert.rejects(running, { message: 'The run stopped.' });
-    assert.equal(turns, 0);
-  });
-
-  test(`a user whose agent times out while ${window} gets no agent turn, only a timeout`, async () => {
-    let turns = 0;
-    const { recorder, request } = await fakePi([
-      () => {
-        turns += 1;
-        return fauxAssistantMessage('done');
-      },
-    ]);
-    await slowExtension(request.cwd, event);
-    await assert.rejects(runAgent(recorder, { ...request, timeoutMs: 200 }), {
-      message: 'The coder agent did not finish in 200 ms.',
-    });
-    assert.equal(turns, 0);
-  });
-}
-
-test('a user whose agent takes too long to load its extensions gets a timeout', async () => {
-  const { recorder, request } = await fakePi([fauxAssistantMessage('done')]);
-  await mkdir(join(request.cwd, '.pi', 'extensions'), { recursive: true });
-  await writeFile(
-    join(request.cwd, '.pi', 'extensions', 'slow-load.ts'),
-    `export default async function () {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-}
-`,
-  );
-  await assert.rejects(runAgent(recorder, { ...request, timeoutMs: 200 }), {
-    message: 'The coder agent did not finish in 200 ms.',
-  });
+test('a user who stops a run now while an agent starts gets no agent turn, only a stopped run', async (t) => {
+  const { recorder, request, bodies } = await claude(t, [text('done')]);
+  const children = runChildren();
+  const running = withRunChildren(children, () => runAgent(recorder, request));
+  setTimeout(() => stopRunChildren(children), 10);
+  await assert.rejects(running, { message: 'The run stopped.' });
+  assert.equal(bodies.length, 0);
 });
 
 async function assertFailedUsage(
   recorder: Recorder,
   request: { name: string; model: string },
-  turns: number,
 ): Promise<void> {
   const usages = (await logRecords(recorder)).filter((record) => record.kind === 'usage');
   assert.equal(usages.length, 1);
   const usage = usages[0]!;
   assert.equal(usage.role, request.name);
-  assert.equal(usage.turns, turns);
-  assert.equal(usage.toolCalls, turns > 1 ? 1 : 0);
+  assert.equal(usage.turns, 1);
+  assert.equal(usage.toolCalls, 1);
   assert.equal(usage.model, request.model);
   assert.equal(typeof usage.session, 'string');
   assert.ok(Number(usage.total) > 0);
@@ -397,65 +221,45 @@ async function assertFailedUsage(
   assert.equal(summary.total.total, usage.total);
 }
 
-test('a user whose agent times out sees a usage event and summary totals with the tokens it spent', async () => {
-  const { recorder, request } = await fakePi(
-    [
-      fauxAssistantMessage([fauxToolCall('ls', { path: '.' })], { stopReason: 'toolUse' }),
-      fauxAssistantMessage('word '.repeat(500)),
-    ],
-    50,
-  );
-  await assert.rejects(runAgent(recorder, { ...request, timeoutMs: 1000 }), {
-    message: 'The coder agent did not finish in 1000 ms.',
+test('a user whose agent times out sees a usage event and summary totals with the tokens it spent', async (t) => {
+  const { recorder, request } = await claude(t, [toolUse('Bash', { command: 'ls' }), slow()]);
+  await assert.rejects(runAgent(recorder, { ...request, timeoutMs: 2500 }), {
+    message: 'The coder agent did not finish in 2500 ms.',
   });
-  await assertFailedUsage(recorder, request, 2);
+  await assertFailedUsage(recorder, request);
 });
 
-test('a user whose agent model fails sees a usage event and summary totals with the tokens it spent', async () => {
-  const { recorder, request } = await fakePi([
-    fauxAssistantMessage([fauxToolCall('ls', { path: '.' })], { stopReason: 'toolUse' }),
-    fauxAssistantMessage('', { stopReason: 'error', errorMessage: 'no credit' }),
+test('a user whose agent model fails sees a usage event and summary totals with the tokens it spent', async (t) => {
+  const { recorder, request } = await claude(t, [
+    toolUse('Bash', { command: 'ls' }),
+    { error: 'no credit' },
   ]);
-  request.runtime.settingsManager = SettingsManager.inMemory({ retry: { enabled: false } });
-  await assert.rejects(runAgent(recorder, request), {
-    message: 'The coder agent failed: no credit',
-  });
-  await assertFailedUsage(recorder, request, 2);
+  await assert.rejects(runAgent(recorder, request), /The coder agent failed/);
+  await assertFailedUsage(recorder, request);
 });
 
-test('a user who stops a run now while an agent runs sees a usage event and summary totals with the tokens it spent', async () => {
-  const { recorder, request } = await fakePi(
-    [
-      fauxAssistantMessage([fauxToolCall('ls', { path: '.' })], { stopReason: 'toolUse' }),
-      fauxAssistantMessage('word '.repeat(500)),
-    ],
-    50,
-  );
+test('a user who stops a run now while an agent runs sees a usage event and summary totals with the tokens it spent', async (t) => {
+  const { recorder, request } = await claude(t, [toolUse('Bash', { command: 'ls' }), slow()]);
   const children = runChildren();
   const running = withRunChildren(children, () => runAgent(recorder, request));
-  setTimeout(() => stopRunChildren(children), 1000);
+  setTimeout(() => stopRunChildren(children), 2500);
   await assert.rejects(running, { message: 'The run stopped.' });
-  await assertFailedUsage(recorder, request, 2);
+  await assertFailedUsage(recorder, request);
 });
 
-test('a user whose agent succeeds sees exactly one usage event', async () => {
-  const { recorder, request } = await fakePi([fauxAssistantMessage('done')]);
+test('a user whose agent succeeds sees exactly one usage event', async (t) => {
+  const { recorder, request } = await claude(t, [text('done')]);
   await runAgent(recorder, request);
   const usages = (await logRecords(recorder)).filter((record) => record.kind === 'usage');
   assert.equal(usages.length, 1);
   assert.equal(recorder.summary().roles[request.name]?.calls, 1);
 });
 
-test('the harness refuses a model name without a provider', async () => {
-  const { recorder, request } = await fakePi([]);
-  await assert.rejects(runAgent(recorder, { ...request, model: 'opus' }), {
-    message: 'The model opus is not in the form provider/model.',
+test('a user who sets a model in the old provider/model form gets an error that asks for a Claude model ID', async (t) => {
+  const { recorder, request, bodies } = await claude(t, [text('done')]);
+  await assert.rejects(runAgent(recorder, { ...request, model: 'anthropic/claude-opus-5-5' }), {
+    message:
+      'The model anthropic/claude-opus-5-5 is not a Claude model ID. Use an ID such as claude-opus-5-5.',
   });
-});
-
-test('the harness refuses a model that pi does not know', async () => {
-  const { recorder, request } = await fakePi([]);
-  await assert.rejects(runAgent(recorder, { ...request, model: 'faux/none' }), {
-    message: 'The model faux/none is not known to pi.',
-  });
+  assert.equal(bodies.length, 0);
 });

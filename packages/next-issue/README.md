@@ -1,6 +1,6 @@
 # next-issue
 
-A small harness that works through the open issues of a GitHub repository with the [pi](https://github.com/earendil-works/pi) SDK. Run it inside a git repository.
+A small harness that works through the open issues of a GitHub repository with the [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview). Run it inside a git repository.
 
 ```bash
 npx -y next-issue@latest start
@@ -73,7 +73,7 @@ The implementer and the fixer get these rules in their prompt, and the first rev
 - reuse existing code and patterns, stay consistent with the repository and pick the simpler option;
 - check an API, a command or a url in the repository or its dependencies before using it, and invent none.
 
-The reviewer rates a missing documentation update or a test that is not observable as a finding. In every round, it gives the file and line, or the command output, that supports each finding. Personal style rules, such as spelling, code comments or binding names, belong in the `AGENTS.md` of each repository.
+The reviewer rates a missing documentation update or a test that is not observable as a finding. In every round, it gives the file and line, or the command output, that supports each finding. Personal style rules, such as spelling, code comments or binding names, belong in the `CLAUDE.md` of each repository.
 
 ## Stops for a loop
 
@@ -139,13 +139,13 @@ Every run has an id, `<timestamp>`, and writes these under `.next-issue/runs/`:
 
 - `<id>.jsonl` — one JSON object per event, with `ts`, `runId`, `kind`, and the `issue`, `role` or `round` in scope. A run whose fetch of the issues fails ends with an `issues.fail` event. A run that fails in any other way once this file is open, for example when `gh repo view` fails at the start or an issue crashes the run, ends with a `run.fail` event (after `run.end` when the run got that far). Both carry the `error`;
 - `<id>.summary.json` — token totals per agent role, event counts, and one report per issue with the outcome, the reason and the budgets used (in a watch run, an issue skipped in several passes gets one report, and an issue handled in more than one pass keeps a report for each; when an issue crashes the run, the file still holds the reports of the issues that finished);
-- `<id>/sessions/` — the full pi session of each agent call, with every message, tool call and tool result. The session id in a `usage` event is part of the file name.
+- `<id>/sessions/` — the full Claude Code session of each agent call, one message per line, with every message, tool call and tool result. The session id in a `usage` event is the file name.
 
 At the start of a run, the harness deletes the files and folders under `.next-issue/runs/` that are older than `keepRunDays`. The age of a folder is the time since the last change to it or to anything inside it, so the sessions of a long run stay while it still writes them. Set the field to `0` to keep them all.
 
 A short text summary of the same data goes to standard output. All progress goes to standard error.
 
-Recorded for each step: `claim`, `comments`, `reply`, `worktree`, `setup`, `editors`, `implement`, `review`, `fix`, `commit-fix`, `rebase`, `land`, `ci-checks`, `revert` and `hunt`, each with a `.start`, `.end` or `.error` event and a duration in `ms`. Every `git` and `gh` command is recorded with its exit code and duration. A `tool` event holds the tool name. For a `bash` tool it holds the command too, and for a `read`, `write`, `edit`, `grep`, `find` or `ls` tool the `path` it got, relative to the worktree when inside it. Each agent call adds a `usage` event with the tokens, the turn count, the tool-call count, the model and the session id. A call that times out, ends with a model error or is stopped after its session started adds one too, and its tokens count in the summary totals.
+Recorded for each step: `claim`, `comments`, `reply`, `worktree`, `setup`, `editors`, `implement`, `review`, `fix`, `commit-fix`, `rebase`, `land`, `ci-checks`, `revert` and `hunt`, each with a `.start`, `.end` or `.error` event and a duration in `ms`. Every `git` and `gh` command is recorded with its exit code and duration. A `tool` event holds the tool name. For a `Bash` tool it holds the command too, and for a `Read`, `Write`, `Edit`, `Grep`, `Glob` or `NotebookEdit` tool the `path` it got, relative to the worktree when inside it. Each agent call adds a `usage` event with the tokens, the turn count, the tool-call count, the model and the session id. A call that times out, ends with a model error or is stopped after its session started adds one too, and its tokens count in the summary totals.
 
 ```bash
 jq -r 'select(.kind=="usage") | [.issue,.role,.turns,.total] | @tsv' \
@@ -162,7 +162,7 @@ The console shows the run and issue milestones, verdicts, hand-overs, errors, ea
 - git 2.40 or later (every commit runs `git hook run`, every conflict with the base runs `git check-attr --source`). A run or `serve` run on an older git stops before it claims an issue, with an error that names both versions.
 - `gh`, authenticated with write access to the repository
 - a `remote` on GitHub: `github.com`, or a GitHub Enterprise host. Every `gh` call names the host of the remote url (`--repo <host>/<owner>/<name>`, `gh api --hostname <host>`) when it is not `github.com`, so `gh` must be logged in to that host. For an ssh url the harness reads the real host of an ssh alias with `ssh -G`. The host `ssh.github.com` (GitHub's ssh over port 443) means `github.com`. Other hosts, such as GitLab, are not supported.
-- pi, logged in to a model provider. The agents use the model (unless `models` sets one), the thinking level, the extensions and the skills from your pi settings, except the extension and the skills of the `pi-next-issue` package. A repository under a folder named `pi-next-issue` keeps its project extensions and skills. The implementer and the fixer get the default tools of your pi settings, the `grep`, `find` and `ls` tools and the tools of your extensions. The reviewer gets all of them except `edit` and `write`. The agents run with `GIT_OPTIONAL_LOCKS=0`, so a `git status` from an agent or an extension does not hold the index lock while the harness commits. While an agent runs, `process.argv[1]` is the pi CLI, so an extension that starts a child pi with `process.execPath` and `process.argv[1]` (such as a `subagent` tool) runs pi, not next-issue.
+- Claude Code, logged in, such as with a Pro or Max plan. The harness asks for no API key. The agents run the Claude Code that comes with the Agent SDK, with the model (unless `models` sets one), the settings, the plugins, the skills and the `CLAUDE.md` files of your Claude Code setup, except the plugin `next-issue@next-issue`, whose skills are for people, not for the agents. The agents run with every permission granted, as no person is there to answer a prompt. The implementer and the fixer get every tool. The reviewer gets every tool except `Write`, `Edit` and `NotebookEdit`. The agents run with `GIT_OPTIONAL_LOCKS=0`, so a `git status` from an agent does not hold the index lock while the harness commits.
 
 ## Configuration
 
@@ -240,7 +240,7 @@ With no file, every field keeps its default. A field that is not in the file kee
 | `maxCiFixes`            | `5`                | The budget for check fixes per issue                                                                                                                                                                                        |
 | `maxCommitFixes`        | `10`               | The budget for fixes of a commit that a git hook stopped, per issue                                                                                                                                                         |
 | `maxReviewRounds`       | `5`                | The budget for review rounds per issue                                                                                                                                                                                      |
-| `models`                | `null` per role    | The pi model per agent role, as `provider/model`: `default`, `implementer`, `reviewer`, `fixer`, `hunter`                                                                                                                   |
+| `models`                | `null` per role    | The Claude model ID per agent role, such as `claude-opus-5-5`: `default`, `implementer`, `reviewer`, `fixer`, `hunter`                                                                                                      |
 | `remote`                | `origin`           | The git remote for the repository and the branches                                                                                                                                                                          |
 | `setupCommand`          | from the lock file | A shell command to run in a new worktree, before the implementer, and after each merge of the base before the `checks`                                                                                                      |
 | `setupTimeoutMinutes`   | `15`               | The limit for the setup command, at most `35791`                                                                                                                                                                            |
@@ -255,7 +255,7 @@ The harness compares the labels on an issue with the configured names without ca
 
 The log gives the reason for a skipped issue as `stop-label`, `not-ready`, `in-flight` or `blocked`, the last one with the open blockers.
 
-A role set to `null`, or with no entry in `models`, uses `models.default`. When `models.default` is `null` or missing too, it uses the default model of your pi settings.
+A role set to `null`, or with no entry in `models`, uses `models.default`. When `models.default` is `null` or missing too, it uses the default model of your Claude Code settings. A model in the old `provider/model` form, such as `anthropic/claude-opus-5-5`, makes the agent fail with an error that asks for a Claude model ID.
 
 Without a `setupCommand`, the harness looks for a lock file in the new worktree, and in the worktree after each merge of the base before the `checks`, and runs the install command that goes with it:
 
@@ -277,7 +277,7 @@ A `setupCommand` that fails, or that does not finish in `setupTimeoutMinutes`, h
 
 Every agent prompt holds `.next-issue/notes.md` when it exists, so lessons such as test commands, tool quirks and deliberate behaviour carry over from one issue to the next. The implementer and the fixer may add a short note to it, and the prompt asks them to keep only what still holds. The reviewer and the hunter only read it.
 
-Every agent also reads each `AGENTS.md` that pi finds, such as the one in your home folder and the one in the repository. The other rules there, such as code conventions and test style, still apply. But the harness owns the issue, the worktree, the branch, git, the commit, the push and the checks, and the prompt says so: a workflow rule in `AGENTS.md` about these, such as "push to main" or "watch ci", does not apply to the agent. The hunter still files its issues with `gh issue create`.
+Every agent also reads each `CLAUDE.md` that Claude Code finds, such as the one in `~/.claude` and the one in the repository. Claude Code does not read `AGENTS.md`; a repository that keeps its rules there can add a `CLAUDE.md` that holds `@AGENTS.md`. The other rules there, such as code conventions and test style, still apply. But the harness owns the issue, the worktree, the branch, git, the commit, the push and the checks, and the prompt says so: a workflow rule in `CLAUDE.md` about these, such as "push to main" or "watch ci", does not apply to the agent. The hunter still files its issues with `gh issue create`.
 
 ## Retry an issue that waits for a person
 

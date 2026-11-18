@@ -21,20 +21,20 @@ async function modelsOf(
 }
 
 test('a user who sets a hunter model sees the hunter run with that model', async (t) => {
-  const used = await modelsOf(t, { hunter: 'acme/hunt' });
-  assert.equal(used.hunter, 'acme/hunt');
+  const used = await modelsOf(t, { hunter: 'claude-haiku-5-5' });
+  assert.equal(used.hunter, 'claude-haiku-5-5');
 });
 
 test('a user who sets models.default sees each agent without its own model run with the default model', async (t) => {
-  const used = await modelsOf(t, { default: 'acme/all', reviewer: 'acme/review' });
+  const used = await modelsOf(t, { default: 'claude-sonnet-5-5', reviewer: 'claude-opus-5-5' });
   assert.deepEqual(used, {
-    implementer: 'acme/all',
-    reviewer: 'acme/review',
-    hunter: 'acme/all',
+    implementer: 'claude-sonnet-5-5',
+    reviewer: 'claude-opus-5-5',
+    hunter: 'claude-sonnet-5-5',
   });
 });
 
-test('a user who sets no model sees each agent run with the default model of pi settings', async (t) => {
+test('a user who sets no model sees each agent run with the default model of Claude Code', async (t) => {
   const used = await modelsOf(t, {});
   assert.deepEqual(used, { implementer: undefined, reviewer: undefined, hunter: undefined });
 });

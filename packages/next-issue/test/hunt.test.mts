@@ -18,7 +18,9 @@ test('a user who hunts with next-issue.hunt.md sees the hunter follow it in the 
   await writeFile(join(target.context.repo.root, HUNT_FILE), 'Look only at the parser.\n');
   await hunt(target.context, 1);
   assert.deepEqual(target.hunts, ['main']);
-  assert.deepEqual(target.profiles, [{ role: 'hunter', tools: REVIEWING.tools }]);
+  assert.deepEqual(target.profiles, [
+    { role: 'hunter', disallowedTools: REVIEWING.disallowedTools },
+  ]);
   const prompt = target.prompts[0]!.prompt;
   assert.match(prompt, /Look only at the parser\./);
   assert.doesNotMatch(prompt, /Read the whole repository/);
