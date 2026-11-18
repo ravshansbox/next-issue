@@ -907,6 +907,12 @@ test('a user who runs start --help sees the usage and exit code 0', async () => 
   assert.equal(startHelp.stdout, help.stdout);
 });
 
+test('a user who runs --help start sees the same usage as start --help and exit code 0', async () => {
+  const startHelp = await promisify(execFile)(process.execPath, [CLI, 'start', '--help']);
+  const helpStart = await promisify(execFile)(process.execPath, [CLI, '--help', 'start']);
+  assert.equal(helpStart.stdout, startHelp.stdout);
+});
+
 test('a user who runs --help sees start as a command with the on|off run flags under it, then the watch, hunt and refresh commands', async () => {
   const { stdout } = await promisify(execFile)(process.execPath, [CLI, '--help']);
   assert.match(stdout, /^next-issue <command> \[options\]$/m);

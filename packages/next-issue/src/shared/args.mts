@@ -108,7 +108,8 @@ function scopeValue(value: string | undefined): Scope {
   return value;
 }
 
-function readArgs(argv: string[]): { args: Args; flag?: string; runFlag?: string } {
+function readArgs(passed: string[]): { args: Args; flag?: string; runFlag?: string } {
+  const argv = passed[0] === '--help' ? [...passed.slice(1), '--help'] : passed;
   const args: Args = {
     help: false,
     force: false,
