@@ -193,7 +193,7 @@ test('a worker whose idle timer fires before the idle time has passed by the wal
   assert.deepEqual(await readdir(dir), []);
 });
 
-test('a worker whose run ends after the last HTTP poll closes once the idle time has passed', async () => {
+test('a worker whose run ends right after an HTTP request closes at once and removes its socket and lock', async () => {
   const fake = fakeRuns();
   const dir = await tempDir();
   const socketPath = join(dir, 'w.sock');
@@ -204,11 +204,10 @@ test('a worker whose run ends after the last HTTP poll closes once the idle time
     version: '2.0.0',
     runRepo: fake.runRepo,
     questions: noQuestions,
-    idleMs: 200,
+    idleMs: 60_000,
   });
   assert.ok(started);
   await post(socketPath, { type: 'start', root: '/repo' });
-  await new Promise((resolve) => setTimeout(resolve, 300));
   fake.finish();
   await started.closed;
   assert.deepEqual(await readdir(dir), []);

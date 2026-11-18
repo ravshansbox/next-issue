@@ -263,17 +263,6 @@ test('a client that switches hunting with no run going gets an error and no run 
     message: 'no run is going in this repository',
   });
   assert.equal(fake.calls.length, 0);
-  client.send({ type: 'start', root: '/repo', args: ['--hunt', 'on'] });
-  await client.next(huntingIs(true));
-  fake.finish();
-  await client.next((value) => value.type === 'runs' && value.runs['/repo']?.status === 'finished');
-  client.send({ type: 'hunt', root: '/repo', on: false });
-  assert.deepEqual(await client.next((value) => value.type === 'error'), {
-    type: 'error',
-    root: '/repo',
-    message: 'no run is going in this repository',
-  });
-  assert.equal(fake.calls.length, 1);
 });
 
 test('a client whose requests carry an id gets each refusal back with the id of the request it answers', async (t) => {
@@ -1267,6 +1256,19 @@ test('a worker whose last client leaves during a run keeps the run going and clo
   assert.deepEqual((await readdir(dir)).sort(), ['w.lock', 'w.sock']);
   fake.finish();
   await started.closed;
+  assert.deepEqual(await readdir(dir), []);
+});
+
+test('a worker whose run ends while a client is connected sends the client the end, then closes and removes its socket and lock', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath, dir, worker: started } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo' });
+  await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
+  fake.finish();
+  assert.equal((await client.next((value) => value.type === 'end')).type, 'end');
+  await started.closed;
+  await client.closed;
   assert.deepEqual(await readdir(dir), []);
 });
 

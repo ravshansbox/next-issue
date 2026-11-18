@@ -214,7 +214,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
           sendAll(sockets, { type: 'end', root, code: 1, error: message(error) });
         },
       )
-      .finally(closeWhenIdle);
+      .finally(() => void close());
   };
 
   const stop = (socket: Peer, refuse: Refuse, root: string, after: unknown, id?: string) => {
