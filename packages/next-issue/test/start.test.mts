@@ -354,20 +354,6 @@ test('a user who presses Ctrl-C while the run waits between passes sees "Stoppin
   }
 });
 
-test('a user who runs start with --force sees the run go as without it', async (t) => {
-  const root = await repository();
-  const fake = fakeRuns();
-  await fakeWorker(t, root, fake.runRepo);
-  const started = startCommand(t, root, ['--force']);
-  await until(
-    () => fake.calls.length === 1 || started.stderr().includes('failed'),
-    'the run to start',
-  );
-  assert.doesNotMatch(started.stderr(), /failed/);
-  fake.finish();
-  assert.equal(await started.exited, 0);
-});
-
 test('a user who runs start while an older worker has a watch run going sees start refused with the coming update, and the run go on in the newer worker after its running issues', async (t) => {
   const root = await repository();
   const path = process.env.PATH;

@@ -63,11 +63,7 @@ async function main(): Promise<number> {
 
 function run(root: string, args: Args, argv: string[]): Promise<number> {
   process.stderr.on('error', () => {});
-  return startInWorker(
-    root,
-    args,
-    argv.slice(1).filter((arg) => arg !== '--force'),
-  );
+  return startInWorker(root, args, argv.slice(1));
 }
 
 const STOPPED = {

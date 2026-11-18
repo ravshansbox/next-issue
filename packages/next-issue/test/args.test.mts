@@ -76,7 +76,10 @@ test('a user who passes --hunt on asks to hunt and keeps watching, and --hunt of
 });
 
 test('a user who passes a flag to serve gets an error that serve does not take it', () => {
-  for (const argv of [['--hunt', 'on'], ['--watch', 'off'], ['--force']]) {
+  for (const argv of [
+    ['--hunt', 'on'],
+    ['--watch', 'off'],
+  ]) {
     assert.throws(
       () => parseArgs(['serve', ...argv]),
       new RegExp(`serve does not take ${argv[0]}`),
@@ -132,6 +135,24 @@ test('a user who passes --scope with no value or another value gets an error tha
   for (const rest of [[], ['all'], ['--force']]) {
     assert.throws(() => parseArgs(['update', '--scope', ...rest]), /--scope takes user or project/);
   }
+});
+
+test('a user who passes --force to a command other than init gets an error that says it belongs to init', () => {
+  for (const command of ['start', 'serve', 'stop', 'logs', 'refresh', 'update']) {
+    assert.throws(
+      () => parseArgs([command, '--force']),
+      new RegExp(`${command} does not take --force: it belongs to init`),
+    );
+  }
+  assert.throws(
+    () => parseArgs(['update', '--scope', 'user', '--force']),
+    /update does not take --force: it belongs to init/,
+  );
+  assert.throws(
+    () => parseArgs(['watch', 'on', '--force']),
+    /watch does not take --force: it belongs to init/,
+  );
+  assert.equal(parseArgs(['init', '--force']).force, true);
 });
 
 test('a user who passes --scope to another command gets an error that says it belongs to update', () => {

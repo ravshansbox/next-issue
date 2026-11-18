@@ -85,11 +85,14 @@ export function parseArgs(argv: string[]): Args {
   if (args.command !== undefined && args.command !== 'update' && args.scope !== undefined) {
     throw new Error(`${args.command} does not take --scope: it belongs to update`);
   }
-  if (args.command === 'serve' && flag !== undefined) {
-    throw new Error(`serve does not take ${flag}`);
-  }
   if ((args.command === 'watch' || args.command === 'hunt') && args.on === undefined) {
     throw new Error(`${args.command} takes on or off`);
+  }
+  if (args.command !== undefined && args.command !== 'init' && args.force) {
+    throw new Error(`${args.command} does not take --force: it belongs to init`);
+  }
+  if (args.command === 'serve' && flag !== undefined) {
+    throw new Error(`serve does not take ${flag}`);
   }
   return args;
 }
