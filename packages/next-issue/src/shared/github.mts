@@ -60,12 +60,20 @@ function labelFilter(labels: string[], without: string[], every: string[]): stri
   return any + all + without.map((label) => ` -label:${quoted(label)}`).join('');
 }
 
+function blockedFilter(blocked: boolean | undefined): string {
+  if (blocked === undefined) {
+    return '';
+  }
+  return blocked ? ' is:blocked' : ' -is:blocked';
+}
+
 export async function openIssues(
   repo: Repo,
   limit: number,
   labels: string[],
   without: string[] = [],
   every: string[] = [],
+  blocked?: boolean,
 ): Promise<Issue[]> {
   const parsed = await ghJson<RawIssue[]>(repo, [
     'issue',
@@ -73,7 +81,7 @@ export async function openIssues(
     '--state',
     'open',
     '--search',
-    `sort:created-asc${labelFilter(labels, without, every)}`,
+    `sort:created-asc${labelFilter(labels, without, every)}${blockedFilter(blocked)}`,
     '--limit',
     String(limit),
     '--json',

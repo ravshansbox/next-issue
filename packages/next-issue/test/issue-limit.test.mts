@@ -113,3 +113,56 @@ test('a user who hunts with given-up and waiting issues filling the issue limit 
     [7],
   );
 });
+
+const BLOCKED_ONE: Issue = { ...ISSUE, number: 3, createdAt: '2025-12-01T00:00:00Z' };
+const BLOCKED_TWO: Issue = { ...ISSUE, number: 4, createdAt: '2025-12-02T00:00:00Z' };
+const BLOCKED_THREE: Issue = { ...ISSUE, number: 5, createdAt: '2025-12-03T00:00:00Z' };
+const BLOCKED = new Set([3, 4, 5]);
+
+async function blockedFirst(t: TestContext): Promise<Harness> {
+  const open = [BLOCKED_ONE, BLOCKED_TWO, BLOCKED_THREE, ISSUE];
+  const target = await limited(t, open);
+  const { ports } = target.context;
+  ports.openIssues = async (repo, limit, labels, without, every, blocked) =>
+    search(open.filter((issue) => blocked === undefined || BLOCKED.has(issue.number) === blocked))(
+      repo,
+      limit,
+      labels,
+      without,
+      every,
+      blocked,
+    );
+  ports.openBlockers = async (_repo, issue) => (BLOCKED.has(issue) ? ['#99'] : []);
+  return target;
+}
+
+test('a user whose blocked ready issues fill the issue limit gets a newer unblocked ready issue claimed', async (t) => {
+  const target = await blockedFirst(t);
+  assert.deepEqual(await outcomes(target), [
+    [3, 'skipped'],
+    [4, 'skipped'],
+    [7, 'done'],
+    [3, 'skipped'],
+    [4, 'skipped'],
+  ]);
+});
+
+test('a user who hunts with blocked ready issues filling the issue limit sees the hunter count a newer unblocked ready issue', async (t) => {
+  const target = await blockedFirst(t);
+  const ready = await hunter(target.context).ready(new Set(), new Set());
+  assert.deepEqual(
+    ready.map((issue) => issue.number),
+    [7],
+  );
+});
+
+test('a user whose blocked ready issues fill the issue limit sees a newer unblocked ready issue in the upcoming list', async (t) => {
+  const target = await blockedFirst(t);
+  const { repo, config, ports } = target.context;
+  const upcoming = await upcomingIssues(repo, config, ports);
+  assert.deepEqual(upcoming.claimable, [{ issue: 7, title: ISSUE.title }]);
+  assert.deepEqual(
+    upcoming.blocked.map((item) => item.issue),
+    [3, 4],
+  );
+});

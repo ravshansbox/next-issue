@@ -296,7 +296,7 @@ test('a user who hunts sees the hunter count only issues that the watch can clai
     (await watched.ready(new Set(), new Set())).map((issue) => issue.number),
     [7],
   );
-  assert.deepEqual(asked, [['status:todo']]);
+  assert.deepEqual(asked, [['status:todo'], ['status:todo']]);
 });
 
 test('a user who hunts sees the hunter count an issue blocked only by running or claimable issues of the same repository, and not one with a blocker that cannot move', async (t) => {

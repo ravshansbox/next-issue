@@ -141,31 +141,41 @@ test('a watcher whose run cannot read a saved issue is not sent the question lis
   assert.equal(sent, 0);
 });
 
-test('a user with a ready label gets the ready, in-progress and in-review issues asked for apart from the waiting ones, and the given-up ones left out', async (t) => {
+test('a user with a ready label gets the unblocked and the blocked ready, in-progress and in-review issues asked for apart from the waiting ones, and the given-up ones left out', async (t) => {
   const target = await harness(t);
-  const asked: string[][][] = [];
-  target.context.ports.openIssues = async (_repo, _limit, labels, without = []) => {
-    asked.push([labels, without]);
+  const asked: unknown[] = [];
+  target.context.ports.openIssues = async (
+    _repo,
+    _limit,
+    labels,
+    without = [],
+    _every,
+    blocked,
+  ) => {
+    asked.push([labels, without, blocked]);
+    return [];
+  };
+  await pendingIssues(target.context);
+  const listed = ['status:todo', 'status:in-progress', 'status:in-review'];
+  const given = ['status:needs-human', 'status:blocked'];
+  assert.deepEqual(asked, [
+    [listed, given, false],
+    [listed, given, true],
+    [['status:needs-human'], ['status:blocked'], undefined],
+  ]);
+});
+
+test('a user with no ready label gets every unblocked and blocked open issue asked for', async (t) => {
+  const target = await harness(t);
+  target.context.config.labels.ready = '';
+  const asked: unknown[] = [];
+  target.context.ports.openIssues = async (_repo, _limit, labels, _without, _every, blocked) => {
+    asked.push([labels, blocked]);
     return [];
   };
   await pendingIssues(target.context);
   assert.deepEqual(asked, [
-    [
-      ['status:todo', 'status:in-progress', 'status:in-review'],
-      ['status:needs-human', 'status:blocked'],
-    ],
-    [['status:needs-human'], ['status:blocked']],
+    [[], false],
+    [[], true],
   ]);
-});
-
-test('a user with no ready label gets every open issue asked for', async (t) => {
-  const target = await harness(t);
-  target.context.config.labels.ready = '';
-  const asked: string[][] = [];
-  target.context.ports.openIssues = async (_repo, _limit, labels) => {
-    asked.push(labels);
-    return [];
-  };
-  await pendingIssues(target.context);
-  assert.deepEqual(asked, [[]]);
 });

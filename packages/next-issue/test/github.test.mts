@@ -248,6 +248,27 @@ esac
   );
 });
 
+test('a user who asks for blocked or unblocked issues gets only those issues listed', async (t) => {
+  const dir = await tempDir();
+  const script = `#!/bin/sh
+case "$*" in
+  *'label:"status:todo" -is:blocked'*)
+    echo '[{"number":150,"title":"free","body":"","createdAt":"2026-02-01T00:00:00Z","labels":[{"name":"status:todo"}]}]' ;;
+  *'label:"status:todo" is:blocked'*)
+    echo '[{"number":2,"title":"blocked","body":"","createdAt":"2026-01-02T00:00:00Z","labels":[{"name":"status:todo"}]}]' ;;
+  *) echo '[{"number":1,"title":"any","body":"","createdAt":"2026-01-01T00:00:00Z","labels":[]}]' ;;
+esac
+`;
+  await installGh(t, dir, script);
+  const repo = { owner: 'acme', name: 'blocked', root: dir };
+  const numbers = async (blocked: boolean) =>
+    (await openIssues(repo, 1, ['status:todo'], [], [], blocked)).map((issue) => issue.number);
+  assert.deepEqual(
+    { unblocked: await numbers(false), blocked: await numbers(true) },
+    { unblocked: [150], blocked: [2] },
+  );
+});
+
 test('a user whose ready label holds a double quote gets its issues listed', async (t) => {
   const dir = await tempDir();
   const script = `#!/bin/sh

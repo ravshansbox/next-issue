@@ -189,5 +189,5 @@ test('a user with concurrency 1 whose only issue needs the fixer after failed ch
     ['done'],
   );
   assert.ok(target.order.includes('fixer #7'), target.order.join(', '));
-  assert.equal(lists, 2);
+  assert.equal(lists, 4);
 });

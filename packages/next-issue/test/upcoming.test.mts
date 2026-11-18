@@ -34,7 +34,7 @@ test('the worker lists the fresh issues with the ready label in the order it cla
     },
     openBlockers: async (_repo, number) => (number === 4 ? ['#2', 'other/repo#9'] : []),
   });
-  assert.deepEqual(asked, [['status:todo']]);
+  assert.deepEqual(asked, [['status:todo'], ['status:todo']]);
   assert.deepEqual(upcoming, {
     claimable: [
       { issue: 3, title: 'Title 3' },

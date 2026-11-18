@@ -15,16 +15,29 @@ import { heldOnBase } from './unsettled.mts';
 
 type Skip = 'stop-label' | 'not-ready' | 'in-flight';
 
-export function listedIssues(
+export async function listedIssues(
   ports: Pick<Ports, 'openIssues'>,
   repo: Repo,
   config: Config,
   labels: string[],
 ): Promise<Issue[]> {
   const { ready, needsHuman, skip } = config.labels;
-  return ready.length === 0
-    ? ports.openIssues(repo, config.issueLimit, [])
-    : ports.openIssues(repo, config.issueLimit, [ready, ...labels], [needsHuman, skip]);
+  const search = (blocked: boolean) =>
+    ready.length === 0
+      ? ports.openIssues(repo, config.issueLimit, [], [], [], blocked)
+      : ports.openIssues(
+          repo,
+          config.issueLimit,
+          [ready, ...labels],
+          [needsHuman, skip],
+          [],
+          blocked,
+        );
+  const issues = new Map<number, Issue>();
+  for (const issue of [...(await search(false)), ...(await search(true))]) {
+    issues.set(issue.number, issue);
+  }
+  return [...issues.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
 export function waitingIssues(
