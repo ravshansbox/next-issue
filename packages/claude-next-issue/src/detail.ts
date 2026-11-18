@@ -5,17 +5,28 @@ type Entry = Record<string, unknown>;
 type Block = {
   type?: string;
   text?: string;
-  thinking?: string;
   name?: string;
-  id?: string;
-  input?: unknown;
-  tool_use_id?: string;
-  content?: string | Block[];
+  input?: Record<string, unknown>;
 };
-type Message = { type?: string; message?: { content?: string | Block[] } };
+type Message = {
+  type?: string;
+  subtype?: string;
+  cwd?: string;
+  message?: { content?: string | Block[] };
+};
 
 const LOG = '.jsonl';
 const HIDDEN = new Set(['ts', 'runId', 'kind', 'issue']);
+const TOOL_FIELDS: Record<string, string[]> = {
+  Bash: ['command'],
+  Read: ['file_path'],
+  Write: ['file_path'],
+  Edit: ['file_path'],
+  NotebookEdit: ['notebook_path'],
+  Grep: ['pattern', 'path'],
+  Glob: ['pattern', 'path'],
+};
+const PATH_FIELDS = new Set(['file_path', 'notebook_path', 'path']);
 
 function parsed(text: string): Entry[] {
   return text.split('\n').flatMap((line) => {
@@ -44,17 +55,29 @@ function labelled(label: string, text: string): string[] {
   return `${label}: ${text}`.split('\n');
 }
 
-function resultText(content: Block['content']): string {
-  if (typeof content === 'string') {
-    return content;
+function shortPath(path: string, cwd: string | undefined): string {
+  if (cwd === undefined) {
+    return path;
   }
-  return (content ?? [])
-    .filter((item) => item.type === 'text')
-    .map((item) => item.text ?? '')
-    .join('\n');
+  if (path === cwd) {
+    return '.';
+  }
+  return path.startsWith(`${cwd}/`) ? path.slice(cwd.length + 1) : path;
 }
 
-function messageLines(record: Message, tools: Map<string, string>): string[] {
+function toolLine(item: Block, cwd: string | undefined): string {
+  const name = item.name ?? '';
+  const values = (TOOL_FIELDS[name] ?? []).flatMap((field) => {
+    const value = item.input?.[field];
+    if (typeof value !== 'string') {
+      return [];
+    }
+    return [PATH_FIELDS.has(field) ? shortPath(value, cwd) : value.replaceAll('\n', ' ')];
+  });
+  return ['tool', name, ...values].join(' ');
+}
+
+function messageLines(record: Message, cwd: string | undefined): string[] {
   const role = record.type;
   if (role !== 'user' && role !== 'assistant') {
     return [];
@@ -65,15 +88,10 @@ function messageLines(record: Message, tools: Map<string, string>): string[] {
   }
   return (content ?? []).flatMap((item) => {
     if (item.type === 'thinking') {
-      return labelled('thinking', item.thinking ?? '');
+      return ['thinking'];
     }
     if (item.type === 'tool_use') {
-      tools.set(item.id ?? '', item.name ?? '');
-      return labelled(`tool call ${item.name ?? ''}`, JSON.stringify(item.input ?? {}));
-    }
-    if (item.type === 'tool_result') {
-      const name = tools.get(item.tool_use_id ?? '') ?? '';
-      return labelled(`tool result ${name}`, resultText(item.content));
+      return [toolLine(item, cwd)];
     }
     return item.type === 'text' ? labelled(role, item.text ?? '') : [];
   });
@@ -84,10 +102,9 @@ async function sessionLines(host: Host, dir: string, session: string): Promise<s
   if (text === undefined) {
     return ['  No session file'];
   }
-  const tools = new Map<string, string>();
-  return parsed(text)
-    .flatMap((record) => messageLines(record as Message, tools))
-    .map((line) => `  ${line}`);
+  const records = parsed(text) as Message[];
+  const cwd = records.find((record) => record.type === 'system' && record.subtype === 'init')?.cwd;
+  return records.flatMap((record) => messageLines(record, cwd)).map((line) => `  ${line}`);
 }
 
 async function newestRun(host: Host, runs: string): Promise<string | undefined> {

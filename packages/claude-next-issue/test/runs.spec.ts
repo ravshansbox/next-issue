@@ -34,19 +34,33 @@ async function repositoryWithRun(): Promise<string> {
     join(runs, `${RUN}.summary.json`),
     JSON.stringify({ total: { total: 1500 }, roles: { implementer: { total: 1500, ms: 65_000 } } }),
   );
+  const tool = (name: string, input: Record<string, unknown>) => ({
+    type: 'assistant',
+    message: { content: [{ type: 'tool_use', id: `toolu_${name}`, name, input }] },
+  });
+  const worktree = '/repo/.worktrees/7';
   const session = [
-    { type: 'system', subtype: 'init', session_id: 'abc' },
+    { type: 'system', subtype: 'init', session_id: 'abc', cwd: worktree },
     { type: 'assistant', message: { content: [{ type: 'text', text: 'Reading the code' }] } },
     {
       type: 'assistant',
-      message: {
-        content: [{ type: 'tool_use', id: 'toolu_1', name: 'Bash', input: { command: 'ls' } }],
-      },
+      message: { content: [{ type: 'thinking', thinking: 'Maybe the README\nholds it' }] },
     },
+    tool('Bash', { command: 'git status\n--short' }),
+    tool('Read', { file_path: `${worktree}/src/detail.ts` }),
+    tool('Write', { file_path: '/tmp/out.txt', content: 'x' }),
+    tool('Edit', { file_path: `${worktree}/README.md`, old_string: 'a', new_string: 'b' }),
+    tool('NotebookEdit', { notebook_path: `${worktree}/notes.ipynb` }),
+    tool('Grep', { pattern: 'toolFields', path: worktree }),
+    tool('Glob', { pattern: '**/*.ts' }),
+    tool('WebFetch', { url: 'https://example.com' }),
     {
       type: 'user',
-      message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'README.md' }] },
+      message: {
+        content: [{ type: 'tool_result', tool_use_id: 'toolu_Bash', content: 'README.md' }],
+      },
     },
+    { type: 'user', message: { content: 'Keep going\nplease' } },
     { type: 'result', subtype: 'success', result: 'commit: fix: the thing' },
   ];
   await writeFile(
@@ -73,7 +87,7 @@ test('a person who opens the past runs of a repository with none sees no runs', 
   assert.deepEqual(await pastRuns(nodeHost, await tempDir()), []);
 });
 
-test('a person who opens an issue sees its run events, its worker log lines and what its agents said and ran', async () => {
+test('a person who opens an issue sees its run events, its worker log lines and what its agents said and one line per tool call', async () => {
   const root = await repositoryWithRun();
   const lines = await issueDetail(nodeHost, root, 7, undefined);
   assert.equal(lines[0], 'Issue #7 · run 2026-11-18 09:00:00 UTC');
@@ -84,7 +98,16 @@ test('a person who opens an issue sees its run events, its worker log lines and 
   assert.deepEqual(session, [
     'Session: implementer',
     '  assistant: Reading the code',
-    '  tool call Bash: {"command":"ls"}',
-    '  tool result Bash: README.md',
+    '  thinking',
+    '  tool Bash git status --short',
+    '  tool Read src/detail.ts',
+    '  tool Write /tmp/out.txt',
+    '  tool Edit README.md',
+    '  tool NotebookEdit notes.ipynb',
+    '  tool Grep toolFields .',
+    '  tool Glob **/*.ts',
+    '  tool WebFetch',
+    '  user: Keep going',
+    '  please',
   ]);
 });
