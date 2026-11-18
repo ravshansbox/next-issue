@@ -1,6 +1,5 @@
 {
   "name": "next-issue",
-  "version": "0.0.0",
   "description": "Run and watch the next-issue worker of a repository: start, stop and switch its runs, answer its hand-overs and file issues it can claim.",
   "author": {
     "name": "ravshansbox"
