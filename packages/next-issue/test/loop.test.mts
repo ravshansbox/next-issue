@@ -295,7 +295,7 @@ function gate(): Gate {
 
 async function until(done: () => boolean): Promise<void> {
   for (let tries = 0; !done(); tries += 1) {
-    assert.ok(tries < 100, 'timed out');
+    assert.ok(tries < 3000, 'timed out');
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
 }

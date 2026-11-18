@@ -843,6 +843,11 @@ test('a worker whose break file link fails keeps the break file that another wor
   const realOpen = fsPromises.open;
   let refused = false;
   let taken = false;
+  let breakReads = 0;
+  let readTwice = (): void => undefined;
+  const heldTwice = new Promise<void>((resolve) => {
+    readTwice = resolve;
+  });
   await withFs(t, {
     link: async (source: string, target: string) => {
       if (target === breakPath && !refused) {
@@ -857,11 +862,14 @@ test('a worker whose break file link fails keeps the break file that another wor
         taken = true;
         await writeFile(breakPath, otherBreak, { flag: 'wx' });
       }
+      if (path === breakPath && file !== undefined && (breakReads += 1) === 2) {
+        readTwice();
+      }
       return file ?? Promise.reject(exists('ENOENT'));
     },
   });
   const taking = lock(lockPath, 0);
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  await heldTwice;
   assert.equal(await readFile(breakPath, 'utf8').catch(() => 'missing'), otherBreak);
   await rm(breakPath);
   assert.ok(await taking);

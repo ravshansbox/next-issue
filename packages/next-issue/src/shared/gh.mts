@@ -10,6 +10,16 @@ const NETWORK_FAULT =
 
 export const GITHUB_HOST = 'github.com';
 
+const realSleep = async (ms: number): Promise<void> => {
+  await delay(ms);
+};
+
+let retrySleep = realSleep;
+
+export function setRetrySleep(next = realSleep): void {
+  retrySleep = next;
+}
+
 export function slug(repo: Repo): string {
   return `${repo.owner}/${repo.name}`;
 }
@@ -34,7 +44,7 @@ export async function repeatable(repo: Repo, args: string[]): Promise<string> {
       if (attempt >= NETWORK_TRIES || !errorMatches(error, NETWORK_FAULT)) {
         throw error;
       }
-      await delay(secondsToMs(attempt));
+      await retrySleep(secondsToMs(attempt));
     }
   }
 }

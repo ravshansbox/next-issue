@@ -14,7 +14,14 @@ async function claude(t: TestContext, steps: Step[] = []) {
   return { ...fake, steps };
 }
 
-const slow = (): Step => text('word '.repeat(500), 20);
+const slow = (): Step => text('word '.repeat(3000), 20);
+
+const slowAfter =
+  (asked: () => void): Step =>
+  () => {
+    asked();
+    return text('word '.repeat(3000), 20);
+  };
 
 test('a Bash call records the command', () => {
   assert.deepEqual(toolFields('Bash', { command: 'npm test' }, '/work'), {
@@ -193,10 +200,9 @@ test('the harness reports a timeout when an agent runs too long', async (t) => {
 });
 
 test('a user who stops a run now while an agent runs gets no agent reply, only a stopped run', async (t) => {
-  const { recorder, request } = await claude(t, [slow()]);
   const children = runChildren();
+  const { recorder, request } = await claude(t, [slowAfter(() => stopRunChildren(children))]);
   const running = withRunChildren(children, () => runAgent(recorder, request));
-  setTimeout(() => stopRunChildren(children), 1500);
   await assert.rejects(running, { message: 'The run stopped.' });
 });
 
@@ -229,8 +235,8 @@ async function assertFailedUsage(
 
 test('a user whose agent times out sees a usage event and summary totals with the tokens it spent', async (t) => {
   const { recorder, request } = await claude(t, [toolUse('Bash', { command: 'ls' }), slow()]);
-  await assert.rejects(runAgent(recorder, { ...request, timeoutMs: 2500 }), {
-    message: 'The coder agent did not finish in 2500 ms.',
+  await assert.rejects(runAgent(recorder, { ...request, timeoutMs: 10_000 }), {
+    message: 'The coder agent did not finish in 10000 ms.',
   });
   await assertFailedUsage(recorder, request);
 });
@@ -245,10 +251,12 @@ test('a user whose agent model fails sees a usage event and summary totals with 
 });
 
 test('a user who stops a run now while an agent runs sees a usage event and summary totals with the tokens it spent', async (t) => {
-  const { recorder, request } = await claude(t, [toolUse('Bash', { command: 'ls' }), slow()]);
   const children = runChildren();
+  const { recorder, request } = await claude(t, [
+    toolUse('Bash', { command: 'ls' }),
+    slowAfter(() => stopRunChildren(children)),
+  ]);
   const running = withRunChildren(children, () => runAgent(recorder, request));
-  setTimeout(() => stopRunChildren(children), 2500);
   await assert.rejects(running, { message: 'The run stopped.' });
   await assertFailedUsage(recorder, request);
 });

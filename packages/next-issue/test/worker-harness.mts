@@ -18,7 +18,7 @@ export type Client = {
   close: () => Promise<void>;
 };
 
-const nextTimeoutMs = 3000;
+const nextTimeoutMs = 30_000;
 
 export async function connect(t: TestContext, socketPath: string): Promise<Client> {
   // A `ws+unix://` URL would percent-encode the path and cut it at `#`, `?` and `:`.

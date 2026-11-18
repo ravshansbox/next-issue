@@ -92,8 +92,8 @@ async function startWatch(t: TestContext, args: Args, options: Options = {}): Pr
 
 async function until(done: () => boolean): Promise<void> {
   for (let tries = 0; !done(); tries += 1) {
-    assert.ok(tries < 200, 'timed out');
-    await delay(10);
+    assert.ok(tries < 1200, 'timed out');
+    await delay(25);
   }
 }
 

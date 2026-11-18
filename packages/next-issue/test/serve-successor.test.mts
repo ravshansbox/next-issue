@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
+import { hasCode } from '../src/shared/errors.mts';
 import { lockHolder } from '../src/shared/lock.mts';
 import type { WorkerMessage } from '../src/shared/protocol.mts';
 import { startWorker } from '../src/worker/serve.mts';
@@ -26,7 +27,13 @@ async function oldWorker(t: TestContext) {
     await started.close();
     const holder = await lockHolder(paths.lockPath);
     if (holder !== undefined && holder !== process.pid) {
-      process.kill(holder, 'SIGKILL');
+      try {
+        process.kill(holder, 'SIGKILL');
+      } catch (error) {
+        if (!hasCode(error, 'ESRCH')) {
+          throw error;
+        }
+      }
     }
   });
   return { root, fake, started, socketPath: paths.socketPath };

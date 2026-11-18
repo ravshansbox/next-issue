@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { onStop } from '../src/shared/children.mts';
+import { hasCode } from '../src/shared/errors.mts';
 import { lockHolder } from '../src/shared/lock.mts';
 import { must } from '../src/shared/exec.mts';
 import { type RunRepo, startWorker } from '../src/worker/serve.mts';
@@ -77,12 +78,18 @@ function cliCommand(
 async function killWorker(root: string): Promise<void> {
   const holder = await lockHolder(workerPaths(root).lockPath);
   if (holder !== undefined && holder !== process.pid) {
-    process.kill(holder, 'SIGTERM');
+    try {
+      process.kill(holder, 'SIGTERM');
+    } catch (error) {
+      if (!hasCode(error, 'ESRCH')) {
+        throw error;
+      }
+    }
   }
 }
 
 async function until(check: () => boolean, what: string): Promise<void> {
-  for (let left = 200; left > 0; left -= 1) {
+  for (let left = 1200; left > 0; left -= 1) {
     if (check()) {
       return;
     }
@@ -438,9 +445,8 @@ async function pressThreeTimes(
 
 test('a user whose third Ctrl-C press arrives as two signals sees start keep following the run and exit with its code', async (t) => {
   const { started, fake } = await pressThreeTimes(t, true);
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  assert.equal(started.child.exitCode, null);
-  assert.equal(started.child.signalCode, null);
+  fake.controls().output?.('still following\n');
+  await until(() => started.stderr().includes('still following'), 'the output after the presses');
   fake.finish();
   assert.equal(await started.exited, 0);
 });

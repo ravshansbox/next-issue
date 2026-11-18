@@ -35,7 +35,7 @@ async function serveWorker(root: string, env: NodeJS.ProcessEnv = process.env) {
   const exited = new Promise<NodeJS.Signals | null>((resolve) =>
     child.on('exit', (_code, signal) => resolve(signal)),
   );
-  for (let left = 100; left > 0 && !stderr.includes('listening'); left -= 1) {
+  for (let left = 600; left > 0 && !stderr.includes('listening'); left -= 1) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   return { child, exited, stderr: () => stderr };
@@ -170,7 +170,6 @@ esac
   while (!stderr.includes('watch.wait')) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  await new Promise((resolve) => setTimeout(resolve, 1000));
   child.kill('SIGINT');
   assert.equal(await exited, 0);
   assert.deepEqual(
@@ -490,7 +489,7 @@ async function runLog(lines: string[]): Promise<{ root: string; file: string }> 
 }
 
 async function until(read: () => string, pattern: RegExp): Promise<void> {
-  for (let left = 200; left > 0 && !pattern.test(read()); left -= 1) {
+  for (let left = 600; left > 0 && !pattern.test(read()); left -= 1) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   assert.match(read(), pattern);

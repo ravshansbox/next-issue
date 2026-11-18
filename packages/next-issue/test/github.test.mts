@@ -3,6 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { setCommandObserver } from '../src/shared/exec.mts';
+import { setRetrySleep } from '../src/shared/gh.mts';
 import {
   closeIssue,
   commentOnIssue,
@@ -18,6 +19,7 @@ import {
   viewIssue,
 } from '../src/shared/github.mts';
 import { setLabel } from '../src/shared/labels.mts';
+import { fakeClock } from './fake-clock.mts';
 import { installGh } from './fake-gh.mts';
 import { tempDir } from './temp-dir.mts';
 
@@ -37,6 +39,8 @@ case "$1 $2" in
 esac
 `;
   await installGh(t, dir, script);
+  setRetrySleep(fakeClock().sleep);
+  t.after(() => setRetrySleep());
   return dir;
 }
 
