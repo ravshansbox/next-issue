@@ -9,7 +9,7 @@ Works through the open GitHub issues of a repository with an agent.
 
 ## Architecture
 
-Each repository has one worker, `next-issue serve`, and its clients: the `next-issue` CLI and the Claude Code plugin. The clients keep feature parity. See [ADR 0005](docs/adr/0005-one-worker-two-clients.md).
+Each repository has one worker, `next-issue serve`, and its clients: the `next-issue` CLI and the Claude Code plugin. [ADR 0007](docs/adr/0007-cli-only-client.md) removes the plugin and keeps the CLI as the only client.
 
 ## Develop
 

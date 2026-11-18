@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted. The plugin part is superseded by [ADR 0007](0007-cli-only-client.md).
 
 ## Context
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR 0007](0007-cli-only-client.md)
 
 ## Context
 
