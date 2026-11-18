@@ -10,7 +10,7 @@ import { followLog, newestRunLog } from './cli/logs.mts';
 import { serve } from './worker/serve.mts';
 import { startInWorker } from './cli/start.mts';
 import { STATE_DIR } from './shared/state.mts';
-import { switchInWorker } from './cli/switch-run.mts';
+import { refreshInWorker, switchInWorker } from './cli/switch-run.mts';
 import { workerPaths } from './shared/worker-paths.mts';
 import { WORKTREE_DIR } from './shared/worktree.mts';
 
@@ -41,6 +41,10 @@ async function main(): Promise<number> {
   }
   if (args.command === 'watch' || args.command === 'hunt') {
     await write(process.stdout, await switchInWorker(root, args.command, args.on!));
+    return 0;
+  }
+  if (args.command === 'refresh') {
+    await write(process.stdout, await refreshInWorker(root));
     return 0;
   }
   if (args.command === 'logs') {

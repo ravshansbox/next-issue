@@ -162,6 +162,56 @@ test('a user who runs watch or hunt with no worker or no run going sees that no 
   assert.equal(fake.calls.length, 0);
 });
 
+test('a user who runs refresh while the worker has no run going sees that no run is going and exit code 0', async (t) => {
+  const root = await repository();
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const refreshed = cliCommand(t, root, ['refresh']);
+  assert.equal(await refreshed.exited, 0);
+  assert.equal(refreshed.stdout(), 'next-issue: no run is going in this repository\n');
+  assert.equal(fake.calls.length, 0);
+});
+
+test('a user who runs refresh while the run does not watch or is stopping sees that nothing was asked and exit code 0', async (t) => {
+  const root = await repository();
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const other = await connect(t, workerPaths(root).socketPath);
+  other.send({ type: 'start', root });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'running');
+  const watchOff = cliCommand(t, root, ['watch', 'off']);
+  assert.equal(await watchOff.exited, 0);
+  const notWatching = cliCommand(t, root, ['refresh']);
+  assert.equal(await notWatching.exited, 0);
+  assert.equal(
+    notWatching.stdout(),
+    'next-issue: the run does not watch for new issues, so nothing was asked\n',
+  );
+  other.send({ type: 'stop', root });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'stopping');
+  const stopping = cliCommand(t, root, ['refresh']);
+  assert.equal(await stopping.exited, 0);
+  assert.equal(stopping.stdout(), 'next-issue: the run is stopping, so nothing was asked\n');
+  fake.finish();
+});
+
+test('a user who runs refresh while an older worker has a run going sees an error to restart the run and exit code 1', async (t) => {
+  const root = await repository();
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo, '0.0.0-old');
+  const other = await connect(t, workerPaths(root).socketPath);
+  other.send({ type: 'start', root, args: ['--watch', 'on'] });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'running');
+  const refreshed = cliCommand(t, root, ['refresh']);
+  assert.equal(await refreshed.exited, 1);
+  assert.equal(refreshed.stdout(), '');
+  assert.match(
+    refreshed.stderr(),
+    /the worker of the going run is older than next-issue, so it cannot refresh\. Stop the run, then start it again/,
+  );
+  fake.finish();
+});
+
 test('a user who runs watch or hunt with no value or another value sees an error and exit code 1', async (t) => {
   const root = await repository();
   for (const argv of [['watch'], ['hunt', 'yes']]) {

@@ -21,6 +21,7 @@ export type Connection = {
   listen: (listener: (message: WorkerMessage) => void) => void;
   closed: Promise<void>;
   close: () => void;
+  end: () => Promise<void>;
 };
 
 const ANSWER_TIMEOUT_MS = 5_000;
@@ -104,6 +105,10 @@ function open(socketPath: string, version?: string): Promise<Connection> {
           },
           closed,
           close: () => socket.terminate(),
+          end: () => {
+            socket.close();
+            return closed;
+          },
         });
       }
     });

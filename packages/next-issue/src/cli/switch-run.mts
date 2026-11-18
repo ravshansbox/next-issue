@@ -34,6 +34,35 @@ export async function switchInWorker(root: string, name: SwitchName, on: boolean
   }
 }
 
+export async function refreshInWorker(root: string): Promise<string> {
+  const connection = await findWorker(root);
+  if (connection === undefined) {
+    return NO_RUN;
+  }
+  const progress = connection.runs[root];
+  if (!going(progress)) {
+    connection.close();
+    return NO_RUN;
+  }
+  if (isNewer(await packageVersion(), connection.version)) {
+    connection.close();
+    throw new Error(
+      'the worker of the going run is older than next-issue, so it cannot refresh. Stop the run, then start it again',
+    );
+  }
+  if (progress!.status === 'stopping') {
+    connection.close();
+    return 'next-issue: the run is stopping, so nothing was asked\n';
+  }
+  if (progress!.watching === false) {
+    connection.close();
+    return 'next-issue: the run does not watch for new issues, so nothing was asked\n';
+  }
+  connection.send({ type: 'refresh', root });
+  await connection.end();
+  return 'next-issue: asked the run to check for new issues now\n';
+}
+
 function switched(
   connection: Connection,
   root: string,
