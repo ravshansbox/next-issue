@@ -547,6 +547,23 @@ test('a user who pipes logs sees multi-byte characters intact across a long line
   assert.match(read(), /^\S+ xy text=é{117}\.\.\.\n$/);
 });
 
+test('a user who pipes logs sees a long Bash command in full', async (t) => {
+  const command = `echo ${'a'.repeat(300)}`;
+  const long = JSON.stringify({
+    ts: '2026-01-02T03:04:05.000Z',
+    kind: 'tool',
+    tool: 'Bash',
+    command,
+  });
+  const { root } = await runLog([long]);
+  const { child, read, exited } = followLogs(root, []);
+  t.after(() => child.kill('SIGKILL'));
+  await until(read, /\n$/);
+  child.kill('SIGINT');
+  assert.equal(await exited, 0);
+  assert.match(read(), new RegExp(`^\\S+ tool tool=Bash command=${command}\\n$`));
+});
+
 test('a user who pipes logs sees the valid events rendered and the line that is not JSON skipped', async (t) => {
   const { root } = await runLog([event(1), 'not json', event(2)]);
   const { child, read, exited } = followLogs(root, []);

@@ -6,7 +6,7 @@ export function render(record: Fields): string {
   const issue = record.issue === undefined ? '' : ` #${record.issue}`;
   const extras = Object.entries(record)
     .filter(([key]) => !['ts', 'runId', 'kind', 'issue'].includes(key))
-    .map(([key, value]) => `${key}=${short(value)}`)
+    .map(([key, value]) => `${key}=${key === 'command' ? oneLine(value) : short(value)}`)
     .join(' ');
   return `${time}${issue} ${String(record.kind)}${extras.length > 0 ? ` ${extras}` : ''}\n`;
 }
@@ -18,5 +18,9 @@ function short(value: unknown): string {
   if (typeof value === 'number') {
     return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(6)));
   }
-  return truncate(String(value).replace(/\s+/g, ' '), 120, '...');
+  return truncate(oneLine(value), 120, '...');
+}
+
+function oneLine(value: unknown): string {
+  return String(value).replace(/\s+/g, ' ');
 }
