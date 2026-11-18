@@ -4,11 +4,19 @@ import { truncate } from './text.mts';
 export function render(record: Fields): string {
   const time = new Date(String(record.ts)).toTimeString().slice(0, 8);
   const issue = record.issue === undefined ? '' : ` #${record.issue}`;
+  const role = record.role === undefined ? '' : `${String(record.role)}.`;
+  const kind = String(record.kind);
   const extras = Object.entries(record)
-    .filter(([key]) => !['ts', 'runId', 'kind', 'issue'].includes(key))
-    .map(([key, value]) => `${key}=${key === 'command' ? oneLine(value) : short(value)}`)
+    .filter(([key]) => !['ts', 'runId', 'kind', 'issue', 'role'].includes(key))
+    .map(
+      ([key, value]) => `${label(kind, key)}=${key === 'command' ? oneLine(value) : short(value)}`,
+    )
     .join(' ');
-  return `${time}${issue} ${String(record.kind)}${extras.length > 0 ? ` ${extras}` : ''}\n`;
+  return `${time}${issue} ${role}${kind}${extras.length > 0 ? ` ${extras}` : ''}\n`;
+}
+
+function label(kind: string, key: string): string {
+  return key === 'tool' && (kind === 'tool' || kind === 'tool.error') ? 'name' : key;
 }
 
 function short(value: unknown): string {

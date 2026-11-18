@@ -152,7 +152,7 @@ test('a user who runs an agent sees its events but not its text in the output of
     output += value;
   });
   await runAgent(recorder, request);
-  assert.match(output, / usage /);
+  assert.match(output, /\.usage /);
   assert.doesNotMatch(output, /agent says hello/);
 });
 

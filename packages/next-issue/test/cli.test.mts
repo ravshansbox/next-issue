@@ -547,10 +547,12 @@ test('a user who pipes logs sees multi-byte characters intact across a long line
   assert.match(read(), /^\S+ xy text=é{117}\.\.\.\n$/);
 });
 
-test('a user who pipes logs sees a long Bash command in full', async (t) => {
+test('a user who pipes logs sees a tool call as the role and kind, the tool name and the long Bash command in full', async (t) => {
   const command = `echo ${'a'.repeat(300)}`;
   const long = JSON.stringify({
     ts: '2026-01-02T03:04:05.000Z',
+    issue: 607,
+    role: 'fixer',
     kind: 'tool',
     tool: 'Bash',
     command,
@@ -561,7 +563,37 @@ test('a user who pipes logs sees a long Bash command in full', async (t) => {
   await until(read, /\n$/);
   child.kill('SIGINT');
   assert.equal(await exited, 0);
-  assert.match(read(), new RegExp(`^\\S+ tool tool=Bash command=${command}\\n$`));
+  assert.match(read(), new RegExp(`^\\S+ #607 fixer\\.tool name=Bash command=${command}\\n$`));
+});
+
+test('a user who pipes logs sees the role of an agent event before its kind and not among its fields', async (t) => {
+  const usage = JSON.stringify({
+    ts: '2026-01-02T03:04:05.000Z',
+    issue: 607,
+    role: 'fixer',
+    kind: 'usage',
+    ms: 5,
+  });
+  const failed = JSON.stringify({
+    ts: '2026-01-02T03:04:05.000Z',
+    issue: 607,
+    role: 'fixer',
+    kind: 'tool.error',
+    tool: 'Bash',
+  });
+  const { root } = await runLog([usage, failed]);
+  const { child, read, exited } = followLogs(root, []);
+  t.after(() => child.kill('SIGKILL'));
+  await until(read, /tool\.error/);
+  child.kill('SIGINT');
+  assert.equal(await exited, 0);
+  assert.deepEqual(
+    read()
+      .trimEnd()
+      .split('\n')
+      .map((line) => line.replace(/^\S+ /, '')),
+    ['#607 fixer.usage ms=5', '#607 fixer.tool.error name=Bash'],
+  );
 });
 
 test('a user who pipes logs sees the valid events rendered and the line that is not JSON skipped', async (t) => {
