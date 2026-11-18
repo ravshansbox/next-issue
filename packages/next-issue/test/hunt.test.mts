@@ -32,6 +32,22 @@ test('a user who hunts with no next-issue.hunt.md sees the hunter get the built-
   assert.match(target.prompts[0]!.prompt, /Read the whole repository/);
 });
 
+test('a user who hunts with no next-issue.hunt.md sees the hunter told to file only high-severity bugs of normal use and to simplify code that an earlier fix added', async (t) => {
+  const target = await harness(t);
+  await hunt(target.context, 1);
+  const prompt = target.prompts[0]!.prompt;
+  assert.match(prompt, /File only a finding that a user hits in normal use\./);
+  assert.match(
+    prompt,
+    /Leave out a finding that needs an unusual mix of signals, timings, stops or failures\./,
+  );
+  assert.match(
+    prompt,
+    /Start the `## Problem` section with a `Severity: high`, `Severity: medium` or `Severity: low` line, and file only high findings\./,
+  );
+  assert.match(prompt, /propose to remove or simplify that code instead of adding another guard/);
+});
+
 test('a user who hunts with one free place sees the hunter told to file at most one ready issue in the issue format after a search for duplicates, with no test run and no change', async (t) => {
   const target = await harness(t);
   await hunt(target.context, 1);
