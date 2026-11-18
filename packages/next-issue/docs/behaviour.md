@@ -402,7 +402,7 @@ In a run of the `serve` worker, a client can switch hunting and watching on or o
 
 See [Develop](https://github.com/ravshansbox/next-issue#develop) in the root README for the scripts.
 
-`npm run build` compiles `src/**/*.mts` to `dist/**/*.mjs`. `src/cli.mts` is the entry point; `src/cli/` holds the client-only code, `src/worker/` the worker-only code and `src/shared/` the code both use. The package holds the compiled files, because Node does not strip types under `node_modules`.
+`npm run build` empties `dist`, then compiles `src/**/*.mts` to `dist/**/*.mjs`, so no file of an older build is left there. `src/cli.mts` is the entry point; `src/cli/` holds the client-only code, `src/worker/` the worker-only code and `src/shared/` the code both use. The package holds the compiled files, because Node does not strip types under `node_modules`.
 
 ## Releases
 
