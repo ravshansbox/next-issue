@@ -11,6 +11,8 @@ const undos = new Set<() => void>();
 
 const current = new AsyncLocalStorage<RunChildren>();
 
+const STOP_GRACE_MS = 10_000;
+
 export function runChildren(): RunChildren {
   return { groups: new Set(), stoppers: new Set(), stopped: false };
 }
@@ -34,7 +36,25 @@ function stopAll(children: Pick<RunChildren, 'groups' | 'stoppers'>, signal: Nod
 
 export function stopRunChildren(children: RunChildren): void {
   children.stopped = true;
+  const running = [...children.groups];
   stopAll(children, 'SIGINT');
+  escalate(running, ['SIGTERM', 'SIGKILL']);
+}
+
+function escalate(running: number[], signals: NodeJS.Signals[]): void {
+  const [signal, ...later] = signals;
+  if (signal === undefined || running.length === 0) {
+    return;
+  }
+  setTimeout(() => {
+    const left = running.filter((pid) => groups.has(pid));
+    for (const pid of left) {
+      try {
+        process.kill(-pid, signal);
+      } catch {}
+    }
+    escalate(left, later);
+  }, STOP_GRACE_MS).unref();
 }
 
 export function runStopped(): boolean {

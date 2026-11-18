@@ -132,6 +132,60 @@ test('a user who stops a run now after its command exits, leaving a setsid proce
   assert.ok(Date.now() - started < 1500);
 });
 
+test(
+  'a user who stops a run now while a command traps SIGINT and SIGTERM sees SIGTERM after 10 seconds, then SIGKILL, and the step end within about 20 seconds',
+  { timeout: 30_000 },
+  async () => {
+    const children = runChildren();
+    const started = Date.now();
+    const running = withRunChildren(children, () =>
+      run(
+        'bash',
+        ['-c', "trap 'echo INT' INT; trap 'echo TERM' TERM; while :; do sleep 0.2; done"],
+        {
+          timeoutMs: 60_000,
+        },
+      ),
+    );
+    await sleep(200);
+    stopRunChildren(children);
+    const result = await running;
+    const elapsed = Date.now() - started;
+    assert.equal(result.stdout, 'INT\nTERM\n');
+    assert.equal(result.timedOut, false);
+    assert.ok(elapsed > 19_000 && elapsed < 23_000, `took ${elapsed} ms`);
+  },
+);
+
+test(
+  'a user who stops a run now while a command exits on SIGINT sees no SIGTERM sent to its process group',
+  { timeout: 30_000 },
+  async () => {
+    const dir = await tempDir();
+    const file = join(dir, 'term');
+    const children = runChildren();
+    const running = withRunChildren(children, () =>
+      run(
+        'bash',
+        [
+          '-c',
+          `(trap '' INT; trap 'echo TERM > ${file}' TERM; sleep 12) >/dev/null 2>&1 & while :; do sleep 0.2; done`,
+        ],
+        { timeoutMs: 60_000 },
+      ),
+    );
+    await sleep(200);
+    stopRunChildren(children);
+    await running;
+    try {
+      await sleep(13_000);
+      assert.equal(await readFile(file, 'utf8').catch(() => 'none'), 'none');
+    } finally {
+      await rm(dir, { force: true, recursive: true });
+    }
+  },
+);
+
 test('run kills a grandchild that outlives its parent on the time limit', async () => {
   const dir = await tempDir();
   const file = join(dir, 'pid');
