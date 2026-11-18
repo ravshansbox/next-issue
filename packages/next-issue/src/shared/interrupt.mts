@@ -18,6 +18,7 @@ export const NOTES = {
 export function onPresses(handle: (presses: number) => void): () => void {
   let presses = 0;
   let lastPress = -Infinity;
+  let ending: NodeJS.Timeout | undefined;
   const press = (): void => {
     const now = performance.now();
     if (now - lastPress < 100) {
@@ -26,19 +27,22 @@ export function onPresses(handle: (presses: number) => void): () => void {
     lastPress = now;
     presses += 1;
     if (presses >= 3) {
-      process.off('SIGINT', press);
+      ending = setTimeout(() => process.off('SIGINT', press), 100).unref();
     }
     handle(presses);
   };
   process.on('SIGINT', press);
-  return () => process.off('SIGINT', press);
+  return () => {
+    clearTimeout(ending);
+    process.off('SIGINT', press);
+  };
 }
 
 export function listenForInterrupts(say: (text: string) => void): Interrupts {
   let presses = 0;
   const sleeper: Sleeper = {};
   let hunting = (): boolean => false;
-  onPresses((count) => {
+  const stopListening = onPresses((count) => {
     presses = count;
     if (presses === 1 && sleeper.wake !== undefined) {
       say(hunting() ? NOTES.hunt : NOTES.wait);
@@ -48,6 +52,7 @@ export function listenForInterrupts(say: (text: string) => void): Interrupts {
     } else if (presses === 2) {
       say(NOTES.round);
     } else {
+      stopListening();
       stopChildren('SIGINT');
     }
   });

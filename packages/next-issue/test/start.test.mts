@@ -384,6 +384,58 @@ test('a user who presses Ctrl-C three times sees the worker stop the run after t
   );
 });
 
+async function pressThreeTimes(
+  t: TestContext,
+  double: boolean,
+): Promise<{
+  started: Started;
+  fake: ReturnType<typeof fakeRuns>;
+}> {
+  const fake = fakeRuns();
+  let stoppedNow = false;
+  const runRepo: RunRepo = (root, args, controls) => {
+    const drop = onStop(() => {
+      stoppedNow = true;
+    });
+    return fake.runRepo(root, args, controls).finally(drop);
+  };
+  const root = await repository();
+  await fakeWorker(t, root, runRepo);
+  const started = startCommand(t, root, []);
+  await until(() => fake.calls.length === 1, 'the run to start');
+  started.child.kill('SIGINT');
+  await until(() => fake.controls().interrupts.afterIssue(), 'the issue stop');
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  started.child.kill('SIGINT');
+  await until(() => fake.controls().interrupts.afterRound(), 'the round stop');
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  started.child.kill('SIGINT');
+  if (double) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    started.child.kill('SIGINT');
+  }
+  await until(() => stoppedNow, 'the stop now');
+  return { started, fake };
+}
+
+test('a user whose third Ctrl-C press arrives as two signals sees start keep following the run and exit with its code', async (t) => {
+  const { started, fake } = await pressThreeTimes(t, true);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(started.child.exitCode, null);
+  assert.equal(started.child.signalCode, null);
+  fake.finish();
+  assert.equal(await started.exited, 0);
+});
+
+test('a user who presses Ctrl-C a fourth time sees start end at once', async (t) => {
+  const { started, fake } = await pressThreeTimes(t, false);
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  started.child.kill('SIGINT');
+  assert.equal(await started.exited, null);
+  assert.equal(started.child.signalCode, 'SIGINT');
+  fake.finish();
+});
+
 test('a user whose terminal closes during a run sees the run keep going in the worker', async (t) => {
   const root = await repository();
   const fake = fakeRuns();
