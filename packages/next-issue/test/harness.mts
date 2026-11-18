@@ -182,7 +182,7 @@ export type Harness = {
   stopNow: () => void;
   /** Settles when the step named by `hangDuring` starts. */
   hung: Promise<void>;
-  run: (claimed?: () => void) => Promise<IssueReport>;
+  run: () => Promise<IssueReport>;
   state: () => Promise<IssueState | undefined>;
 };
 
@@ -256,7 +256,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     head: () => String(head),
     stopNow: () => stopRunChildren(children),
     hung,
-    run: (claimed) => withRunChildren(children, () => processIssue(state.context, issue, claimed)),
+    run: () => withRunChildren(children, () => processIssue(state.context, issue)),
     state: () => readState(repo, issue.number),
   };
 

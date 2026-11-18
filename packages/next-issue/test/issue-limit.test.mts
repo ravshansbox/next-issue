@@ -55,7 +55,7 @@ async function outcomes(target: Harness): Promise<Array<[number, string]>> {
   const { context } = target;
   const { reports } = await runIssues({
     issues: () => pendingIssues(context),
-    process: (issue, claimed, slot) => processIssue(context, issue, claimed, slot),
+    process: (issue, slot) => processIssue(context, issue, slot),
     stop: () => false,
   });
   return reports.map((report) => [report.issue, report.outcome]);

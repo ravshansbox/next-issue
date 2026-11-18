@@ -25,7 +25,6 @@ import { setUp } from './worktree-setup.mts';
 export async function processIssue(
   context: Context,
   issue: Issue,
-  claimed: () => void = () => undefined,
   slot?: Slot,
 ): Promise<IssueReport> {
   const { repo } = context;
@@ -50,7 +49,6 @@ export async function processIssue(
   if (skip !== undefined) {
     return skip;
   }
-  claimed();
   log.event('issue.start', { title: issue.title, createdAt: issue.createdAt });
 
   const state = startState(issue, saved, handedOver);

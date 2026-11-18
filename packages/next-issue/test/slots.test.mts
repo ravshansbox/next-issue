@@ -85,7 +85,7 @@ async function runLoop(target: Harness): Promise<IssueReport[]> {
   const { context } = target;
   const { reports } = await runIssues({
     issues: () => pendingIssues(context),
-    process: (issue, claimed, slot) => processIssue(context, issue, claimed, slot),
+    process: (issue, slot) => processIssue(context, issue, slot),
     stop: () => false,
     concurrency: context.config.concurrency,
   });

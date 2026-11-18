@@ -30,14 +30,10 @@ function watcher(lists: Outcome[][], wakes: boolean[] = []): FakeWatch {
       (lists[pass] ?? [])
         .map((_, index) => issue(index + 1))
         .filter((entry) => !done.has(entry.number)),
-    process: async (target, claimed) => {
+    process: async (target) => {
       fake.processed.push(target.number);
       done.add(target.number);
-      const outcome = lists[pass]![target.number - 1]!;
-      if (outcome !== 'skipped') {
-        claimed?.();
-      }
-      return report(target.number, outcome);
+      return report(target.number, lists[pass]![target.number - 1]!);
     },
     stop: () => false,
     wait: async (minutes) => {
@@ -183,9 +179,9 @@ test('a user who presses Ctrl-C during an issue stops watching after that issue'
   const fake = watcher([['done', 'done'], ['done']]);
   let stopped = false;
   const process = fake.process;
-  fake.process = async (target, claimed) => {
+  fake.process = async (target) => {
     stopped = true;
-    return process(target, claimed);
+    return process(target);
   };
   fake.stop = () => stopped;
   const result = await watchIssues(fake);
@@ -270,8 +266,8 @@ function hunter(
 
 function holdIssues(fake: FakeWatch, until: Promise<void>): void {
   const process = fake.process;
-  fake.process = async (target, claimed) => {
-    const processed = process(target, claimed);
+  fake.process = async (target) => {
+    const processed = process(target);
     await until;
     return processed;
   };
@@ -416,8 +412,8 @@ async function huntDuringPass(
     return counted.ready(running, failed);
   };
   const process = fake.process;
-  fake.process = async (issued, claimed) => {
-    const processed = await process(issued, claimed);
+  fake.process = async (issued) => {
+    const processed = await process(issued);
     if (issued.number === 1) {
       failedEnded.resolve();
       return { ...processed, ...(handedOver ? { handedOver: true } : {}) };
@@ -481,9 +477,9 @@ test('a user who presses Ctrl-C during a hunt sees the watch stop after that hun
     },
   };
   const process = fake.process;
-  fake.process = async (target, claimedIssue) => {
+  fake.process = async (target) => {
     claim();
-    return process(target, claimedIssue);
+    return process(target);
   };
   holdIssues(fake, hunted);
   const result = await watchIssues(fake);
@@ -517,9 +513,9 @@ test('a user who asks to stop while the hunter reads the ready issues sees no hu
     },
   };
   const process = fake.process;
-  fake.process = async (target, claimedIssue) => {
+  fake.process = async (target) => {
     claim();
-    return process(target, claimedIssue);
+    return process(target);
   };
   holdIssues(fake, read);
   const result = await watchIssues(fake);
@@ -605,103 +601,51 @@ function sleep(ms: number): Promise<void> {
   return new Promise((done) => setTimeout(done, ms));
 }
 
-type WakeHunter = { steps: string[]; blocked: Promise<void>; hunted: Promise<void> };
-
-function wakeable(fake: FakeWatch, readyLists: number[][], blockFrom = 0): WakeHunter {
-  const steps: string[] = [];
-  const blocked = deferred();
-  const hunted = deferred();
-  const claimed = deferred();
-  const settled = deferred();
-  let checks = 0;
-  let waits = 0;
+test('a user who watches with --hunt sees a claim leave the waiting hunter alone, with no new read of the open issues or their blockers before its back-off ends', async (t) => {
+  const target = await harness(t, { open: [{ ...ISSUE, number: 100 }] });
+  const ports = target.context.ports;
+  const list = ports.openIssues;
+  let listings = 0;
+  let blockerReads = 0;
+  ports.openIssues = async (...args) => {
+    listings += 1;
+    return list(...args);
+  };
+  ports.openBlockers = async () => {
+    blockerReads += 1;
+    return [];
+  };
+  const fake = watcher([['done']]);
+  const waits: number[] = [];
+  const waiting = deferred();
+  let stopped = false;
+  fake.stop = () => stopped;
   fake.hunter = {
     cap: 1,
-    ready: async () => {
-      const numbers = readyLists[checks] ?? [100];
-      checks += 1;
-      steps.push(`ready ${numbers.length}`);
-      return numbers.map(issue);
-    },
-    hunt: async () => {
-      steps.push('hunt');
-      hunted.resolve();
-      await Promise.race([claimed.promise, sleep(50)]);
-      return false;
-    },
+    ready: repoHunter(target.context).ready,
+    hunt: async () => assert.fail('no hunt while enough issues are ready'),
     wait: async (minutes, signal) => {
-      steps.push(`wait ${minutes}`);
-      waits += 1;
-      if (waits <= blockFrom) {
-        return;
-      }
-      if (checks >= readyLists.length) {
-        settled.resolve();
-      }
-      blocked.resolve();
-      if (!signal.aborted) {
-        await new Promise((done) => signal.addEventListener('abort', done, { once: true }));
-      }
-      steps.push('wait over');
+      waits.push(minutes);
+      waiting.resolve();
+      await new Promise((done) => signal.addEventListener('abort', done, { once: true }));
     },
   };
   const process = fake.process;
-  fake.process = async (target, ring) => {
-    const processed = process(target, ring);
-    claimed.resolve();
-    await Promise.race([settled.promise, sleep(200)]);
+  fake.process = async (claimedIssue) => {
+    await waiting.promise;
+    const processed = await process(claimedIssue);
+    await sleep(50);
     return processed;
   };
-  return { steps, blocked: blocked.promise, hunted: hunted.promise };
-}
-
-function claimAfter(fake: FakeWatch, moment: Promise<void>): void {
-  const wait = fake.wait;
-  fake.wait = async (minutes) => {
-    await moment;
-    return wait(minutes);
+  fake.wait = async () => {
+    stopped = true;
+    return false;
   };
-}
-
-test('a user who watches with --hunt sees a claim end the hunter wait at once, and the hunter check the ready count again and hunt', async () => {
-  const fake = watcher([[], ['done']]);
-  const hunting = wakeable(fake, [[7], []]);
-  claimAfter(fake, hunting.blocked);
   await watchIssues(fake);
-  assert.deepEqual(hunting.steps, [
-    'ready 1',
-    'wait 1',
-    'wait over',
-    'ready 0',
-    'hunt',
-    'wait 1',
-    'wait over',
-  ]);
-});
-
-test('a user who watches with --hunt sees a claim during a hunt skip the wait after that hunt, and the hunter check the ready count again', async () => {
-  const fake = watcher([[], ['done']]);
-  const hunting = wakeable(fake, [[], [7]]);
-  claimAfter(fake, hunting.hunted);
-  await watchIssues(fake);
-  assert.deepEqual(hunting.steps, ['ready 0', 'hunt', 'ready 1', 'wait 1', 'wait over']);
-});
-
-test('a user who watches with --hunt sees a claim wake the hunter, which waits again with the same back-off while huntCap issues stay ready', async () => {
-  const fake = watcher([[], ['done']]);
-  const hunting = wakeable(fake, [[7], [7], [7]], 1);
-  claimAfter(fake, hunting.blocked);
-  await watchIssues(fake);
-  assert.deepEqual(hunting.steps, [
-    'ready 1',
-    'wait 1',
-    'ready 1',
-    'wait 2',
-    'wait over',
-    'ready 1',
-    'wait 2',
-    'wait over',
-  ]);
+  assert.deepEqual(fake.processed, [1]);
+  assert.deepEqual(waits, [1]);
+  assert.equal(listings, 2);
+  assert.equal(blockerReads, 1);
 });
 
 test('a user who watches with --hunt sees passes that each skip an issue during a hunt not wake the hunter, which waits 1, 2, 3, 5, 10, 10 minutes', async () => {
@@ -729,10 +673,10 @@ test('a user who watches with --hunt sees passes that each skip an issue during 
     },
   };
   const process = fake.process;
-  fake.process = async (target, claimed) => {
+  fake.process = async (target) => {
     await hunting.promise;
     hunting = deferred();
-    const processed = await process(target, claimed);
+    const processed = await process(target);
     skipped.resolve();
     skipped = deferred();
     return processed;
@@ -767,10 +711,10 @@ test('a user who watches with --hunt sees passes that each skip an issue during 
     },
   };
   const process = fake.process;
-  fake.process = async (target, claimed) => {
+  fake.process = async (target) => {
     await hunterWaiting.promise;
     hunterWaiting = deferred();
-    const processed = await process(target, claimed);
+    const processed = await process(target);
     skipped.resolve();
     skipped = deferred();
     return processed;
@@ -807,12 +751,12 @@ test('a user who turns hunting on for a watch that started with it off sees the 
     },
   };
   const process = fake.process;
-  fake.process = async (target, claimed) => {
+  fake.process = async (target) => {
     await sleep(20);
     steps.push('on');
     toggle.set(true);
     await hunted.promise;
-    return process(target, claimed);
+    return process(target);
   };
   await watchIssues(fake);
   assert.deepEqual(steps, ['on', 'ready', 'hunt']);
@@ -844,10 +788,10 @@ test('a user who turns hunting off during a hunt sees that hunt finish with its 
     },
   };
   const process = fake.process;
-  fake.process = async (target, claimed) => {
+  fake.process = async (target) => {
     await hunted.promise;
     await sleep(20);
-    return process(target, claimed);
+    return process(target);
   };
   await watchIssues(fake);
   assert.deepEqual(steps, ['ready', 'hunt start', 'hunt end']);
@@ -956,8 +900,8 @@ test('a worker client who asks a hunting run to refresh wakes the waiting hunter
 test('a user who watches with --hunt sees the hunter count an issue handed over after an error as ready once a person answers, and hunt for one issue fewer', async () => {
   const fake = watcher([['error'], []]);
   const process = fake.process;
-  fake.process = async (target, claimed) => ({
-    ...(await process(target, claimed)),
+  fake.process = async (target) => ({
+    ...(await process(target)),
     handedOver: true,
   });
   const { promise: failedPass, resolve } = deferred();

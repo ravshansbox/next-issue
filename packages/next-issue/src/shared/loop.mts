@@ -4,7 +4,7 @@ import { type Slot, Slots } from './slots.mts';
 
 export type Loop = {
   issues: () => Promise<Issue[]>;
-  process: (issue: Issue, claimed?: () => void, slot?: Slot) => Promise<IssueReport>;
+  process: (issue: Issue, slot?: Slot) => Promise<IssueReport>;
   stop: () => boolean;
   concurrency?: number;
   // Aborts when a client asks for new issues; a pass then reads the open issues again, even with every slot taken.
@@ -168,7 +168,7 @@ async function claimIssues(
     const slot = pool.slots.claim();
     pool.running.set(
       issue.number,
-      loop.process(issue, undefined, slot).then(
+      loop.process(issue, slot).then(
         (report) => ({ issue: issue.number, slot, report }),
         (failure: unknown) => ({ issue: issue.number, slot, failure }),
       ),

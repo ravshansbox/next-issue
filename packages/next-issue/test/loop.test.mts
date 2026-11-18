@@ -319,7 +319,7 @@ test('a person who reads the run log sees the open count drop when an issue ends
   const secondClaimed = gate();
   const secondEnds = gate();
   const firstEnds = gate();
-  fake.process = async (target, _claimed, slot) => {
+  fake.process = async (target, slot) => {
     fake.processed.push(target.number);
     if (target.number === 1) {
       await new Promise((resolve) => setImmediate(resolve));

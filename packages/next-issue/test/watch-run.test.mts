@@ -41,9 +41,9 @@ async function startWatch(t: TestContext, args: Args, options: Options = {}): Pr
         passes += 1;
         return (await options.issues?.()) ?? [];
       },
-      process: (_issue, claimed) => {
+      process: () => {
         runs += 1;
-        return target.run(claimed);
+        return target.run();
       },
       stop: () => stopped,
     },

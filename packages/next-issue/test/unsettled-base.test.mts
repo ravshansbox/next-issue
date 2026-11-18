@@ -274,7 +274,7 @@ async function runLoop(target: Harness, concurrency: number): Promise<IssueRepor
   const { context } = target;
   const { reports } = await runIssues({
     issues: () => pendingIssues(context),
-    process: (issue, claimed) => processIssue(context, issue, claimed),
+    process: (issue) => processIssue(context, issue),
     stop: () => false,
     concurrency,
   });

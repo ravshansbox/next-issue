@@ -26,7 +26,6 @@ export async function watchIssues(watch: Watch): Promise<LoopResult> {
   const running = new Set<number>();
   const failed = new Set<number>();
   const ended = new AbortController();
-  const claims = claimAlarm();
   const hunting =
     watch.hunter === undefined
       ? undefined
@@ -35,7 +34,6 @@ export async function watchIssues(watch: Watch): Promise<LoopResult> {
           watch.hunting ?? onOff(true),
           running,
           failed,
-          claims,
           watch.issues,
           watch.refreshed,
           () => ended.signal.aborted || watch.stop(),
@@ -44,10 +42,10 @@ export async function watchIssues(watch: Watch): Promise<LoopResult> {
   try {
     return await watchPasses(failed, {
       ...watch,
-      process: async (issue, _claimed, slot) => {
+      process: async (issue, slot) => {
         running.add(issue.number);
         try {
-          const report = await watch.process(issue, claims.ring, slot);
+          const report = await watch.process(issue, slot);
           recordFailures(failed, [report]);
           return report;
         } finally {
@@ -59,32 +57,6 @@ export async function watchIssues(watch: Watch): Promise<LoopResult> {
     ended.abort();
     await hunting;
   }
-}
-
-type ClaimAlarm = {
-  ring: () => void;
-  take: () => boolean;
-  signal: () => AbortSignal;
-};
-
-function claimAlarm(): ClaimAlarm {
-  let rung = false;
-  let controller = new AbortController();
-  return {
-    ring: () => {
-      rung = true;
-      controller.abort();
-    },
-    take: () => {
-      const was = rung;
-      rung = false;
-      return was;
-    },
-    signal: () => {
-      controller = new AbortController();
-      return controller.signal;
-    },
-  };
 }
 
 function aborted(signal: AbortSignal): Promise<void> {
@@ -102,7 +74,6 @@ async function huntIssues(
   hunting: Switch,
   running: Set<number>,
   failed: ReadonlySet<number>,
-  claims: ClaimAlarm,
   issues: () => Promise<Issue[]>,
   refreshes: (() => AbortSignal) | undefined,
   stopped: () => boolean,
@@ -119,7 +90,6 @@ async function huntIssues(
     if (stopped()) {
       return;
     }
-    claims.take();
     const waiting = ready?.filter((issue) => !running.has(issue.number)).length;
     if (waiting !== undefined && waiting < hunter.cap && hunting.on()) {
       if (await hunter.hunt(hunter.cap - waiting)) {
@@ -127,18 +97,15 @@ async function huntIssues(
         await issues().catch(() => undefined);
       }
     }
-    if (claims.take() || stopped() || !hunting.on()) {
+    if (stopped() || !hunting.on()) {
       continue;
     }
     const changed = hunting.changed();
     const refreshed = refreshes?.() ?? new AbortController().signal;
-    await hunter.wait(
-      backOffMinutes(step),
-      AbortSignal.any([signal, claims.signal(), changed, refreshed]),
-    );
+    await hunter.wait(backOffMinutes(step), AbortSignal.any([signal, changed, refreshed]));
     if (changed.aborted || refreshed.aborted) {
       step = 0;
-    } else if (!claims.take()) {
+    } else {
       step += 1;
     }
   }
