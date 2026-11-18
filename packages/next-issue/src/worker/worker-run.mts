@@ -40,13 +40,10 @@ export function active(run: Run | undefined): boolean {
 }
 
 export function endStatus(run: Run): Progress['status'] {
-  if (run.progress.upgrade !== undefined && run.progress.error !== undefined) {
+  if (run.progress.error !== undefined) {
     return 'failed';
   }
-  if (run.stop !== undefined) {
-    return 'stopped';
-  }
-  return run.progress.error === undefined ? 'finished' : 'failed';
+  return run.stop === undefined ? 'finished' : 'stopped';
 }
 
 export function startRefusal(run: Run | undefined, restart: boolean): string | undefined {

@@ -380,6 +380,23 @@ test('a client that stops a run with no point sees it claim nothing new, finish 
   await client.next(stoppedRun);
 });
 
+test('a client that stops a run whose read of the open issues then fails sees the run end as failed with the error', async (t) => {
+  const { fake, client } = await startedRun(t);
+  client.send({ type: 'stop', root: '/repo' });
+  await client.next(stopping);
+  fake.controls().onEvent!({
+    kind: 'issues.fail',
+    error: 'gh failed',
+    ts: '2026-11-02T10:00:00.000Z',
+  });
+  fake.finish(1);
+  const ended = await client.next(
+    (value) => value.type === 'runs' && value.runs['/repo']?.status !== 'stopping',
+  );
+  assert.equal(ended.type === 'runs' && ended.runs['/repo']?.status, 'failed');
+  assert.equal(ended.type === 'runs' && ended.runs['/repo']?.error, 'gh failed');
+});
+
 test('a client that stops a run after the round sees each issue stop after its round and the run end as stopped', async (t) => {
   const { fake, client } = await startedRun(t);
   const controls = fake.controls();
