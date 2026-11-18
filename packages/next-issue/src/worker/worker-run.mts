@@ -40,6 +40,9 @@ export function active(run: Run | undefined): boolean {
 }
 
 export function endStatus(run: Run): Progress['status'] {
+  if (run.progress.upgrade !== undefined && run.progress.error !== undefined) {
+    return 'failed';
+  }
   if (run.stop !== undefined) {
     return 'stopped';
   }

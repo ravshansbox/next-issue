@@ -8,6 +8,7 @@ import { onStop } from '../src/shared/children.mts';
 import { lockHolder } from '../src/shared/lock.mts';
 import { must } from '../src/shared/exec.mts';
 import { type RunRepo, startWorker } from '../src/worker/serve.mts';
+import type { RunControls } from '../src/worker/run.mts';
 import { packageVersion } from '../src/shared/version.mts';
 import { rejoinRun } from '../src/shared/worker-client.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
@@ -464,7 +465,12 @@ async function upgradingStart(
   t: TestContext,
   successorCode: string,
   successorDelayMs = 0,
-): Promise<{ root: string; started: Started; finish: (code?: number) => void }> {
+): Promise<{
+  root: string;
+  started: Started;
+  finish: (code?: number) => void;
+  controls: () => RunControls;
+}> {
   const root = await repository();
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo);
@@ -487,7 +493,7 @@ async function upgradingStart(
   });
   await newer.next((value) => value.type === 'runs' && value.runs[root]?.upgrade !== undefined);
   await newer.close();
-  return { root, started, finish: fake.finish };
+  return { root, started, finish: fake.finish, controls: fake.controls };
 }
 
 test('a user whose start run watches while a newer client connects sees the run go on in the newer worker with its flags, one update note, Ctrl-C still stop it, and start exit with its final code', async (t) => {
@@ -528,6 +534,16 @@ test('a user whose start run had an issue that needed a person before an update 
   started.child.kill('SIGINT');
   assert.equal(await started.exited, 1, started.stderr());
   assert.doesNotMatch(started.stderr(), /next-issue failed:/);
+});
+
+test('a user whose start run fails while it stops for an update sees start fail with the error and exit with 1, and no run going afterwards', async (t) => {
+  const { root, started, finish, controls } = await upgradingStart(t, '0');
+  controls().onEvent!({ kind: 'issues.fail', error: 'gh failed', ts: '2026-11-02T10:00:00.000Z' });
+  finish(1);
+  assert.equal(await started.exited, 1, started.stderr());
+  assert.match(started.stderr(), /next-issue failed: gh failed\n/);
+  assert.doesNotMatch(started.stderr(), /updated/);
+  assert.equal(await lockHolder(workerPaths(root).lockPath), undefined);
 });
 
 test('a user who presses Ctrl-C while start moves to the newer worker sees the run stop there after its running issues', async (t) => {

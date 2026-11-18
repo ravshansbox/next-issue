@@ -106,6 +106,34 @@ test('a client of a watching run whose worker cannot start the newer worker sees
   await client.closed;
 });
 
+test('a client of a watching run that fails while it stops for a newer client sees the run fail, and no newer worker starts it again', async (t) => {
+  const { root, fake, started, socketPath } = await oldWorker(t);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root, args: ['--watch', 'on'] });
+  await client.next((value) => runOf(root, value)?.watching === true);
+  client.send({
+    type: 'hello',
+    version: '2.1.0',
+    launch: { command: process.execPath, args: [SUCCESSOR] },
+  });
+  await client.next((value) => runOf(root, value)?.upgrade !== undefined);
+  fake.controls().onEvent!({
+    kind: 'issues.fail',
+    error: 'gh failed',
+    ts: '2026-11-02T10:00:00.000Z',
+  });
+  fake.finish(1);
+  const ended = runOf(
+    root,
+    await client.next((value) => runOf(root, value)?.status !== 'stopping'),
+  );
+  assert.equal(ended?.status, 'failed');
+  assert.equal(ended?.error, 'gh failed');
+  await started.closed;
+  await client.closed;
+  assert.equal(await lockHolder(workerPaths(root).lockPath), undefined);
+});
+
 test('a client that says hello with a malformed way to start the worker gets an error that names it', async (t) => {
   const { socketPath } = await worker(t, fakeRuns());
   const client = await connect(t, socketPath);
