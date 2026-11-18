@@ -397,7 +397,7 @@ async function labelledHunt(t: TestContext, name: string, labels: string, create
     dir,
     `#!/bin/sh
 case "$1 $2" in
-  "label list") printf '['; sed 's/.*/{"name":"&"}/' "${file}" | paste -sd, -; printf ']' ;;
+  "api --paginate") cat "${file}" ;;
   "label create")
     ${refusal}
     if grep -qix -- "$3" "${file}"; then echo "label with name $3 already exists" >&2; exit 1; fi
@@ -420,6 +420,14 @@ test('a user whose repository holds the ready and hunt labels in another case se
   assert.equal(target.prompts.length, 1);
   assert.ok(!target.events.some((record) => record.kind === 'hunt.error'));
   assert.equal(await readFile(file, 'utf8'), 'Status:Todo\nSource:Hunt\n');
+});
+
+test('a user whose repository holds over 1,000 labels, with the ready and hunt labels last, sees the hunter run and file an issue, with no hunt.error event', async (t) => {
+  const others = Array.from({ length: 1000 }, (_, index) => `other-${index}\n`).join('');
+  const { target } = await labelledHunt(t, 'label-many', `${others}status:todo\nsource:hunt\n`);
+  assert.equal(await hunter(target.context).hunt(1), true);
+  assert.equal(target.prompts.length, 1);
+  assert.ok(!target.events.some((record) => record.kind === 'hunt.error'));
 });
 
 test('a user whose hunt label was created by someone else after the harness read the labels sees the next hunt run, with no hunt.error event', async (t) => {

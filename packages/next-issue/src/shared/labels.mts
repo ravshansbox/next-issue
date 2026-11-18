@@ -1,6 +1,7 @@
 import { asError } from './errors.mts';
-import { gh, ghJson, ghOnce, type Kind, type Named, names, repoArg, viewJson } from './gh.mts';
+import { gh, ghApi, ghOnce, type Kind, type Named, names, repoArg, viewJson } from './gh.mts';
 import type { Repo } from './git.mts';
+import { lines } from './text.mts';
 
 const KNOWN_LABELS = new Map<string, Set<string>>();
 
@@ -71,15 +72,8 @@ async function knownLabels(repo: Repo): Promise<Set<string>> {
   if (cached !== undefined) {
     return cached;
   }
-  const listed = await ghJson<Named[]>(repo, [
-    'label',
-    'list',
-    '--limit',
-    '1000',
-    '--json',
-    'name',
-  ]);
-  const known = new Set(names(listed).map((name) => name.toLowerCase()));
+  const listed = await ghApi(repo, 'labels?per_page=100', '.[].name', { paginate: true });
+  const known = new Set(lines(listed).map((name) => name.toLowerCase()));
   KNOWN_LABELS.set(repoSlug, known);
   return known;
 }

@@ -40,13 +40,13 @@ test('labelArgs never removes the label it adds', () => {
   ]);
 });
 
-async function fakeGh(t: TestContext, listed = '[{"name":"status:todo"}]'): Promise<string> {
+async function fakeGh(t: TestContext, listed = 'status:todo'): Promise<string> {
   const dir = await tempDir();
   const labels = join(dir, 'labels');
   await writeFile(labels, 'status:todo\n');
   const script = `#!/bin/sh
 case "$1 $2" in
-  "label list") echo '${listed}' ;;
+  "api --paginate") printf '${listed}' ;;
   "label create")
     if grep -qx -- "$3" "${labels}"; then echo "label with name $3 already exists" >&2; exit 1; fi
     echo "$3" >> "${labels}" ;;
@@ -75,7 +75,7 @@ test('setLabel creates a missing label once and records no failed command', asyn
 });
 
 test('setLabel tries the create again when it failed', async (t) => {
-  const dir = await fakeGh(t, '[]');
+  const dir = await fakeGh(t, '');
   const seen: CommandRecord[] = [];
   setCommandObserver((record) => seen.push(record));
   t.after(() => setCommandObserver(() => undefined));
@@ -94,7 +94,7 @@ test('setLabel creates a label again when a person deleted it after the worker r
   await writeFile(labels, 'status:todo\n');
   const script = `#!/bin/sh
 case "$1 $2" in
-  "label list") printf '['; sed 's/.*/{"name":"&"}/' "${labels}" | paste -sd, -; printf ']' ;;
+  "api --paginate") cat "${labels}" ;;
   "label create") echo "$3" >> "${labels}" ;;
   "issue view") echo '{"labels":[]}' ;;
   "issue edit") grep -qx -- "$5" "${labels}" || { echo "'$5' not found" >&2; exit 1; } ;;
@@ -113,7 +113,7 @@ test('setLabel shows the create error when the label create fails twice', async 
   const dir = await tempDir();
   const script = `#!/bin/sh
 case "$1 $2" in
-  "label list") echo '[]' ;;
+  "api --paginate") ;;
   "label create") echo "permission denied" >&2; exit 1 ;;
   "issue view") echo '{"labels":[]}' ;;
   "issue edit") echo "'$5' not found" >&2; exit 1 ;;
@@ -134,4 +134,24 @@ test('ensureLabel creates a missing label and leaves a known one alone', async (
   await ensureLabel(repo, 'status:todo');
   await ensureLabel(repo, 'source:hunt');
   assert.equal(await readFile(join(dir, 'labels'), 'utf8'), 'status:todo\nsource:hunt\n');
+});
+
+test('ensureLabel accepts an existing label listed after the first 1,000 labels of the repository', async (t) => {
+  const dir = await tempDir();
+  const labels = join(dir, 'labels');
+  const others = Array.from({ length: 1000 }, (_, index) => `other-${index}\n`).join('');
+  await writeFile(labels, `${others}source:hunt\n`);
+  const script = `#!/bin/sh
+case "$1 $2" in
+  "api --paginate") cat "${labels}" ;;
+  "label create")
+    if grep -qx -- "$3" "${labels}"; then echo "label with name $3 already exists" >&2; exit 1; fi
+    echo "$3" >> "${labels}" ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+`;
+  await installGh(t, dir, script);
+  const repo = { owner: 'acme', name: 'many', root: dir };
+  await ensureLabel(repo, 'source:hunt');
+  assert.equal(await readFile(labels, 'utf8'), `${others}source:hunt\n`);
 });

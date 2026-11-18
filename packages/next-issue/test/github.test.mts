@@ -28,7 +28,7 @@ async function flakyGh(t: TestContext, failures: number, error: string): Promise
   const script = `#!/bin/sh
 echo "$1 $2" >> "${calls}"
 case "$1 $2" in
-  "label list") echo '[{"name":"status:todo"}]' ;;
+  "api --paginate") echo status:todo ;;
   "issue view") echo '{"labels":[]}' ;;
   "issue edit"|"issue comment")
     cat > /dev/null
