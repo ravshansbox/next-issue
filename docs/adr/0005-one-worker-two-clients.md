@@ -7,16 +7,16 @@ Accepted
 ## Context
 
 Each repository has one worker, `next-issue serve`
-(`packages/next-issue/src/serve.mts`). It holds `.next-issue/worker.lock` and
+(`packages/next-issue/src/worker/serve.mts`). It holds `.next-issue/worker.lock` and
 listens on `.next-issue/worker.sock`. Two clients talk to it:
 
 - the `next-issue` CLI. `next-issue start` reaches the worker through
-  `reachWorker` (`packages/next-issue/src/worker-client.mts`) and follows the
-  run in `packages/next-issue/src/start.mts`;
+  `reachWorker` (`packages/next-issue/src/shared/worker-client.mts`) and follows the
+  run in `packages/next-issue/src/cli/start.mts`;
 - the Claude Code plugin (`packages/claude-next-issue/src/worker.ts`), which
   polls the worker over plain HTTP on the same socket.
 
-They speak the protocol in `packages/next-issue/src/protocol.mts` and
+They speak the protocol in `packages/next-issue/src/shared/protocol.mts` and
 `packages/claude-next-issue/src/protocol.ts`.
 
 No record says so, and the two clients have drifted apart. There is no rule
@@ -53,5 +53,5 @@ These known gaps break parity and are to be closed:
 - `open` in `worker-client.mts` sends `hello` only when no run is going. The
   plugin always sends it (`poll` in `worker.ts`), so only the plugin gets an
   older worker updated between issues.
-- `requestUpgrade` in `packages/next-issue/src/worker-run.mts` leaves runs of
+- `requestUpgrade` in `packages/next-issue/src/worker/worker-run.mts` leaves runs of
   `next-issue start` alone (`run.command`, from #527).

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { type TestContext, test } from 'node:test';
-import type { Config } from '../src/config.mts';
-import { hunt } from '../src/hunt.mts';
+import type { Config } from '../src/shared/config.mts';
+import { hunt } from '../src/shared/hunt.mts';
 import { APPROVE, harness } from './harness.mts';
 
 async function modelsOf(

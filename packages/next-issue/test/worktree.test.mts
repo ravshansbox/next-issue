@@ -3,9 +3,14 @@ import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { branchName, isDirty, revision } from '../src/git.mts';
-import { huntWorktree } from '../src/hunt.mts';
-import { addWorktree, fastForwardBase, findWorktree, removeWorktree } from '../src/worktree.mts';
+import { branchName, isDirty, revision } from '../src/shared/git.mts';
+import { huntWorktree } from '../src/shared/hunt.mts';
+import {
+  addWorktree,
+  fastForwardBase,
+  findWorktree,
+  removeWorktree,
+} from '../src/shared/worktree.mts';
 import { clones, commit, git } from './clones.mts';
 
 test('addWorktree takes a branch that exists only on the remote', async () => {

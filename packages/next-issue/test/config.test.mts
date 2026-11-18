@@ -2,8 +2,13 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { CONFIG_FILE } from '../src/config-fields.mts';
-import { type Config, loadConfig, managedLabels, writeDefaultConfig } from '../src/config.mts';
+import { CONFIG_FILE } from '../src/shared/config-fields.mts';
+import {
+  type Config,
+  loadConfig,
+  managedLabels,
+  writeDefaultConfig,
+} from '../src/shared/config.mts';
 import { keysSorted } from './sorted-keys.mts';
 import { tempDir } from './temp-dir.mts';
 

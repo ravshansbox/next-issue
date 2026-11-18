@@ -3,8 +3,8 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { hostname, hostOf, repoArg } from '../src/gh.mts';
-import { commitAll } from '../src/git-commit.mts';
+import { hostname, hostOf, repoArg } from '../src/shared/gh.mts';
+import { commitAll } from '../src/shared/git-commit.mts';
 import {
   changedFiles,
   detectRepo,
@@ -17,8 +17,8 @@ import {
   revision,
   saveEdits,
   setAside,
-} from '../src/git.mts';
-import { addWorktree } from '../src/worktree.mts';
+} from '../src/shared/git.mts';
+import { addWorktree } from '../src/shared/worktree.mts';
 import { clones, commit, git } from './clones.mts';
 import { tempDir } from './temp-dir.mts';
 

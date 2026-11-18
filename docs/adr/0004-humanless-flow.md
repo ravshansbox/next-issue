@@ -81,6 +81,6 @@ These risks are accepted:
 - Agents run any command with the rights of the user, and the reviewer keeps a
   full shell ([ADR 0001](0001-reviewer-isolation.md)).
 - By default all agent roles use the same model (`models` in the config).
-- The reviewer prompt (`reviewScope` in `packages/next-issue/src/prompts.mts`)
+- The reviewer prompt (`reviewScope` in `packages/next-issue/src/shared/prompts.mts`)
   names correctness, scope, conventions and test cover, not security.
 - Budgets count rounds, not tokens or cost.

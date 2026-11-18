@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import type { Issue } from '../src/github.mts';
-import { pendingIssues } from '../src/pending.mts';
-import { processIssue } from '../src/pipeline.mts';
-import { applyEvent, startProgress } from '../src/progress.mts';
-import { type IssueState, stateDir, writeState } from '../src/state.mts';
-import { newRun, runControls } from '../src/worker-run.mts';
+import type { Issue } from '../src/shared/github.mts';
+import { pendingIssues } from '../src/worker/pending.mts';
+import { processIssue } from '../src/worker/pipeline.mts';
+import { applyEvent, startProgress } from '../src/worker/progress.mts';
+import { type IssueState, stateDir, writeState } from '../src/shared/state.mts';
+import { newRun, runControls } from '../src/worker/worker-run.mts';
 import { harness, ISSUE, roles, SAVED } from './harness.mts';
 
 const OLDER: Issue = { ...ISSUE, number: 3, createdAt: '2025-12-01T00:00:00Z' };

@@ -1,9 +1,9 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { AgentRequest } from '../src/agents.mts';
-import { commitAll } from '../src/git-commit.mts';
-import { pushToBase, revertOnBase, squashOnto } from '../src/git-land.mts';
-import { abortMerge, commitMerge, startMerge } from '../src/git-merge.mts';
+import type { AgentRequest } from '../src/shared/agents.mts';
+import { commitAll } from '../src/shared/git-commit.mts';
+import { pushToBase, revertOnBase, squashOnto } from '../src/shared/git-land.mts';
+import { abortMerge, commitMerge, startMerge } from '../src/shared/git-merge.mts';
 import {
   diff,
   discardChanges,
@@ -14,9 +14,9 @@ import {
   saveEdits,
   saveSetupOutput,
   setAside,
-} from '../src/git.mts';
-import type { Recorder } from '../src/observe.mts';
-import { addWorktree, findWorktree, removeWorktree } from '../src/worktree.mts';
+} from '../src/shared/git.mts';
+import type { Recorder } from '../src/shared/observe.mts';
+import { addWorktree, findWorktree, removeWorktree } from '../src/shared/worktree.mts';
 import { git } from './clones.mts';
 import type { Harness } from './harness.mts';
 

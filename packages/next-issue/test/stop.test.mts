@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { onStop, watch } from '../src/children.mts';
-import { listenForInterrupts } from '../src/interrupt.mts';
-import { pendingIssues } from '../src/pending.mts';
-import { processIssue } from '../src/pipeline.mts';
-import { applyEvent, startProgress } from '../src/progress.mts';
-import { type IssueState, writeState } from '../src/state.mts';
+import { onStop, watch } from '../src/shared/children.mts';
+import { listenForInterrupts } from '../src/shared/interrupt.mts';
+import { pendingIssues } from '../src/worker/pending.mts';
+import { processIssue } from '../src/worker/pipeline.mts';
+import { applyEvent, startProgress } from '../src/worker/progress.mts';
+import { type IssueState, writeState } from '../src/shared/state.mts';
 import {
   APPROVE,
   changes,

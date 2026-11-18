@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import type { Fields, Recorder } from '../src/observe.mts';
+import type { Fields, Recorder } from '../src/shared/observe.mts';
 
 export async function logRecords(target: Recorder): Promise<Fields[]> {
   await target.close();

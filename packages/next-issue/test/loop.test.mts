@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { Issue } from '../src/github.mts';
-import type { Outcome } from '../src/job.mts';
-import { exitCode, type Loop, runIssues } from '../src/loop.mts';
-import { applyEvent, startProgress } from '../src/progress.mts';
-import { refresher } from '../src/refresh.mts';
+import type { Issue } from '../src/shared/github.mts';
+import type { Outcome } from '../src/shared/job.mts';
+import { exitCode, type Loop, runIssues } from '../src/shared/loop.mts';
+import { applyEvent, startProgress } from '../src/worker/progress.mts';
+import { refresher } from '../src/worker/refresh.mts';
 import { issue, report } from './loop-harness.mts';
 
 type Fake = Loop & { processed: number[] };

@@ -7,7 +7,7 @@ import {
   parseVerdict,
   readVerdict,
   type Verdict,
-} from '../src/verdict.mts';
+} from '../src/worker/verdict.mts';
 
 const BLOCKING: Verdict = {
   summary: 'One problem is left.',

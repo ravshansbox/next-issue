@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseArgs } from '../src/args.mts';
+import { parseArgs } from '../src/shared/args.mts';
 
 test('a user who runs start with no flags gets a run that watches and does not hunt', () => {
   const args = parseArgs(['start']);

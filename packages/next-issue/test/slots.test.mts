@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
-import type { IssueReport } from '../src/job.mts';
-import { runIssues } from '../src/loop.mts';
-import { pendingIssues } from '../src/pending.mts';
-import { processIssue } from '../src/pipeline.mts';
+import type { IssueReport } from '../src/shared/job.mts';
+import { runIssues } from '../src/shared/loop.mts';
+import { pendingIssues } from '../src/worker/pending.mts';
+import { processIssue } from '../src/worker/pipeline.mts';
 import { APPROVE, type Harness, harness, ISSUE, type Plan } from './harness.mts';
 
 const WAIT_MS = 1000;

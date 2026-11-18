@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { type TestContext, test } from 'node:test';
-import { recordCommands } from '../src/command-records.mts';
-import { run } from '../src/exec.mts';
-import type { Recorder } from '../src/observe.mts';
-import type { Question, WorkerMessage } from '../src/protocol.mts';
-import type { ListQuestions } from '../src/questions.mts';
-import type { RunRepo } from '../src/serve.mts';
+import { recordCommands } from '../src/worker/command-records.mts';
+import { run } from '../src/shared/exec.mts';
+import type { Recorder } from '../src/shared/observe.mts';
+import type { Question, WorkerMessage } from '../src/shared/protocol.mts';
+import type { ListQuestions } from '../src/worker/questions.mts';
+import type { RunRepo } from '../src/worker/serve.mts';
 import { type Harness, harness } from './harness.mts';
 import { type Client, connect, fakeRuns, worker } from './worker-harness.mts';
 

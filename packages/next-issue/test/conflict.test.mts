@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
-import type { AgentRequest } from '../src/agents.mts';
-import type { Config } from '../src/config.mts';
-import { commitAll, HookError } from '../src/git-commit.mts';
-import { pushToBase, squashOnto } from '../src/git-land.mts';
-import { abortMerge, commitMerge, startMerge } from '../src/git-merge.mts';
+import type { AgentRequest } from '../src/shared/agents.mts';
+import type { Config } from '../src/shared/config.mts';
+import { commitAll, HookError } from '../src/shared/git-commit.mts';
+import { pushToBase, squashOnto } from '../src/shared/git-land.mts';
+import { abortMerge, commitMerge, startMerge } from '../src/shared/git-merge.mts';
 import {
   diff,
   discardChanges,
@@ -15,9 +15,9 @@ import {
   revision,
   saveEdits,
   setAside,
-} from '../src/git.mts';
-import type { Recorder } from '../src/observe.mts';
-import { addWorktree, findWorktree, removeWorktree } from '../src/worktree.mts';
+} from '../src/shared/git.mts';
+import type { Recorder } from '../src/shared/observe.mts';
+import { addWorktree, findWorktree, removeWorktree } from '../src/shared/worktree.mts';
 import { clones, commit, git } from './clones.mts';
 import { type Harness, harness, ISSUE, roles } from './harness.mts';
 

@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { parseArgs } from '../src/args.mts';
-import { must } from '../src/exec.mts';
-import type { Fields } from '../src/observe.mts';
-import { runRepo } from '../src/run.mts';
-import type { RunSummary } from '../src/summary.mts';
+import { parseArgs } from '../src/shared/args.mts';
+import { must } from '../src/shared/exec.mts';
+import type { Fields } from '../src/shared/observe.mts';
+import { runRepo } from '../src/worker/run.mts';
+import type { RunSummary } from '../src/shared/summary.mts';
 import { installGh } from './fake-gh.mts';
 import { tempDir } from './temp-dir.mts';
 

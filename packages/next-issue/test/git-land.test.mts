@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runChildren, stopRunChildren, withRunChildren } from '../src/children.mts';
-import { HookError } from '../src/git-commit.mts';
+import { runChildren, stopRunChildren, withRunChildren } from '../src/shared/children.mts';
+import { HookError } from '../src/shared/git-commit.mts';
 import {
   baseMoved,
   pushToBase,
@@ -11,10 +11,10 @@ import {
   type Revert,
   revertOnBase,
   squashOnto,
-} from '../src/git-land.mts';
-import { commitMerge, startMerge } from '../src/git-merge.mts';
-import { isLanded, isOnBase } from '../src/git.mts';
-import { addWorktree } from '../src/worktree.mts';
+} from '../src/shared/git-land.mts';
+import { commitMerge, startMerge } from '../src/shared/git-merge.mts';
+import { isLanded, isOnBase } from '../src/shared/git.mts';
+import { addWorktree } from '../src/shared/worktree.mts';
 import { clones, commit, git } from './clones.mts';
 
 async function branch(): Promise<{ path: string; other: string }> {

@@ -1,6 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
-import { startWorker } from '../src/serve.mts';
-import { workerPaths } from '../src/worker-paths.mts';
+import { startWorker } from '../src/worker/serve.mts';
+import { workerPaths } from '../src/shared/worker-paths.mts';
 
 const root = process.cwd();
 const { logPath: _logPath, ...paths } = workerPaths(root);

@@ -1,18 +1,18 @@
 #!/usr/bin/env node
-import { type Args, parseArgs, USAGE } from './args.mts';
-import { moveOldConfig, rejectOldConfig, writeDefaultConfig } from './config.mts';
-import { OLD_CONFIG_FILE } from './config-fields.mts';
-import { message } from './errors.mts';
-import { repoRoot } from './git.mts';
-import { ensureExcluded, excludeFile, removeIgnored } from './ignore.mts';
-import { stopWorker } from './lock.mts';
-import { followLog, newestRunLog } from './logs.mts';
-import { serve } from './serve.mts';
-import { startInWorker } from './start.mts';
-import { STATE_DIR } from './state.mts';
-import { switchInWorker } from './switch-run.mts';
-import { workerPaths } from './worker-paths.mts';
-import { WORKTREE_DIR } from './worktree.mts';
+import { type Args, parseArgs, USAGE } from './shared/args.mts';
+import { moveOldConfig, rejectOldConfig, writeDefaultConfig } from './shared/config.mts';
+import { OLD_CONFIG_FILE } from './shared/config-fields.mts';
+import { message } from './shared/errors.mts';
+import { repoRoot } from './shared/git.mts';
+import { ensureExcluded, excludeFile, removeIgnored } from './cli/ignore.mts';
+import { stopWorker } from './shared/lock.mts';
+import { followLog, newestRunLog } from './cli/logs.mts';
+import { serve } from './worker/serve.mts';
+import { startInWorker } from './cli/start.mts';
+import { STATE_DIR } from './shared/state.mts';
+import { switchInWorker } from './cli/switch-run.mts';
+import { workerPaths } from './shared/worker-paths.mts';
+import { WORKTREE_DIR } from './shared/worktree.mts';
 
 function write(stream: NodeJS.WriteStream, text: string): Promise<void> {
   return new Promise((resolve, reject) => {

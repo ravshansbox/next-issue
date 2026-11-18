@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { waitingQuestions } from '../src/hand-over-comments.mts';
+import { waitingQuestions } from '../src/shared/hand-over-comments.mts';
 import { APPROVE, changes, harness, ISSUE, roles, SAVED } from './harness.mts';
 
 const IN_REVIEW = { ...ISSUE, labels: ['status:in-review'] };

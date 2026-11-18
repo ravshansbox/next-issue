@@ -7,7 +7,7 @@ import {
   huntPrompt,
   implementPrompt,
   reviewPrompt,
-} from '../src/prompts.mts';
+} from '../src/shared/prompts.mts';
 import { ISSUE } from './harness.mts';
 
 test('each fixer kind is offered the unrelated exit for its own cause', () => {

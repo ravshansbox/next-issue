@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
-import type { Issue } from '../src/github.mts';
-import { hunter } from '../src/hunt.mts';
-import { runIssues } from '../src/loop.mts';
-import { pendingIssues } from '../src/pending.mts';
-import { processIssue } from '../src/pipeline.mts';
-import type { Ports } from '../src/ports.mts';
-import { upcomingIssues } from '../src/upcoming.mts';
+import type { Issue } from '../src/shared/github.mts';
+import { hunter } from '../src/shared/hunt.mts';
+import { runIssues } from '../src/shared/loop.mts';
+import { pendingIssues } from '../src/worker/pending.mts';
+import { processIssue } from '../src/worker/pipeline.mts';
+import type { Ports } from '../src/shared/ports.mts';
+import { upcomingIssues } from '../src/worker/upcoming.mts';
 import { APPROVE, type Harness, harness, ISSUE, type Plan } from './harness.mts';
 
 const GIVEN_UP: Issue = {

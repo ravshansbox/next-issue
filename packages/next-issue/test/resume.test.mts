@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { waitingQuestions } from '../src/hand-over-comments.mts';
-import { stateDir } from '../src/state.mts';
+import { waitingQuestions } from '../src/shared/hand-over-comments.mts';
+import { stateDir } from '../src/shared/state.mts';
 import { changes, harness, ISSUE, roles, SAVED } from './harness.mts';
 
 const IN_PROGRESS = { ...ISSUE, labels: ['status:in-progress'] };

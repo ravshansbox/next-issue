@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { IssueReport } from '../src/job.mts';
-import { runIssues } from '../src/loop.mts';
-import { pendingIssues } from '../src/pending.mts';
-import { processIssue } from '../src/pipeline.mts';
-import { readState, writeState } from '../src/state.mts';
+import type { IssueReport } from '../src/shared/job.mts';
+import { runIssues } from '../src/shared/loop.mts';
+import { pendingIssues } from '../src/worker/pending.mts';
+import { processIssue } from '../src/worker/pipeline.mts';
+import { readState, writeState } from '../src/shared/state.mts';
 import { APPROVE, changes, type Harness, harness, ISSUE, SAVED } from './harness.mts';
 
 const IN_REVIEW = { ...ISSUE, labels: ['status:in-review'] };

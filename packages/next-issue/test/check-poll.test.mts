@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { type CheckState, type ChecksProbe, pollChecks } from '../src/check-poll.mts';
-import { runChildren, stopRunChildren, withRunChildren } from '../src/children.mts';
-import { secondsToMs } from '../src/durations.mts';
+import { type CheckState, type ChecksProbe, pollChecks } from '../src/shared/check-poll.mts';
+import { runChildren, stopRunChildren, withRunChildren } from '../src/shared/children.mts';
+import { secondsToMs } from '../src/shared/durations.mts';
 import { fakeClock } from './fake-clock.mts';
 
 const OPTIONS = { intervalSeconds: 10, graceMs: 60_000, timeoutMs: 300_000 };

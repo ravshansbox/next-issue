@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readState, writeState } from '../src/state.mts';
+import { readState, writeState } from '../src/shared/state.mts';
 import { APPROVE, harness, ISSUE, roles } from './harness.mts';
 
 type Target = Awaited<ReturnType<typeof harness>>;

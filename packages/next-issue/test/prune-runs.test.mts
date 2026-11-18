@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import { mkdir, readdir, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { parseArgs } from '../src/args.mts';
-import { must } from '../src/exec.mts';
-import { pruneRuns } from '../src/prune-runs.mts';
-import { runRepo } from '../src/run.mts';
-import { runsDir } from '../src/state.mts';
+import { parseArgs } from '../src/shared/args.mts';
+import { must } from '../src/shared/exec.mts';
+import { pruneRuns } from '../src/worker/prune-runs.mts';
+import { runRepo } from '../src/worker/run.mts';
+import { runsDir } from '../src/shared/state.mts';
 import { tempDir } from './temp-dir.mts';
 
 const DAY = 24 * 60 * 60_000;

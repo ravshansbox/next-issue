@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { processIssue } from '../src/pipeline.mts';
-import { readState, type IssueState } from '../src/state.mts';
+import { processIssue } from '../src/worker/pipeline.mts';
+import { readState, type IssueState } from '../src/shared/state.mts';
 import { APPROVE, harness, ISSUE, PUSH_REJECTED, roles } from './harness.mts';
 
 test('a user whose change is approved gets it pushed to the base branch as one commit, the issue closed and done', async (t) => {

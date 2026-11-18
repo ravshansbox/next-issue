@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { processIssue } from '../src/pipeline.mts';
+import { processIssue } from '../src/worker/pipeline.mts';
 import { APPROVE, changes, harness, ISSUE, roles, stages } from './harness.mts';
 
 test('a clean run implements, reviews and finishes', async (t) => {

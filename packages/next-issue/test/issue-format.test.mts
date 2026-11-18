@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { withOpenQuestions } from '../src/issue-format.mts';
+import { withOpenQuestions } from '../src/shared/issue-format.mts';
 
 test('a user whose Open questions section holds a code block with a # line finds the questions after the block', () => {
   const body = '## Open questions\n\n```sh\n# run it\nmake\n```\n\n## Notes\n\nLater.';

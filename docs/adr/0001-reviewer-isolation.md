@@ -9,12 +9,12 @@ Accepted
 The reviewer must read the worktree and run checks, but must not change
 anything. Today three things keep it in line:
 
-- `REVIEWING` in `packages/next-issue/src/agents.mts` removes the `edit` and
+- `REVIEWING` in `packages/next-issue/src/shared/agents.mts` removes the `edit` and
   `write` tools. The `bash` tool stays, because the reviewer needs it to run
   tests and read git history.
-- The reviewer prompt in `packages/next-issue/src/prompts.mts` says: "Do not
+- The reviewer prompt in `packages/next-issue/src/shared/prompts.mts` says: "Do not
   change a file. Do not write with git or gh."
-- After the reviewer, `packages/next-issue/src/review.mts` calls
+- After the reviewer, `packages/next-issue/src/worker/review.mts` calls
   `discardChanges`, which runs `git reset --hard` to the commit from before the
   review and `git clean -fd`.
 

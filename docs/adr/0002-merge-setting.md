@@ -10,13 +10,13 @@ The harness can squash-merge a pull request after the approval. Two entry
 points start a run, and each sets this in its own way:
 
 - The command line has the `--merge` flag in
-  `packages/next-issue/src/args.mts`. Without it, the merge stays with the
+  `packages/next-issue/src/shared/args.mts`. Without it, the merge stays with the
   user.
 - The editor extension sends `{ type: 'start', root, merge: true }` from both
   `/next-issue` and the `next_issue_start` tool. Its user cannot turn the
   merge off.
 
-`.next-issue/config.json`, read by `packages/next-issue/src/config.mts`, has no
+`.next-issue/config.json`, read by `packages/next-issue/src/shared/config.mts`, has no
 `merge` field. So the two entry points have opposite defaults and share no
 setting, and nothing records which design is intended.
 

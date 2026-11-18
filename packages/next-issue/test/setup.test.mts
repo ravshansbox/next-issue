@@ -3,7 +3,7 @@ import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { detectSetupCommand } from '../src/setup.mts';
+import { detectSetupCommand } from '../src/shared/setup.mts';
 import { tempDir } from './temp-dir.mts';
 
 async function project(...files: string[]): Promise<string> {

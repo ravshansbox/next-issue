@@ -1,5 +1,5 @@
-import type { Issue } from '../src/github.mts';
-import type { IssueReport, Outcome } from '../src/job.mts';
+import type { Issue } from '../src/shared/github.mts';
+import type { IssueReport, Outcome } from '../src/shared/job.mts';
 
 export function issue(number: number): Issue {
   return { number, title: 't', body: '', createdAt: '2026-01-01T00:00:00Z', labels: [] };

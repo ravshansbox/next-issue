@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { HookError } from '../src/git-commit.mts';
-import { abortMerge, commitMerge, type Merge, startMerge } from '../src/git-merge.mts';
-import { isDirty, revision } from '../src/git.mts';
-import { addWorktree } from '../src/worktree.mts';
+import { HookError } from '../src/shared/git-commit.mts';
+import { abortMerge, commitMerge, type Merge, startMerge } from '../src/shared/git-merge.mts';
+import { isDirty, revision } from '../src/shared/git.mts';
+import { addWorktree } from '../src/shared/worktree.mts';
 import { clones, commit, git } from './clones.mts';
 
 function merge(before: string, files: string[], target = 'origin/main'): Merge {

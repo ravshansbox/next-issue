@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { PORTS } from '../src/ports.mts';
-import { type IssueState, writeState } from '../src/state.mts';
+import { PORTS } from '../src/shared/ports.mts';
+import { type IssueState, writeState } from '../src/shared/state.mts';
 import { clones, git } from './clones.mts';
 import { harness, ISSUE, roles } from './harness.mts';
 import { pushBase, remoteMain, useGit } from './real-git.mts';

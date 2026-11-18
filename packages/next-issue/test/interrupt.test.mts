@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { type TestContext, test } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { type Interrupts, listenForInterrupts } from '../src/interrupt.mts';
+import { type Interrupts, listenForInterrupts } from '../src/shared/interrupt.mts';
 
 function listen(t: TestContext, say: (text: string) => void): Interrupts {
   const before = process.listeners('SIGINT');

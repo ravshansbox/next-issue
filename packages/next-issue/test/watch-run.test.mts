@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import { test, type TestContext } from 'node:test';
-import { type Args, parseArgs } from '../src/args.mts';
-import type { Issue } from '../src/github.mts';
-import { type Switch, onOff } from '../src/switch.mts';
-import type { LoopResult } from '../src/loop.mts';
-import { type Refresher, refresher } from '../src/refresh.mts';
-import { watchRun } from '../src/run.mts';
+import { type Args, parseArgs } from '../src/shared/args.mts';
+import type { Issue } from '../src/shared/github.mts';
+import { type Switch, onOff } from '../src/shared/switch.mts';
+import type { LoopResult } from '../src/shared/loop.mts';
+import { type Refresher, refresher } from '../src/worker/refresh.mts';
+import { watchRun } from '../src/worker/run.mts';
 import { harness, ISSUE, type Plan, roles } from './harness.mts';
 
 type Running = {

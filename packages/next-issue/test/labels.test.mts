@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
-import { type CommandRecord, setCommandObserver } from '../src/exec.mts';
-import { ensureLabel, labelArgs, setLabel } from '../src/labels.mts';
+import { type CommandRecord, setCommandObserver } from '../src/shared/exec.mts';
+import { ensureLabel, labelArgs, setLabel } from '../src/shared/labels.mts';
 import { installGh } from './fake-gh.mts';
 import { tempDir } from './temp-dir.mts';
 

@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { must } from '../src/exec.mts';
-import type { Repo } from '../src/git.mts';
+import { must } from '../src/shared/exec.mts';
+import type { Repo } from '../src/shared/git.mts';
 import { tempDir } from './temp-dir.mts';
 
 export function git(cwd: string, ...args: string[]): Promise<string> {

@@ -5,7 +5,7 @@ import {
   parseResolved,
   parseUnrelated,
   withoutClosingReferences,
-} from '../src/agent-reply.mts';
+} from '../src/worker/agent-reply.mts';
 
 const FALLBACK = 'fix: fallback';
 

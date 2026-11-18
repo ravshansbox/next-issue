@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
-import { startWorker } from '../../next-issue/src/serve.mts';
+import { startWorker } from '../../next-issue/src/worker/serve.mts';
 import { tempDir } from '../../next-issue/test/temp-dir.mts';
 import { fakeRuns } from '../../next-issue/test/worker-harness.mts';
 import { workerPaths } from '../src/paths.ts';

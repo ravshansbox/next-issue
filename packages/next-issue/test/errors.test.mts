@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { message, parseJson } from '../src/errors.mts';
+import { message, parseJson } from '../src/shared/errors.mts';
 
 test('message reads an error and anything else', () => {
   assert.equal(message(new Error('bad')), 'bad');

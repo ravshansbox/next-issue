@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { chmod, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
-import { commitMerge } from '../src/git-merge.mts';
+import { commitMerge } from '../src/shared/git-merge.mts';
 import { clones, git } from './clones.mts';
 import { type Harness, harness } from './harness.mts';
 import { type Files, pushBase, remoteMain, useGit, writeFiles } from './real-git.mts';

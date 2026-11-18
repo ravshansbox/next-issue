@@ -8,18 +8,18 @@ import { syncBuiltinESMExports } from 'node:module';
 import { createConnection, Server } from 'node:net';
 import { dirname, join } from 'node:path';
 import { type TestContext, test } from 'node:test';
-import { onStop } from '../src/children.mts';
-import { run, type RunResult } from '../src/exec.mts';
-import { Recorder } from '../src/observe.mts';
-import type { WorkerMessage } from '../src/protocol.mts';
-import { lock, processStart } from '../src/lock.mts';
-import { startWorker } from '../src/serve.mts';
-import { workerPaths } from '../src/worker-paths.mts';
+import { onStop } from '../src/shared/children.mts';
+import { run, type RunResult } from '../src/shared/exec.mts';
+import { Recorder } from '../src/shared/observe.mts';
+import type { WorkerMessage } from '../src/shared/protocol.mts';
+import { lock, processStart } from '../src/shared/lock.mts';
+import { startWorker } from '../src/worker/serve.mts';
+import { workerPaths } from '../src/shared/worker-paths.mts';
 import { fullDisk } from './full-disk.mts';
 import { tempDir } from './temp-dir.mts';
 import { connect, fakeRuns, noQuestions, runsOf, worker } from './worker-harness.mts';
 
-const SERVE = new URL('../src/serve.mts', import.meta.url).href;
+const SERVE = new URL('../src/worker/serve.mts', import.meta.url).href;
 
 test('a client that connects gets the worker version and the runs', async (t) => {
   const fake = fakeRuns();

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createWriteStream } from 'node:fs';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
-import { Recorder } from '../src/observe.mts';
+import { Recorder } from '../src/shared/observe.mts';
 import { fullDisk } from './full-disk.mts';
 import { logRecords } from './log-records.mts';
 import { tempDir } from './temp-dir.mts';

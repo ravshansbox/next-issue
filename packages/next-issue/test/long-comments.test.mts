@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { Verdict } from '../src/verdict.mts';
+import type { Verdict } from '../src/worker/verdict.mts';
 import { APPROVE, changes, harness, roles } from './harness.mts';
 
 const CUT = /\n\nThis comment was too long for GitHub and was cut\.$/;

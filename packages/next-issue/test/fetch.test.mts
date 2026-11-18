@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
-import { must } from '../src/exec.mts';
-import { pushToBase } from '../src/git-land.mts';
-import { startMerge } from '../src/git-merge.mts';
-import { addWorktree } from '../src/worktree.mts';
+import { must } from '../src/shared/exec.mts';
+import { pushToBase } from '../src/shared/git-land.mts';
+import { startMerge } from '../src/shared/git-merge.mts';
+import { addWorktree } from '../src/shared/worktree.mts';
 import { clones, commit, git } from './clones.mts';
 import { tempDir } from './temp-dir.mts';
 

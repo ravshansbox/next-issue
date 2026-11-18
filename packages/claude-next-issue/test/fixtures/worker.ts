@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { startWorker } from '../../../next-issue/src/serve.mts';
+import { startWorker } from '../../../next-issue/src/worker/serve.mts';
 
 const [root = '', version = '2.0.0', fail] = process.argv.slice(2);
 if (fail === 'fail') {

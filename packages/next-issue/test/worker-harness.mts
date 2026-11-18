@@ -5,12 +5,12 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { TestContext } from 'node:test';
 import { WebSocket } from 'ws';
-import type { Args } from '../src/args.mts';
-import type { ClientMessage, WorkerMessage } from '../src/protocol.mts';
-import type { ListQuestions } from '../src/questions.mts';
-import type { RunControls } from '../src/run.mts';
-import { type RunRepo, startWorker } from '../src/serve.mts';
-import type { ListUpcoming } from '../src/upcoming.mts';
+import type { Args } from '../src/shared/args.mts';
+import type { ClientMessage, WorkerMessage } from '../src/shared/protocol.mts';
+import type { ListQuestions } from '../src/worker/questions.mts';
+import type { RunControls } from '../src/worker/run.mts';
+import { type RunRepo, startWorker } from '../src/worker/serve.mts';
+import type { ListUpcoming } from '../src/worker/upcoming.mts';
 import { tempDir } from './temp-dir.mts';
 
 export type Client = {

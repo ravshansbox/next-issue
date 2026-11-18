@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-import { ISSUE_SECTIONS } from '../../next-issue/src/issue-format.mts';
+import { ISSUE_SECTIONS } from '../../next-issue/src/shared/issue-format.mts';
 import { TOOL_PREFIX, TOOLS } from '../src/tool-specs.ts';
 
 const skills = new URL('../skills/', import.meta.url);

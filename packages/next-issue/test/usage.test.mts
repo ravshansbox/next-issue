@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { addUsage, emptyUsage } from '../src/usage.mts';
+import { addUsage, emptyUsage } from '../src/shared/usage.mts';
 
 test('addUsage adds every field', () => {
   const target = emptyUsage();

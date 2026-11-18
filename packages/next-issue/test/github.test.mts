@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
-import { setCommandObserver } from '../src/exec.mts';
+import { setCommandObserver } from '../src/shared/exec.mts';
 import {
   closeIssue,
   commentOnIssue,
@@ -16,8 +16,8 @@ import {
   reopenIssue,
   threadComments,
   viewIssue,
-} from '../src/github.mts';
-import { setLabel } from '../src/labels.mts';
+} from '../src/shared/github.mts';
+import { setLabel } from '../src/shared/labels.mts';
 import { installGh } from './fake-gh.mts';
 import { tempDir } from './temp-dir.mts';
 

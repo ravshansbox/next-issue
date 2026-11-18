@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { checkSocketPath } from '../src/worker-paths.mts';
+import { checkSocketPath } from '../src/shared/worker-paths.mts';
 
 test('a worker whose socket path is too long for the system says so', () => {
   assert.throws(

@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { access, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
-import { REVIEWING, runAgent, toolFields } from '../src/agents.mts';
-import { runChildren, stopRunChildren, withRunChildren } from '../src/children.mts';
-import { Recorder } from '../src/observe.mts';
+import { REVIEWING, runAgent, toolFields } from '../src/shared/agents.mts';
+import { runChildren, stopRunChildren, withRunChildren } from '../src/shared/children.mts';
+import { Recorder } from '../src/shared/observe.mts';
 import { addPluginSkills, addSkill, fakeClaude, type Step, text, toolUse } from './fake-claude.mts';
 import { logRecords } from './log-records.mts';
 

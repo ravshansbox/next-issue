@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { commitAll, HookError } from '../src/git-commit.mts';
-import { addWorktree } from '../src/worktree.mts';
+import { commitAll, HookError } from '../src/shared/git-commit.mts';
+import { addWorktree } from '../src/shared/worktree.mts';
 import { clones, git } from './clones.mts';
 
 test('commitAll that a pre-commit hook stops throws a hook error with the hook output', async () => {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { type TestContext, test } from 'node:test';
-import { pushToBase } from '../src/git-land.mts';
-import { PORTS } from '../src/ports.mts';
+import { pushToBase } from '../src/shared/git-land.mts';
+import { PORTS } from '../src/shared/ports.mts';
 import { clones, git } from './clones.mts';
 import { type Harness, harness } from './harness.mts';
 import { type Files, pushBase, remoteMain, useGit, writeFiles } from './real-git.mts';

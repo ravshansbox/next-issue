@@ -14,10 +14,10 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { must } from '../src/exec.mts';
-import { processStart } from '../src/lock.mts';
-import { runsDir, stateDir } from '../src/state.mts';
-import { workerPaths } from '../src/worker-paths.mts';
+import { must } from '../src/shared/exec.mts';
+import { processStart } from '../src/shared/lock.mts';
+import { runsDir, stateDir } from '../src/shared/state.mts';
+import { workerPaths } from '../src/shared/worker-paths.mts';
 import { tempDir } from './temp-dir.mts';
 import { connect } from './worker-harness.mts';
 

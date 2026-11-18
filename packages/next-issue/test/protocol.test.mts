@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { isNewer } from '../src/protocol.mts';
+import { isNewer } from '../src/shared/protocol.mts';
 
 test('a version is newer only when a part of it is greater', () => {
   assert.equal(isNewer('2.0.1', '2.0.0'), true);

@@ -5,14 +5,14 @@ import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { runChildren, stopRunChildren, withRunChildren } from '../src/children.mts';
+import { runChildren, stopRunChildren, withRunChildren } from '../src/shared/children.mts';
 import {
   type CommandRecord,
   must,
   run,
   setCommandObserver,
   withDefaultTimeout,
-} from '../src/exec.mts';
+} from '../src/shared/exec.mts';
 import { tempDir } from './temp-dir.mts';
 
 const NODE = process.execPath;
@@ -157,9 +157,9 @@ async function interrupted(t: TestContext): Promise<{
   const dir = await tempDir();
   const file = join(dir, 'pid');
   const agentFile = join(dir, 'agent');
-  const exec = new URL('../src/exec.mts', import.meta.url).href;
-  const children = new URL('../src/children.mts', import.meta.url).href;
-  const interrupt = new URL('../src/interrupt.mts', import.meta.url).href;
+  const exec = new URL('../src/shared/exec.mts', import.meta.url).href;
+  const children = new URL('../src/shared/children.mts', import.meta.url).href;
+  const interrupt = new URL('../src/shared/interrupt.mts', import.meta.url).href;
   const inner = [
     `import { writeFileSync } from "node:fs";`,
     `import { run } from ${JSON.stringify(exec)};`,
@@ -299,7 +299,7 @@ test('must reports a child that passes the time limit', async () => {
 });
 
 test('run shows the output of the child on the error stream when asked', async () => {
-  const exec = new URL('../src/exec.mts', import.meta.url).href;
+  const exec = new URL('../src/shared/exec.mts', import.meta.url).href;
   const inner = `import { run } from ${JSON.stringify(exec)}; await run(process.execPath, ["-e", "process.stdout.write('shown')"], { show: true });`;
   const result = await run(NODE, ['--input-type=module', '-e', inner]);
   assert.equal(result.code, 0);

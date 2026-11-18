@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { loadConfig } from '../src/config.mts';
-import type { Comment, Issue } from '../src/github.mts';
-import { waitingQuestions } from '../src/hand-over-comments.mts';
-import { stateDir } from '../src/state.mts';
+import { loadConfig } from '../src/shared/config.mts';
+import type { Comment, Issue } from '../src/shared/github.mts';
+import { waitingQuestions } from '../src/shared/hand-over-comments.mts';
+import { stateDir } from '../src/shared/state.mts';
 import { ISSUE } from './harness.mts';
 import { tempDir } from './temp-dir.mts';
 

@@ -4,7 +4,7 @@ import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { syncBuiltinESMExports } from 'node:module';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import type { Repo } from '../src/git.mts';
+import type { Repo } from '../src/shared/git.mts';
 import {
   dropState,
   type IssueState,
@@ -13,7 +13,7 @@ import {
   savedIssues,
   stateDir,
   writeState,
-} from '../src/state.mts';
+} from '../src/shared/state.mts';
 import { keysSorted } from './sorted-keys.mts';
 import { tempDir } from './temp-dir.mts';
 

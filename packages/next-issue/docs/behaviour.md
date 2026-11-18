@@ -33,7 +33,7 @@ Every agent prompt holds the body of the issue and the comments of users with wr
 4. `Out of scope`
 5. `Open questions`, empty when the issue is created
 
-The list lives in `src/issue-format.mts`. The `create-issue` skill of the [Claude Code plugin](../../claude-next-issue) writes an issue in this format, and a contract test fails when its template and the list disagree. The harness does not reject an issue without the format.
+The list lives in `src/shared/issue-format.mts`. The `create-issue` skill of the [Claude Code plugin](../../claude-next-issue) writes an issue in this format, and a contract test fails when its template and the list disagree. The harness does not reject an issue without the format.
 
 ## Rules for the agents
 
@@ -354,7 +354,7 @@ Stop the worker of a repository with `next-issue stop` in that repository. Worke
 
 See [Develop](https://github.com/ravshansbox/next-issue#develop) in the root README for the scripts.
 
-`npm run build` compiles `src/*.mts` to `dist/*.mjs`. The package holds the compiled files, because Node does not strip types under `node_modules`.
+`npm run build` compiles `src/**/*.mts` to `dist/**/*.mjs`. `src/cli.mts` is the entry point; `src/cli/` holds the client-only code, `src/worker/` the worker-only code and `src/shared/` the code both use. The package holds the compiled files, because Node does not strip types under `node_modules`.
 
 ## Releases
 

@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
-import { parseArgs } from '../src/args.mts';
-import { must } from '../src/exec.mts';
-import type { Interrupts } from '../src/interrupt.mts';
-import { runRepo } from '../src/run.mts';
-import { onOff, type Switch } from '../src/switch.mts';
+import { parseArgs } from '../src/shared/args.mts';
+import { must } from '../src/shared/exec.mts';
+import type { Interrupts } from '../src/shared/interrupt.mts';
+import { runRepo } from '../src/worker/run.mts';
+import { onOff, type Switch } from '../src/shared/switch.mts';
 import { installGh } from './fake-gh.mts';
 import { tempDir } from './temp-dir.mts';
 

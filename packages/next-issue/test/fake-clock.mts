@@ -1,4 +1,4 @@
-import type { Clock } from '../src/poll.mts';
+import type { Clock } from '../src/shared/poll.mts';
 
 export function fakeClock(): Clock & { time: number } {
   const fake = {

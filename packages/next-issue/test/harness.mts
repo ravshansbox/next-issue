@@ -1,24 +1,24 @@
 import { join } from 'node:path';
 import type { TestContext } from 'node:test';
-import type { AgentRequest, AgentResult } from '../src/agents.mts';
-import type { CheckState } from '../src/check-poll.mts';
+import type { AgentRequest, AgentResult } from '../src/shared/agents.mts';
+import type { CheckState } from '../src/shared/check-poll.mts';
 import {
   refuseWhenStopped,
   runChildren,
   stopRunChildren,
   withRunChildren,
-} from '../src/children.mts';
-import { type Config, loadConfig } from '../src/config.mts';
-import { HookError } from '../src/git-commit.mts';
-import type { Issue } from '../src/github.mts';
-import type { Context, IssueReport } from '../src/job.mts';
-import { Recorder } from '../src/observe.mts';
-import { processIssue } from '../src/pipeline.mts';
-import type { Ports } from '../src/ports.mts';
-import { applyEvent, startProgress } from '../src/progress.mts';
-import type { Progress } from '../src/protocol.mts';
-import { type IssueState, readState, writeState } from '../src/state.mts';
-import type { Verdict } from '../src/verdict.mts';
+} from '../src/shared/children.mts';
+import { type Config, loadConfig } from '../src/shared/config.mts';
+import { HookError } from '../src/shared/git-commit.mts';
+import type { Issue } from '../src/shared/github.mts';
+import type { Context, IssueReport } from '../src/shared/job.mts';
+import { Recorder } from '../src/shared/observe.mts';
+import { processIssue } from '../src/worker/pipeline.mts';
+import type { Ports } from '../src/shared/ports.mts';
+import { applyEvent, startProgress } from '../src/worker/progress.mts';
+import type { Progress } from '../src/shared/protocol.mts';
+import { type IssueState, readState, writeState } from '../src/shared/state.mts';
+import type { Verdict } from '../src/worker/verdict.mts';
 import { fullDisk } from './full-disk.mts';
 import { tempDir } from './temp-dir.mts';
 export const ISSUE: Issue = {

@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { access, chmod, copyFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import type { AgentRequest } from '../src/agents.mts';
-import { commitAll } from '../src/git-commit.mts';
-import { pushToBase, reapplyRevert, revertOnBase, squashOnto } from '../src/git-land.mts';
+import type { AgentRequest } from '../src/shared/agents.mts';
+import { commitAll } from '../src/shared/git-commit.mts';
+import { pushToBase, reapplyRevert, revertOnBase, squashOnto } from '../src/shared/git-land.mts';
 import {
   diff,
   discardChanges,
@@ -16,10 +16,10 @@ import {
   revision,
   saveEdits,
   setAside,
-} from '../src/git.mts';
-import type { Recorder } from '../src/observe.mts';
-import type { Verdict } from '../src/verdict.mts';
-import { addWorktree, findWorktree, removeWorktree } from '../src/worktree.mts';
+} from '../src/shared/git.mts';
+import type { Recorder } from '../src/shared/observe.mts';
+import type { Verdict } from '../src/worker/verdict.mts';
+import { addWorktree, findWorktree, removeWorktree } from '../src/shared/worktree.mts';
 import { clones, git } from './clones.mts';
 import { APPROVE, changes, type Harness, harness, ISSUE, roles, SAVED } from './harness.mts';
 import { tempDir } from './temp-dir.mts';

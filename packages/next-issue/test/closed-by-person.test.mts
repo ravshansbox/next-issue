@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { Issue } from '../src/github.mts';
-import type { IssueReport } from '../src/job.mts';
-import { pendingIssues } from '../src/pending.mts';
-import { processIssue } from '../src/pipeline.mts';
-import { applyEvent, startProgress } from '../src/progress.mts';
-import type { IssueState } from '../src/state.mts';
+import type { Issue } from '../src/shared/github.mts';
+import type { IssueReport } from '../src/shared/job.mts';
+import { pendingIssues } from '../src/worker/pending.mts';
+import { processIssue } from '../src/worker/pipeline.mts';
+import { applyEvent, startProgress } from '../src/worker/progress.mts';
+import type { IssueState } from '../src/shared/state.mts';
 import { type Harness, harness, ISSUE, roles } from './harness.mts';
 
 async function closedRun(

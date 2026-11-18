@@ -2,8 +2,8 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
-import { CODING } from '../src/agents.mts';
-import { Recorder } from '../src/observe.mts';
+import { CODING } from '../src/shared/agents.mts';
+import { Recorder } from '../src/shared/observe.mts';
 import { tempDir } from './temp-dir.mts';
 
 export type Block =

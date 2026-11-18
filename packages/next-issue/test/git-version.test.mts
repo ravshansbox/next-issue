@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { gitVersionError } from '../src/git-version.mts';
+import { gitVersionError } from '../src/worker/git-version.mts';
 
 test('the harness accepts git 2.40 and later, including vendor suffixes', () => {
   for (const output of [

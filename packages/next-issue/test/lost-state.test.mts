@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { loadConfig } from '../src/config.mts';
+import { loadConfig } from '../src/shared/config.mts';
 import { harness, ISSUE } from './harness.mts';
 
 const config = await loadConfig('/does-not-exist');

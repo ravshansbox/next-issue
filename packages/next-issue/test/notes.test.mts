@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { hunt } from '../src/hunt.mts';
+import { hunt } from '../src/shared/hunt.mts';
 import { changes, harness, APPROVE, roles } from './harness.mts';
 
 async function writeNotes(root: string, text: string): Promise<string> {

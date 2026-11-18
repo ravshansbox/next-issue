@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { PORTS } from '../src/ports.mts';
+import { PORTS } from '../src/shared/ports.mts';
 import { harness, ISSUE, roles } from './harness.mts';
 import { tempDir } from './temp-dir.mts';
 

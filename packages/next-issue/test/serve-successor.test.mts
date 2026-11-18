@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
-import { lockHolder } from '../src/lock.mts';
-import type { WorkerMessage } from '../src/protocol.mts';
-import { startWorker } from '../src/serve.mts';
-import { workerPaths } from '../src/worker-paths.mts';
+import { lockHolder } from '../src/shared/lock.mts';
+import type { WorkerMessage } from '../src/shared/protocol.mts';
+import { startWorker } from '../src/worker/serve.mts';
+import { workerPaths } from '../src/shared/worker-paths.mts';
 import { tempDir } from './temp-dir.mts';
 import { connect, fakeRuns, noQuestions, worker } from './worker-harness.mts';
 
