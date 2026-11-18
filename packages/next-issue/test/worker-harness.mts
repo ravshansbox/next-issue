@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { request } from 'node:http';
 import { createConnection } from 'node:net';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -127,3 +128,37 @@ export async function worker(
 }
 
 export const runsOf = (value: WorkerMessage) => value.type === 'runs';
+
+export type HttpReply = { status: number; body: string };
+
+export function http(
+  socketPath: string,
+  method: string,
+  body?: string,
+  path = '/',
+): Promise<HttpReply> {
+  return new Promise((resolve, reject) => {
+    const sent = request({ socketPath, method, path }, (response) => {
+      let text = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk: string) => {
+        text += chunk;
+      });
+      response.on('end', () => resolve({ status: response.statusCode ?? 0, body: text }));
+    });
+    sent.on('error', reject);
+    sent.end(body);
+  });
+}
+
+export async function post(socketPath: string, value: ClientMessage): Promise<WorkerMessage[]> {
+  const reply = await http(socketPath, 'POST', JSON.stringify(value));
+  assert.equal(reply.status, 200, reply.body);
+  return JSON.parse(reply.body) as WorkerMessage[];
+}
+
+export async function poll(socketPath: string): Promise<WorkerMessage[]> {
+  const reply = await http(socketPath, 'GET');
+  assert.equal(reply.status, 200, reply.body);
+  return JSON.parse(reply.body) as WorkerMessage[];
+}

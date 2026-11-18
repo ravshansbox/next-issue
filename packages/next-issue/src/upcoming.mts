@@ -1,10 +1,9 @@
-import type { WebSocket } from 'ws';
 import { type Config, loadConfig } from './config.mts';
 import { message } from './errors.mts';
 import { detectRepo, type Repo } from './git.mts';
 import { type Ports, PORTS } from './ports.mts';
 import type { Upcoming } from './protocol.mts';
-import { send } from './questions.mts';
+import { type Peer, send } from './questions.mts';
 import { listedIssues, skipReason } from './skip.mts';
 import { savedIssues } from './state.mts';
 
@@ -39,11 +38,7 @@ export async function listUpcoming(root: string): Promise<Upcoming> {
   return upcomingIssues(await detectRepo(root, config.remote), config, PORTS);
 }
 
-export async function sendUpcoming(
-  list: ListUpcoming,
-  socket: WebSocket,
-  root: string,
-): Promise<void> {
+export async function sendUpcoming(list: ListUpcoming, socket: Peer, root: string): Promise<void> {
   try {
     send(socket, { type: 'upcoming', root, ...(await list(root)) });
   } catch (error) {

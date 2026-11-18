@@ -1,5 +1,5 @@
 import { rmSync, statSync } from 'node:fs';
-import type { Server } from 'node:http';
+import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { WebSocketServer } from 'ws';
 import type { HeldLock } from './lock.mts';
 import type { ClientMessage, Launch, WorkerMessage } from './protocol.mts';
@@ -55,6 +55,29 @@ export function sendAll(sockets: WebSocketServer, value: WorkerMessage): void {
   for (const socket of sockets.clients) {
     send(socket, value);
   }
+}
+
+const BODY_LIMIT = 1024 * 1024;
+
+export function readBody(request: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    request.setEncoding('utf8');
+    request.on('data', (chunk: string) => {
+      body += chunk;
+      if (body.length > BODY_LIMIT) {
+        resolve('');
+        request.destroy();
+      }
+    });
+    request.on('end', () => resolve(body));
+    request.on('error', reject);
+  });
+}
+
+export function reply(response: ServerResponse, status: number, messages: WorkerMessage[]): void {
+  response.writeHead(status, { 'content-type': 'application/json', connection: 'close' });
+  response.end(JSON.stringify(messages));
 }
 
 export function listen(server: Server, path: string): Promise<void> {

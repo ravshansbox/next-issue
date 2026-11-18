@@ -1,4 +1,3 @@
-import type { WebSocket } from 'ws';
 import { loadConfig } from './config.mts';
 import { message } from './errors.mts';
 import { detectRepo } from './git.mts';
@@ -11,6 +10,8 @@ export type ListQuestions = (root: string) => Promise<Question[]>;
 type Questions = Extract<WorkerMessage, { type: 'questions' | 'questions-error' }>;
 
 type Delivery = { read: number; value: Questions };
+
+export type Peer = { send: (data: string) => void };
 
 export async function listQuestions(root: string): Promise<Question[]> {
   const config = await loadConfig(root);
@@ -26,8 +27,8 @@ async function readQuestions(list: ListQuestions, root: string): Promise<Questio
 }
 
 function questionsReply(
-  delivered: WeakMap<WebSocket, Map<string, Delivery>>,
-  socket: WebSocket,
+  delivered: WeakMap<Peer, Map<string, Delivery>>,
+  socket: Peer,
   root: string,
   delivery: Delivery,
   id?: string,
@@ -42,15 +43,11 @@ function questionsReply(
   return id === undefined ? undefined : { ...last.value, id };
 }
 
-type SendQuestions = (
-  root: string,
-  targets: () => Iterable<WebSocket>,
-  id?: string,
-) => Promise<void>;
+type SendQuestions = (root: string, targets: () => Iterable<Peer>, id?: string) => Promise<void>;
 
 export function questionSender(list: ListQuestions): SendQuestions {
   const reads = new Map<string, number>();
-  const delivered = new WeakMap<WebSocket, Map<string, Delivery>>();
+  const delivered = new WeakMap<Peer, Map<string, Delivery>>();
   return async (root, targets, id) => {
     const read = (reads.get(root) ?? 0) + 1;
     reads.set(root, read);
@@ -64,6 +61,6 @@ export function questionSender(list: ListQuestions): SendQuestions {
   };
 }
 
-export function send(socket: WebSocket, value: WorkerMessage): void {
+export function send(socket: Peer, value: WorkerMessage): void {
   socket.send(JSON.stringify(value));
 }

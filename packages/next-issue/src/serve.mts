@@ -1,15 +1,27 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { mkdir, rename, rm } from 'node:fs/promises';
-import { createServer } from 'node:http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { basename, dirname, join } from 'node:path';
-import { type WebSocket, WebSocketServer } from 'ws';
+import { WebSocketServer } from 'ws';
 import { type Args, parseStartArgs } from './args.mts';
 import { stopChildren, withRunChildren } from './children.mts';
 import { message } from './errors.mts';
 import { lock } from './lock.mts';
 import { startProgress } from './progress.mts';
-import { type ClientMessage, isNewer, type Launch, type Progress } from './protocol.mts';
-import { type ListQuestions, listQuestions, questionSender, send } from './questions.mts';
+import {
+  type ClientMessage,
+  isNewer,
+  type Launch,
+  type Progress,
+  type WorkerMessage,
+} from './protocol.mts';
+import {
+  type ListQuestions,
+  listQuestions,
+  type Peer,
+  questionSender,
+  send,
+} from './questions.mts';
 import { runRepo, type RunControls } from './run.mts';
 import type { RunSummary } from './summary.mts';
 import { type ListUpcoming, listUpcoming, sendUpcoming } from './upcoming.mts';
@@ -43,7 +55,9 @@ import {
   listen,
   type Owned,
   parseMessage,
+  readBody,
   removeOwned,
+  reply,
   sendAll,
   shutdown,
   stopListening,
@@ -93,6 +107,9 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   const busy = (): boolean => [...runs.values()].some(active);
 
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
+  const idleMs = options.idleMs ?? IDLE_MS;
+  let polledAt = Number.NEGATIVE_INFINITY;
+  const polled = (): boolean => Date.now() - polledAt < idleMs;
   const handOver = async (how: Launch, run: Run): Promise<void> => {
     const listening = stopListening(server);
     removeOwned(owned);
@@ -117,7 +134,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     }
   });
   const closeWhenIdle = (): void => {
-    if ((restart !== undefined || sockets.clients.size === 0) && !busy()) {
+    if ((restart !== undefined || (sockets.clients.size === 0 && !polled())) && !busy()) {
       void close();
     }
   };
@@ -194,7 +211,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       .finally(closeWhenIdle);
   };
 
-  const stop = (socket: WebSocket, refuse: Refuse, root: string, after: unknown, id?: string) => {
+  const stop = (socket: Peer, refuse: Refuse, root: string, after: unknown, id?: string) => {
     const point = stopPoint(after);
     if (point === undefined) {
       refuse(`stop does not take --after ${String(after)}`);
@@ -228,7 +245,11 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     upgradeBetweenIssues(run!);
   };
 
-  const receive = (socket: WebSocket, value: ClientMessage, refuse: Refuse): void => {
+  const receive = (
+    socket: Peer,
+    value: ClientMessage,
+    refuse: Refuse,
+  ): Promise<void> | undefined => {
     if (value.type === 'hello') {
       if (typeof value.version !== 'string') {
         throw new Error('a hello message needs its version as a string');
@@ -257,10 +278,11 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     } else if (value.type === 'refresh') {
       requestRefresh(runs.get(value.root));
     } else if (value.type === 'questions') {
-      void sendQuestions(value.root, () => [socket], value.id);
+      return sendQuestions(value.root, () => [socket], value.id);
     } else if (value.type === 'upcoming') {
-      void sendUpcoming(options.upcoming ?? listUpcoming, socket, value.root);
+      return sendUpcoming(options.upcoming ?? listUpcoming, socket, value.root);
     }
+    return undefined;
   };
 
   sockets.on('connection', (socket) => {
@@ -276,19 +298,51 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       }
       const refuse = refuser(socket, value, options.root);
       try {
-        receive(socket, value, refuse);
+        void receive(socket, value, refuse);
       } catch (error) {
         refuse(message(error));
       }
     });
   });
 
+  const answer = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
+    polledAt = Date.now();
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(closeWhenIdle, idleMs);
+    const refusal = (text: string): WorkerMessage[] => [
+      { type: 'error', root: options.root, message: text },
+    ];
+    if (request.url !== '/') {
+      reply(response, 404, refusal('the worker answers on / only'));
+    } else if (request.method === 'GET') {
+      reply(response, 200, [{ type: 'hello', version: options.version }, runsMessage(runs)]);
+    } else if (request.method !== 'POST') {
+      reply(response, 405, refusal('the worker answers GET and POST only'));
+    } else {
+      const value = parseMessage(await readBody(request));
+      if (value === undefined) {
+        reply(response, 400, refusal('the request is not a next-issue message'));
+        return;
+      }
+      const replies: WorkerMessage[] = [];
+      const peer: Peer = { send: (data) => replies.push(JSON.parse(data) as WorkerMessage) };
+      const refuse = refuser(peer, value, options.root);
+      try {
+        await receive(peer, value, refuse);
+      } catch (error) {
+        refuse(message(error));
+      }
+      reply(response, 200, [...replies, runsMessage(runs)]);
+    }
+  };
+  server.on('request', (request, response) => void answer(request, response));
+
   const draft = join(dirname(options.socketPath), `~${basename(options.socketPath).slice(1)}`);
   await rm(draft, { force: true });
   await listen(server, draft);
   await rename(draft, options.socketPath);
   owned.socket = fileId(options.socketPath);
-  idleTimer = setTimeout(closeWhenIdle, options.idleMs ?? IDLE_MS);
+  idleTimer = setTimeout(closeWhenIdle, idleMs);
   return { closed, close, release: () => removeOwned(owned) };
 }
 
@@ -302,7 +356,7 @@ function resumeArgs(run: Run): string[] {
   return ['--watch', 'on', '--hunt', run.progress.hunting ? 'on' : 'off'];
 }
 
-function refuser(socket: WebSocket, value: ClientMessage, served: string): Refuse {
+function refuser(socket: Peer, value: ClientMessage, served: string): Refuse {
   const root = value.type === 'hello' ? served : value.root;
   const id = 'id' in value ? value.id : undefined;
   return (text) =>
