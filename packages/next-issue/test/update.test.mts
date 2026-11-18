@@ -11,9 +11,19 @@ import { tempDir } from './temp-dir.mts';
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
 const SKILLS = fileURLToPath(new URL('../skills/', import.meta.url));
 const TERMINAL_STDIN = '--import=data:text/javascript,process.stdin.isTTY=true';
+const FULL_DISK = `--import=data:text/javascript,${encodeURIComponent(
+  "import fs from 'node:fs/promises';import { syncBuiltinESMExports } from 'node:module';fs.cp = async (source, destination) => { await fs.mkdir(destination, { recursive: true }); await fs.writeFile(destination + '/SKILL.md', 'half'); throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' }); };syncBuiltinESMExports();",
+)}`;
 
 function update(cwd: string, home: string, args: string[]) {
   return promisify(execFile)(process.execPath, [CLI, 'update', ...args], {
+    cwd,
+    env: { ...process.env, HOME: home },
+  });
+}
+
+function updateOnFullDisk(cwd: string, home: string, args: string[]) {
+  return promisify(execFile)(process.execPath, [FULL_DISK, CLI, 'update', ...args], {
     cwd,
     env: { ...process.env, HOME: home },
   });
@@ -88,6 +98,25 @@ test('a user who runs update over older copies gets them replaced and keeps thei
     'template.md',
   ]);
   assert.equal(await readFile(join(folder, 'mine', 'SKILL.md'), 'utf8'), 'mine');
+  assert.deepEqual((await readdir(folder)).sort(), ['answer-hand-over', 'create-issue', 'mine']);
+});
+
+test('a user who runs update when the copy fails part way keeps the skill installed before, has no half-written copy left and gets an error and exit code 1', async () => {
+  const home = await tempDir();
+  const folder = join(home, '.claude', 'skills');
+  await mkdir(join(folder, 'create-issue'), { recursive: true });
+  await writeFile(join(folder, 'create-issue', 'SKILL.md'), 'old');
+  await assert.rejects(
+    updateOnFullDisk(await tempDir(), home, ['--scope', 'user']),
+    (error: { code: number; stderr: string }) => {
+      assert.equal(error.code, 1);
+      assert.match(error.stderr, /next-issue failed: ENOSPC/);
+      return true;
+    },
+  );
+  assert.deepEqual(await readdir(folder), ['create-issue']);
+  assert.deepEqual(await readdir(join(folder, 'create-issue')), ['SKILL.md']);
+  assert.equal(await readFile(join(folder, 'create-issue', 'SKILL.md'), 'utf8'), 'old');
 });
 
 test('a user who runs update with no --scope and no terminal gets an error that names --scope, exit code 1 and no skill written', async () => {

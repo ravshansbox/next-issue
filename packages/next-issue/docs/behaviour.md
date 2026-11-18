@@ -270,7 +270,7 @@ The package ships two skills for Claude Code: `create-issue` writes an issue tha
 - `--scope user` writes them to `~/.claude/skills/`, for every repository;
 - `--scope project` writes them to `.claude/skills/` of the main worktree of the repository it runs in, also from a linked worktree. It fails outside a git repository.
 
-With no `--scope`, it asks which one in the terminal, and fails on another answer than `user` or `project` (or `u` or `p`). With no `--scope` and no terminal to ask, such as in a script, it fails with `update needs --scope user|project` and writes nothing. It replaces the `create-issue` and `answer-hand-over` folders there, so files of an older copy go, and keeps the other skills of the folder. It prints `wrote <folder>` for each skill and exits with 0. Run it again after you update `next-issue` to get the skills of that version.
+With no `--scope`, it asks which one in the terminal, and fails on another answer than `user` or `project` (or `u` or `p`). With no `--scope` and no terminal to ask, such as in a script, it fails with `update needs --scope user|project` and writes nothing. It replaces the `create-issue` and `answer-hand-over` folders there, so files of an older copy go, and keeps the other skills of the folder. It copies each skill to a `.<skill>.new` folder next to it first and swaps it in only when the copy succeeds, so when the copy fails, such as on a full disk, the skill installed before stays in place and `update` exits with 1 and `next-issue failed: <error>`. It prints `wrote <folder>` for each skill and exits with 0. Run it again after you update `next-issue` to get the skills of that version.
 
 The worker's agents never get these skills, see [Requirements](#requirements).
 

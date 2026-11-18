@@ -1,4 +1,4 @@
-import { cp, rm } from 'node:fs/promises';
+import { cp, rename, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
@@ -57,8 +57,16 @@ export async function installSkills(scope: Scope): Promise<string[]> {
   const written: string[] = [];
   for (const name of OWN_SKILLS) {
     const target = join(folder, name);
+    const staging = join(folder, `.${name}.new`);
+    await rm(staging, { recursive: true, force: true });
+    try {
+      await cp(join(SKILLS, name), staging, { recursive: true });
+    } catch (error) {
+      await rm(staging, { recursive: true, force: true });
+      throw error;
+    }
     await rm(target, { recursive: true, force: true });
-    await cp(join(SKILLS, name), target, { recursive: true });
+    await rename(staging, target);
     written.push(target);
   }
   return written;
