@@ -3,12 +3,12 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import { must } from '../src/shared/exec.mts';
-import type { WorkerMessage } from '../src/shared/protocol.mts';
+import type { RunSummary, WorkerMessage } from '../src/shared/protocol.mts';
 import { runRepo } from '../src/worker/run.mts';
 import { startWorker } from '../src/worker/serve.mts';
 import { installGh } from './fake-gh.mts';
 import { tempDir } from './temp-dir.mts';
-import { connect } from './worker-harness.mts';
+import { connect, fakeRuns, worker } from './worker-harness.mts';
 
 const issues = [
   { number: 1, title: 'issue 1', body: '', createdAt: '2026-01-01T00:00:00Z', labels: [] },
@@ -98,4 +98,32 @@ exit 1
   assert.equal(end.type === 'end' && end.code, 1);
   assert.match(end.type === 'end' ? String(end.error) : '', /gh is broken/);
   assert.equal(end.type === 'end' && end.summary, undefined);
+});
+
+test('a client of a run whose summary is larger than 64 KiB gets the whole summary in the end message', async (t) => {
+  const fake = fakeRuns();
+  const { root, socketPath } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root, args: ['--watch', 'off'] });
+  await client.next((message) => message.type === 'runs' && message.runs[root] !== undefined);
+  const summary: RunSummary = {
+    runId: 'run',
+    logFile: 'run.jsonl',
+    roles: {},
+    counts: {},
+    total: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    issues: Array.from({ length: 2000 }, (_, index) => ({
+      issue: index + 1,
+      outcome: 'needs-human' as const,
+      reason: 'x'.repeat(1000),
+      ciFixes: 0,
+      reviewRounds: 0,
+      ms: 0,
+    })),
+  };
+  assert.ok(JSON.stringify(summary).length > 64 * 1024);
+  fake.controls().ended?.(summary);
+  fake.finish(0);
+  const end = await client.next((message) => message.type === 'end');
+  assert.deepEqual(end, { type: 'end', root, code: 0, summary });
 });

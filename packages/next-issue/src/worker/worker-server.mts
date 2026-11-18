@@ -62,6 +62,15 @@ export function sendAll(sockets: WebSocketServer, value: WorkerMessage): void {
   }
 }
 
+export async function sendAllSent(sockets: WebSocketServer, value: WorkerMessage): Promise<void> {
+  const text = JSON.stringify(value);
+  await Promise.all(
+    [...sockets.clients].map(
+      (socket) => new Promise<void>((resolve) => socket.send(text, () => resolve())),
+    ),
+  );
+}
+
 export function listen(server: Server, path: string): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     server.once('error', reject);

@@ -44,6 +44,7 @@ import {
   removeOwned,
   send,
   sendAll,
+  sendAllSent,
   shutdown,
   stopListening,
   type Worker,
@@ -171,7 +172,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       .then(
         (code) => {
           update({ ...run.progress, status: endStatus(run) });
-          sendAll(sockets, {
+          return sendAllSent(sockets, {
             type: 'end',
             root,
             code,
@@ -180,7 +181,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
         },
         (error: unknown) => {
           update({ ...run.progress, status: 'failed', error: message(error) });
-          sendAll(sockets, { type: 'end', root, code: 1, error: message(error) });
+          return sendAllSent(sockets, { type: 'end', root, code: 1, error: message(error) });
         },
       )
       .finally(() => void close());
