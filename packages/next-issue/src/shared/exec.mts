@@ -156,6 +156,7 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
       reject(error);
     });
     child.on('exit', (code) => {
+      killTree(child);
       const finish = (): void => {
         child.stdout?.destroy();
         child.stderr?.destroy();

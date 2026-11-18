@@ -202,6 +202,23 @@ test('run kills a grandchild that outlives its parent on the time limit', async 
   }
 });
 
+test('run kills a background process that a command leaves behind when it exits', async () => {
+  const dir = await tempDir();
+  const file = join(dir, 'pid');
+  try {
+    const result = await run('bash', [
+      '-c',
+      `sleep 30 >/dev/null 2>&1 & echo $! > ${file}; exit 0`,
+    ]);
+    assert.equal(result.code, 0);
+    const pid = Number((await readFile(file, 'utf8')).trim());
+    assert.ok(pid > 0);
+    assert.equal(await gone(pid), true);
+  } finally {
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
 async function interrupted(t: TestContext): Promise<{
   harness: ChildProcess;
   pid: number;

@@ -87,7 +87,7 @@ When the reviewer approved the change and the run stopped before its commit reac
 
 Signals that arrive within 100 ms of the last counted one count as one press, because `npx` and `npm exec` pass on a press as a second signal.
 
-Each of the first two presses prints a line that says what happens next. The agents run inside the harness, and their commands and the harness commands run in a process group of their own, so a press reaches only the harness.
+Each of the first two presses prints a line that says what happens next. The agents run inside the harness, and their commands and the harness commands run in a process group of their own, so a press reaches only the harness. When a command that the harness runs, such as a setup command or a command in `checks`, exits, the harness kills its process group with `SIGKILL`, so a background process that it leaves behind ends too, including a daemon such as the Gradle daemon. A process that leaves the group, for example with `setsid`, keeps running.
 
 The harness runs all git and `gh` commands itself. The commit holds all the changes in the worktree, so a setup command that writes a file that git does not ignore puts that file in the commit. The reviewer is the one agent whose changes never get that far: the harness discards them, undoes any commit that the reviewer made on the issue branch and checks that branch out again, before it reads the verdict.
 
