@@ -12,6 +12,8 @@ The plugin keeps its own copy of the protocol (`packages/claude-next-issue/src/p
 
 The plugin also ships the `create-issue` and `answer-hand-over` skills (`packages/claude-next-issue/skills/`), which a user needs to write issues and answer hand-overs in Claude Code.
 
+Several CLI instances, such as several Claude Code sessions in the same repository, must be able to talk to the run of that repository at the same time without conflict. With one client left, the worker could look removable: `next-issue start` could run the work in its own process.
+
 ## Options
 
 ### A. Keep two clients with feature parity
@@ -32,11 +34,18 @@ The plugin also ships the `create-issue` and `answer-hand-over` skills (`package
 - Con: Claude Code users lose the dashboard.
 - Con: `next-issue update` must install the skills where Claude Code finds them.
 
+### D. No worker: each CLI instance runs the work in its own process
+
+- Pro: no socket, protocol or worker upgrade code.
+- Con: each instance needs lock files to share claims, landings and the base branch with the others, or a second instance must refuse to run.
+- Con: no instance can follow, stop or switch a run that another started, and a run ends when its terminal closes.
+
 ## Decision
 
 Option C.
 
-- The `next-issue` CLI is the only client of the worker.
+- The `next-issue` CLI is the only kind of client of the worker.
+- The worker stays, so that any number of CLI instances can talk to it at the same time without conflict. Option D is rejected.
 - The Claude Code plugin, `packages/claude-next-issue`, and `.claude-plugin/marketplace.json` are removed.
 - The `create-issue` and `answer-hand-over` skills ship in the `next-issue` package. `next-issue update` installs them and keeps them up to date.
 - The worker still runs its agents with the Claude Agent SDK and takes Claude model IDs only ([ADR 0006](0006-claude-code-only.md)).
@@ -46,3 +55,4 @@ Option C.
 - New features need work only in the worker and the CLI.
 - The root README, the `next-issue` README and `packages/next-issue/docs/behaviour.md` stop naming the plugin, and describe how to install the skills.
 - `next-issue` stays the only package that the release job publishes.
+- A known gap: a second `next-issue start` while a run is going exits with `a run is going in this repository already` instead of joining the run.

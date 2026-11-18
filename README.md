@@ -8,7 +8,7 @@ Works through the open GitHub issues of a repository with an agent.
 
 ## Architecture
 
-Each repository has one worker, `next-issue serve`, and one client: the `next-issue` CLI, see [ADR 0007](docs/adr/0007-cli-only-client.md).
+Each repository has one worker, `next-issue serve`, and any number of clients that talk to it at the same time: instances of the `next-issue` CLI, see [ADR 0007](docs/adr/0007-cli-only-client.md).
 
 ## Develop
 
