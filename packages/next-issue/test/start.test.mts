@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { onStop } from '../src/shared/children.mts';
-import { lockHolder, stopWorker } from '../src/shared/lock.mts';
+import { lockHolder } from '../src/shared/lock.mts';
 import { must } from '../src/shared/exec.mts';
 import { type RunRepo, startWorker } from '../src/worker/serve.mts';
 import { packageVersion } from '../src/shared/version.mts';
@@ -73,6 +73,13 @@ function cliCommand(
   return { child, stdout: () => stdout, stderr: () => stderr, exited };
 }
 
+async function killWorker(root: string): Promise<void> {
+  const holder = await lockHolder(workerPaths(root).lockPath);
+  if (holder !== undefined && holder !== process.pid) {
+    process.kill(holder, 'SIGTERM');
+  }
+}
+
 async function until(check: () => boolean, what: string): Promise<void> {
   for (let left = 200; left > 0; left -= 1) {
     if (check()) {
@@ -98,7 +105,7 @@ async function fakeWorker(t: TestContext, root: string, runRepo: RunRepo, versio
 
 test('a user who runs start with no flags sees the run wait for new issues after a pass instead of ending', async (t) => {
   const root = await repository();
-  t.after(() => stopWorker(workerPaths(root)));
+  t.after(() => killWorker(root));
   const started = startCommand(t, root, [], await idleGh());
   await until(() => / watch\.wait /.test(started.stderr()), 'the wait after the pass');
   assert.equal(started.child.exitCode, null);
@@ -209,6 +216,53 @@ test('a user who runs refresh while an older worker has a run going sees an erro
     /the worker of the going run is older than next-issue, so it cannot refresh\. Stop the run, then start it again/,
   );
   fake.finish();
+});
+
+test('a user who runs stop with a run going sees that the run will stop after its current issues, exit code 0 at once, and the worker go on with no signal', async (t) => {
+  const root = await repository();
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const other = await connect(t, workerPaths(root).socketPath);
+  other.send({ type: 'start', root });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'running');
+  const stopped = cliCommand(t, root, ['stop']);
+  assert.equal(await stopped.exited, 0, stopped.stderr());
+  assert.equal(stopped.stdout(), 'next-issue: the run will stop after its current issues\n');
+  assert.equal(fake.controls().interrupts.afterIssue(), true);
+  assert.equal(fake.controls().interrupts.afterRound(), false);
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'stopping');
+  fake.finish();
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'stopped');
+});
+
+test('a user who runs stop while the run is stopping sees that it is stopping already and exit code 0', async (t) => {
+  const root = await repository();
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const other = await connect(t, workerPaths(root).socketPath);
+  other.send({ type: 'start', root });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'running');
+  other.send({ type: 'stop', root, after: 'round' });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'stopping');
+  const stopped = cliCommand(t, root, ['stop']);
+  assert.equal(await stopped.exited, 0, stopped.stderr());
+  assert.equal(stopped.stdout(), 'next-issue: the run is stopping already\n');
+  assert.equal(fake.controls().interrupts.afterRound(), true);
+  fake.finish();
+});
+
+test('a user who runs stop with no worker or no run going sees that no run is going, exit code 0 and no worker started', async (t) => {
+  const root = await repository();
+  const alone = cliCommand(t, root, ['stop']);
+  assert.equal(await alone.exited, 0);
+  assert.equal(alone.stdout(), 'next-issue: no run is going in this repository\n');
+  await assert.rejects(readFile(workerPaths(root).logPath, 'utf8'));
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const idle = cliCommand(t, root, ['stop']);
+  assert.equal(await idle.exited, 0);
+  assert.equal(idle.stdout(), 'next-issue: no run is going in this repository\n');
+  assert.equal(fake.calls.length, 0);
 });
 
 test('a user who runs watch or hunt with no value or another value sees an error and exit code 1', async (t) => {
@@ -359,7 +413,7 @@ test('a user who runs start while an older worker has a watch run going sees sta
   process.env.PATH = (await idleGh()).PATH;
   t.after(async () => {
     process.env.PATH = path;
-    await stopWorker(workerPaths(root));
+    await killWorker(root);
   });
   const fake = fakeRuns();
   const older = await fakeWorker(t, root, fake.runRepo, '0.0.0-old');

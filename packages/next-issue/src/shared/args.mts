@@ -59,7 +59,7 @@ export const USAGE = `next-issue <command> [options]
   refresh           ask the going run to check for new issues now
   init              write ${CONFIG_FILE} with the defaults and add .next-issue/ and .worktrees/ to info/exclude
   serve             run the worker of this repository that the clients talk to
-  stop              stop the worker of this repository
+  stop              stop the going run after its current issues
   logs              show the latest run log and follow it
   update            install the create-issue and answer-hand-over skills for Claude Code
     --scope user|project

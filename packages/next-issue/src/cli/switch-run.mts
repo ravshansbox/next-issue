@@ -88,3 +88,22 @@ function switched(
     sent = true;
   });
 }
+
+export async function stopInWorker(root: string): Promise<string> {
+  const connection = await findWorker(root);
+  if (connection === undefined) {
+    return NO_RUN;
+  }
+  const progress = connection.runs[root];
+  if (!going(progress)) {
+    connection.close();
+    return NO_RUN;
+  }
+  if (progress!.status === 'stopping') {
+    connection.close();
+    return 'next-issue: the run is stopping already\n';
+  }
+  connection.send({ type: 'stop', root, after: 'issue' });
+  await connection.end();
+  return 'next-issue: the run will stop after its current issues\n';
+}

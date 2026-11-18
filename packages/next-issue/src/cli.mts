@@ -5,14 +5,12 @@ import { OLD_CONFIG_FILE } from './shared/config-fields.mts';
 import { message } from './shared/errors.mts';
 import { repoRoot } from './shared/git.mts';
 import { ensureExcluded, excludeFile, removeIgnored } from './cli/ignore.mts';
-import { stopWorker } from './shared/lock.mts';
 import { followLog, newestRunLog } from './cli/logs.mts';
 import { serve } from './worker/serve.mts';
 import { startInWorker } from './cli/start.mts';
 import { STATE_DIR } from './shared/state.mts';
-import { refreshInWorker, switchInWorker } from './cli/switch-run.mts';
+import { refreshInWorker, stopInWorker, switchInWorker } from './cli/switch-run.mts';
 import { chooseScope, installSkills } from './cli/update.mts';
-import { workerPaths } from './shared/worker-paths.mts';
 import { WORKTREE_DIR } from './shared/worktree.mts';
 
 function write(stream: NodeJS.WriteStream, text: string): Promise<void> {
@@ -41,7 +39,8 @@ async function main(): Promise<number> {
   }
   await rejectOldConfig(root);
   if (args.command === 'stop') {
-    return stop(root);
+    await write(process.stdout, await stopInWorker(root));
+    return 0;
   }
   if (args.command === 'watch' || args.command === 'hunt') {
     await write(process.stdout, await switchInWorker(root, args.command, args.on!));
@@ -64,17 +63,6 @@ async function main(): Promise<number> {
 function run(root: string, args: Args, argv: string[]): Promise<number> {
   process.stderr.on('error', () => {});
   return startInWorker(root, args, argv.slice(1));
-}
-
-const STOPPED = {
-  none: () => 'next-issue: no worker is running\n',
-  worker: (pid?: number) => `next-issue: stopped the worker with process id ${pid}\n`,
-};
-
-async function stop(root: string): Promise<number> {
-  const { stopped, pid } = await stopWorker(workerPaths(root));
-  await write(process.stdout, STOPPED[stopped](pid));
-  return 0;
 }
 
 async function logs(root: string): Promise<number> {

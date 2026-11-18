@@ -2,7 +2,6 @@ import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 import { link, open, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
-import { createConnection } from 'node:net';
 import { basename, dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
@@ -163,33 +162,6 @@ async function removeDeadDrafts(path: string): Promise<void> {
       await rm(join(dirname(path), entry), { force: true });
     }
   }
-}
-
-type StopResult = { stopped: 'worker' | 'none'; pid?: number };
-
-function takesConnection(socketPath: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const socket = createConnection(socketPath);
-    socket.once('connect', () => {
-      socket.destroy();
-      resolve(true);
-    });
-    socket.once('error', () => resolve(false));
-  });
-}
-
-export async function stopWorker(paths: {
-  lockPath: string;
-  socketPath: string;
-}): Promise<StopResult> {
-  const text = await readTextOrEmpty(paths.lockPath);
-  const pid = await holderOf(text);
-  const unverified = text.trim().split(' ').length === 1;
-  if (pid === undefined || (unverified && !(await takesConnection(paths.socketPath)))) {
-    return { stopped: 'none' };
-  }
-  process.kill(pid, 'SIGTERM');
-  return { stopped: 'worker', pid };
 }
 
 export type HeldLock = {

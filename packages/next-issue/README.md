@@ -93,7 +93,7 @@ A field that is not in the file keeps its default. See [Configuration](https://g
 | `refresh`               | Ask the going run to check for new issues now                              |
 | `init`                  | Write the config file with the defaults                                    |
 | `serve`                 | Run the worker of this repository that the clients talk to                 |
-| `stop`                  | Stop the worker of this repository                                         |
+| `stop`                  | Stop the going run after its current issues                                |
 | `logs`                  | Show the latest run log and follow it                                      |
 | `update`                | Install the `create-issue` and `answer-hand-over` skills for Claude Code   |
 | `--force`               | With `init`: replace an existing config file                               |
