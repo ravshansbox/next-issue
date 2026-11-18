@@ -8,7 +8,7 @@ Install it from this repository's marketplace in Claude Code:
 /plugin install next-issue --marketplace ravshansbox/next-issue
 ```
 
-Or add the marketplace first with `/plugin marketplace add ravshansbox/next-issue`, then run `/plugin install next-issue@next-issue`. Keep the plugin named `next-issue` in the marketplace `next-issue`: the worker's agents run Claude Code too, and they leave out the plugin `next-issue@next-issue`, so its skills and tools never reach them.
+Or add the marketplace first with `/plugin marketplace add ravshansbox/next-issue`, then run `/plugin install next-issue@next-issue`. Keep the plugin named `next-issue` in the marketplace `next-issue`: the worker's agents run Claude Code too, and they leave out the plugin `next-issue@next-issue`, so its tools never reach them.
 
 It needs `git`, `node` with `npx`, and an authenticated [`gh`](https://cli.github.com/). It works on macOS and Linux. The repository must be on GitHub: `github.com` or a GitHub Enterprise host, which `gh` must be logged in to.
 
@@ -35,15 +35,10 @@ The model gets six tools, listed as `mcp__next-issue__<name>`:
 - `next_issue_stop` asks the going run to stop.
 - `next_issue_status` reports the run.
 
-### Skills
-
-- The `create-issue` skill writes an issue for the worker: ask Claude to write an issue, or run `/next-issue:create-issue <problem>`. See [Create an issue](https://github.com/ravshansbox/next-issue/blob/main/packages/claude-next-issue/docs/behaviour.md#create-an-issue).
-- The `answer-hand-over` skill helps you answer a hand-over: ask Claude to answer one, or run `/next-issue:answer-hand-over`. See [Investigate a hand-over](https://github.com/ravshansbox/next-issue/blob/main/packages/claude-next-issue/docs/behaviour.md#investigate-a-hand-over).
+The `create-issue` and `answer-hand-over` skills now ship with `next-issue`: run `npx -y next-issue@latest update` to install them, see [Skills](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#skills).
 
 ## Links
 
 - [Use](https://github.com/ravshansbox/next-issue/blob/main/packages/claude-next-issue/docs/behaviour.md#use)
-- [Investigate a hand-over](https://github.com/ravshansbox/next-issue/blob/main/packages/claude-next-issue/docs/behaviour.md#investigate-a-hand-over)
-- [Create an issue](https://github.com/ravshansbox/next-issue/blob/main/packages/claude-next-issue/docs/behaviour.md#create-an-issue)
 - [The worker](https://github.com/ravshansbox/next-issue/blob/main/packages/claude-next-issue/docs/behaviour.md#the-worker)
 - [Develop](https://github.com/ravshansbox/next-issue/blob/main/packages/claude-next-issue/docs/behaviour.md#develop)

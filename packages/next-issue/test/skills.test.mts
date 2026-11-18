@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-import { ISSUE_SECTIONS } from '../../next-issue/src/shared/issue-format.mts';
-import { TOOL_PREFIX, TOOLS } from '../src/tool-specs.ts';
+import { parseArgs } from '../src/shared/args.mts';
+import { ISSUE_SECTIONS } from '../src/shared/issue-format.mts';
 
 const skills = new URL('../skills/', import.meta.url);
 const createIssue = new URL('create-issue/SKILL.md', skills);
@@ -17,21 +17,21 @@ test('an agent who reads the create-issue template finds the issue sections of n
   assert.match(template, /## Open questions\s*$/);
 });
 
-test('a person who installs the plugin gets the create-issue and answer-hand-over skills', async () => {
+test('a person who installs next-issue gets the create-issue and answer-hand-over skills', async () => {
   for (const name of ['create-issue', 'answer-hand-over']) {
     const skill = await readFile(new URL(`${name}/SKILL.md`, skills), 'utf8');
     assert.match(skill, new RegExp(`^---\\nname: ${name}\\n`));
   }
 });
 
-test('an agent who follows a skill calls only tools that the plugin registers', async () => {
-  const names = new Set(TOOLS.map((tool) => `${TOOL_PREFIX}${tool.name}`));
+test('an agent who follows a skill runs only next-issue commands that the CLI takes', async () => {
   for (const name of ['create-issue', 'answer-hand-over']) {
     const skill = await readFile(new URL(`${name}/SKILL.md`, skills), 'utf8');
-    const called = [...skill.matchAll(/`(mcp__[\w-]+)` tool/g)].map((match) => match[1]!);
-    assert.ok(called.length > 0, name);
-    for (const tool of called) {
-      assert.ok(names.has(tool), `${name} calls ${tool}`);
+    assert.doesNotMatch(skill, /mcp__/);
+    const commands = [...skill.matchAll(/run `next-issue ([^`]+)`/g)].map((match) => match[1]!);
+    assert.ok(commands.length > 0, name);
+    for (const command of commands) {
+      assert.doesNotThrow(() => parseArgs(command.split(' ')), `${name} runs ${command}`);
     }
   }
 });
@@ -64,7 +64,7 @@ test('an agent who creates an issue with blockers passes them to gh issue create
   assert.doesNotMatch(behaviour, /--add-blocked-by/);
 });
 
-test('a person who reads the plugin behaviour doc learns that the create-issue skill adds the ready label after the blocker links', async () => {
+test('a person who reads the next-issue behaviour doc learns that the create-issue skill adds the ready label after the blocker links', async () => {
   const behaviour = await readFile(behaviourFile, 'utf8');
   assert.match(
     behaviour,
@@ -107,7 +107,7 @@ test('an agent who creates an issue with the create-issue skill adds no label ot
   assert.match(behaviour, /and no other label/);
 });
 
-test('a person who reads the plugin behaviour doc learns that the create-issue skill adds the labels.ready label', async () => {
+test('a person who reads the next-issue behaviour doc learns that the create-issue skill adds the labels.ready label', async () => {
   const behaviour = await readFile(behaviourFile, 'utf8');
   assert.match(behaviour, /`labels\.ready` label of `\.next-issue\/config\.json`/);
   assert.match(behaviour, /`status:todo` when `labels\.ready` is not set/);
@@ -135,7 +135,7 @@ test('an agent who finds a change too big for one atomic commit proposes a split
   assert.match(skill, /each issue of the split/i);
 });
 
-test('a person who reads the plugin behaviour doc learns that the create-issue skill splits a change too big for one commit', async () => {
+test('a person who reads the next-issue behaviour doc learns that the create-issue skill splits a change too big for one commit', async () => {
   const behaviour = await readFile(behaviourFile, 'utf8');
   assert.match(behaviour, /too big for one atomic commit/);
 });
@@ -172,26 +172,25 @@ test('an agent who creates an issue in a repository whose remote host is ssh.git
   assert.match(skill, /host `ssh\.github\.com` means `github\.com`/);
 });
 
-test('a person who reads the plugin behaviour doc learns which repository the create-issue skill files in', async () => {
+test('a person who reads the next-issue behaviour doc learns which repository the create-issue skill files in', async () => {
   const behaviour = await readFile(behaviourFile, 'utf8');
   assert.match(behaviour, /repository of the `remote` of `\.next-issue\/config\.json`/);
 });
 
 test('an agent who files an issue with the create-issue skill nudges the going run first and asks only whether to start a run when none is going', async () => {
   const skill = await readFile(createIssue, 'utf8');
-  const readme = await readFile(readmeFile, 'utf8');
   const behaviour = await readFile(behaviourFile, 'utf8');
   assert.match(
     skill,
-    /call the `mcp__next-issue__next_issue_refresh` tool, with no question first[\s\S]*Ask no question[\s\S]*ask only whether to start a run\. On yes, call the `mcp__next-issue__next_issue_start` tool/,
+    /run `next-issue refresh`, with no question first[\s\S]*Ask no question[\s\S]*ask only whether to start a run\. On yes, run `next-issue start` in the background/,
   );
   assert.match(
     skill,
-    /does not watch for new issues[\s\S]*ask only whether to turn watching on\. On yes, call the `mcp__next-issue__next_issue_watch` tool with `on` set to `true`, then the `mcp__next-issue__next_issue_refresh` tool/,
+    /does not watch for new issues`[\s\S]*ask only whether to turn watching on\. On yes, run `next-issue watch on`, then `next-issue refresh`/,
   );
+  assert.match(skill, /`npx -y next-issue@latest`/);
   assert.doesNotMatch(skill, /c\) change the issue/);
-  assert.match(readme, /`next_issue_refresh` asks the going run to check for new issues now/);
-  assert.match(behaviour, /calls `next_issue_refresh` with no question first/);
+  assert.match(behaviour, /runs `next-issue refresh` with no question first/);
 });
 
 test('an agent who answers a hand-over lists the waiting issues of <repo> and passes --repo <repo> to every gh command', async () => {
@@ -269,16 +268,17 @@ test('an agent who retries an issue nudges the going run and offers a start only
   const skill = await readFile(answerHandOver, 'utf8');
   assert.match(
     skill,
-    /call the `mcp__next-issue__next_issue_refresh` tool, with no question first[\s\S]*ask only whether to start a run\. On yes, call the `mcp__next-issue__next_issue_start` tool/,
+    /run `next-issue refresh`, with no question first[\s\S]*ask only whether to start a run\. On yes, run `next-issue start` in the background/,
   );
   assert.match(
     skill,
-    /does not watch for new issues[\s\S]*ask only whether to turn watching on\. On yes, call the `mcp__next-issue__next_issue_watch` tool with `on` set to `true`, then the `mcp__next-issue__next_issue_refresh` tool/,
+    /does not watch for new issues`[\s\S]*ask only whether to turn watching on\. On yes, run `next-issue watch on`, then `next-issue refresh`/,
   );
 });
 
-test('a person who reads the plugin README learns about the answer-hand-over skill', async () => {
+test('a person who reads the next-issue README learns about the skills and next-issue update', async () => {
   const readme = await readFile(readmeFile, 'utf8');
+  assert.match(readme, /`create-issue` skill/);
   assert.match(readme, /`answer-hand-over` skill/);
-  assert.match(readme, /\/next-issue:answer-hand-over/);
+  assert.match(readme, /\| `update`/);
 });

@@ -120,3 +120,25 @@ test('a user who passes a run flag to another command gets an error that names t
     }
   }
 });
+
+test('a user who runs update with --scope user or project gets that scope, and with no --scope gets none', () => {
+  assert.equal(parseArgs(['update']).command, 'update');
+  assert.equal(parseArgs(['update']).scope, undefined);
+  assert.equal(parseArgs(['update', '--scope', 'user']).scope, 'user');
+  assert.equal(parseArgs(['update', '--scope', 'project']).scope, 'project');
+});
+
+test('a user who passes --scope with no value or another value gets an error that says it takes user or project', () => {
+  for (const rest of [[], ['all'], ['--force']]) {
+    assert.throws(() => parseArgs(['update', '--scope', ...rest]), /--scope takes user or project/);
+  }
+});
+
+test('a user who passes --scope to another command gets an error that says it belongs to update', () => {
+  for (const command of ['start', 'init', 'stop']) {
+    assert.throws(
+      () => parseArgs([command, '--scope', 'user']),
+      new RegExp(`${command} does not take --scope: it belongs to update`),
+    );
+  }
+});

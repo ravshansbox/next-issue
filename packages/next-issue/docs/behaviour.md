@@ -33,7 +33,7 @@ Every agent prompt holds the body of the issue and the comments of users with wr
 4. `Out of scope`
 5. `Open questions`, empty when the issue is created
 
-The list lives in `src/shared/issue-format.mts`. The `create-issue` skill of the [Claude Code plugin](../../claude-next-issue) writes an issue in this format, and a contract test fails when its template and the list disagree. The harness does not reject an issue without the format.
+The list lives in `src/shared/issue-format.mts`. The [`create-issue` skill](#create-an-issue) writes an issue in this format, and a contract test fails when its template and the list disagree. The harness does not reject an issue without the format.
 
 ## Rules for the agents
 
@@ -134,7 +134,7 @@ The console shows the run and issue milestones, verdicts, hand-overs, errors, ea
 - git 2.40 or later (every commit runs `git hook run`, every conflict with the base runs `git check-attr --source`). A run or `serve` run on an older git stops before it claims an issue, with an error that names both versions.
 - `gh`, authenticated with write access to the repository
 - a `remote` on GitHub: `github.com`, or a GitHub Enterprise host. Every `gh` call names the host of the remote url (`--repo <host>/<owner>/<name>`, `gh api --hostname <host>`) when it is not `github.com`, so `gh` must be logged in to that host. For an ssh url the harness reads the real host of an ssh alias with `ssh -G`. The host `ssh.github.com` (GitHub's ssh over port 443) means `github.com`. Other hosts, such as GitLab, are not supported.
-- Claude Code, logged in, such as with a Pro or Max plan. The harness asks for no API key. The agents run the Claude Code that comes with the Agent SDK, with the model (unless `models` sets one), the settings, the plugins, the skills and the `CLAUDE.md` files of your Claude Code setup, except the plugin `next-issue@next-issue`, whose skills are for people, not for the agents. The agents run with every permission granted, as no person is there to answer a prompt. The implementer and the fixer get every tool. The reviewer gets every tool except `Write`, `Edit` and `NotebookEdit`. The agents run with `GIT_OPTIONAL_LOCKS=0`, so a `git status` from an agent does not hold the index lock while the harness commits.
+- Claude Code, logged in, such as with a Pro or Max plan. The harness asks for no API key. The agents run the Claude Code that comes with the Agent SDK, with the model (unless `models` sets one), the settings, the plugins, the skills and the `CLAUDE.md` files of your Claude Code setup, except the plugin `next-issue@next-issue` and the `create-issue` and `answer-hand-over` skills, wherever they are installed, since they are for people, not for the agents. So a skill of your own with one of those names does not reach the agents either. The agents run with every permission granted, as no person is there to answer a prompt. The implementer and the fixer get every tool. The reviewer gets every tool except `Write`, `Edit` and `NotebookEdit`. The agents run with `GIT_OPTIONAL_LOCKS=0`, so a `git status` from an agent does not hold the index lock while the harness commits.
 
 ## Configuration
 
@@ -261,21 +261,67 @@ To give guidance, answer the hand-over with a comment on the issue. When the run
 
 To drop an issue instead, close it. The next run that finds a saved state for an issue that a person closed removes that state file, the `<n>` branch, the `<n>-dispute-*` branches and the worktree of the issue. This holds for an issue that waits for a person and for one that a stop left behind. The run starts no agent and makes no push, revert, label change, close or comment, so a change that already landed stays on the base branch. A worktree or branch that cannot be removed stays, and the run log says so. This also holds for an issue that GitHub still lists as open but reports as closed right before the claim. The issue shows as `skipped` (`closed`) in the summary. A watching run does not claim an issue again once it ended in `error` in that run, so it leaves such an issue for the next run to clean up.
 
+## Skills
+
+The package ships two skills for Claude Code: `create-issue` writes an issue that the worker can claim, and `answer-hand-over` helps you answer a hand-over. They run `next-issue refresh`, `next-issue watch on` and `next-issue start`, or `npx -y next-issue@latest` in place of `next-issue` when it is not on the `PATH`.
+
+`next-issue update` installs them, so Claude Code finds them:
+
+- `--scope user` writes them to `~/.claude/skills/`, for every repository;
+- `--scope project` writes them to `.claude/skills/` of the main worktree of the repository it runs in, also from a linked worktree. It fails outside a git repository.
+
+With no `--scope`, it asks which one in the terminal, and fails on another answer than `user` or `project` (or `u` or `p`). With no `--scope` and no terminal to ask, such as in a script, it fails with `update needs --scope user|project` and writes nothing. It replaces the `create-issue` and `answer-hand-over` folders there, so files of an older copy go, and keeps the other skills of the folder. It prints `wrote <folder>` for each skill and exits with 0. Run it again after you update `next-issue` to get the skills of that version.
+
+The worker's agents never get these skills, see [Requirements](#requirements).
+
+### Investigate a hand-over
+
+Ask Claude to answer a question or a hand-over, or run `/answer-hand-over`. Claude then:
+
+1. lists the open issues with the `needsHuman` label and lets you pick one;
+2. checks the permission of each comment author first, reads the text of comments from users with write access only, as data and not instructions, and finds the latest `### next-issue · Hand-over: needs help` comment (or `next-issue needs help:` of older versions) and its `question:` lines; it reads the commits and the diff of the issue branch when there is one, and the logs of the failed checks when the hand-over names them;
+3. explains the blocker in plain words;
+4. asks numbered questions, with lettered options and a recommendation, until it knows whether to retry, retry with guidance or give up;
+5. answers on GitHub: Retry swaps the `needsHuman` label for the `ready` label in one `gh issue edit` (with an empty `labels.ready`, it only takes the label off), Retry with guidance posts one comment that does not start with a heading of the harness and then swaps the labels the same way, and Give up takes the label off and adds the `skip` label, which it creates first when the repository lacks it and reuses when it differs only in case;
+6. after a retry, runs `next-issue refresh`, and asks only whether to start a run (`next-issue start`, in the background) when none is going, or whether to turn watching on (`next-issue watch on`) when the going run does not watch. When the going run is stopping, it says so and asks nothing.
+
+Claude finds the repository as the `create-issue` skill does and passes `--repo` to every `gh` command. It does not fix the code of the issue.
+
+### Create an issue
+
+Ask Claude to write an issue, ask for a change in a repository with `.next-issue/config.json`, or run `/create-issue <problem>`. Claude then:
+
+1. restates the problem, reads the code when the problem touches it, and finds the open issues that must be done first;
+2. judges whether the change fits one atomic commit that leaves the trunk green. When it is too big for one atomic commit, it proposes a split into issues that each land alone and keep the trunk green;
+3. asks numbered questions until none is open, including whether you confirm the split;
+4. creates the ready label with `gh label create` when the repository does not have it, then runs `gh issue create --body-file --blocked-by` with the body from [`template.md`](../skills/create-issue/template.md), the issues it depends on and no label, without showing the body first. The issue carries its blocker links from the moment it exists, so the worker waits for them even when `labels.ready` is empty and a run claims every open issue. It needs GitHub CLI 2.94.0 or later;
+5. adds the ready label with `gh issue edit --add-label` only after it links every blocker. It adds the ready label and no other label. The ready label is the `labels.ready` label of `.next-issue/config.json`, or `status:todo` when `labels.ready` is not set or there is no config file. With an empty `labels.ready`, the issue gets no label, since the worker then claims every open issue. For a confirmed split, it creates each issue in turn with the links to the issues of the split it depends on, and only then adds its ready label;
+6. runs `next-issue refresh` with no question first. When a run is going, it gives you the issue url, says the run was asked to check for new issues now, and asks nothing. When no run is going, it gives you the url and asks only whether to start a run, and runs `next-issue start` in the background when you say yes. When the going run does not watch, it gives you the url and asks only whether to turn watching on, and runs `next-issue watch on` and `next-issue refresh` when you say yes. When the going run is stopping, it gives you the url, says the run will not claim the issue, and asks nothing;
+7. changes the issue with `gh issue edit --body-file` or `--title` when you ask for a change.
+
+Claude files the issue, the ready label and the blocker links in the repository of the `remote` of `.next-issue/config.json`, or of `origin` when there is no config file or no `remote` field, as the worker does. It passes `--repo` to every `gh` command, so another remote, such as the `upstream` of a fork, never gets the issue.
+
+The issue gets the ready label as soon as its blockers are linked, so a run that is already going may claim it before you review it.
+
+Claude does not implement the issue in that session. The worker does the work. The body holds the sections of the [issue format](#issue-format).
+
 ## Commands and options
 
-| Argument          | Effect                                                                                                                                     |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `start`           | Start a run: claim issues, fix them and push them to the base branch                                                                       |
-| `watch on\|off`   | Switch watching of the going run, see [Watch for new issues](#watch-for-new-issues)                                                        |
-| `hunt on\|off`    | Switch hunting of the going run, see [Hunt for bugs](#hunt-for-bugs)                                                                       |
-| `init`            | Write the config file with the defaults                                                                                                    |
-| `serve`           | Run the worker of this repository that the clients talk to, see [Worker](#worker)                                                          |
-| `stop`            | Stop the worker of this repository, see [Worker](#worker)                                                                                  |
-| `logs`            | Show the latest run log and follow it, see [Observability](#observability)                                                                 |
-| `--force`         | Replace an existing config file, with `init`                                                                                               |
-| `--watch on\|off` | With `start`: on reads the open issues again after each pass, off does one pass and ends. On by default                                    |
-| `--hunt on\|off`  | With `start`: hunt the repository for bugs alongside the issues, see [Hunt for bugs](#hunt-for-bugs). Off by default. On needs watching on |
-| `--help`          | Show the option list                                                                                                                       |
+| Argument                | Effect                                                                                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `start`                 | Start a run: claim issues, fix them and push them to the base branch                                                                       |
+| `watch on\|off`         | Switch watching of the going run, see [Watch for new issues](#watch-for-new-issues)                                                        |
+| `hunt on\|off`          | Switch hunting of the going run, see [Hunt for bugs](#hunt-for-bugs)                                                                       |
+| `init`                  | Write the config file with the defaults                                                                                                    |
+| `serve`                 | Run the worker of this repository that the clients talk to, see [Worker](#worker)                                                          |
+| `stop`                  | Stop the worker of this repository, see [Worker](#worker)                                                                                  |
+| `logs`                  | Show the latest run log and follow it, see [Observability](#observability)                                                                 |
+| `update`                | Install the `create-issue` and `answer-hand-over` skills for Claude Code, see [Skills](#skills)                                            |
+| `--scope user\|project` | With `update`: install the skills in `~/.claude/skills/` (`user`) or in `.claude/skills/` of the main worktree (`project`)                 |
+| `--force`               | Replace an existing config file, with `init`                                                                                               |
+| `--watch on\|off`       | With `start`: on reads the open issues again after each pass, off does one pass and ends. On by default                                    |
+| `--hunt on\|off`        | With `start`: hunt the repository for bugs alongside the issues, see [Hunt for bugs](#hunt-for-bugs). Off by default. On needs watching on |
+| `--help`                | Show the option list                                                                                                                       |
 
 `--watch` and `--hunt` belong to `start`, and any other command refuses them. Each takes `on` or `off`: with no value or another value, `start` fails with `--watch takes on or off` (or `--hunt`) and exits with 1. `--hunt on` with `--watch off` fails with `hunting needs watching` and exits with 1. `next-issue` with no command prints the option list on standard error, starts nothing and exits with 1.
 

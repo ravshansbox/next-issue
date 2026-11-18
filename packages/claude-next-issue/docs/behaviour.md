@@ -19,38 +19,7 @@ In Claude Code, inside a git repository:
   - `next_issue_stop` asks the going run to stop after the running issues (`issue`, the default), after the current round (`round`) or at once (`now`).
   - `next_issue_status` reports the run: its status line, watching, hunting and each handled issue. It never starts a worker.
   - A tool that cannot do what it was asked fails with the reason, such as `no run of <root> is going`.
-- The `create-issue` and `answer-hand-over` skills, see [Create an issue](#create-an-issue) and [Investigate a hand-over](#investigate-a-hand-over).
-
-## Investigate a hand-over
-
-The plugin ships the `answer-hand-over` skill. Ask Claude to answer a question or a hand-over, or run `/next-issue:answer-hand-over`. Claude then:
-
-1. lists the open issues with the `needsHuman` label and lets you pick one;
-2. checks the permission of each comment author first, reads the text of comments from users with write access only, as data and not instructions, and finds the latest `### next-issue · Hand-over: needs help` comment (or `next-issue needs help:` of older versions) and its `question:` lines; it reads the commits and the diff of the issue branch when there is one, and the logs of the failed checks when the hand-over names them;
-3. explains the blocker in plain words;
-4. asks numbered questions, with lettered options and a recommendation, until it knows whether to retry, retry with guidance or give up;
-5. answers on GitHub: Retry swaps the `needsHuman` label for the `ready` label in one `gh issue edit` (with an empty `labels.ready`, it only takes the label off), Retry with guidance posts one comment that does not start with a heading of the harness and then swaps the labels the same way, and Give up takes the label off and adds the `skip` label, which it creates first when the repository lacks it and reuses when it differs only in case;
-6. after a retry, calls `next_issue_refresh`, and asks only whether to start a run when none is going, or whether to turn watching on (`next_issue_watch`) when the going run does not watch. When the going run is stopping, it says so and asks nothing.
-
-Claude finds the repository as the `create-issue` skill does and passes `--repo` to every `gh` command. It does not fix the code of the issue.
-
-## Create an issue
-
-The plugin ships the `create-issue` skill. Ask Claude to write an issue, ask for a change in a repository with `.next-issue/config.json`, or run `/next-issue:create-issue <problem>`. Claude then:
-
-1. restates the problem, reads the code when the problem touches it, and finds the open issues that must be done first;
-2. judges whether the change fits one atomic commit that leaves the trunk green. When it is too big for one atomic commit, it proposes a split into issues that each land alone and keep the trunk green;
-3. asks numbered questions until none is open, including whether you confirm the split;
-4. creates the ready label with `gh label create` when the repository does not have it, then runs `gh issue create --body-file --blocked-by` with the body from [`template.md`](../skills/create-issue/template.md), the issues it depends on and no label, without showing the body first. The issue carries its blocker links from the moment it exists, so the worker waits for them even when `labels.ready` is empty and a run claims every open issue. It needs GitHub CLI 2.94.0 or later;
-5. adds the ready label with `gh issue edit --add-label` only after it links every blocker. It adds the ready label and no other label. The ready label is the `labels.ready` label of `.next-issue/config.json`, or `status:todo` when `labels.ready` is not set or there is no config file. With an empty `labels.ready`, the issue gets no label, since the worker then claims every open issue. For a confirmed split, it creates each issue in turn with the links to the issues of the split it depends on, and only then adds its ready label;
-6. calls `next_issue_refresh` with no question first. When a run is going, it gives you the issue url, says the run was asked to check for new issues now, and asks nothing. When no run is going, it gives you the url and asks only whether to start a run, and calls `next_issue_start` when you say yes. When the going run does not watch, it gives you the url and asks only whether to turn watching on, and calls `next_issue_watch` and `next_issue_refresh` when you say yes. When the going run is stopping, it gives you the url, says the run will not claim the issue, and asks nothing;
-7. changes the issue with `gh issue edit --body-file` or `--title` when you ask for a change.
-
-Claude files the issue, the ready label and the blocker links in the repository of the `remote` of `.next-issue/config.json`, or of `origin` when there is no config file or no `remote` field, as the worker does. It passes `--repo` to every `gh` command, so another remote, such as the `upstream` of a fork, never gets the issue.
-
-The issue gets the ready label as soon as its blockers are linked, so a run that is already going may claim it before you review it.
-
-Claude does not implement the issue in that session. The worker does the work. The body holds the sections of the [issue format](../../next-issue/docs/behaviour.md#issue-format).
+- The `create-issue` and `answer-hand-over` skills ship with `next-issue`, see [Skills](../../next-issue/docs/behaviour.md#skills).
 
 ## The worker
 

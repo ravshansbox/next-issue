@@ -42,14 +42,14 @@ Turn the problem of the user into one GitHub issue, or a split of linked issues 
 
    For a confirmed split, repeat steps 5 to 7 for each issue of the split, in order. Create each one with `--blocked-by` the issues of the split it depends on, so it is linked before you add its ready label.
 
-8. Once the issue exists, or the last issue of a split, call the `mcp__next-issue__next_issue_refresh` tool, with no question first.
-9. When it reports that it asked the run, give the user the issue url, or each url of a split, and say that the going run was asked to check for new issues now. Ask no question.
+8. Once the issue exists, or the last issue of a split, run `next-issue refresh`, with no question first. When `next-issue` is not on the `PATH`, run `npx -y next-issue@latest` in its place, here and below.
+9. When it prints `asked the run to check for new issues now`, give the user the issue url, or each url of a split, and say that the going run was asked to check for new issues now. Ask no question.
 
-   When it reports that no run is going, give the user the url or urls and ask only whether to start a run. On yes, call the `mcp__next-issue__next_issue_start` tool, and tell the user what it reports. The run watches for new issues. On no, do nothing.
+   When it prints `no run is going in this repository`, give the user the url or urls and ask only whether to start a run. On yes, run `next-issue start` in the background, such as with the `run_in_background` option of the Bash tool, since it goes on until the run ends, and tell the user that the run started. The run watches for new issues. On no, do nothing.
 
-   When it reports that the going run is stopping, give the user the url or urls and say that the stopping run will not claim the issue. Ask no question.
+   When it prints `the run is stopping`, give the user the url or urls and say that the stopping run will not claim the issue. Ask no question.
 
-   When it reports that the going run does not watch for new issues, give the user the url or urls and ask only whether to turn watching on. On yes, call the `mcp__next-issue__next_issue_watch` tool with `on` set to `true`, then the `mcp__next-issue__next_issue_refresh` tool, and tell the user what they report. On no, do nothing.
+   When it prints `the run does not watch for new issues`, give the user the url or urls and ask only whether to turn watching on. On yes, run `next-issue watch on`, then `next-issue refresh`, and tell the user what they print. On no, do nothing.
 
 10. When the user asks for a change to the issue, make the change on GitHub. Write the new body into the temporary file and run:
 

@@ -95,6 +95,20 @@ test('an implementer gets the skills of its repository', async (t) => {
   assert.match(bodies[0]!, /project-skill/);
 });
 
+test('an agent in an issue worktree leaves out the create-issue and answer-hand-over skills that next-issue update installed in the project', async (t) => {
+  const { recorder, request, bodies } = await claude(t, [text('done')]);
+  const worktree = join(request.cwd, '.worktrees', '7');
+  for (const folder of [request.cwd, worktree]) {
+    for (const name of ['create-issue', 'answer-hand-over']) {
+      await addSkill(join(folder, '.claude', 'skills'), name);
+    }
+  }
+  await addSkill(join(worktree, '.claude', 'skills'), 'project-skill');
+  await runAgent(recorder, { ...request, cwd: worktree });
+  assert.match(bodies[0]!, /project-skill/);
+  assert.doesNotMatch(bodies[0]!, /create-issue|answer-hand-over/);
+});
+
 test('an agent runs git without optional locks', async (t) => {
   const { recorder, request, steps } = await claude(t);
   const mark = join(request.cwd, 'mark');

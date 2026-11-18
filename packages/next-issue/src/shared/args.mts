@@ -1,6 +1,17 @@
 import { CONFIG_FILE } from './config-fields.mts';
 
-type Command = 'start' | 'init' | 'serve' | 'stop' | 'logs' | 'watch' | 'hunt' | 'refresh';
+type Command =
+  | 'start'
+  | 'init'
+  | 'serve'
+  | 'stop'
+  | 'logs'
+  | 'watch'
+  | 'hunt'
+  | 'refresh'
+  | 'update';
+
+export type Scope = 'user' | 'project';
 
 export type Args = {
   command?: Command;
@@ -9,6 +20,7 @@ export type Args = {
   watch: boolean;
   hunt: boolean;
   on?: boolean;
+  scope?: Scope;
 };
 
 type Switch = 'help' | 'force';
@@ -25,7 +37,17 @@ const RUN_FLAGS = new Map<string, RunFlag>([
   ['--hunt', 'hunt'],
 ]);
 
-const COMMANDS: Command[] = ['start', 'init', 'serve', 'stop', 'logs', 'watch', 'hunt', 'refresh'];
+const COMMANDS: Command[] = [
+  'start',
+  'init',
+  'serve',
+  'stop',
+  'logs',
+  'watch',
+  'hunt',
+  'refresh',
+  'update',
+];
 
 export const USAGE = `next-issue <command> [options]
 
@@ -39,6 +61,9 @@ export const USAGE = `next-issue <command> [options]
   serve             run the worker of this repository that the clients talk to
   stop              stop the worker of this repository
   logs              show the latest run log and follow it
+  update            install the create-issue and answer-hand-over skills for Claude Code
+    --scope user|project
+                    user: in ~/.claude/skills; project: in .claude/skills of the main worktree (asks when not given)
 
   --force           replace an existing config file, with init
   --help            show this text
@@ -57,6 +82,9 @@ export function parseArgs(argv: string[]): Args {
   if (args.command !== undefined && args.command !== 'start' && runFlag !== undefined) {
     throw new Error(`${args.command} does not take ${runFlag}: it belongs to start`);
   }
+  if (args.command !== undefined && args.command !== 'update' && args.scope !== undefined) {
+    throw new Error(`${args.command} does not take --scope: it belongs to update`);
+  }
   if (args.command === 'serve' && flag !== undefined) {
     throw new Error(`serve does not take ${flag}`);
   }
@@ -71,6 +99,13 @@ function onOffValue(name: string, value: string | undefined): boolean {
     throw new Error(`${name} takes on or off`);
   }
   return value === 'on';
+}
+
+function scopeValue(value: string | undefined): Scope {
+  if (value !== 'user' && value !== 'project') {
+    throw new Error('--scope takes user or project');
+  }
+  return value;
 }
 
 function readArgs(argv: string[]): { args: Args; flag?: string; runFlag?: string } {
@@ -98,6 +133,9 @@ function readArgs(argv: string[]): { args: Args; flag?: string; runFlag?: string
       args.on = onOffValue(args.command, arg);
     } else if (SWITCHES.has(arg)) {
       args[SWITCHES.get(arg)!] = true;
+    } else if (arg === '--scope') {
+      index += 1;
+      args.scope = scopeValue(argv[index]);
     } else if (RUN_FLAGS.has(arg)) {
       runFlag ??= arg;
       index += 1;
@@ -128,6 +166,9 @@ export function parseStartArgs(argv: string[]): Args {
   const { args } = readArgs(argv);
   if (args.command !== undefined) {
     throw new Error(`start does not take ${args.command}`);
+  }
+  if (args.scope !== undefined) {
+    throw new Error('start does not take --scope');
   }
   const refused = OUTPUT_ONLY.find((name) => args[name]);
   if (refused !== undefined) {

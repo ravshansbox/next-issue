@@ -96,12 +96,12 @@ Help the user understand why the worker handed an issue over, then answer the ha
      gh issue edit --repo <repo> <number> --remove-label "<needs-human>" --add-label "<skip>"
      ```
 
-10. After a retry, with or without guidance, call the `mcp__next-issue__next_issue_refresh` tool, with no question first. When it reports that it asked the run, tell the user that the going run was asked to check for issues now. Ask no question.
+10. After a retry, with or without guidance, run `next-issue refresh`, with no question first. When `next-issue` is not on the `PATH`, run `npx -y next-issue@latest` in its place, here and below. When it prints `asked the run to check for new issues now`, tell the user that the going run was asked to check for issues now. Ask no question.
 
-    When it reports that no run is going, ask only whether to start a run. On yes, call the `mcp__next-issue__next_issue_start` tool, and tell the user what it reports. The run watches for new issues. On no, do nothing.
+    When it prints `no run is going in this repository`, ask only whether to start a run. On yes, run `next-issue start` in the background, such as with the `run_in_background` option of the Bash tool, since it goes on until the run ends, and tell the user that the run started. The run watches for new issues. On no, do nothing.
 
-    When it reports that the going run is stopping, tell the user that the stopping run will not claim the issue. Ask no question.
+    When it prints `the run is stopping`, tell the user that the stopping run will not claim the issue. Ask no question.
 
-    When it reports that the going run does not watch for new issues, ask only whether to turn watching on. On yes, call the `mcp__next-issue__next_issue_watch` tool with `on` set to `true`, then the `mcp__next-issue__next_issue_refresh` tool, and tell the user what they report. On no, do nothing.
+    When it prints `the run does not watch for new issues`, ask only whether to turn watching on. On yes, run `next-issue watch on`, then `next-issue refresh`, and tell the user what they print. On no, do nothing.
 
 11. Ask whether to answer another waiting issue. On yes, go back to step 3.

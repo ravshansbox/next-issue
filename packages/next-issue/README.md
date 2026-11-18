@@ -38,6 +38,16 @@ npx -y next-issue@latest start
 
 Give an issue the `status:todo` label to have it picked up. See [Issue format](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#issue-format) for how to write one. Press `Ctrl-C` to stop the run, see [Stop a run](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#stop-a-run).
 
+### Skills for Claude Code
+
+To install the `create-issue` skill, which writes an issue that the harness can claim, and the `answer-hand-over` skill, which helps you answer a hand-over, run:
+
+```bash
+npx -y next-issue@latest update
+```
+
+It asks whether to install them for your user or for the project. See [Skills](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#skills).
+
 ## Configuration
 
 To write `.next-issue/config.json` with the defaults, run:
@@ -75,20 +85,22 @@ A field that is not in the file keeps its default. See [Configuration](https://g
 
 ## Commands and options
 
-| Argument          | Effect                                                                     |
-| ----------------- | -------------------------------------------------------------------------- |
-| `start`           | Start a run: claim issues, fix them and push them to the base branch       |
-| `watch on\|off`   | Switch watching of the going run                                           |
-| `hunt on\|off`    | Switch hunting of the going run                                            |
-| `refresh`         | Ask the going run to check for new issues now                              |
-| `init`            | Write the config file with the defaults                                    |
-| `serve`           | Run the worker of this repository that the clients talk to                 |
-| `stop`            | Stop the worker of this repository                                         |
-| `logs`            | Show the latest run log and follow it                                      |
-| `--force`         | With `init`: replace an existing config file                               |
-| `--watch on\|off` | With `start`: read the open issues again after each pass. On by default    |
-| `--hunt on\|off`  | With `start`: hunt the repository for bugs. Off by default. Needs watching |
-| `--help`          | Show the option list                                                       |
+| Argument                | Effect                                                                     |
+| ----------------------- | -------------------------------------------------------------------------- |
+| `start`                 | Start a run: claim issues, fix them and push them to the base branch       |
+| `watch on\|off`         | Switch watching of the going run                                           |
+| `hunt on\|off`          | Switch hunting of the going run                                            |
+| `refresh`               | Ask the going run to check for new issues now                              |
+| `init`                  | Write the config file with the defaults                                    |
+| `serve`                 | Run the worker of this repository that the clients talk to                 |
+| `stop`                  | Stop the worker of this repository                                         |
+| `logs`                  | Show the latest run log and follow it                                      |
+| `update`                | Install the `create-issue` and `answer-hand-over` skills for Claude Code   |
+| `--force`               | With `init`: replace an existing config file                               |
+| `--watch on\|off`       | With `start`: read the open issues again after each pass. On by default    |
+| `--hunt on\|off`        | With `start`: hunt the repository for bugs. Off by default. Needs watching |
+| `--scope user\|project` | With `update`: install for the user (`~/.claude/skills/`) or the project   |
+| `--help`                | Show the option list                                                       |
 
 See [Commands and options](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#commands-and-options) for the details.
 
@@ -104,6 +116,7 @@ See [Commands and options](https://github.com/ravshansbox/next-issue/blob/main/p
 - [Requirements](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#requirements)
 - [Configuration](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#configuration)
 - [Retry an issue that waits for a person](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#retry-an-issue-that-waits-for-a-person)
+- [Skills](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#skills)
 - [Commands and options](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#commands-and-options)
 - [Watch for new issues](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#watch-for-new-issues)
 - [Hunt for bugs](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#hunt-for-bugs)

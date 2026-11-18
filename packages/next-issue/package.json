@@ -24,7 +24,8 @@
     "next-issue": "dist/cli.mjs"
   },
   "files": [
-    "dist"
+    "dist",
+    "skills"
   ],
   "engines": {
     "node": ">=24"

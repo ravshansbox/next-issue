@@ -11,6 +11,7 @@ import { serve } from './worker/serve.mts';
 import { startInWorker } from './cli/start.mts';
 import { STATE_DIR } from './shared/state.mts';
 import { refreshInWorker, switchInWorker } from './cli/switch-run.mts';
+import { chooseScope, installSkills } from './cli/update.mts';
 import { workerPaths } from './shared/worker-paths.mts';
 import { WORKTREE_DIR } from './shared/worktree.mts';
 
@@ -30,6 +31,9 @@ async function main(): Promise<number> {
   if (args.command === undefined) {
     await write(process.stderr, USAGE);
     return 1;
+  }
+  if (args.command === 'update') {
+    return update(args);
   }
   const root = await repoRoot(process.cwd());
   if (args.command === 'init') {
@@ -85,6 +89,14 @@ async function logs(root: string): Promise<number> {
   }
   const tail = process.stdout.isTTY ? Math.max(1, (process.stdout.rows || 24) - 1) : undefined;
   return followLog(root, file, { tail }, (text) => write(process.stdout, text));
+}
+
+async function update(args: Args): Promise<number> {
+  const scope = await chooseScope(args.scope);
+  for (const folder of await installSkills(scope)) {
+    await write(process.stdout, `wrote ${folder}\n`);
+  }
+  return 0;
 }
 
 async function init(root: string, force: boolean): Promise<number> {
