@@ -62,11 +62,11 @@ Claude files the issue, the ready label and the blocker links in the repository 
 
 The issue gets the ready label as soon as its blockers are linked, so a run that is already going may claim it before you review it.
 
-Claude does not implement the issue in that session. The worker does the work. The body holds the sections of the [issue format](../next-issue/README.md#issue-format).
+Claude does not implement the issue in that session. The worker does the work. The body holds the sections of the [issue format](../next-issue/docs/behaviour.md#issue-format).
 
 ## The worker
 
-The plugin talks to the worker of the repository over plain HTTP on `.next-issue/worker.sock`, see [Worker](../next-issue/README.md#worker). When no worker answers, `next_issue_start` and Start run `npx -y next-issue@<version> serve` in the repository, in the background, with its output in `.next-issue/worker.log`, and wait up to 2 minutes for it to listen. When the worker exits before it listens, they fail with `the next-issue worker exited before it listened (see .next-issue/worker.log)`.
+The plugin talks to the worker of the repository over plain HTTP on `.next-issue/worker.sock`, see [Worker](../next-issue/docs/behaviour.md#worker). When no worker answers, `next_issue_start` and Start run `npx -y next-issue@<version> serve` in the repository, in the background, with its output in `.next-issue/worker.log`, and wait up to 2 minutes for it to listen. When the worker exits before it listens, they fail with `the next-issue worker exited before it listened (see .next-issue/worker.log)`.
 
 `<version>` is the version of the plugin, or, for a plugin installed from the repository, the latest version of `next-issue` on npm. The plugin tells the worker that version when it first reaches it, so an older worker updates as it does for the other clients: an idle one closes and the plugin starts the newer one, and a watching run moves to the newer worker between issues. While the worker of a going run is older than the plugin, Watch and Hunt fail and ask you to stop the run and start it again.
 

@@ -27,4 +27,4 @@ Each script runs in every package that has it.
 ## Releases
 
 `next-issue` is the only npm package. The Claude Code plugin is not published to npm: `.claude-plugin/marketplace.json` serves it from this repository. See
-[Releases](packages/next-issue/README.md#releases).
+[Releases](packages/next-issue/docs/behaviour.md#releases).
