@@ -1,6 +1,3 @@
-import { stopChildren } from './children.mts';
-import { type Sleeper, wakeableSleep } from './durations.mts';
-
 export type Interrupts = {
   afterIssue: () => boolean;
   afterRound: () => boolean;
@@ -35,33 +32,5 @@ export function onPresses(handle: (presses: number) => void): () => void {
   return () => {
     clearTimeout(ending);
     process.off('SIGINT', press);
-  };
-}
-
-export function listenForInterrupts(say: (text: string) => void): Interrupts {
-  let presses = 0;
-  const sleeper: Sleeper = {};
-  let hunting = (): boolean => false;
-  const stopListening = onPresses((count) => {
-    presses = count;
-    if (presses === 1 && sleeper.wake !== undefined) {
-      say(hunting() ? NOTES.hunt : NOTES.wait);
-      sleeper.wake();
-    } else if (presses === 1) {
-      say(NOTES.issue);
-    } else if (presses === 2) {
-      say(NOTES.round);
-    } else {
-      stopListening();
-      stopChildren('SIGINT');
-    }
-  });
-  return {
-    afterIssue: () => presses >= 1,
-    afterRound: () => presses >= 2,
-    sleep: (ms, busy = () => false, refreshed) => {
-      hunting = busy;
-      return wakeableSleep(sleeper, ms, presses >= 1, refreshed);
-    },
   };
 }

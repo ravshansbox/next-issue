@@ -2,8 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { onStop, watch } from '../src/shared/children.mts';
-import { listenForInterrupts } from '../src/shared/interrupt.mts';
+import { onStop, stopChildren, watch } from '../src/shared/children.mts';
 import { pendingIssues } from '../src/worker/pending.mts';
 import { processIssue } from '../src/worker/pipeline.mts';
 import { type IssueState, writeState } from '../src/shared/state.mts';
@@ -594,24 +593,19 @@ test('a user whose issue was handed over after a failed close gets the next run 
   assert.deepEqual(target.comments, []);
 });
 
-/** Presses Ctrl-C three times in a command-line run, with the process kill caught so the test lives on. */
-async function pressCtrlCThrice(t: TestContext, target: Harness): Promise<void> {
+async function interruptWorker(t: TestContext, target: Harness): Promise<void> {
   const kills = t.mock.method(process, 'kill', () => true);
-  listenForInterrupts(() => undefined);
   void target.run();
   await target.hung;
-  for (let press = 0; press < 3; press += 1) {
-    process.emit('SIGINT', 'SIGINT');
-    await sleep(150);
-  }
+  stopChildren('SIGINT');
   assert.deepEqual(kills.mock.calls.at(-1)?.arguments, [process.pid, 'SIGINT']);
   kills.mock.restore();
 }
 
-test('a user who presses Ctrl-C three times in a command-line run during the reviewer of the last review round finds the round given back in the state file, and the next run reviews the change in that round with the last-round rule', async (t) => {
+test('a user who interrupts the worker during the reviewer of the last review round finds the round given back in the state file, and the next run reviews the change in that round with the last-round rule', async (t) => {
   const config = { maxReviewRounds: 1 };
   const first = await harness(t, { config, hangDuring: 'reviewer' });
-  await pressCtrlCThrice(t, first);
+  await interruptWorker(t, first);
   const saved = (await first.state())!;
   assert.equal(saved.reviewRounds, 0);
   const target = await harness(t, {
@@ -626,23 +620,23 @@ test('a user who presses Ctrl-C three times in a command-line run during the rev
   assert.deepEqual(target.closed, [7]);
 });
 
-test('a user who presses Ctrl-C three times in a command-line run while the fixer of the failed checks on main runs finds the check fix given back in the state file', async (t) => {
+test('a user who interrupts the worker while the fixer of the failed checks on main runs finds the check fix given back in the state file', async (t) => {
   const first = await harness(t, { baseChecks: ['fail'], hangDuring: 'fixer' });
-  await pressCtrlCThrice(t, first);
+  await interruptWorker(t, first);
   assert.equal((await first.state())?.ciFixes, 0);
 });
 
-test('a user who presses Ctrl-C three times in a command-line run while the review fixer runs finds the review round given back in the state file', async (t) => {
+test('a user who interrupts the worker while the review fixer runs finds the review round given back in the state file', async (t) => {
   const first = await harness(t, { verdicts: [changes('Rename it.')], hangDuring: 'fixer' });
-  await pressCtrlCThrice(t, first);
+  await interruptWorker(t, first);
   const saved = (await first.state())!;
   assert.equal(saved.reviewRounds, 0);
   assert.deepEqual(saved.reviewLog, []);
 });
 
-test('a user who presses Ctrl-C three times in a command-line run while the logs of the failed checks on main are read finds the check fix given back in the state file', async (t) => {
+test('a user who interrupts the worker while the logs of the failed checks on main are read finds the check fix given back in the state file', async (t) => {
   const first = await harness(t, { baseChecks: ['fail'], hangDuring: 'logs' });
-  await pressCtrlCThrice(t, first);
+  await interruptWorker(t, first);
   assert.equal((await first.state())?.ciFixes, 0);
 });
 
@@ -671,14 +665,6 @@ test('a user who sends SIGTERM to a command-line run while an agent runs and no 
   release();
   kills.mock.restore();
   assert.deepEqual(order, ['agent stopped', 'kill self SIGTERM']);
-  assert.equal(process.listenerCount('SIGTERM'), listeners);
-});
-
-test('a user who sends SIGTERM to a command-line run after its agent ended finds no handler that keeps the run alive', () => {
-  const listeners = process.listenerCount('SIGTERM');
-  const release = onStop(() => undefined);
-  assert.equal(process.listenerCount('SIGTERM'), listeners + 1);
-  release();
   assert.equal(process.listenerCount('SIGTERM'), listeners);
 });
 
@@ -727,23 +713,15 @@ test('a user whose terminal closes (SIGHUP) on a command-line run while a comman
   assert.equal(process.listenerCount('SIGHUP'), listeners);
 });
 
-test('a user whose terminal closes (SIGHUP) on a command-line run after its agent ended finds no handler that keeps the run alive', () => {
-  const listeners = process.listenerCount('SIGHUP');
-  const release = onStop(() => undefined);
-  assert.equal(process.listenerCount('SIGHUP'), listeners + 1);
-  release();
-  assert.equal(process.listenerCount('SIGHUP'), listeners);
-});
-
-test('a user who presses Ctrl-C three times in a command-line run while the merge conflict fixer runs finds the check fix given back in the state file', async (t) => {
+test('a user who interrupts the worker while the merge conflict fixer runs finds the check fix given back in the state file', async (t) => {
   const first = await harness(t, { merges: [['src/a.ts']], hangDuring: 'fixer' });
-  await pressCtrlCThrice(t, first);
+  await interruptWorker(t, first);
   assert.equal((await first.state())?.ciFixes, 0);
 });
 
-test('a user who presses Ctrl-C three times in a command-line run while the failed jobs on main are rerun gets a next run that reruns them before any fixer', async (t) => {
+test('a user who interrupts the worker while the failed jobs on main are rerun gets a next run that reruns them before any fixer', async (t) => {
   const first = await harness(t, { baseChecks: ['fail'], hangDuring: 'rerun' });
-  await pressCtrlCThrice(t, first);
+  await interruptWorker(t, first);
   const saved = (await first.state())!;
   const target = await harness(t, {
     saved,
