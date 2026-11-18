@@ -23,9 +23,18 @@ import { connect } from './worker-harness.mts';
 
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
 
-async function stopCommand(root: string): Promise<string> {
-  const { stdout } = await promisify(execFile)(process.execPath, [CLI, 'stop'], { cwd: root });
+async function stopCommand(root: string, env: NodeJS.ProcessEnv = process.env): Promise<string> {
+  const { stdout } = await promisify(execFile)(process.execPath, [CLI, 'stop'], {
+    cwd: root,
+    env,
+  });
   return stdout;
+}
+
+async function failingPs(): Promise<NodeJS.ProcessEnv> {
+  const bin = await tempDir();
+  await writeFile(join(bin, 'ps'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  return { ...process.env, PATH: `${bin}:${process.env.PATH}` };
 }
 
 async function repository(): Promise<string> {
@@ -486,6 +495,59 @@ test('a user who runs stop while worker.lock holds only the process id of a live
     `next-issue: stopped the worker with process id ${child.pid}\n`,
   );
   assert.equal(await exited, 'SIGTERM');
+});
+
+test('a user who runs stop with another time zone than the worker sees that worker exit', async (t) => {
+  const root = await repository();
+  const { child, exited } = await serveWorker(root, { ...process.env, TZ: 'Asia/Tokyo' });
+  t.after(() => child.kill('SIGKILL'));
+  assert.equal(
+    await stopCommand(root, { ...process.env, TZ: 'UTC' }),
+    `next-issue: stopped the worker with process id ${child.pid}\n`,
+  );
+  assert.equal(await exited, 'SIGTERM');
+});
+
+test(
+  'a user who runs stop while worker.lock holds the local start time written by an older worker sees that worker exit',
+  { skip: process.platform === 'linux' && 'Linux reads the start time from /proc' },
+  async (t) => {
+    const root = await repository();
+    const local = { ...process.env, TZ: 'Asia/Tokyo' };
+    const { child, exited } = await serveWorker(root, local);
+    t.after(() => child.kill('SIGKILL'));
+    const { stdout } = await promisify(execFile)('ps', ['-o', 'lstart=', '-p', String(child.pid)], {
+      env: { ...local, LC_ALL: 'C' },
+    });
+    const { lockPath } = workerPaths(root);
+    await rm(lockPath);
+    await writeFile(lockPath, `${child.pid} ${stdout.trim()}\n`);
+    assert.equal(
+      await stopCommand(root, local),
+      `next-issue: stopped the worker with process id ${child.pid}\n`,
+    );
+    assert.equal(await exited, 'SIGTERM');
+  },
+);
+
+test('a user who runs stop when the start time of a live worker cannot be read sees that worker exit', async (t) => {
+  const root = await repository();
+  const { child, exited } = await serveWorker(root);
+  t.after(() => child.kill('SIGKILL'));
+  assert.equal(
+    await stopCommand(root, await failingPs()),
+    `next-issue: stopped the worker with process id ${child.pid}\n`,
+  );
+  assert.equal(await exited, 'SIGTERM');
+});
+
+test('a user who runs stop when the start time cannot be read and the lock process is gone sees that none is running', async () => {
+  const root = await repository();
+  const dead = spawn(process.execPath, ['-e', '']);
+  await new Promise((resolve) => dead.on('exit', resolve));
+  await mkdir(stateDir(root));
+  await writeFile(workerPaths(root).lockPath, `${dead.pid} Thu Jan  1 00:00:00 1970\n`);
+  assert.equal(await stopCommand(root, await failingPs()), 'next-issue: no worker is running\n');
 });
 
 test('a user who runs stop in one repository leaves the worker of another repository going', async (t) => {
