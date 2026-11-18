@@ -13,11 +13,11 @@ listens on `.next-issue/worker.sock`. Two clients talk to it:
 - the `next-issue` CLI. `next-issue start` reaches the worker through
   `reachWorker` (`packages/next-issue/src/worker-client.mts`) and follows the
   run in `packages/next-issue/src/start.mts`;
-- the `pi-next-issue` extension (`packages/pi-next-issue/src/worker.ts`);
-- the Claude Code plugin (`packages/claude-next-issue/src/worker.ts`), which polls the worker over plain HTTP on the same socket.
+- the Claude Code plugin (`packages/claude-next-issue/src/worker.ts`), which
+  polls the worker over plain HTTP on the same socket.
 
 They speak the protocol in `packages/next-issue/src/protocol.mts` and
-`packages/pi-next-issue/src/protocol.ts`.
+`packages/claude-next-issue/src/protocol.ts`.
 
 No record says so, and the two clients have drifted apart. There is no rule
 to check a change against.
@@ -39,8 +39,8 @@ to check a change against.
 
 Option A.
 
-- Each repository has one worker and its clients: the `next-issue` CLI, the
-  `pi-next-issue` extension and the Claude Code plugin.
+- Each repository has one worker and its clients: the `next-issue` CLI and
+  the Claude Code plugin.
 - The clients keep feature parity. A feature that one client offers, the
   other offers too.
 - Shared behaviour, such as updating the worker and starting a run again,
@@ -50,10 +50,8 @@ Option A.
 
 These known gaps break parity and are to be closed:
 
-- `open` in `worker-client.mts` sends `hello` only when no run is going. pi
-  always sends it (`worker.ts`, on `open`), so only pi gets an older worker
-  updated between issues.
-- Only pi starts a run again after an update (`resume` in `worker.ts`). This
-  belongs in the worker.
+- `open` in `worker-client.mts` sends `hello` only when no run is going. The
+  plugin always sends it (`poll` in `worker.ts`), so only the plugin gets an
+  older worker updated between issues.
 - `requestUpgrade` in `packages/next-issue/src/worker-run.mts` leaves runs of
   `next-issue start` alone (`run.command`, from #527).
