@@ -137,15 +137,3 @@ export function http(
     sent.end(body);
   });
 }
-
-export async function post(socketPath: string, value: ClientMessage): Promise<WorkerMessage[]> {
-  const reply = await http(socketPath, 'POST', JSON.stringify(value));
-  assert.equal(reply.status, 200, reply.body);
-  return JSON.parse(reply.body) as WorkerMessage[];
-}
-
-export async function poll(socketPath: string): Promise<WorkerMessage[]> {
-  const reply = await http(socketPath, 'GET');
-  assert.equal(reply.status, 200, reply.body);
-  return JSON.parse(reply.body) as WorkerMessage[];
-}

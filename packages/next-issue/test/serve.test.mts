@@ -19,7 +19,7 @@ import { workerPaths } from '../src/shared/worker-paths.mts';
 import { fullDisk } from './full-disk.mts';
 import { issue, report } from './loop-harness.mts';
 import { tempDir } from './temp-dir.mts';
-import { connect, fakeRuns, runsOf, worker } from './worker-harness.mts';
+import { connect, fakeRuns, http, runsOf, worker } from './worker-harness.mts';
 
 const SERVE = new URL('../src/worker/serve.mts', import.meta.url).href;
 
@@ -640,6 +640,42 @@ test('a worker that no client connects to closes and removes its socket and lock
   });
   assert.ok(started);
   await started.closed;
+  assert.deepEqual(await readdir(dir), []);
+});
+
+test('a client that sends an HTTP request to the worker gets 426 Upgrade Required and no next-issue answer', async (t) => {
+  const { socketPath } = await worker(t, fakeRuns());
+  assert.deepEqual(await http(socketPath, 'GET'), { status: 426, body: 'Upgrade Required' });
+  assert.deepEqual(
+    await http(socketPath, 'POST', JSON.stringify({ type: 'start', root: '/repo' })),
+    {
+      status: 426,
+      body: 'Upgrade Required',
+    },
+  );
+});
+
+test('a worker that gets HTTP requests and no client connection closes after the idle time', async () => {
+  const dir = await tempDir();
+  const socketPath = join(dir, 'w.sock');
+  const started = await startWorker({
+    root: '/repo',
+    socketPath,
+    lockPath: join(dir, 'w.lock'),
+    version: '2.0.0',
+    runRepo: fakeRuns().runRepo,
+    idleMs: 200,
+  });
+  assert.ok(started);
+  let closed = false;
+  void started.closed.then(() => {
+    closed = true;
+  });
+  for (let count = 0; count < 20 && !closed; count += 1) {
+    await http(socketPath, 'GET').catch(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.equal(closed, true);
   assert.deepEqual(await readdir(dir), []);
 });
 

@@ -1,5 +1,5 @@
 import { mkdir, rename, rm } from 'node:fs/promises';
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createServer, STATUS_CODES } from 'node:http';
 import { basename, dirname, join } from 'node:path';
 import { WebSocketServer } from 'ws';
 import { type Args, parseStartArgs } from '../shared/args.mts';
@@ -7,13 +7,7 @@ import { stopChildren, withRunChildren } from '../shared/children.mts';
 import { message } from '../shared/errors.mts';
 import { lock } from '../shared/lock.mts';
 import { startProgress } from './progress.mts';
-import {
-  type ClientMessage,
-  isNewer,
-  type Launch,
-  type Progress,
-  type WorkerMessage,
-} from '../shared/protocol.mts';
+import { type ClientMessage, isNewer, type Launch, type Progress } from '../shared/protocol.mts';
 import { runRepo, type RunControls } from './run.mts';
 import type { RunSummary } from '../shared/summary.mts';
 import { packageVersion } from '../shared/version.mts';
@@ -47,9 +41,7 @@ import {
   type Owned,
   parseMessage,
   type Peer,
-  readBody,
   removeOwned,
-  reply,
   send,
   sendAll,
   shutdown,
@@ -95,8 +87,6 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
 
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
   const idleMs = options.idleMs ?? IDLE_MS;
-  let polledAt = Number.NEGATIVE_INFINITY;
-  const polled = (): boolean => Date.now() - polledAt < idleMs;
   const handOver = async (how: Launch, run: Run): Promise<void> => {
     const listening = stopListening(server);
     removeOwned(owned);
@@ -121,15 +111,9 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     }
   });
   const closeWhenIdle = (): void => {
-    if ((restart !== undefined || (sockets.clients.size === 0 && !polled())) && !busy()) {
+    if ((restart !== undefined || sockets.clients.size === 0) && !busy()) {
       void close();
     }
-  };
-  const idleTimeUp = (): void => {
-    if (polled()) {
-      idleTimer = setTimeout(idleTimeUp, idleMs - (Date.now() - polledAt));
-    }
-    closeWhenIdle();
   };
 
   const upgradeBetweenIssues = (run: Run): void => {
@@ -286,50 +270,17 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     });
   });
 
-  const answer = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
-    polledAt = Date.now();
-    clearTimeout(idleTimer);
-    idleTimer = setTimeout(idleTimeUp, idleMs);
-    const refusal = (text: string): WorkerMessage[] => [
-      { type: 'error', root: options.root, message: text },
-    ];
-    if (request.url !== '/') {
-      reply(response, 404, refusal('the worker answers on / only'));
-    } else if (request.method === 'GET') {
-      reply(response, 200, [{ type: 'hello', version: options.version }, runsMessage(runs)]);
-    } else if (request.method !== 'POST') {
-      reply(response, 405, refusal('the worker answers GET and POST only'));
-    } else {
-      let body: string;
-      try {
-        body = await readBody(request);
-      } catch {
-        return;
-      }
-      const value = parseMessage(body);
-      if (value === undefined) {
-        reply(response, 400, refusal('the request is not a next-issue message'));
-        return;
-      }
-      const replies: WorkerMessage[] = [];
-      const peer: Peer = { send: (data) => replies.push(JSON.parse(data) as WorkerMessage) };
-      const refuse = refuser(peer, value, options.root);
-      try {
-        receive(peer, value, refuse);
-      } catch (error) {
-        refuse(message(error));
-      }
-      reply(response, 200, [...replies, runsMessage(runs)]);
-    }
-  };
-  server.on('request', (request, response) => void answer(request, response));
+  server.on('request', (_request, response) => {
+    response.writeHead(426, { connection: 'close' });
+    response.end(STATUS_CODES[426]);
+  });
 
   const draft = join(dirname(options.socketPath), `~${basename(options.socketPath).slice(1)}`);
   await rm(draft, { force: true });
   await listen(server, draft);
   await rename(draft, options.socketPath);
   owned.socket = fileId(options.socketPath);
-  idleTimer = setTimeout(idleTimeUp, idleMs);
+  idleTimer = setTimeout(closeWhenIdle, idleMs);
   return { closed, close, release: () => removeOwned(owned) };
 }
 
