@@ -325,7 +325,13 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     } else if (request.method !== 'POST') {
       reply(response, 405, refusal('the worker answers GET and POST only'));
     } else {
-      const value = parseMessage(await readBody(request));
+      let body: string;
+      try {
+        body = await readBody(request);
+      } catch {
+        return;
+      }
+      const value = parseMessage(body);
       if (value === undefined) {
         reply(response, 400, refusal('the request is not a next-issue message'));
         return;

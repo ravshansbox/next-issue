@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readdir } from 'node:fs/promises';
+import { createConnection } from 'node:net';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { WorkerMessage } from '../src/shared/protocol.mts';
@@ -127,6 +128,20 @@ test('a client that asks for another path or method over HTTP gets a 404 or a 40
   const { socketPath } = await worker(t, fakeRuns());
   assert.equal((await http(socketPath, 'GET', undefined, '/other')).status, 404);
   assert.equal((await http(socketPath, 'DELETE')).status, 405);
+});
+
+test('a client that drops its connection midway through a POST body leaves the worker running and answering', async (t) => {
+  const { socketPath } = await worker(t, fakeRuns());
+  const socket = createConnection(socketPath);
+  await new Promise((resolve) => socket.once('connect', resolve));
+  socket.write('POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 1000\r\n\r\n{"t');
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  socket.destroy();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(await poll(socketPath), [
+    { type: 'hello', version: '2.0.0' },
+    { type: 'runs', runs: {} },
+  ]);
 });
 
 async function idleWorker(idleMs: number) {
