@@ -160,6 +160,24 @@ test('a worker that a client polls over HTTP stays open, and closes once the pol
   assert.deepEqual(await readdir(dir), []);
 });
 
+test('a worker whose idle timer fires before the idle time has passed by the wall clock still closes once it has', async (t) => {
+  const { dir, socketPath, started } = await idleWorker(200);
+  t.after(() => started.close());
+  await poll(socketPath);
+  const realNow = Date.now.bind(Date);
+  t.mock.method(Date, 'now', () => realNow() - 100);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const outcome = await Promise.race([
+    started.closed.then(() => 'closed'),
+    new Promise((resolve) => {
+      timer = setTimeout(() => resolve('open'), 2000);
+    }),
+  ]);
+  clearTimeout(timer);
+  assert.equal(outcome, 'closed');
+  assert.deepEqual(await readdir(dir), []);
+});
+
 test('a worker whose run ends after the last HTTP poll closes once the idle time has passed', async () => {
   const fake = fakeRuns();
   const dir = await tempDir();

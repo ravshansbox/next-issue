@@ -138,6 +138,12 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       void close();
     }
   };
+  const idleTimeUp = (): void => {
+    if (polled()) {
+      idleTimer = setTimeout(idleTimeUp, idleMs - (Date.now() - polledAt));
+    }
+    closeWhenIdle();
+  };
 
   const upgradeBetweenIssues = (run: Run): void => {
     if (restart === undefined) {
@@ -308,7 +314,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   const answer = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
     polledAt = Date.now();
     clearTimeout(idleTimer);
-    idleTimer = setTimeout(closeWhenIdle, idleMs);
+    idleTimer = setTimeout(idleTimeUp, idleMs);
     const refusal = (text: string): WorkerMessage[] => [
       { type: 'error', root: options.root, message: text },
     ];
@@ -342,7 +348,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   await listen(server, draft);
   await rename(draft, options.socketPath);
   owned.socket = fileId(options.socketPath);
-  idleTimer = setTimeout(closeWhenIdle, idleMs);
+  idleTimer = setTimeout(idleTimeUp, idleMs);
   return { closed, close, release: () => removeOwned(owned) };
 }
 
