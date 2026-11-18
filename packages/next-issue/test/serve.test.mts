@@ -10,12 +10,14 @@ import { dirname, join } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import { onStop } from '../src/shared/children.mts';
 import { run, type RunResult } from '../src/shared/exec.mts';
+import { runIssues } from '../src/shared/loop.mts';
 import { Recorder } from '../src/shared/observe.mts';
 import type { WorkerMessage } from '../src/shared/protocol.mts';
 import { lock, processStart } from '../src/shared/lock.mts';
 import { startWorker } from '../src/worker/serve.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
 import { fullDisk } from './full-disk.mts';
+import { issue, report } from './loop-harness.mts';
 import { tempDir } from './temp-dir.mts';
 import { connect, fakeRuns, noQuestions, runsOf, worker } from './worker-harness.mts';
 
@@ -1112,6 +1114,60 @@ test('a person who turns watching off on a run that stops for an upgrade sees th
     (value) => value.type === 'runs' && value.runs['/repo']?.upgrade === undefined,
   );
   assert.equal(dropped.type === 'runs' && dropped.runs['/repo']!.watching, false);
+  fake.finish();
+  await started.closed;
+});
+
+test('a person who turns watching off on a run that stops for an upgrade sees the run claim and work the rest of the pass', async (t) => {
+  const fake = fakeRuns();
+  const processed: number[] = [];
+  let release: () => void = () => undefined;
+  const first = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const runRepo = fake.runRepo;
+  fake.runRepo = (root, args, controls) => {
+    void runRepo(root, args, controls);
+    return runIssues({
+      issues: async () => [issue(1), issue(2)],
+      process: async (target) => {
+        processed.push(target.number);
+        if (target.number === 1) {
+          await first;
+        }
+        return report(target.number, 'done');
+      },
+      stop: controls.interrupts.afterIssue,
+    }).then(() => 0);
+  };
+  const { socketPath, worker: started } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo', args: ['--watch', 'on'] });
+  await client.next(watchingIs(true));
+  client.send({ type: 'hello', version: '2.1.0' });
+  await client.next(upgrading);
+  client.send({ type: 'watch', root: '/repo', on: false });
+  await client.next(watchingIs(false));
+  release();
+  await client.next((value) => value.type === 'end');
+  assert.deepEqual(processed, [1, 2]);
+  await started.closed;
+});
+
+test('a person who stops a run that stops for an upgrade and then turns watching off sees the run still stop after the running issues', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath, worker: started } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo', args: ['--watch', 'on'] });
+  await client.next(watchingIs(true));
+  client.send({ type: 'hello', version: '2.1.0' });
+  await client.next(upgrading);
+  client.send({ type: 'stop', root: '/repo' });
+  await client.next((value) => value.type === 'runs' && value.runs['/repo']?.upgrade === undefined);
+  client.send({ type: 'watch', root: '/repo', on: false });
+  const stopping = await client.next(watchingIs(false));
+  assert.equal(stopping.type === 'runs' && stopping.runs['/repo']!.status, 'stopping');
+  assert.equal(fake.controls().interrupts.afterIssue(), true);
   fake.finish();
   await started.closed;
 });
