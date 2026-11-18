@@ -4,7 +4,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import { promisify } from 'node:util';
-import { lockHolder } from '../src/shared/lock.mts';
+import { lockHolder, processStart } from '../src/shared/lock.mts';
 import { tempDir } from './temp-dir.mts';
 
 function liveProcess(t: TestContext): number {
@@ -58,8 +58,9 @@ test(
 
 test('a client that cannot read the start time of a live lock holder sees that process hold the lock', async (t) => {
   const pid = liveProcess(t);
+  const started = await processStart(pid);
   await withFailingPs(t);
-  assert.equal(await lockHolder(await lockFile(`${pid} Thu Jan  1 00:00:00 1970\n`)), pid);
+  assert.equal(await lockHolder(await lockFile(`${pid} ${started}\n`)), pid);
 });
 
 test('a client that cannot read the start time of a lock holder that is gone sees no holder', async (t) => {
