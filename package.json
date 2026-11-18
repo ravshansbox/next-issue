@@ -4,7 +4,8 @@
   "type": "module",
   "workspaces": [
     "packages/next-issue",
-    "packages/pi-next-issue"
+    "packages/pi-next-issue",
+    "packages/claude-next-issue"
   ],
   "scripts": {
     "typecheck": "npm run typecheck --workspaces",

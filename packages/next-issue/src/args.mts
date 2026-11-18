@@ -35,7 +35,7 @@ export const USAGE = `next-issue <command> [options]
   watch on|off      switch watching of the going run; off also turns hunting off
   hunt on|off       switch hunting of the going run; on also turns watching on
   init              write ${CONFIG_FILE} with the defaults and add .next-issue/ and .worktrees/ to info/exclude
-  serve             run the worker of this repository that pi extensions talk to
+  serve             run the worker of this repository that the clients talk to
   stop              stop the worker of this repository
   logs              show the latest run log and follow it
 

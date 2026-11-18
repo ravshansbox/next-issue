@@ -297,7 +297,7 @@ To drop an issue instead, close it. The next run that finds a saved state for an
 | `watch on\|off`   | Switch watching of the going run, see [Watch for new issues](#watch-for-new-issues)                                                        |
 | `hunt on\|off`    | Switch hunting of the going run, see [Hunt for bugs](#hunt-for-bugs)                                                                       |
 | `init`            | Write the config file with the defaults                                                                                                    |
-| `serve`           | Run the worker of this repository that pi extensions talk to, see [Worker](#worker)                                                        |
+| `serve`           | Run the worker of this repository that the clients talk to, see [Worker](#worker)                                                          |
 | `stop`            | Stop the worker of this repository, see [Worker](#worker)                                                                                  |
 | `logs`            | Show the latest run log and follow it, see [Observability](#observability)                                                                 |
 | `--force`         | Replace an existing config file, with `init`                                                                                               |
@@ -352,7 +352,7 @@ In a run of the `serve` worker, a client can switch hunting and watching on or o
 
 ## Worker
 
-`next-issue serve` runs one worker for the repository it is run in. The [`@ravshansbox/pi-next-issue`](../pi-next-issue) extension and `next-issue start` start it and talk to it. `serve` takes no flags apart from `--help` and refuses any other with an error, because runs start from a client, not from `serve`. Each repository has its own worker, so the runs, restarts and upgrades of one repository never affect another. The worker:
+`next-issue serve` runs one worker for the repository it is run in. The [`@ravshansbox/pi-next-issue`](../pi-next-issue) extension, the [Claude Code plugin](../claude-next-issue) and `next-issue start` start it and talk to it. `serve` takes no flags apart from `--help` and refuses any other with an error, because runs start from a client, not from `serve`. Each repository has its own worker, so the runs, restarts and upgrades of one repository never affect another. The worker:
 
 - listens with WebSocket on the socket file `.next-issue/worker.sock` in the repository. Only your user can open the file. It works on macOS and Linux. When the path of the socket file is too long for the system, about 103 bytes on macOS and 107 on Linux, it exits with an error that says so;
 - also answers plain HTTP on the same socket file, for a client with no WebSocket. `GET /` answers `[{ "type": "hello", ... }, { "type": "runs", ... }]`. `POST /` takes one client message as its JSON body, such as `{ "type": "start", "root": "<path>" }`, and answers a JSON list of the messages the worker sends that client in reply (an `error`, `stopping`, `questions` or `upcoming` message), then the `runs` message after the change. A body that is not a client message gets status 400 and `[{ "type": "error", "root": "<path>", "message": "the request is not a next-issue message" }]`; another path gets 404 and another method 405. An HTTP client does not get the `output`, `pass` and `end` messages, so it polls `GET /` for the progress;
