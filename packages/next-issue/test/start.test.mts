@@ -251,6 +251,28 @@ test('a user who runs stop while the run is stopping sees that it is stopping al
   fake.finish();
 });
 
+test('a user who runs stop while the run stops for an upgrade sees that it will stop and not start again, exit code 0, and the upgrade dropped', async (t) => {
+  const root = await repository();
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo, '0.0.0-old');
+  const other = await connect(t, workerPaths(root).socketPath);
+  other.send({ type: 'start', root, args: ['--watch', 'on'] });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'running');
+  other.send({ type: 'hello', version: await packageVersion() });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.upgrade !== undefined);
+  const stopped = cliCommand(t, root, ['stop']);
+  assert.equal(await stopped.exited, 0, stopped.stderr());
+  assert.equal(
+    stopped.stdout(),
+    'next-issue: the run will stop after its current issues and not start again\n',
+  );
+  const dropped = await other.next(
+    (value) => value.type === 'runs' && value.runs[root]?.upgrade === undefined,
+  );
+  assert.equal(dropped.type === 'runs' && dropped.runs[root]!.status, 'stopping');
+  fake.finish();
+});
+
 test('a user who runs stop with no worker or no run going sees that no run is going, exit code 0 and no worker started', async (t) => {
   const root = await repository();
   const alone = cliCommand(t, root, ['stop']);

@@ -99,11 +99,14 @@ export async function stopInWorker(root: string): Promise<string> {
     connection.close();
     return NO_RUN;
   }
-  if (progress!.status === 'stopping') {
+  if (progress!.status === 'stopping' && progress!.upgrade === undefined) {
     connection.close();
     return 'next-issue: the run is stopping already\n';
   }
   connection.send({ type: 'stop', root, after: 'issue' });
   await connection.end();
+  if (progress!.upgrade !== undefined) {
+    return 'next-issue: the run will stop after its current issues and not start again\n';
+  }
   return 'next-issue: the run will stop after its current issues\n';
 }
