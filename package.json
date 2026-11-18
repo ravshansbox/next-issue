@@ -3,8 +3,7 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "packages/next-issue",
-    "packages/claude-next-issue"
+    "packages/next-issue"
   ],
   "scripts": {
     "typecheck": "npm run typecheck --workspaces",

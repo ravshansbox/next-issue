@@ -5,7 +5,7 @@ import { test, type TestContext } from 'node:test';
 import { REVIEWING, runAgent, toolFields } from '../src/shared/agents.mts';
 import { runChildren, stopRunChildren, withRunChildren } from '../src/shared/children.mts';
 import { Recorder } from '../src/shared/observe.mts';
-import { addPluginSkills, addSkill, fakeClaude, type Step, text, toolUse } from './fake-claude.mts';
+import { addSkill, fakeClaude, type Step, text, toolUse } from './fake-claude.mts';
 import { logRecords } from './log-records.mts';
 
 async function claude(t: TestContext, steps: Step[] = []) {
@@ -78,14 +78,6 @@ test('a Bash call without command text records only its name', () => {
   assert.deepEqual(toolFields('Bash', { command: 12 }, '/work'), { tool: 'Bash' });
   assert.deepEqual(toolFields('Bash', null, '/work'), { tool: 'Bash' });
   assert.deepEqual(toolFields('Bash', 'npm test', '/work'), { tool: 'Bash' });
-});
-
-test('an agent session leaves out the skills of the next-issue plugin and keeps the others', async (t) => {
-  const { recorder, request, config, bodies } = await claude(t, [text('done')]);
-  await addPluginSkills(config, { 'next-issue': 'create-issue', other: 'other-skill' });
-  await runAgent(recorder, request);
-  assert.match(bodies[0]!, /other-skill/);
-  assert.doesNotMatch(bodies[0]!, /create-issue/);
 });
 
 test('an implementer gets the skills of its repository', async (t) => {

@@ -140,40 +140,6 @@ export async function fakeClaude(steps: Step[]) {
   };
 }
 
-export async function addPluginSkills(
-  config: string,
-  plugins: Record<string, string>,
-): Promise<void> {
-  const market = join(config, 'market');
-  await mkdir(join(market, '.claude-plugin'), { recursive: true });
-  await writeFile(
-    join(market, '.claude-plugin', 'marketplace.json'),
-    JSON.stringify({
-      name: 'next-issue',
-      owner: { name: 'test' },
-      plugins: Object.keys(plugins).map((name) => ({ name, source: `./plugins/${name}` })),
-    }),
-  );
-  for (const [plugin, skill] of Object.entries(plugins)) {
-    const folder = join(market, 'plugins', plugin);
-    await mkdir(join(folder, '.claude-plugin'), { recursive: true });
-    await writeFile(
-      join(folder, '.claude-plugin', 'plugin.json'),
-      JSON.stringify({ name: plugin, version: '0.1.0', description: plugin }),
-    );
-    await addSkill(join(folder, 'skills'), skill);
-  }
-  await writeFile(
-    join(config, 'settings.json'),
-    JSON.stringify({
-      extraKnownMarketplaces: { 'next-issue': { source: { source: 'directory', path: market } } },
-      enabledPlugins: Object.fromEntries(
-        Object.keys(plugins).map((name) => [`${name}@next-issue`, true]),
-      ),
-    }),
-  );
-}
-
 export async function addSkill(folder: string, name: string): Promise<void> {
   await mkdir(join(folder, name), { recursive: true });
   await writeFile(

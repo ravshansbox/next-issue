@@ -45,12 +45,9 @@ export const CODING: Profile = {
   disallowedTools: [],
 };
 
-export const OWN_PLUGIN = 'next-issue@next-issue';
-
 export const OWN_SKILLS = ['create-issue', 'answer-hand-over'];
 
 const OWN_SETTINGS: Settings = {
-  enabledPlugins: { [OWN_PLUGIN]: false },
   skillOverrides: Object.fromEntries(OWN_SKILLS.map((name) => [name, 'off'])),
 };
 
