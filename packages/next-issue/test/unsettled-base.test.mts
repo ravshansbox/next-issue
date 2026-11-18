@@ -150,7 +150,11 @@ async function haltOnChecksError(t: Parameters<typeof harness>[0]): Promise<stri
 test('a user whose halted issue was deleted gets the next run to release its block and land another issue', async (t) => {
   const root = await haltOnChecksError(t);
   const other = await harness(t, { root, issue: OTHER, open: [OTHER] });
-  other.context.ports.viewIssue = async () => {
+  const view = other.context.ports.viewIssue;
+  other.context.ports.viewIssue = async (repo, number) => {
+    if (number !== 7) {
+      return view(repo, number);
+    }
     throw new Error(
       'gh issue view 7 failed with code 1: GraphQL: Could not resolve to an issue or pull request with the number of 7. (repository.issue)',
     );
@@ -174,7 +178,11 @@ test('a user whose halted issue was deleted gets the next run to release its blo
 test('a user whose halted issue cannot be read during a network outage gets no other issue landed by that run', async (t) => {
   const root = await haltOnChecksError(t);
   const other = await harness(t, { root, issue: OTHER, open: [OTHER] });
-  other.context.ports.viewIssue = async () => {
+  const view = other.context.ports.viewIssue;
+  other.context.ports.viewIssue = async (repo, number) => {
+    if (number !== 7) {
+      return view(repo, number);
+    }
     throw new Error('gh issue view 7 failed with code 1: error connecting to api.github.com');
   };
   await pendingIssues(other.context);

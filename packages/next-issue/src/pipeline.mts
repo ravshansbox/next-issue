@@ -9,7 +9,7 @@ import type { Context, IssueReport, Run } from './job.mts';
 import type { Recorder } from './observe.mts';
 import { openJob } from './open-job.mts';
 import { reviewRound, settleReview } from './review.mts';
-import { skipReport, unclaimedError } from './skip.mts';
+import { closedReport, skipReport, unclaimedError } from './skip.mts';
 import { hasLabel } from './labels.mts';
 import {
   type IssueState,
@@ -43,7 +43,10 @@ export async function processIssue(
   if (issue.closed === true && !closing) {
     return dropClosed(context, log, issue, saved?.branch ?? branchName(issue.number));
   }
-  const skip = closing ? undefined : await skipReport(context, log, issue, saved, started);
+  const skip = closing
+    ? undefined
+    : ((await skipReport(context, log, issue, saved, started)) ??
+      (await closedReport(context, log, issue, saved, started)));
   if (skip !== undefined) {
     return skip;
   }

@@ -2,10 +2,10 @@ import type { Config } from './config.mts';
 import { runStopped } from './children.mts';
 import { elapsedMs } from './durations.mts';
 import { message } from './errors.mts';
-import type { Repo } from './git.mts';
+import { branchName, type Repo } from './git.mts';
 import type { Issue } from './github.mts';
 import { handOverReply } from './hand-over-comments.mts';
-import { stopNow } from './handover.mts';
+import { dropClosed, stopNow } from './handover.mts';
 import type { Context, IssueReport } from './job.mts';
 import { hasLabel } from './labels.mts';
 import type { Recorder } from './observe.mts';
@@ -102,6 +102,24 @@ export async function skipReport(
     return { ...skipped(issue), blocked: true };
   }
   return undefined;
+}
+
+export async function closedReport(
+  context: Context,
+  log: Recorder,
+  issue: Issue,
+  saved: IssueState | undefined,
+  started: number,
+): Promise<IssueReport | undefined> {
+  let open: boolean;
+  try {
+    ({ open } = await context.ports.viewIssue(context.repo, issue.number));
+  } catch (error) {
+    return readError(log, issue, saved, error, started);
+  }
+  return open
+    ? undefined
+    : dropClosed(context, log, issue, saved?.branch ?? branchName(issue.number));
 }
 
 /**

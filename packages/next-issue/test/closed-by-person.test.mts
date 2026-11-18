@@ -107,3 +107,26 @@ test('a user who closes an issue that a stop after the round left with its workt
   assert.equal(await target.state(), undefined);
   assert.equal(await target.context.ports.findWorktree(target.context.repo, '7'), undefined);
 });
+
+test('a user who closes an issue just after a run lists it as open gets the run to skip it as closed with no label, comment or agent', async (t) => {
+  const target = await harness(t, { closed: [ISSUE] });
+  const report = await target.run();
+  assert.equal(report.outcome, 'skipped');
+  assert.equal(report.reason, 'closed');
+  assert.deepEqual(roles(target), []);
+  assert.deepEqual(target.labels, []);
+  assert.deepEqual(target.comments, []);
+  assert.deepEqual(target.closed, []);
+});
+
+test('a user who closes a stopped issue just after a run lists it as open gets the run to remove its state, branches and worktree with no label, comment or agent', async (t) => {
+  const first = await harness(t, { pressDuring: 'implementer' });
+  assert.equal((await first.run()).outcome, 'stopped');
+  const saved = await first.state();
+  const target = await harness(t, { saved, closed: [ISSUE], disputes: ['7-dispute-1'] });
+  const report = await target.run();
+  assertCleanedUp(target, [report]);
+  assert.equal(report.reason, 'closed');
+  assert.equal(await target.state(), undefined);
+  assert.equal(await target.context.ports.findWorktree(target.context.repo, '7'), undefined);
+});
