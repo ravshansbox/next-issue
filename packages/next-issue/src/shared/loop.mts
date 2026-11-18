@@ -35,6 +35,7 @@ export async function runIssues(loop: Loop, seen = new Set<number>()): Promise<L
   let error: unknown;
   let crash: { failure: unknown } | undefined;
   let claiming = true;
+  let stopped = false;
   let unclaimed = true;
   let recount = false;
   const ended = new AbortController();
@@ -42,6 +43,11 @@ export async function runIssues(loop: Loop, seen = new Set<number>()): Promise<L
   const tried: Tried = { ended: new Set(), labels: new Map(), blocked: new Set() };
   try {
     for (;;) {
+      if (stopped && !loop.stop()) {
+        stopped = false;
+        stoppedAt = undefined;
+        claiming = true;
+      }
       if (claiming && (recount || (unclaimed && slots.open()))) {
         recount = false;
         refresh = refreshes(loop, ended.signal, refresh);
@@ -72,6 +78,7 @@ export async function runIssues(loop: Loop, seen = new Set<number>()): Promise<L
       if (report === undefined) {
         crash ??= { failure };
         claiming = false;
+        stopped = false;
         continue;
       }
       reports.push(report);
@@ -87,6 +94,10 @@ export async function runIssues(loop: Loop, seen = new Set<number>()): Promise<L
       if (claiming && (loop.stop() || report.halt === true)) {
         stoppedAt = issue;
         claiming = false;
+        stopped = true;
+      }
+      if (report.halt === true) {
+        stopped = false;
       }
       if (report.outcome === 'done' && !claiming) {
         await loop.issues().catch(() => undefined);

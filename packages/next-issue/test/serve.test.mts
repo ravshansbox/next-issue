@@ -1157,6 +1157,94 @@ test('a person who turns watching off on a run that stops for an upgrade sees th
   await started.closed;
 });
 
+type PassAfterUpgrade = {
+  processed: number[];
+  release: (issue: number) => void;
+  firstEnded: Promise<void>;
+};
+
+function passAfterUpgrade(fake: ReturnType<typeof fakeRuns>): PassAfterUpgrade {
+  const processed: number[] = [];
+  const gates = new Map<number, () => void>();
+  const opened = new Map<number, Promise<void>>();
+  for (const number of [1, 2]) {
+    opened.set(number, new Promise((resolve) => gates.set(number, resolve)));
+  }
+  let reads = 0;
+  let firstEnded: () => void = () => undefined;
+  const pass: PassAfterUpgrade = {
+    processed,
+    release: (number) => gates.get(number)?.(),
+    firstEnded: new Promise((resolve) => {
+      firstEnded = resolve;
+    }),
+  };
+  const runRepo = fake.runRepo;
+  fake.runRepo = (root, args, controls) => {
+    void runRepo(root, args, controls);
+    return runIssues({
+      issues: async () => {
+        reads += 1;
+        if (reads === 2) {
+          firstEnded();
+        }
+        return [issue(1), issue(2), issue(3)];
+      },
+      process: async (target) => {
+        processed.push(target.number);
+        await opened.get(target.number);
+        return report(target.number, 'done');
+      },
+      stop: controls.interrupts.afterIssue,
+      concurrency: 2,
+    }).then(() => 0);
+  };
+  return pass;
+}
+
+test('a person who turns watching off on a run that stops for an upgrade after one of its issues ended sees the run claim the rest of the pass and end finished', async (t) => {
+  const fake = fakeRuns();
+  const pass = passAfterUpgrade(fake);
+  const { socketPath, worker: started } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo', args: ['--watch', 'on'] });
+  await client.next(watchingIs(true));
+  client.send({ type: 'hello', version: '2.1.0' });
+  await client.next(upgrading);
+  pass.release(1);
+  await pass.firstEnded;
+  client.send({ type: 'watch', root: '/repo', on: false });
+  await client.next(watchingIs(false));
+  pass.release(2);
+  const ended = await client.next(
+    (value) => value.type === 'runs' && value.runs['/repo']?.status === 'finished',
+  );
+  assert.equal(ended.type === 'runs' && ended.runs['/repo']!.status, 'finished');
+  assert.deepEqual(pass.processed, [1, 2, 3]);
+  await started.closed;
+});
+
+test('a person who stops a run that stops for an upgrade after one of its issues ended and then turns watching off sees the run claim nothing more and end stopped', async (t) => {
+  const fake = fakeRuns();
+  const pass = passAfterUpgrade(fake);
+  const { socketPath, worker: started } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo', args: ['--watch', 'on'] });
+  await client.next(watchingIs(true));
+  client.send({ type: 'hello', version: '2.1.0' });
+  await client.next(upgrading);
+  pass.release(1);
+  await pass.firstEnded;
+  client.send({ type: 'stop', root: '/repo' });
+  await client.next((value) => value.type === 'runs' && value.runs['/repo']?.upgrade === undefined);
+  client.send({ type: 'watch', root: '/repo', on: false });
+  await client.next(watchingIs(false));
+  pass.release(2);
+  await client.next(stoppedRun);
+  assert.deepEqual(pass.processed, [1, 2]);
+  await started.closed;
+});
+
 test('a person who stops a run that stops for an upgrade and then turns watching off sees the run still stop after the running issues', async (t) => {
   const fake = fakeRuns();
   const { socketPath, worker: started } = await worker(t, fake);
