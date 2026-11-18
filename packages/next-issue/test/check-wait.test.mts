@@ -6,4 +6,3 @@ test('a user whose repository has no checks gets the landed change done', async 
   const target = await harness(t, { baseChecks: ['none'] });
   assert.equal((await target.run()).outcome, 'done');
 });
-
