@@ -202,6 +202,24 @@ test('a user who runs refresh while the run does not watch or is stopping sees t
   fake.finish();
 });
 
+test('a user who runs refresh while the run stops for an upgrade sees that the run will start again on the newer worker and pick up new issues then, and exit code 0', async (t) => {
+  const root = await repository();
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const other = await connect(t, workerPaths(root).socketPath);
+  other.send({ type: 'start', root, args: ['--watch', 'on'] });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'running');
+  other.send({ type: 'hello', version: '999.0.0' });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.upgrade !== undefined);
+  const refreshed = cliCommand(t, root, ['refresh']);
+  assert.equal(await refreshed.exited, 0, refreshed.stderr());
+  assert.equal(
+    refreshed.stdout(),
+    'next-issue: the run is stopping for an upgrade, so nothing was asked; it starts again on the newer worker and picks up new issues then\n',
+  );
+  fake.finish();
+});
+
 test('a user who runs refresh while an older worker has a run going sees an error to restart the run and exit code 1', async (t) => {
   const root = await repository();
   const fake = fakeRuns();

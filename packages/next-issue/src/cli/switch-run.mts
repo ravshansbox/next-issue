@@ -50,6 +50,10 @@ export async function refreshInWorker(root: string): Promise<string> {
       'the worker of the going run is older than next-issue, so it cannot refresh. Stop the run, then start it again',
     );
   }
+  if (progress!.status === 'stopping' && progress!.upgrade !== undefined) {
+    connection.close();
+    return 'next-issue: the run is stopping for an upgrade, so nothing was asked; it starts again on the newer worker and picks up new issues then\n';
+  }
   if (progress!.status === 'stopping') {
     connection.close();
     return 'next-issue: the run is stopping, so nothing was asked\n';
