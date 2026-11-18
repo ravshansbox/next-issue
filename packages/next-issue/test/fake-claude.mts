@@ -82,6 +82,7 @@ export async function fakeClaude(steps: Step[]) {
   const config = join(root, '.claude-config');
   await mkdir(config, { recursive: true });
   const bodies: string[] = [];
+  let unexpected = 0;
   const server = createServer((request, response) => {
     let body = '';
     request.on('data', (chunk: Buffer) => {
@@ -96,12 +97,18 @@ export async function fakeClaude(steps: Step[]) {
       }
       const main = Array.isArray(parsed.tools) && parsed.tools.length > 0;
       const next = main ? steps.shift() : text('side');
-      const reply = typeof next === 'function' ? next(body) : (next ?? text('extra'));
+      if (next === undefined) {
+        unexpected += 1;
+      }
+      const reply =
+        typeof next === 'function' ? next(body) : (next ?? { error: 'unexpected agent call' });
       if (main) {
         bodies.push(body);
       }
       if ('error' in reply) {
-        steps.unshift(reply);
+        if (next !== undefined) {
+          steps.unshift(reply);
+        }
         response.writeHead(400, { 'content-type': 'application/json' });
         response.end(
           JSON.stringify({
@@ -120,7 +127,12 @@ export async function fakeClaude(steps: Step[]) {
     root,
     config,
     bodies,
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    close: async () => {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      if (unexpected > 0) {
+        throw new Error(`The fake Claude got ${unexpected} unexpected agent call(s).`);
+      }
+    },
     recorder: await Recorder.create(root),
     request: {
       name: 'coder',
