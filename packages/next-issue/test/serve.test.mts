@@ -19,7 +19,7 @@ import { workerPaths } from '../src/shared/worker-paths.mts';
 import { fullDisk } from './full-disk.mts';
 import { issue, report } from './loop-harness.mts';
 import { tempDir } from './temp-dir.mts';
-import { connect, fakeRuns, noQuestions, runsOf, worker } from './worker-harness.mts';
+import { connect, fakeRuns, runsOf, worker } from './worker-harness.mts';
 
 const SERVE = new URL('../src/worker/serve.mts', import.meta.url).href;
 
@@ -37,7 +37,7 @@ test('a client that connects gets the worker version and the runs', async (t) =>
 for (const folder of ['My Проекты app', 'a#b?c:d']) {
   test(`a client that connects to a worker in a folder named ${folder} gets the runs`, async (t) => {
     const fake = fakeRuns();
-    const { socketPath } = await worker(t, fake, '2.0.0', noQuestions, folder);
+    const { socketPath } = await worker(t, fake, '2.0.0', folder);
     const client = await connect(t, socketPath);
     assert.deepEqual(await client.next(runsOf), { type: 'runs', runs: {} });
   });
@@ -247,8 +247,8 @@ test('a client that asks a run to refresh after it switched watching on wakes it
   await client.next(watchingIs(true));
   const refreshed = fake.controls().refreshed!();
   client.send({ type: 'refresh', root: '/repo' });
-  client.send({ type: 'questions', root: '/repo', id: 'after' });
-  await client.next(answered('after'));
+  client.send(AFTER);
+  await client.next(answered);
   assert.equal(refreshed.aborted, true);
 });
 
@@ -326,8 +326,16 @@ const stopping = (value: WorkerMessage) =>
 const stoppedRun = (value: WorkerMessage) =>
   value.type === 'runs' && value.runs['/repo']?.status === 'stopped';
 
-const answered = (id: string) => (value: WorkerMessage) =>
-  value.type === 'questions' && value.id === id;
+const AFTER = { type: 'refresh', root: '/other', id: 'after' } as const;
+
+const AFTER_ERROR = {
+  type: 'error',
+  root: '/other',
+  message: 'the worker serves /repo only',
+  id: 'after',
+};
+
+const answered = (value: WorkerMessage) => value.type === 'error' && value.id === 'after';
 
 test('a client that asks a waiting watch run to refresh wakes its wait, and the run goes on', async (t) => {
   const fake = fakeRuns();
@@ -357,8 +365,8 @@ test('a client that asks a stopping run to refresh changes nothing and the run s
   await client.next(stopping);
   const refreshed = fake.controls().refreshed!();
   client.send({ type: 'refresh', root: '/repo' });
-  client.send({ type: 'questions', root: '/repo', id: 'after' });
-  await client.next(answered('after'));
+  client.send(AFTER);
+  await client.next(answered);
   assert.equal(refreshed.aborted, false);
   assert.equal(fake.controls().interrupts.afterIssue(), true);
   fake.finish();
@@ -370,9 +378,8 @@ test('a client that asks for a refresh with no run going gets no error and no ru
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
   client.send({ type: 'refresh', root: '/repo' });
-  client.send({ type: 'questions', root: '/repo', id: 'after' });
-  const first = await client.next((value) => value.type === 'error' || answered('after')(value));
-  assert.equal(first.type, 'questions');
+  client.send(AFTER);
+  assert.deepEqual(await client.next((value) => value.type === 'error'), AFTER_ERROR);
   assert.equal(fake.calls.length, 0);
 });
 
@@ -461,21 +468,15 @@ test('a client that stops a run with an unknown point gets an error and the run 
   assert.equal(fake.controls().interrupts.afterIssue(), false);
 });
 
-test('a client that sends start, stop or questions for another repository gets an error and no run starts or stops', async (t) => {
-  const asked: string[] = [];
-  const questions: typeof noQuestions = async (root) => {
-    asked.push(root);
-    return [];
-  };
+test('a client that sends start, stop or hunt for another repository gets an error and no run starts or stops', async (t) => {
   const fake = fakeRuns();
-  const { socketPath } = await worker(t, fake, '2.0.0', questions);
+  const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
   client.send({ type: 'start', root: '/repo' });
   await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
   for (const value of [
     { type: 'start', root: '/repo/' },
     { type: 'stop', root: '/other', after: 'now' },
-    { type: 'questions', root: '/other' },
     { type: 'hunt', root: '/other', on: true },
   ] as const) {
     client.send(value);
@@ -487,10 +488,6 @@ test('a client that sends start, stop or questions for another repository gets a
   }
   assert.equal(fake.calls.length, 1);
   assert.equal(fake.controls().interrupts.afterIssue(), false);
-  assert.deepEqual(
-    asked.filter((root) => root !== '/repo'),
-    [],
-  );
 });
 
 test('a client that sends a malformed message gets no reply, no run starts and the worker keeps answering', async (t) => {
@@ -508,8 +505,8 @@ test('a client that sends a malformed message gets no reply, no run starts and t
     { type: 'start', root: '/repo', args: '--hunt' },
     { type: 'start', root: '/repo', args: [1] },
     { type: 'stop' },
-    { type: 'questions' },
-    { type: 'questions', root: '/repo', id: 5 },
+    { type: 'refresh' },
+    { type: 'refresh', root: '/repo', id: 5 },
     { type: 'hunt', root: '/repo' },
     { type: 'hunt', root: '/repo', on: 'yes' },
     { type: 'watch', root: '/repo' },
@@ -517,16 +514,24 @@ test('a client that sends a malformed message gets no reply, no run starts and t
   ]) {
     client.send(value as never);
   }
-  client.send({ type: 'questions', root: '/repo', id: 'after' });
-  assert.deepEqual(
-    await client.next(
-      (value) => value.type === 'error' || (value.type === 'questions' && value.id !== undefined),
-    ),
-    { type: 'questions', root: '/repo', questions: [], id: 'after' },
-  );
+  client.send(AFTER);
+  assert.deepEqual(await client.next((value) => value.type === 'error'), AFTER_ERROR);
   assert.equal(fake.calls.length, 0);
   const another = await connect(t, socketPath);
   assert.deepEqual(await another.next(runsOf), { type: 'runs', runs: {} });
+});
+
+test('a client that asks for the questions or the upcoming issues gets no reply, as for any unknown message, and the worker keeps answering', async (t) => {
+  const { socketPath } = await worker(t, fakeRuns());
+  const client = await connect(t, socketPath);
+  for (const type of ['questions', 'upcoming', 'unknown']) {
+    client.send({ type, root: '/repo' } as never);
+  }
+  client.send(AFTER);
+  assert.deepEqual(
+    await client.next((value) => value.type !== 'hello' && value.type !== 'runs'),
+    AFTER_ERROR,
+  );
 });
 
 async function sendMalformedFrame(socketPath: string): Promise<void> {
@@ -579,7 +584,6 @@ test('a second worker does not start while the first one holds the lock', async 
       lockPath,
       version: '2.0.0',
       runRepo: fake.runRepo,
-      questions: noQuestions,
       lockWaitMs: 0,
     }),
     undefined,
@@ -599,7 +603,6 @@ test('a worker does not start while the lock holds only the process id of a live
       lockPath,
       version: '2.0.0',
       runRepo: fakeRuns().runRepo,
-      questions: noQuestions,
       lockWaitMs: 0,
     }),
     undefined,
@@ -619,7 +622,6 @@ test('a worker started while the last one closes takes the lock once it is relea
     lockPath,
     version: '2.0.0',
     runRepo: fakeRuns().runRepo,
-    questions: noQuestions,
   });
   assert.ok(started);
   t.after(() => started.close());
@@ -634,7 +636,6 @@ test('a worker that no client connects to closes and removes its socket and lock
     lockPath: join(dir, 'w.lock'),
     version: '2.0.0',
     runRepo: fakeRuns().runRepo,
-    questions: noQuestions,
     idleMs: 50,
   });
   assert.ok(started);
@@ -654,7 +655,6 @@ test('a worker takes over the lock and the socket file that a dead worker left',
     lockPath,
     version: '2.0.0',
     runRepo: fakeRuns().runRepo,
-    questions: noQuestions,
   });
   assert.ok(started);
   t.after(() => started.close());
@@ -674,7 +674,6 @@ async function startTogetherInProcess(
         lockPath: join(dir, 'w.lock'),
         version: '2.0.0',
         runRepo: fakeRuns().runRepo,
-        questions: noQuestions,
         lockWaitMs: 0,
       }),
     ),
@@ -741,7 +740,6 @@ test('a worker that closes leaves the socket and lock files that another worker 
     lockPath,
     version: '2.0.0',
     runRepo: fakeRuns().runRepo,
-    questions: noQuestions,
   });
   assert.ok(started);
   const other = spawn('sleep', ['30']);
@@ -870,7 +868,6 @@ test('a worker takes over the lock when its process id now belongs to a process 
     lockPath,
     version: '2.0.0',
     runRepo: fakeRuns().runRepo,
-    questions: noQuestions,
     lockWaitMs: 0,
   });
   assert.ok(started);
@@ -889,7 +886,6 @@ async function startTogether(t: TestContext, dir: string, count: number): Promis
     `  lockPath: ${JSON.stringify(join(dir, 'w.lock'))},`,
     `  version: '2.0.0',`,
     '  runRepo: async () => 0,',
-    '  questions: async () => [],',
     '  lockWaitMs: 0,',
     '});',
     `process.stdout.write(started === undefined ? 'refused\\n' : 'serving\\n');`,
@@ -950,7 +946,6 @@ test('a worker that closes leaves a lock file that another worker in the same pr
     lockPath,
     version: '2.0.0',
     runRepo: fakeRuns().runRepo,
-    questions: noQuestions,
     idleMs: 50,
   });
   assert.ok(started);
@@ -1009,7 +1004,6 @@ test('a worker removes the draft files that a dead worker left', async () => {
     lockPath: join(dir, 'w.lock'),
     version: '2.0.0',
     runRepo: fakeRuns().runRepo,
-    questions: noQuestions,
     idleMs: 50,
   });
   assert.ok(started);
@@ -1214,9 +1208,8 @@ test('a client that resumes a run while a run is going gets no error and no seco
   client.send({ type: 'start', root: '/repo', args: ['--watch', 'on'], resume: true });
   await client.next(watchingIs(true));
   client.send({ type: 'start', root: '/repo', args: ['--watch', 'on'], resume: true });
-  client.send({ type: 'questions', root: '/repo', id: 'after' });
-  const first = await client.next((value) => value.type === 'error' || answered('after')(value));
-  assert.equal(first.type, 'questions');
+  client.send(AFTER);
+  assert.deepEqual(await client.next((value) => value.type === 'error'), AFTER_ERROR);
   assert.equal(fake.calls.length, 1);
 });
 

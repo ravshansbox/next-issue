@@ -1,4 +1,3 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { mkdir, rename, rm } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { basename, dirname, join } from 'node:path';
@@ -15,16 +14,8 @@ import {
   type Progress,
   type WorkerMessage,
 } from '../shared/protocol.mts';
-import {
-  type ListQuestions,
-  listQuestions,
-  type Peer,
-  questionSender,
-  send,
-} from './questions.mts';
 import { runRepo, type RunControls } from './run.mts';
 import type { RunSummary } from '../shared/summary.mts';
-import { type ListUpcoming, listUpcoming, sendUpcoming } from './upcoming.mts';
 import { packageVersion } from '../shared/version.mts';
 import { resumeOnSuccessor } from '../shared/worker-client.mts';
 import { keepLogTrimmed, LOG_CHECK_MS } from './worker-log.mts';
@@ -55,9 +46,11 @@ import {
   listen,
   type Owned,
   parseMessage,
+  type Peer,
   readBody,
   removeOwned,
   reply,
+  send,
   sendAll,
   shutdown,
   stopListening,
@@ -72,8 +65,6 @@ type WorkerOptions = {
   lockPath: string;
   version: string;
   runRepo: RunRepo;
-  questions: ListQuestions;
-  upcoming?: ListUpcoming;
   lockWaitMs?: number;
   idleMs?: number;
 };
@@ -100,10 +91,6 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
 
   const server = createServer();
   const sockets = new WebSocketServer({ server });
-  const sendQuestions = questionSender(options.questions);
-  // Taken outside any run, so a question read that an issue end starts does not take on
-  // the run's stop, command log, children or default timeout.
-  const outsideRuns = AsyncLocalStorage.snapshot();
   const busy = (): boolean => [...runs.values()].some(active);
 
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -184,9 +171,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     let summary: RunSummary | undefined;
     withRunChildren(run.children, () =>
       options.runRepo(root, args, {
-        ...runControls(run, update, () =>
-          outsideRuns(() => void sendQuestions(root, () => sockets.clients)),
-        ),
+        ...runControls(run, update),
         print: args.watch
           ? async (pass) => sendAll(sockets, { type: 'pass', root, summary: pass })
           : undefined,
@@ -251,11 +236,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     upgradeBetweenIssues(run!);
   };
 
-  const receive = (
-    socket: Peer,
-    value: ClientMessage,
-    refuse: Refuse,
-  ): Promise<void> | undefined => {
+  const receive = (socket: Peer, value: ClientMessage, refuse: Refuse): void => {
     if (value.type === 'hello') {
       if (typeof value.version !== 'string') {
         throw new Error('a hello message needs its version as a string');
@@ -283,18 +264,12 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       toggle(refuse, value.root, value.on, setWatching);
     } else if (value.type === 'refresh') {
       requestRefresh(runs.get(value.root));
-    } else if (value.type === 'questions') {
-      return sendQuestions(value.root, () => [socket], value.id);
-    } else if (value.type === 'upcoming') {
-      return sendUpcoming(options.upcoming ?? listUpcoming, socket, value.root);
     }
-    return undefined;
   };
 
   sockets.on('connection', (socket) => {
     send(socket, { type: 'hello', version: options.version });
     send(socket, runsMessage(runs));
-    void sendQuestions(options.root, () => [socket]);
     socket.on('close', closeWhenIdle);
     socket.on('error', () => socket.terminate());
     socket.on('message', (data) => {
@@ -304,7 +279,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       }
       const refuse = refuser(socket, value, options.root);
       try {
-        void receive(socket, value, refuse);
+        receive(socket, value, refuse);
       } catch (error) {
         refuse(message(error));
       }
@@ -340,7 +315,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       const peer: Peer = { send: (data) => replies.push(JSON.parse(data) as WorkerMessage) };
       const refuse = refuser(peer, value, options.root);
       try {
-        await receive(peer, value, refuse);
+        receive(peer, value, refuse);
       } catch (error) {
         refuse(message(error));
       }
@@ -383,7 +358,6 @@ export async function serve(root: string, logCheckMs = LOG_CHECK_MS): Promise<nu
     ...paths,
     version: await packageVersion(),
     runRepo,
-    questions: listQuestions,
   });
   if (worker === undefined) {
     stopTrimming();

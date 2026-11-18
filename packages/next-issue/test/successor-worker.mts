@@ -9,7 +9,6 @@ const started = await startWorker({
   root,
   ...paths,
   version: process.argv[2] ?? '2.1.0',
-  questions: async () => [],
   runRepo: (_root, args, controls) =>
     new Promise((resolve) => {
       const timer = setInterval(() => {

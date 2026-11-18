@@ -1,12 +1,9 @@
-import type { Config } from './config.mts';
-import { repoArg } from './gh.mts';
 import type { Repo } from './git.mts';
-import type { Comment, Issue } from './github.mts';
+import type { Comment } from './github.mts';
 import type { Context } from './job.mts';
 import type { Recorder } from './observe.mts';
 import type { Ports } from './ports.mts';
-import type { Question } from './protocol.mts';
-import { heldByPerson, type IssueState, type PendingHandOver, readState } from './state.mts';
+import type { PendingHandOver } from './state.mts';
 import { AGENT_PREFIX, agentHeading } from './text.mts';
 
 export const HAND_OVER = agentHeading('Hand-over', 'needs help');
@@ -84,25 +81,6 @@ async function handOverThread(
   return { comments, last: await lastHandOver(comments, writer) };
 }
 
-type QuestionPorts = ThreadPorts & Pick<Ports, 'openIssues'>;
-
-export async function waitingQuestions(
-  repo: Repo,
-  config: Config,
-  ports: QuestionPorts,
-): Promise<Question[]> {
-  const writer = writers(repo, ports);
-  const issues = await ports.openIssues(repo, config.issueLimit, [config.labels.needsHuman]);
-  const questions: Question[] = [];
-  for (const issue of issues) {
-    const question = await waitingQuestion(repo, config, ports, writer, issue);
-    if (question) {
-      questions.push(question);
-    }
-  }
-  return questions;
-}
-
 function postedAfter(comment: Comment, since: string | undefined): boolean {
   return since !== undefined && comment.createdAt !== undefined && comment.createdAt > since;
 }
@@ -129,46 +107,6 @@ async function replyAfter(
     answerCandidates(comments, last, pending).filter((comment) => !fromHarness(comment)),
     writer,
   );
-}
-
-async function savedState(repo: Repo, issue: number): Promise<IssueState | undefined> {
-  try {
-    return await readState(repo, issue);
-  } catch {
-    return undefined;
-  }
-}
-
-async function waitingQuestion(
-  repo: Repo,
-  config: Config,
-  ports: QuestionPorts,
-  writer: Writer,
-  issue: Issue,
-): Promise<Question | undefined> {
-  const { comments, last } = await handOverThread(repo, ports, writer, issue.number);
-  const saved = await savedState(repo, issue.number);
-  const pending = saved?.pendingHandOver;
-  if (!heldByPerson(saved) && (await replyAfter(comments, last, writer, pending)).length > 0) {
-    return undefined;
-  }
-  const latest = comments[last];
-  const comment =
-    pending === undefined || (latest !== undefined && postedAfter(latest, pending.since))
-      ? latest
-      : undefined;
-  return {
-    issue: issue.number,
-    title: issue.title,
-    reason: (comment && handOverReason(comment)) ?? pending?.reason ?? '',
-    url: comment?.url ?? '',
-    repo: repoArg(repo),
-    labels: {
-      needsHuman: config.labels.needsHuman,
-      skip: config.labels.skip,
-      ready: config.labels.ready,
-    },
-  };
 }
 
 export async function writerComments(

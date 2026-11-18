@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { waitingQuestions } from '../src/shared/hand-over-comments.mts';
 import { APPROVE, changes, harness, ISSUE, roles, SAVED } from './harness.mts';
 
 const IN_REVIEW = { ...ISSUE, labels: ['status:in-review'] };
@@ -192,19 +191,6 @@ test('a writer who answers after a hand-over whose comment failed gets the next 
   assert.match(fixer, /## Answer of a person to the hand-over\n\n[^]*Try the other fixture\./);
   assert.doesNotMatch(fixer, /Use the fixture in test\/data\./);
   assert.equal((await next.state())?.ciFixes ?? 0, 0);
-});
-
-test('the worker keeps in its questions, with the reason of the new hand-over, an issue whose new hand-over comment failed after a writer answered an earlier hand-over', async (t) => {
-  const first = await labelledWithoutComment(t);
-  const questions = await waitingQuestions(first.context.repo, first.context.config, {
-    openIssues: async () => [WAITING],
-    threadComments: async () => OLD_THREAD,
-    canWrite: async (_repo, login) => ['owner', 'bot'].includes(login),
-  });
-  assert.deepEqual(
-    questions.map((question) => [question.issue, question.reason, question.url]),
-    [[WAITING.number, 'The limit of 1 review rounds was reached.', '']],
-  );
 });
 
 test('a user whose hand-over cannot read the issue thread still gets the needs-human label and comment', async (t) => {

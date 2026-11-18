@@ -6,16 +6,7 @@ import { test } from 'node:test';
 import type { WorkerMessage } from '../src/shared/protocol.mts';
 import { startWorker } from '../src/worker/serve.mts';
 import { tempDir } from './temp-dir.mts';
-import {
-  connect,
-  fakeRuns,
-  http,
-  noQuestions,
-  poll,
-  post,
-  runsOf,
-  worker,
-} from './worker-harness.mts';
+import { connect, fakeRuns, http, poll, post, runsOf, worker } from './worker-harness.mts';
 
 const runOf = (messages: WorkerMessage[]) => {
   const runs = messages.findLast(runsOf);
@@ -82,32 +73,13 @@ test('a client that switches hunting and watching over HTTP sees them change in 
   assert.equal(off?.hunting, false);
 });
 
-test('a client that asks for the questions over HTTP gets them in the reply', async (t) => {
-  const question = {
-    issue: 7,
-    title: 'Seven',
-    reason: 'stuck',
-    url: 'https://github.com/o/r/issues/7',
-    repo: 'o/r',
-    labels: { needsHuman: 'needs-human', skip: 'skip' },
-  };
-  const { socketPath } = await worker(t, fakeRuns(), '2.0.0', async () => [question]);
-  const reply = await post(socketPath, { type: 'questions', root: '/repo' });
-  assert.deepEqual(reply[0], { type: 'questions', root: '/repo', questions: [question] });
-});
-
-test('a client that asks for the upcoming issues over HTTP gets them in the reply', async (t) => {
-  const upcoming = { claimable: [{ issue: 3, title: 'Three' }], blocked: [] };
-  const { socketPath } = await worker(
-    t,
-    fakeRuns(),
-    '2.0.0',
-    noQuestions,
-    undefined,
-    async () => upcoming,
-  );
-  const reply = await post(socketPath, { type: 'upcoming', root: '/repo' });
-  assert.deepEqual(reply[0], { type: 'upcoming', root: '/repo', ...upcoming });
+test('a client that asks for the questions or the upcoming issues over HTTP gets only the runs, as for any unknown message', async (t) => {
+  const { socketPath } = await worker(t, fakeRuns());
+  for (const type of ['questions', 'upcoming', 'unknown']) {
+    assert.deepEqual(await post(socketPath, { type, root: '/repo' } as never), [
+      { type: 'runs', runs: {} },
+    ]);
+  }
 });
 
 test('a client that posts a malformed message over HTTP gets a 400 with an error and no run starts', async (t) => {
@@ -153,7 +125,6 @@ async function idleWorker(idleMs: number) {
     lockPath: join(dir, 'w.lock'),
     version: '2.0.0',
     runRepo: fakeRuns().runRepo,
-    questions: noQuestions,
     idleMs,
   });
   assert.ok(started);
@@ -203,7 +174,6 @@ test('a worker whose run ends right after an HTTP request closes at once and rem
     lockPath: join(dir, 'w.lock'),
     version: '2.0.0',
     runRepo: fake.runRepo,
-    questions: noQuestions,
     idleMs: 60_000,
   });
   assert.ok(started);

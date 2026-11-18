@@ -7,7 +7,6 @@ import { pendingIssues } from '../src/worker/pending.mts';
 import { processIssue } from '../src/worker/pipeline.mts';
 import { applyEvent, startProgress } from '../src/worker/progress.mts';
 import { type IssueState, stateDir, writeState } from '../src/shared/state.mts';
-import { newRun, runControls } from '../src/worker/worker-run.mts';
 import { harness, ISSUE, roles, SAVED } from './harness.mts';
 
 const OLDER: Issue = { ...ISSUE, number: 3, createdAt: '2025-12-01T00:00:00Z' };
@@ -117,28 +116,6 @@ test('a watcher whose run cannot read a saved issue sees no handled issue for it
   });
   await pendingIssues(target.context);
   assert.deepEqual(target.events.reduce(applyEvent, startProgress()).handled, []);
-});
-
-test('a watcher whose run cannot read a saved issue is not sent the question list again', async (t) => {
-  const target = await harness(t, {
-    saved: SAVED,
-    open: [LATER],
-    fail: 'viewIssue',
-  });
-  await pendingIssues(target.context);
-  let sent = 0;
-  const run = newRun(startProgress());
-  const controls = runControls(
-    run,
-    (next) => {
-      run.progress = next;
-    },
-    () => {
-      sent += 1;
-    },
-  );
-  target.events.forEach((record) => controls.onEvent?.(record));
-  assert.equal(sent, 0);
 });
 
 test('a user with a ready label gets the unblocked and the blocked ready, in-progress and in-review issues asked for apart from the waiting ones, and the given-up ones left out', async (t) => {

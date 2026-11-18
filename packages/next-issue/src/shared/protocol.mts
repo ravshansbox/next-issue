@@ -53,21 +53,6 @@ export type RunSummary = {
   }[];
 };
 
-export type Question = {
-  issue: number;
-  title: string;
-  reason: string;
-  url: string;
-  repo: string;
-  labels: { needsHuman: string; skip: string; ready?: string };
-};
-
-export type UpcomingIssue = { issue: number; title: string };
-
-export type BlockedIssue = UpcomingIssue & { blockers: string[] };
-
-export type Upcoming = { claimable: UpcomingIssue[]; blocked: BlockedIssue[] };
-
 export const STOP_POINTS = ['issue', 'round', 'now'] as const;
 
 export type StopPoint = (typeof STOP_POINTS)[number];
@@ -82,8 +67,6 @@ export type ClientMessage =
       id?: string;
     }
   | { type: 'stop'; root: string; after?: StopPoint; id?: string }
-  | { type: 'questions'; root: string; id?: string }
-  | { type: 'upcoming'; root: string }
   | { type: 'hunt'; root: string; on: boolean; id?: string }
   | { type: 'watch'; root: string; on: boolean; id?: string }
   | { type: 'refresh'; root: string; id?: string };
@@ -91,10 +74,6 @@ export type ClientMessage =
 export type WorkerMessage =
   | { type: 'hello'; version: string }
   | { type: 'runs'; runs: Record<string, Progress> }
-  | { type: 'questions'; root: string; questions: Question[]; id?: string }
-  | { type: 'questions-error'; root: string; message: string; id?: string }
-  | ({ type: 'upcoming'; root: string } & Upcoming)
-  | { type: 'upcoming-error'; root: string; message: string }
   | { type: 'output'; root: string; text: string }
   | { type: 'end'; root: string; code: number; summary?: RunSummary; error?: string }
   | { type: 'pass'; root: string; summary: RunSummary }

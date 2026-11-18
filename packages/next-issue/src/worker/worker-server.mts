@@ -3,7 +3,6 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { WebSocketServer } from 'ws';
 import type { HeldLock } from '../shared/lock.mts';
 import type { ClientMessage, Launch, WorkerMessage } from '../shared/protocol.mts';
-import { send } from './questions.mts';
 import { type Run, runsMessage } from './worker-run.mts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -45,6 +44,12 @@ export function parseMessage(text: string): ClientMessage | undefined {
     return undefined;
   }
   return isClientMessage(value) ? value : undefined;
+}
+
+export type Peer = { send: (data: string) => void };
+
+export function send(socket: Peer, value: WorkerMessage): void {
+  socket.send(JSON.stringify(value));
 }
 
 export function broadcast(sockets: WebSocketServer, runs: Map<string, Run>): void {

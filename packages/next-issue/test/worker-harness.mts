@@ -7,10 +7,8 @@ import type { TestContext } from 'node:test';
 import { WebSocket } from 'ws';
 import type { Args } from '../src/shared/args.mts';
 import type { ClientMessage, WorkerMessage } from '../src/shared/protocol.mts';
-import type { ListQuestions } from '../src/worker/questions.mts';
 import type { RunControls } from '../src/worker/run.mts';
 import { type RunRepo, startWorker } from '../src/worker/serve.mts';
-import type { ListUpcoming } from '../src/worker/upcoming.mts';
 import { tempDir } from './temp-dir.mts';
 
 export type Client = {
@@ -98,16 +96,7 @@ export function fakeRuns(): Fake {
   };
 }
 
-export const noQuestions: ListQuestions = async () => [];
-
-export async function worker(
-  t: TestContext,
-  fake: Fake,
-  version = '2.0.0',
-  questions: ListQuestions = noQuestions,
-  folder?: string,
-  upcoming?: ListUpcoming,
-) {
+export async function worker(t: TestContext, fake: Fake, version = '2.0.0', folder?: string) {
   const dir = folder === undefined ? await tempDir() : join(await tempDir(), folder);
   await mkdir(dir, { recursive: true });
   const paths = {
@@ -119,8 +108,6 @@ export async function worker(
     ...paths,
     version,
     runRepo: fake.runRepo,
-    questions,
-    upcoming,
   });
   assert.ok(started);
   t.after(() => started.close());

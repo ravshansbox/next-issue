@@ -7,7 +7,7 @@ import type { WorkerMessage } from '../src/shared/protocol.mts';
 import { startWorker } from '../src/worker/serve.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
 import { tempDir } from './temp-dir.mts';
-import { connect, fakeRuns, noQuestions, worker } from './worker-harness.mts';
+import { connect, fakeRuns, worker } from './worker-harness.mts';
 
 const SUCCESSOR = new URL('successor-worker.mts', import.meta.url).pathname;
 
@@ -20,7 +20,6 @@ async function oldWorker(t: TestContext) {
     ...paths,
     version: '2.0.0',
     runRepo: fake.runRepo,
-    questions: noQuestions,
   });
   assert.ok(started);
   t.after(async () => {

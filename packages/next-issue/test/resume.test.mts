@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { waitingQuestions } from '../src/shared/hand-over-comments.mts';
 import { stateDir } from '../src/shared/state.mts';
 import { changes, harness, ISSUE, roles, SAVED } from './harness.mts';
 
@@ -271,31 +270,6 @@ test('a person who adds the needs-human label to a stopped issue whose earlier h
   assert.deepEqual(target.removable, []);
   assert.deepEqual(roles(target), []);
   assert.deepEqual(await target.state(), SAVED);
-});
-
-test('a person who adds the needs-human label to a stopped issue whose earlier hand-over was answered sees the issue in the waiting questions of the worker', async (t) => {
-  const thread = [HAND_OVER_NOTE, { author: 'owner', body: 'Ready, take it.' }];
-  const target = await harness(t, { issue: NEEDS_HUMAN, saved: SAVED, thread });
-  const questions = await waitingQuestions(target.context.repo, target.context.config, {
-    openIssues: async () => [NEEDS_HUMAN],
-    threadComments: async () => thread,
-    canWrite: async () => true,
-  });
-  assert.deepEqual(
-    questions.map((question) => question.issue),
-    [NEEDS_HUMAN.number],
-  );
-});
-
-test('a writer who answers a handed-over issue sees the issue leave the waiting questions of the worker', async (t) => {
-  const thread = [HAND_OVER_NOTE, { author: 'owner', body: 'Ready, take it.' }];
-  const target = await harness(t, { issue: NEEDS_HUMAN, saved: HANDED_OVER, thread });
-  const questions = await waitingQuestions(target.context.repo, target.context.config, {
-    openIssues: async () => [NEEDS_HUMAN],
-    threadComments: async () => thread,
-    canWrite: async () => true,
-  });
-  assert.deepEqual(questions, []);
 });
 
 test('a run that finds a corrupt state file reports an error that names the file and starts no agent', async (t) => {

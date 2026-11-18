@@ -6,7 +6,6 @@ import { runIssues } from '../src/shared/loop.mts';
 import { pendingIssues } from '../src/worker/pending.mts';
 import { processIssue } from '../src/worker/pipeline.mts';
 import type { Ports } from '../src/shared/ports.mts';
-import { upcomingIssues } from '../src/worker/upcoming.mts';
 import { APPROVE, type Harness, harness, ISSUE, type Plan } from './harness.mts';
 
 const GIVEN_UP: Issue = {
@@ -94,16 +93,6 @@ test('a writer who answers a waiting ready issue with no state file behind a ful
   assert.deepEqual(await outcomes(target), [[7, 'done']]);
 });
 
-test('a user whose given-up and waiting issues fill the issue limit sees a newer ready issue in the upcoming list', async (t) => {
-  const target = await limited(t, [GIVEN_UP, WAITING, OTHER_GIVEN_UP, ISSUE]);
-  const { repo, config, ports } = target.context;
-  const upcoming = await upcomingIssues(repo, config, {
-    openIssues: ports.openIssues,
-    openBlockers: async () => [],
-  });
-  assert.deepEqual(upcoming.claimable, [{ issue: 7, title: ISSUE.title }]);
-});
-
 test('a user who hunts with given-up and waiting issues filling the issue limit sees the hunter count a newer ready issue', async (t) => {
   const target = await limited(t, [GIVEN_UP, WAITING, OTHER_GIVEN_UP, ISSUE]);
   target.context.ports.openBlockers = async () => [];
@@ -153,16 +142,5 @@ test('a user who hunts with blocked ready issues filling the issue limit sees th
   assert.deepEqual(
     ready.map((issue) => issue.number),
     [7],
-  );
-});
-
-test('a user whose blocked ready issues fill the issue limit sees a newer unblocked ready issue in the upcoming list', async (t) => {
-  const target = await blockedFirst(t);
-  const { repo, config, ports } = target.context;
-  const upcoming = await upcomingIssues(repo, config, ports);
-  assert.deepEqual(upcoming.claimable, [{ issue: 7, title: ISSUE.title }]);
-  assert.deepEqual(
-    upcoming.blocked.map((item) => item.issue),
-    [3, 4],
   );
 });

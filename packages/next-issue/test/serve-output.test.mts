@@ -34,7 +34,6 @@ async function repoWorker(t: TestContext, gh: string) {
     lockPath: join(dir, 'w.lock'),
     version: '2.0.0',
     runRepo,
-    questions: async () => [],
   });
   assert.ok(started);
   t.after(() => started.close());

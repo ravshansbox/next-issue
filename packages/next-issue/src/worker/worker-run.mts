@@ -2,7 +2,6 @@ import { type RunChildren, runChildren, stopRunChildren } from '../shared/childr
 import { wakeableSleep } from '../shared/durations.mts';
 import { type Toggle, onOff } from '../shared/switch.mts';
 import type { Interrupts } from '../shared/interrupt.mts';
-import type { Fields } from '../shared/observe.mts';
 import { applyEvent } from './progress.mts';
 import {
   type Progress,
@@ -62,10 +61,6 @@ export function runsMessage(runs: Map<string, Run>): WorkerMessage {
     type: 'runs',
     runs: Object.fromEntries([...runs].map(([root, run]) => [root, run.progress])),
   };
-}
-
-function endsIssue(record: Fields): boolean {
-  return record['kind'] === 'issue.end' || record['kind'] === 'issue.error';
 }
 
 export function stopPoint(after: unknown): StopPoint | undefined {
@@ -169,21 +164,12 @@ function runInterrupts(run: Run): Interrupts {
   };
 }
 
-export function runControls(
-  run: Run,
-  update: (next: Progress) => void,
-  issueEnded: () => void,
-): RunControls {
+export function runControls(run: Run, update: (next: Progress) => void): RunControls {
   return {
     interrupts: runInterrupts(run),
     hunting: run.hunting,
     watching: run.watching,
     refreshed: run.refresher.refreshed,
-    onEvent: (record) => {
-      update(applyEvent(run.progress, record));
-      if (endsIssue(record)) {
-        issueEnded();
-      }
-    },
+    onEvent: (record) => update(applyEvent(run.progress, record)),
   };
 }

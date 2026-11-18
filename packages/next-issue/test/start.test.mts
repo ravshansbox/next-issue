@@ -12,7 +12,7 @@ import { packageVersion } from '../src/shared/version.mts';
 import { rejoinRun } from '../src/shared/worker-client.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
 import { tempDir } from './temp-dir.mts';
-import { connect, fakeRuns, noQuestions } from './worker-harness.mts';
+import { connect, fakeRuns } from './worker-harness.mts';
 
 const SUCCESSOR = fileURLToPath(new URL('successor-worker.mts', import.meta.url));
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
@@ -90,7 +90,6 @@ async function fakeWorker(t: TestContext, root: string, runRepo: RunRepo, versio
     ...paths,
     version: version ?? (await packageVersion()),
     runRepo,
-    questions: noQuestions,
   });
   assert.ok(worker);
   t.after(() => worker.close());

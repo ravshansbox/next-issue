@@ -281,7 +281,6 @@ export async function claimedError(
   } catch (failure) {
     log.event('hand-over.error', { error: message(failure) });
   }
-  // The issue ends (and the waiting questions go out) only once the hand-over is done.
   logIssueError(log, error, started);
   await cleanUp(context, log, state.branch);
   const report = {
