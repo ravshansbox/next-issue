@@ -1,16 +1,5 @@
 export type RunStatus = 'running' | 'stopping' | 'finished' | 'stopped' | 'failed';
 
-export type Handled = { issue: number; outcome: 'done' | 'needs-human' | 'error' };
-
-export type IssueProgress = {
-  issue: number;
-  title?: string;
-  stage?: string;
-  tools: number;
-  lastTool?: string;
-  startedAt?: number;
-};
-
 export type Upgrade = { from: string; to: string; resumes?: boolean };
 
 export type Launch = { command: string; args: string[] };
@@ -20,9 +9,6 @@ export type Progress = {
   hunting: boolean;
   watching?: boolean;
   upgrade?: Upgrade;
-  issues: IssueProgress[];
-  handled: Handled[];
-  open?: number;
   error?: string;
 };
 

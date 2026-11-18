@@ -3,7 +3,6 @@ import { test } from 'node:test';
 import type { Issue } from '../src/shared/github.mts';
 import type { Outcome } from '../src/shared/job.mts';
 import { exitCode, type Loop, runIssues } from '../src/shared/loop.mts';
-import { applyEvent, startProgress } from '../src/worker/progress.mts';
 import { refresher } from '../src/worker/refresh.mts';
 import { issue, report } from './loop-harness.mts';
 
@@ -306,16 +305,16 @@ type Counted = Fake & { open: Set<number>; status: () => number | undefined };
 function counted(numbers: number[]): Counted {
   const fake = loop({}) as Counted;
   fake.open = new Set(numbers);
-  let progress = startProgress();
-  fake.status = () => progress.open;
+  let openCount: number | undefined;
+  fake.status = () => openCount;
   fake.issues = async () => {
-    progress = applyEvent(progress, { kind: 'issues', open: fake.open.size });
+    openCount = fake.open.size;
     return [...fake.open].map((number) => issue(number));
   };
   return fake;
 }
 
-test('a person who reads the status sees the open count drop when an issue ends while every slot is taken, and no issue is claimed for it', async () => {
+test('a person who reads the run log sees the open count drop when an issue ends while every slot is taken, and no issue is claimed for it', async () => {
   const fake = counted([1, 2, 3]);
   const secondClaimed = gate();
   const secondEnds = gate();
@@ -345,7 +344,7 @@ test('a person who reads the status sees the open count drop when an issue ends 
   assert.deepEqual(fake.processed, [1, 2, 3]);
 });
 
-test('a person who files an issue and asks for a refresh while every slot is taken sees the open count rise, and no issue is claimed for it', async () => {
+test('a person who files an issue and asks for a refresh while every slot is taken sees the open count rise in the run log, and no issue is claimed for it', async () => {
   const fake = counted([1, 2]);
   const firstEnds = gate();
   fake.process = async (target) => {
@@ -369,7 +368,7 @@ test('a person who files an issue and asks for a refresh while every slot is tak
   assert.deepEqual(fake.processed, [1, 2, 3]);
 });
 
-test('a person who reads the status sees the open count drop when the run closes an issue after a stop was asked for', async () => {
+test('a person who reads the run log sees the open count drop when the run closes an issue after a stop was asked for', async () => {
   const fake = counted([1, 2]);
   let stopped = false;
   fake.process = async (target) => {

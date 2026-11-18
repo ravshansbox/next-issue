@@ -15,8 +15,6 @@ import type { Context, IssueReport } from '../src/shared/job.mts';
 import { Recorder } from '../src/shared/observe.mts';
 import { processIssue } from '../src/worker/pipeline.mts';
 import type { Ports } from '../src/shared/ports.mts';
-import { applyEvent, startProgress } from '../src/worker/progress.mts';
-import type { Progress } from '../src/shared/protocol.mts';
 import { type IssueState, readState, writeState } from '../src/shared/state.mts';
 import type { Verdict } from '../src/worker/verdict.mts';
 import { fullDisk } from './full-disk.mts';
@@ -582,19 +580,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     ports,
   };
   return state;
-}
-
-export function stages(target: Harness): string[] {
-  const seen: string[] = [];
-  target.events.reduce<Progress>((progress, record) => {
-    const next = applyEvent(progress, record);
-    const stage = next.issues[0]?.stage;
-    if (stage !== undefined && stage !== seen.at(-1)) {
-      seen.push(stage);
-    }
-    return next;
-  }, startProgress());
-  return seen;
 }
 
 export function roles(target: Harness): string[] {

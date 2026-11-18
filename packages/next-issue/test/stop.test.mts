@@ -6,7 +6,6 @@ import { onStop, watch } from '../src/shared/children.mts';
 import { listenForInterrupts } from '../src/shared/interrupt.mts';
 import { pendingIssues } from '../src/worker/pending.mts';
 import { processIssue } from '../src/worker/pipeline.mts';
-import { applyEvent, startProgress } from '../src/worker/progress.mts';
 import { type IssueState, writeState } from '../src/shared/state.mts';
 import {
   APPROVE,
@@ -429,25 +428,22 @@ async function stopDuringRead(t: TestContext, plan: Plan, read: 'openBlockers' |
   };
   const report = await target.run();
   const kinds = target.events.map((record) => record.kind);
-  const progress = target.events.reduce(applyEvent, startProgress());
-  return { report, kinds, progress };
+  return { report, kinds };
 }
 
 test('a user who stops a run now while the blockers of a new issue are read gets that issue ended as stopped, not failed', async (t) => {
-  const { report, kinds, progress } = await stopDuringRead(t, {}, 'openBlockers');
+  const { report, kinds } = await stopDuringRead(t, {}, 'openBlockers');
   assert.equal(report.outcome, 'stopped');
   assert.ok(kinds.includes('issue.stop'));
   assert.ok(!kinds.includes('issue.error'));
-  assert.ok(!progress.handled.some((item) => item.outcome === 'error'));
 });
 
 test('a user who stops a run now while the hand-over answer of a needs-human issue is read gets that issue ended as stopped, not failed', async (t) => {
   const issue = { ...ISSUE, labels: ['status:needs-human'] };
-  const { report, kinds, progress } = await stopDuringRead(t, { issue }, 'threadComments');
+  const { report, kinds } = await stopDuringRead(t, { issue }, 'threadComments');
   assert.equal(report.outcome, 'stopped');
   assert.ok(kinds.includes('issue.stop'));
   assert.ok(!kinds.includes('issue.error'));
-  assert.ok(!progress.handled.some((item) => item.outcome === 'error'));
 });
 
 test('a user whose blockers read fails with no stop gets that issue ended as failed', async (t) => {

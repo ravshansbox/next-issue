@@ -5,7 +5,6 @@ import { test } from 'node:test';
 import type { Issue } from '../src/shared/github.mts';
 import { pendingIssues } from '../src/worker/pending.mts';
 import { processIssue } from '../src/worker/pipeline.mts';
-import { applyEvent, startProgress } from '../src/worker/progress.mts';
 import { type IssueState, stateDir, writeState } from '../src/shared/state.mts';
 import { harness, ISSUE, roles, SAVED } from './harness.mts';
 
@@ -35,7 +34,6 @@ test('a user with one open issue and two closed issues to resume sees an open co
     counts.map((record) => record.open),
     [1],
   );
-  assert.equal(target.events.reduce(applyEvent, startProgress()).open, 1);
 });
 
 test('a user whose open issues arrive out of order gets them oldest first', async (t) => {
@@ -108,14 +106,16 @@ test('a user whose saved issue can no longer be read gets the other issues and a
   );
 });
 
-test('a watcher whose run cannot read a saved issue sees no handled issue for it', async (t) => {
+test('a user whose run cannot read a saved issue gets no ended issue for it in the run log', async (t) => {
   const target = await harness(t, {
     saved: SAVED,
     open: [LATER],
     fail: 'viewIssue',
   });
   await pendingIssues(target.context);
-  assert.deepEqual(target.events.reduce(applyEvent, startProgress()).handled, []);
+  assert.ok(
+    !target.events.some((record) => record.kind === 'issue.end' || record.kind === 'issue.error'),
+  );
 });
 
 test('a user with a ready label gets the unblocked and the blocked ready, in-progress and in-review issues asked for apart from the waiting ones, and the given-up ones left out', async (t) => {

@@ -4,7 +4,6 @@ import type { Issue } from '../src/shared/github.mts';
 import type { IssueReport } from '../src/shared/job.mts';
 import { pendingIssues } from '../src/worker/pending.mts';
 import { processIssue } from '../src/worker/pipeline.mts';
-import { applyEvent, startProgress } from '../src/worker/progress.mts';
 import type { IssueState } from '../src/shared/state.mts';
 import { type Harness, harness, ISSUE, roles } from './harness.mts';
 
@@ -41,7 +40,9 @@ function assertCleanedUp(target: Harness, reports: IssueReport[]): void {
   assert.deepEqual(target.closed, []);
   assert.deepEqual(target.landed, []);
   assert.deepEqual(target.reverts, []);
-  assert.deepEqual(target.events.reduce(applyEvent, startProgress()).handled, []);
+  assert.ok(
+    !target.events.some((record) => record.kind === 'issue.end' || record.kind === 'issue.error'),
+  );
 }
 
 test('a user who closes an issue that was handed over gets the next run to remove its state, branches and worktree with no label, comment or close', async (t) => {

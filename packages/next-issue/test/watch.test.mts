@@ -8,7 +8,6 @@ import { runRepo } from '../src/worker/run.mts';
 import { runsDir } from '../src/shared/state.mts';
 import type { Outcome } from '../src/shared/job.mts';
 import { exitCode } from '../src/shared/loop.mts';
-import { applyEvent, startProgress } from '../src/worker/progress.mts';
 import { onOff } from '../src/shared/switch.mts';
 import { hunter as repoHunter } from '../src/shared/hunt.mts';
 import { refresher } from '../src/worker/refresh.mts';
@@ -287,12 +286,12 @@ test('a user who watches with --hunt sees the hunter hunt while an issue runs', 
   assert.deepEqual(fake.processed, [1]);
 });
 
-test('a person who reads the status while an issue runs sees the open count rise right after the hunter files an issue', async () => {
+test('a person who reads the run log while an issue runs sees the open count rise right after the hunter files an issue', async () => {
   const fake = watcher([['done', 'done']]);
   const open = new Set([1]);
-  let progress = startProgress();
+  let openCount: number | undefined;
   fake.issues = async () => {
-    progress = applyEvent(progress, { kind: 'issues', open: open.size });
+    openCount = open.size;
     return [...open].map(issue);
   };
   const hunting = hunter(fake, [[]]);
@@ -304,7 +303,7 @@ test('a person who reads the status while an issue runs sees the open count rise
   const statuses: Array<number | undefined> = [];
   const wait = fake.hunter!.wait;
   fake.hunter!.wait = async (minutes, signal) => {
-    statuses.push(progress.open);
+    statuses.push(openCount);
     return wait(minutes, signal);
   };
   holdIssues(fake, hunting.idle);

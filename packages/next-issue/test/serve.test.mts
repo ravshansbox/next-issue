@@ -65,25 +65,15 @@ test('a worker that starts under an open umask never leaves its socket file open
   assert.equal(process.umask(0), 0);
 });
 
-test('a client that starts a run sees the progress of every running issue in every client', async (t) => {
+test('a client that starts a run sees the run going in every client', async (t) => {
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const starter = await connect(t, socketPath);
   const watcher = await connect(t, socketPath);
   await watcher.next(runsOf);
   starter.send({ type: 'start', root: '/repo' });
-  await watcher.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
+  await watcher.next((value) => value.type === 'runs' && value.runs['/repo']?.status === 'running');
   assert.equal(fake.calls[0]!.root, '/repo');
-  fake.controls().onEvent!({ kind: 'issue.start', issue: 7, ts: '2026-11-02T10:00:00.000Z' });
-  fake.controls().onEvent!({ kind: 'issue.start', issue: 8, ts: '2026-11-02T10:00:00.000Z' });
-  const running = await watcher.next(
-    (value) => value.type === 'runs' && value.runs['/repo']?.issues.length === 2,
-  );
-  assert.deepEqual(
-    running.type === 'runs' && running.runs['/repo']!.issues.map((entry) => entry.issue),
-    [7, 8],
-  );
-  assert.equal(running.type === 'runs' && running.runs['/repo']!.status, 'running');
   fake.finish();
   await watcher.next(
     (value) => value.type === 'runs' && value.runs['/repo']?.status === 'finished',
@@ -141,15 +131,10 @@ test('a client that switches hunting off and on during a run with --hunt sees th
   await client.next(huntingIs(true));
   const controls = fake.controls();
   assert.equal(controls.hunting?.on(), true);
-  controls.onEvent!({ kind: 'issue.start', issue: 7, ts: '2026-11-02T10:00:00.000Z' });
   client.send({ type: 'hunt', root: '/repo', on: false });
   const off = await client.next(huntingIs(false));
   assert.equal(controls.hunting?.on(), false);
   assert.equal(off.type === 'runs' && off.runs['/repo']!.status, 'running');
-  assert.deepEqual(
-    off.type === 'runs' && off.runs['/repo']!.issues.map((entry) => entry.issue),
-    [7],
-  );
   const changed = controls.hunting!.changed();
   client.send({ type: 'hunt', root: '/repo', on: true });
   await client.next(huntingIs(true));
@@ -197,11 +182,10 @@ test('a client that starts a run with --watch off gets a run that neither watche
   assert.equal(started.type === 'runs' && started.runs['/repo']!.hunting, false);
   const controls = fake.controls();
   assert.equal(controls.watching?.on(), false);
-  controls.onEvent!({ kind: 'issue.start', issue: 7, ts: '2026-11-02T10:00:00.000Z' });
   client.send({ type: 'watch', root: '/repo', on: true });
   const on = await client.next(watchingIs(true));
   assert.equal(controls.watching?.on(), true);
-  assert.deepEqual(on.type === 'runs' && on.runs['/repo']!.issues.map((entry) => entry.issue), [7]);
+  assert.equal(on.type === 'runs' && on.runs['/repo']!.status, 'running');
   const changed = controls.watching!.changed();
   client.send({ type: 'watch', root: '/repo', on: false });
   await client.next(watchingIs(false));
@@ -1370,19 +1354,19 @@ test('a client of a run whose log cannot be written still sees its progress and 
   const runRepo: typeof fake.runRepo = async (root, args, controls) => {
     const dir = await tempDir();
     recorder = await Recorder.create(dir, controls.onEvent, fullDisk);
-    recorder.record('issue.start', { issue: 7 });
+    recorder.record('issues.fail', { error: 'first' });
     return fake.runRepo(root, args, controls);
   };
   const { client, socketPath } = await startedRun(t, { ...fake, runRepo });
-  await client.next((value) => value.type === 'runs' && value.runs['/repo']?.issues.length === 1);
+  await client.next((value) => value.type === 'runs' && value.runs['/repo']?.error === 'first');
   await new Promise((resolve) => setTimeout(resolve, 50));
-  recorder!.record('issue.start', { issue: 8 });
-  await client.next((value) => value.type === 'runs' && value.runs['/repo']?.issues.length === 2);
+  recorder!.record('issues.fail', { error: 'second' });
+  await client.next((value) => value.type === 'runs' && value.runs['/repo']?.error === 'second');
   const another = await connect(t, socketPath);
   await another.next((value) => value.type === 'hello');
   await recorder!.close();
   fake.finish();
-  await client.next((value) => value.type === 'runs' && value.runs['/repo']?.status === 'finished');
+  await client.next((value) => value.type === 'runs' && value.runs['/repo']?.status === 'failed');
 });
 
 test('a client of a watch run gets the summary of each pass, and a client of any other run gets none', async (t) => {
