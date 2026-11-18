@@ -8,6 +8,7 @@ const skills = new URL('../skills/', import.meta.url);
 const createIssue = new URL('create-issue/SKILL.md', skills);
 const answerHandOver = new URL('answer-hand-over/SKILL.md', skills);
 const readmeFile = new URL('../README.md', import.meta.url);
+const behaviourFile = new URL('../docs/behaviour.md', import.meta.url);
 
 test('an agent who reads the create-issue template finds the issue sections of next-issue in order', async () => {
   const template = await readFile(new URL('create-issue/template.md', skills), 'utf8');
@@ -52,21 +53,21 @@ test('an agent who creates an issue with the create-issue skill adds the ready l
 
 test('an agent who creates an issue with blockers passes them to gh issue create, so the issue never exists unblocked', async () => {
   const skill = await readFile(createIssue, 'utf8');
-  const readme = await readFile(readmeFile, 'utf8');
+  const behaviour = await readFile(behaviourFile, 'utf8');
   assert.match(
     skill,
     /gh issue create --repo <repo> --title "<title>" --body-file <file> --blocked-by <blockers>\n/,
   );
   assert.doesNotMatch(skill, /--add-blocked-by/);
   assert.doesNotMatch(skill, /no run claims it before its blockers are linked/);
-  assert.match(readme, /gh issue create --body-file --blocked-by/);
-  assert.doesNotMatch(readme, /--add-blocked-by/);
+  assert.match(behaviour, /gh issue create --body-file --blocked-by/);
+  assert.doesNotMatch(behaviour, /--add-blocked-by/);
 });
 
-test('a person who reads the plugin README learns that the create-issue skill adds the ready label after the blocker links', async () => {
-  const readme = await readFile(readmeFile, 'utf8');
+test('a person who reads the plugin behaviour doc learns that the create-issue skill adds the ready label after the blocker links', async () => {
+  const behaviour = await readFile(behaviourFile, 'utf8');
   assert.match(
-    readme,
+    behaviour,
     /adds the ready label with `gh issue edit --add-label` only after it links every blocker/,
   );
 });
@@ -101,16 +102,16 @@ test('an agent who creates an issue in a repository without the ready label crea
 
 test('an agent who creates an issue with the create-issue skill adds no label other than the ready label', async () => {
   const skill = await readFile(createIssue, 'utf8');
-  const readme = await readFile(readmeFile, 'utf8');
+  const behaviour = await readFile(behaviourFile, 'utf8');
   assert.match(skill, /Add no label other than `<ready>`/);
-  assert.match(readme, /and no other label/);
+  assert.match(behaviour, /and no other label/);
 });
 
-test('a person who reads the plugin README learns that the create-issue skill adds the labels.ready label', async () => {
-  const readme = await readFile(readmeFile, 'utf8');
-  assert.match(readme, /`labels\.ready` label of `\.next-issue\/config\.json`/);
-  assert.match(readme, /`status:todo` when `labels\.ready` is not set/);
-  assert.match(readme, /empty `labels\.ready`/);
+test('a person who reads the plugin behaviour doc learns that the create-issue skill adds the labels.ready label', async () => {
+  const behaviour = await readFile(behaviourFile, 'utf8');
+  assert.match(behaviour, /`labels\.ready` label of `\.next-issue\/config\.json`/);
+  assert.match(behaviour, /`status:todo` when `labels\.ready` is not set/);
+  assert.match(behaviour, /empty `labels\.ready`/);
 });
 
 test('a person who asks Claude for a change in a repository with .next-issue/config.json gets the create-issue skill', async () => {
@@ -134,9 +135,9 @@ test('an agent who finds a change too big for one atomic commit proposes a split
   assert.match(skill, /each issue of the split/i);
 });
 
-test('a person who reads the plugin README learns that the create-issue skill splits a change too big for one commit', async () => {
-  const readme = await readFile(readmeFile, 'utf8');
-  assert.match(readme, /too big for one atomic commit/);
+test('a person who reads the plugin behaviour doc learns that the create-issue skill splits a change too big for one commit', async () => {
+  const behaviour = await readFile(behaviourFile, 'utf8');
+  assert.match(behaviour, /too big for one atomic commit/);
 });
 
 test('a user who asks the create-issue skill to change a created issue gets the issue edited on GitHub', async () => {
@@ -171,14 +172,15 @@ test('an agent who creates an issue in a repository whose remote host is ssh.git
   assert.match(skill, /host `ssh\.github\.com` means `github\.com`/);
 });
 
-test('a person who reads the plugin README learns which repository the create-issue skill files in', async () => {
-  const readme = await readFile(readmeFile, 'utf8');
-  assert.match(readme, /repository of the `remote` of `\.next-issue\/config\.json`/);
+test('a person who reads the plugin behaviour doc learns which repository the create-issue skill files in', async () => {
+  const behaviour = await readFile(behaviourFile, 'utf8');
+  assert.match(behaviour, /repository of the `remote` of `\.next-issue\/config\.json`/);
 });
 
 test('an agent who files an issue with the create-issue skill nudges the going run first and asks only whether to start a run when none is going', async () => {
   const skill = await readFile(createIssue, 'utf8');
   const readme = await readFile(readmeFile, 'utf8');
+  const behaviour = await readFile(behaviourFile, 'utf8');
   assert.match(
     skill,
     /call the `mcp__next-issue__next_issue_refresh` tool, with no question first[\s\S]*Ask no question[\s\S]*ask only whether to start a run\. On yes, call the `mcp__next-issue__next_issue_start` tool/,
@@ -189,7 +191,7 @@ test('an agent who files an issue with the create-issue skill nudges the going r
   );
   assert.doesNotMatch(skill, /c\) change the issue/);
   assert.match(readme, /`next_issue_refresh` asks the going run to check for new issues now/);
-  assert.match(readme, /calls `next_issue_refresh` with no question first/);
+  assert.match(behaviour, /calls `next_issue_refresh` with no question first/);
 });
 
 test('an agent who answers a hand-over lists the waiting issues of <repo> and passes --repo <repo> to every gh command', async () => {
