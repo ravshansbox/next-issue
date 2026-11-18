@@ -1,4 +1,4 @@
-# 6. Claude Code instead of pi
+# 6. Claude Code only
 
 ## Status
 
@@ -6,19 +6,19 @@ Accepted
 
 ## Context
 
-The worker ran its agents with pi, and the `pi-next-issue` extension was a
-client in pi. We want next-issue to work with Claude Code only.
+next-issue ran its agents with another coding agent and had an extension for
+it. We want next-issue to work with Claude Code only.
 
 ## Options
 
-### A. Move to Claude Code and remove pi
+### A. Claude Code only
 
 - Pro: one agent engine and one editor client to build and test.
-- Con: pi users must move to Claude Code.
+- Con: users of the other coding agent must move to Claude Code.
 
 ### B. Support both
 
-- Pro: pi users keep working.
+- Pro: users of the other coding agent keep working.
 - Con: every feature needs work in two engines and three clients.
 
 ## Decision
@@ -27,11 +27,10 @@ Option A.
 
 - The worker runs its agents with the Claude Agent SDK and takes Claude model
   IDs only (#561).
-- The Claude Code plugin, `packages/claude-next-issue`, replaces the pi
-  extension (#562). It is served from this repository by
+- The Claude Code plugin, `packages/claude-next-issue`, is the editor client
+  (#562). It is served from this repository by
   `.claude-plugin/marketplace.json`, not from npm.
-- `packages/pi-next-issue` is removed, and `@ravshansbox/pi-next-issue` is
-  deprecated on npm (#563).
+- The old extension is removed, and its npm package is deprecated (#563).
 
 ## Consequences
 

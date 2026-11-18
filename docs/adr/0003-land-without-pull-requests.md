@@ -66,6 +66,6 @@ issues working in parallel.
   The change still gets one CI run, on the base branch.
 - A conflict in the rebase goes to the fixer, as a merge conflict does today.
 - Hand-overs and the answers to them move from the pull request to the issue.
-- The pi extension stops sending `merge`, and the `questions` message of the
+- The editor extension stops sending `merge`, and the `questions` message of the
   worker drops the pull request.
 - Both packages get a new major version.
