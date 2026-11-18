@@ -14,7 +14,7 @@ It needs `git`, `node` with `npx`, and an authenticated [`gh`](https://cli.githu
 
 ## Use
 
-In Claude Code, inside a git repository, run `/next-issue` to open the dashboard in a pane beside the conversation. The status line shows the going run and how many hand-overs wait for a person. See [Use](https://github.com/ravshansbox/next-issue/blob/main/packages/claude-next-issue/docs/behaviour.md#use).
+In Claude Code, inside a git repository, run `/next-issue` to open the dashboard in a pane beside the conversation. The row above the prompt shows the going run and how many hand-overs wait for a person. See [Use](https://github.com/ravshansbox/next-issue/blob/main/packages/claude-next-issue/docs/behaviour.md#use).
 
 ### Dashboard
 

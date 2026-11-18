@@ -106,6 +106,7 @@ let client: Promise<WorkerClient> | undefined;
 let host: Host | undefined;
 let ticking = false;
 let lastQuestions = 0;
+let runText: string | undefined;
 const view: View = { tab: 'Active', chosenRun: 0, busy: false };
 
 function clientFor($: EngineInterface, cwd: string): Promise<WorkerClient> {
@@ -119,10 +120,6 @@ function clientFor($: EngineInterface, cwd: string): Promise<WorkerClient> {
     client = undefined;
   });
   return client;
-}
-
-async function isOpen($: EngineInterface): Promise<boolean> {
-  return (await $.ui.panes()).some((pane) => pane.id === PANE);
 }
 
 async function tick($: EngineInterface, cwd: string): Promise<void> {
@@ -141,10 +138,8 @@ async function tick($: EngineInterface, cwd: string): Promise<void> {
       lastQuestions = Date.now();
       await worker.askQuestions();
     }
-    $.ui.status(statusLine(worker.progress, worker.questions, Date.now()));
-    if (await isOpen($)) {
-      $.ui.invalidate('ui.render');
-    }
+    runText = statusLine(worker.progress, worker.questions, Date.now());
+    $.ui.invalidate('ui.render');
   } finally {
     ticking = false;
   }
@@ -528,4 +523,11 @@ export const register: Register = (on) => {
   on('tool.run', { tool: 'mcp__next-issue__next_issue_status' }, ($) => serveTool($, statusOf));
   on('command.run', { command: 'next-issue' }, ($) => runCommand($));
   on('ui.render', { component: 'Pane', requestId: PANE }, ($, e) => renderPane($, e));
+  on('ui.render', { component: 'AbovePrompt' }, ($, e, next) => {
+    if (runText === undefined || e.props.hasSurvey) {
+      return next(e);
+    }
+    const { Text } = $.ui.resolve(e);
+    return <Text>{runText}</Text>;
+  });
 };

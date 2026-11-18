@@ -3,6 +3,20 @@ import { expect, mock, test } from 'claude-code/testing';
 
 const ROOT = '/repo';
 
+const ABOVE_PROMPT = {
+  plugin: 'next-issue',
+  component: 'AbovePrompt',
+  props: {
+    hasSurvey: false,
+    isCollapsed: false,
+    isWorking: false,
+    maxRows: 10,
+    bodyColumns: 80,
+    scroll: { offset: 0, bodyRows: 10 },
+    view: {},
+  },
+} as const;
+
 const PANE = {
   plugin: 'next-issue',
   component: 'Pane',
@@ -43,23 +57,18 @@ function ran(stdout = '', exitCode = 0) {
   };
 }
 
-function world(on: On, runs: Record<string, unknown> = {}) {
+function world(on: On, runs: Record<string, unknown> = {}, questions = [QUESTION]) {
   const state = {
     runs,
     posted: [] as Message[],
     commands: [] as string[][],
     toasts: [] as string[],
-    statuses: [] as (string | undefined)[],
   };
   on('session.cwd', () => ({ value: ROOT }));
   on('fs.read', () => ({ value: JSON.stringify({ version: '1.2.3' }) }));
   on('fs.stat', () => ({ value: { kind: 'file', size: 10, mtimeMs: 0, isLink: false } }));
   on('ui.toast', (_, e) => {
     state.toasts.push(String((e as { text: unknown }).text));
-    return { value: undefined };
-  });
-  on('ui.status', (_, e) => {
-    state.statuses.push((e as { text?: string }).text);
     return { value: undefined };
   });
   on('process.run', (_, e) => {
@@ -85,7 +94,7 @@ function world(on: On, runs: Record<string, unknown> = {}) {
         replies.push({
           type: 'questions',
           root: ROOT,
-          questions: state.posted.some((item) => item['type'] === 'refresh') ? [] : [QUESTION],
+          questions: state.posted.some((item) => item['type'] === 'refresh') ? [] : questions,
         });
       }
     } else {
@@ -215,10 +224,9 @@ test('a person who answers a hand-over with guidance that starts with a harness 
   await ui.unmount();
 });
 
-test('a person in an interactive session sees the run and the waiting questions in the status line', async ($, on) => {
-  const state = world(on, { [ROOT]: RUNNING });
+test('a person in an interactive session sees the run and the waiting questions in the row above the prompt', async ($, on) => {
+  world(on, { [ROOT]: RUNNING });
   const clock = mock.clock(on);
-  on('ui.panes', () => ({ value: [] }));
   on('tool.register', (_, e) => ({
     value: { tool: `mcp__next-issue__${String((e as { name: unknown }).name)}` },
   }));
@@ -226,5 +234,43 @@ test('a person in an interactive session sees the run and the waiting questions 
   on('session.start', (_, e) => ({ cwd: e.cwd }));
   await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true });
   await clock.advance(1000);
-  expect(state.statuses.at(-1)).toBe('4 issues · #7 · implement · 1 question waiting');
+  const ui = await $.ui.mount({ ...ABOVE_PROMPT, surface: 'terminal' });
+  expect((await ui.find({ type: 'Text' }))?.text).toBe(
+    '4 issues · #7 · implement · 1 question waiting',
+  );
+  await ui.unmount();
+});
+
+test('a person who sees a survey above the prompt sees no next-issue row there', async ($, on) => {
+  world(on, { [ROOT]: RUNNING });
+  const clock = mock.clock(on);
+  on('tool.register', (_, e) => ({
+    value: { tool: `mcp__next-issue__${String((e as { name: unknown }).name)}` },
+  }));
+  on('command.register', () => ({ value: { command: 'next-issue' } }));
+  on('session.start', (_, e) => ({ cwd: e.cwd }));
+  await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true });
+  await clock.advance(1000);
+  const ui = await $.ui.mount({
+    ...ABOVE_PROMPT,
+    props: { ...ABOVE_PROMPT.props, hasSurvey: true },
+    surface: 'terminal',
+  });
+  expect(await ui.find({ type: 'Text' })).toBeUndefined();
+  await ui.unmount();
+});
+
+test('a person in an interactive session with no run going sees no next-issue row above the prompt', async ($, on) => {
+  world(on, {}, []);
+  const clock = mock.clock(on);
+  on('tool.register', (_, e) => ({
+    value: { tool: `mcp__next-issue__${String((e as { name: unknown }).name)}` },
+  }));
+  on('command.register', () => ({ value: { command: 'next-issue' } }));
+  on('session.start', (_, e) => ({ cwd: e.cwd }));
+  await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true });
+  await clock.advance(1000);
+  const ui = await $.ui.mount({ ...ABOVE_PROMPT, surface: 'terminal' });
+  expect(await ui.find({ type: 'Text' })).toBeUndefined();
+  await ui.unmount();
 });
