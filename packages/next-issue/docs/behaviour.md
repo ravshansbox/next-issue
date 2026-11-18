@@ -312,6 +312,7 @@ Claude does not implement the issue in that session. The worker does the work. T
 | `start`                 | Start a run: claim issues, fix them and push them to the base branch                                                                       |
 | `watch on\|off`         | Switch watching of the going run, see [Watch for new issues](#watch-for-new-issues)                                                        |
 | `hunt on\|off`          | Switch hunting of the going run, see [Hunt for bugs](#hunt-for-bugs)                                                                       |
+| `refresh`               | Ask the going run to check for new issues now                                                                                              |
 | `init`                  | Write the config file with the defaults                                                                                                    |
 | `serve`                 | Run the worker of this repository that the clients talk to, see [Worker](#worker)                                                          |
 | `stop`                  | Stop the going run after its current issues, see [Worker](#worker)                                                                         |
