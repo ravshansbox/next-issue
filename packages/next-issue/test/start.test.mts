@@ -8,6 +8,7 @@ import { type TestContext, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { hasCode } from '../src/shared/errors.mts';
+import { must } from '../src/shared/exec.mts';
 import { lockHolder } from '../src/shared/lock.mts';
 import type { RunControls } from '../src/worker/run.mts';
 import { type RunRepo, startWorker } from '../src/worker/serve.mts';
@@ -184,6 +185,25 @@ test('a user with their own create-issue skill in ~/.claude/skills who runs star
   assert.match(stderr, new RegExp(`^kept ${user}: not a next-issue skill$`, 'm'));
   assert.doesNotMatch(stderr, /^updated /m);
   assert.deepEqual(await readdir(join(root, '.claude', 'skills')), ['answer-hand-over']);
+});
+
+test('a user whose repository tracks an outdated .claude/skills/create-issue with uncommitted edits who runs start keeps every file of it as it is, sees kept with its folder and gets no other copy of it', async (t) => {
+  const root = await repository(ORIGIN);
+  const home = await tempDir();
+  const project = join(root, '.claude', 'skills', 'create-issue');
+  await cp(join(SKILLS, 'create-issue'), project, { recursive: true });
+  await writeFile(join(project, 'old.md'), 'old');
+  await must('git', ['add', '.claude/skills/create-issue'], { cwd: root });
+  const edited = '---\nname: create-issue\ndescription: File a next-issue issue.\n---\n\nedited\n';
+  await writeFile(join(project, 'SKILL.md'), edited);
+  const before = await readdir(project, { recursive: true });
+  const stderr = await startWithSkills(t, root, home);
+  assert.deepEqual(await readdir(project, { recursive: true }), before);
+  assert.equal(await readFile(join(project, 'SKILL.md'), 'utf8'), edited);
+  assert.equal(await readFile(join(project, 'old.md'), 'utf8'), 'old');
+  assert.match(stderr, new RegExp(`^kept ${project}: tracked by git$`, 'm'));
+  assert.doesNotMatch(stderr, /create-issue$/m);
+  assert.deepEqual(await readdir(home), []);
 });
 
 test('a user whose copies of the skills match the shipped ones who runs start keeps them as they are and sees nothing about them', async (t) => {

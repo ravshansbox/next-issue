@@ -6,7 +6,7 @@ import { createInterface } from 'node:readline/promises';
 import type { Scope } from '../shared/args.mts';
 import { OWN_SKILLS } from '../shared/agents.mts';
 import { hasCode } from '../shared/errors.mts';
-import { repoRoot } from '../shared/git.mts';
+import { git, repoRoot } from '../shared/git.mts';
 
 const SKILLS = join(import.meta.dirname, '..', '..', 'skills');
 
@@ -117,10 +117,13 @@ async function isOwnSkill(folder: string): Promise<boolean> {
     .some((line) => line.startsWith('description:') && line.includes('next-issue'));
 }
 
+async function isTracked(root: string, folder: string): Promise<boolean> {
+  return (await git(root, ['ls-files', '--', folder])) !== '';
+}
+
 export async function refreshSkills(root: string): Promise<string[]> {
-  const folders = [
-    ...new Set([join(homedir(), '.claude', 'skills'), join(root, '.claude', 'skills')]),
-  ];
+  const project = join(root, '.claude', 'skills');
+  const folders = [...new Set([join(homedir(), '.claude', 'skills'), project])];
   const notes: string[] = [];
   for (const name of OWN_SKILLS) {
     const shipped = await skillHash(join(SKILLS, name));
@@ -134,14 +137,16 @@ export async function refreshSkills(root: string): Promise<string[]> {
       if (hash === shipped) {
         continue;
       }
-      if (await isOwnSkill(join(folder, name))) {
+      if (folder === project && (await isTracked(root, join(folder, name)))) {
+        notes.push(`kept ${join(folder, name)}: tracked by git`);
+      } else if (await isOwnSkill(join(folder, name))) {
         notes.push(`updated ${await replaceSkill(folder, name)}`);
       } else {
         notes.push(`kept ${join(folder, name)}: not a next-issue skill`);
       }
     }
     if (!installed) {
-      notes.push(`wrote ${await replaceSkill(join(root, '.claude', 'skills'), name)}`);
+      notes.push(`wrote ${await replaceSkill(project, name)}`);
     }
   }
   return notes;
