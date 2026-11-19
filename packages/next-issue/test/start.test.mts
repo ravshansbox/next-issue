@@ -145,7 +145,10 @@ test('a user with outdated copies of the skills in ~/.claude/skills and .claude/
   await cp(join(SKILLS, 'create-issue'), user, { recursive: true });
   await writeFile(join(user, 'old.md'), 'old');
   await cp(join(SKILLS, 'answer-hand-over'), project, { recursive: true });
-  await writeFile(join(project, 'SKILL.md'), 'old');
+  await writeFile(
+    join(project, 'SKILL.md'),
+    '---\nname: answer-hand-over\ndescription: Answer a next-issue hand-over.\n---\n\nold\n',
+  );
   const stderr = await startWithSkills(t, root, home);
   await assertShipped(user, 'create-issue');
   await assertShipped(project, 'answer-hand-over');
@@ -166,6 +169,21 @@ test('a user with neither copy of a skill who runs start gets it installed in .c
     assert.match(stderr, new RegExp(`^wrote ${folder}$`, 'm'));
   }
   assert.deepEqual(await readdir(home), []);
+});
+
+test('a user with their own create-issue skill in ~/.claude/skills who runs start keeps it unchanged, sees kept with its folder and gets no project copy of it', async (t) => {
+  const root = await repository(ORIGIN);
+  const home = await tempDir();
+  const user = join(home, '.claude', 'skills', 'create-issue');
+  const own = '---\nname: create-issue\ndescription: File a Jira issue.\n---\n\nmine\n';
+  await mkdir(user, { recursive: true });
+  await writeFile(join(user, 'SKILL.md'), own);
+  const stderr = await startWithSkills(t, root, home);
+  assert.deepEqual(await readdir(user), ['SKILL.md']);
+  assert.equal(await readFile(join(user, 'SKILL.md'), 'utf8'), own);
+  assert.match(stderr, new RegExp(`^kept ${user}: not a next-issue skill$`, 'm'));
+  assert.doesNotMatch(stderr, /^updated /m);
+  assert.deepEqual(await readdir(join(root, '.claude', 'skills')), ['answer-hand-over']);
 });
 
 test('a user whose copies of the skills match the shipped ones who runs start keeps them as they are and sees nothing about them', async (t) => {

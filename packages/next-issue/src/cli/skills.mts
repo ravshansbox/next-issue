@@ -101,6 +101,22 @@ async function skillHash(folder: string): Promise<string | undefined> {
   return hash.digest('hex');
 }
 
+async function isOwnSkill(folder: string): Promise<boolean> {
+  let text;
+  try {
+    text = await readFile(join(folder, 'SKILL.md'), 'utf8');
+  } catch (error) {
+    if (hasCode(error, 'ENOENT')) {
+      return false;
+    }
+    throw error;
+  }
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1] ?? '';
+  return frontmatter
+    .split(/\r?\n/)
+    .some((line) => line.startsWith('description:') && line.includes('next-issue'));
+}
+
 export async function refreshSkills(root: string): Promise<string[]> {
   const folders = [
     ...new Set([join(homedir(), '.claude', 'skills'), join(root, '.claude', 'skills')]),
@@ -115,8 +131,13 @@ export async function refreshSkills(root: string): Promise<string[]> {
         continue;
       }
       installed = true;
-      if (hash !== shipped) {
+      if (hash === shipped) {
+        continue;
+      }
+      if (await isOwnSkill(join(folder, name))) {
         notes.push(`updated ${await replaceSkill(folder, name)}`);
+      } else {
+        notes.push(`kept ${join(folder, name)}: not a next-issue skill`);
       }
     }
     if (!installed) {
