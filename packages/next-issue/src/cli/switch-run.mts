@@ -140,10 +140,26 @@ export function statusText(version: string, progress: Progress): string {
     lines.push(`stopping for an upgrade to ${progress.upgrade.to}`);
   }
   if (progress.issues.length === 0) {
-    lines.push('no issue is running');
+    lines.push(idleLine(progress));
   }
   lines.push(...progress.issues.map(issueLine));
   return `${lines.join('\n')}\n`;
+}
+
+function idleLine(progress: Progress): string {
+  if (progress.status !== 'running') {
+    return 'no issue is running';
+  }
+  const minutes =
+    progress.nextLook === undefined
+      ? 0
+      : Math.ceil((Date.parse(progress.nextLook) - Date.now()) / 60_000);
+  if (minutes > 0) {
+    return `looking again in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
+  }
+  return progress.looking === true || progress.nextLook !== undefined
+    ? 'looking for an issue'
+    : 'no issue is running';
 }
 
 function issueLine({ issue, step, round }: RunningIssue): string {

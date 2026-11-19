@@ -362,6 +362,39 @@ test('a user who runs status with a run going sees its status, the worker versio
   fake.finish();
 });
 
+test('a user who runs status while the worker looks for an issue or waits to look again sees "looking for an issue", then "looking again in <n> minutes", and only the issue lines while an issue runs', async (t) => {
+  const root = await repository(ORIGIN);
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const other = await connect(t, workerPaths(root).socketPath);
+  other.send({ type: 'start', root });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'running');
+  const controls = fake.controls();
+  const statusLine = async (): Promise<string> => {
+    const status = cliCommand(t, root, ['status']);
+    assert.equal(await status.exited, 0, status.stderr());
+    return status.stdout().split('\n').slice(2).join('\n');
+  };
+  assert.equal(await statusLine(), 'looking for an issue\n');
+  controls.onEvent!({ kind: 'issue.start', issue: 636 });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.issues.length === 1);
+  assert.equal(await statusLine(), '#636 starting\n');
+  controls.onEvent!({ kind: 'issue.end', issue: 636 });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.issues.length === 0);
+  assert.equal(await statusLine(), 'looking for an issue\n');
+  const ago = new Date(Date.now() - 61_000).toISOString();
+  controls.onEvent!({ kind: 'watch.wait', minutes: 3, ts: ago });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.looking === false);
+  assert.equal(await statusLine(), 'looking again in 2 minutes\n');
+  controls.onEvent!({ kind: 'watch.wait', minutes: 1, ts: new Date().toISOString() });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.nextLook !== undefined);
+  assert.equal(await statusLine(), 'looking again in 1 minute\n');
+  controls.onEvent!({ kind: 'watch.wake' });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.looking === true);
+  assert.equal(await statusLine(), 'looking for an issue\n');
+  fake.finish();
+});
+
 test('a user who runs status while the run stops for an upgrade sees the run stopping, the upgrade and that no issue is running', async (t) => {
   const root = await repository(ORIGIN);
   const fake = fakeRuns();
@@ -491,8 +524,8 @@ async function goingRun(t: TestContext, root: string, args: string[] = []) {
   return { fake, other };
 }
 
-function statusLines(status: string, settings: string): string {
-  return ['a run is going already', status, settings, 'no issue is running', ''].join('\n');
+function statusLines(status: string, settings: string, idle = 'looking for an issue'): string {
+  return ['a run is going already', status, settings, idle, ''].join('\n');
 }
 
 test('a user who runs start while a run is going sees the status of that run on stderr, exit code 0, and the run keep going with its settings and no second run', async (t) => {
@@ -615,7 +648,7 @@ test('a user who runs start --hunt on while a worker older than request ids has 
   assert.equal(await started.exited, 0, started.stderr());
   assert.equal(
     withoutExcludeNotes(started.stderr()),
-    statusLines('running in worker 0.0.0-old', 'watching on, hunting on'),
+    statusLines('running in worker 0.0.0-old', 'watching on, hunting on', 'no issue is running'),
   );
 });
 

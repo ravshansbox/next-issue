@@ -5,6 +5,8 @@ import { type Args, parseArgs } from '../src/shared/args.mts';
 import type { Issue } from '../src/shared/github.mts';
 import { type Switch, onOff } from '../src/shared/switch.mts';
 import type { LoopResult } from '../src/shared/loop.mts';
+import { statusText } from '../src/cli/switch-run.mts';
+import { applyEvent, startProgress } from '../src/worker/progress.mts';
 import { watchRun } from '../src/worker/run.mts';
 import { until } from './helpers.mts';
 import { harness, ISSUE, type Plan, roles } from './harness.mts';
@@ -184,4 +186,29 @@ test('a worker client who turns watching off during a wait sees the run end at o
   await until(run.ended, 'the run end');
   assert.equal(run.passes(), 1);
   assert.deepEqual(run.sleeps, [1]);
+});
+
+test('a user who reads the status of a watch run sees it wait to look again during the wait, then look for an issue once the wait ends', async (t) => {
+  const events: Array<Record<string, unknown>> = [];
+  let fetches = 0;
+  let release = (): void => undefined;
+  const held = new Promise<Issue[]>((resolve) => {
+    release = () => resolve([]);
+  });
+  const run = await startWatch(t, parseArgs(['start', '--watch', 'on']), {
+    plan: { onEvent: (record) => events.push(record) },
+    issues: async () => {
+      fetches += 1;
+      return fetches === 1 ? [] : held;
+    },
+  });
+  const status = (): string =>
+    statusText('1.0.0', events.reduce(applyEvent, startProgress())).split('\n')[2]!;
+  await until(() => run.sleeps.length === 1, 'the first wait');
+  assert.equal(status(), 'looking again in 1 minute');
+  run.elapse();
+  await until(() => run.passes() === 2, 'the second pass');
+  assert.equal(status(), 'looking for an issue');
+  release();
+  await run.end();
 });

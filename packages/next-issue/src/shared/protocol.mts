@@ -15,6 +15,8 @@ export type Progress = {
   watching?: boolean;
   upgrade?: Upgrade;
   error?: string;
+  looking?: boolean;
+  nextLook?: string;
 };
 
 export type Usage = {

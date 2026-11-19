@@ -116,10 +116,12 @@ export function watchRun(
   controls.onHunter?.(() => hunt.busy());
   return watchIssues({
     ...loop,
-    wait: (minutes, woken) => {
+    wait: async (minutes, woken) => {
       recorder.event('watch.wait', { minutes });
       passStart = recorder.summary();
-      return interrupts.sleep(minutesToMs(minutes), woken);
+      const slept = await interrupts.sleep(minutesToMs(minutes), woken);
+      recorder.record('watch.wake');
+      return slept;
     },
     passEnd: (issues) => print({ ...recorder.summary(passStart), issues }),
     hunter: hunt,

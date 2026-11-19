@@ -145,6 +145,13 @@ test('a user who starts a watch run with no open issue sees start exit with 0 an
   assert.deepEqual(waits, ['watch.wait minutes=1']);
 });
 
+test('a user who runs status while a watch run with no open issue waits sees when the worker looks again', async (t) => {
+  const root = await repository();
+  await watchingRun(t, root);
+  const { stdout } = await promisify(execFile)(process.execPath, [CLI, 'status'], { cwd: root });
+  assert.equal(stdout.split('\n')[2], 'looking again in 1 minute');
+});
+
 const STARTED = /^the run started in the worker/m;
 
 const HELD =

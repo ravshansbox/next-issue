@@ -1,3 +1,4 @@
+import { minutesToMs } from '../shared/durations.mts';
 import type { Fields } from '../shared/observe.mts';
 import type { IssueStep, Progress, RunningIssue } from '../shared/protocol.mts';
 
@@ -11,13 +12,22 @@ const STEPS: Record<string, IssueStep> = {
 };
 
 export function startProgress(hunting = false): Progress {
-  return { status: 'running', hunting, issues: [] };
+  return { status: 'running', hunting, issues: [], looking: true };
 }
 
 export function applyEvent(progress: Progress, record: Fields): Progress {
   const kind = record['kind'];
   if (kind === 'issues.fail') {
     return { ...progress, error: String(record['error']) };
+  }
+  if (kind === 'watch.wait' && typeof record['minutes'] === 'number') {
+    const ts = typeof record['ts'] === 'string' ? Date.parse(record['ts']) : Date.now();
+    const nextLook = new Date(ts + minutesToMs(record['minutes'])).toISOString();
+    return { ...progress, looking: false, nextLook };
+  }
+  if (kind === 'watch.wake') {
+    const { nextLook: _nextLook, ...rest } = progress;
+    return { ...rest, looking: true };
   }
   const issue = record['issue'];
   if (typeof kind !== 'string' || typeof issue !== 'number') {
