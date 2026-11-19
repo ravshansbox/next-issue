@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseArgs } from '../src/shared/args.mts';
+import { parseArgs, USAGE } from '../src/shared/args.mts';
 
 test('a user who runs start with no flags gets a run that watches and does not hunt', () => {
   const args = parseArgs(['start']);
@@ -124,30 +124,32 @@ test('a user who passes a run flag to another command gets an error that names t
   }
 });
 
-test('a user who runs update with --scope user or project gets that scope, and with no --scope gets none', () => {
-  assert.equal(parseArgs(['update']).command, 'update');
-  assert.equal(parseArgs(['update']).scope, undefined);
-  assert.equal(parseArgs(['update', '--scope', 'user']).scope, 'user');
-  assert.equal(parseArgs(['update', '--scope', 'project']).scope, 'project');
+test('a user who runs init with --scope user or project gets that scope, and with no --scope gets none', () => {
+  assert.equal(parseArgs(['init']).scope, undefined);
+  assert.equal(parseArgs(['init', '--scope', 'user']).scope, 'user');
+  assert.equal(parseArgs(['init', '--scope', 'project']).scope, 'project');
+  assert.equal(parseArgs(['init', '--scope', 'user', '--force']).force, true);
+});
+
+test('a user who passes update gets an unknown command error and a usage text that does not list it', () => {
+  assert.throws(() => parseArgs(['update']), /Unknown command: update/);
+  assert.doesNotMatch(USAGE, /update/);
+  assert.match(USAGE, /init[^\n]*\n(\s+--[^\n]*\n)*\s+--scope user\|project/);
 });
 
 test('a user who passes --scope with no value or another value gets an error that says it takes user or project', () => {
   for (const rest of [[], ['all'], ['--force']]) {
-    assert.throws(() => parseArgs(['update', '--scope', ...rest]), /--scope takes user or project/);
+    assert.throws(() => parseArgs(['init', '--scope', ...rest]), /--scope takes user or project/);
   }
 });
 
 test('a user who passes --force to a command other than init gets an error that says it belongs to init', () => {
-  for (const command of ['start', 'serve', 'stop', 'logs', 'update']) {
+  for (const command of ['start', 'serve', 'stop', 'logs']) {
     assert.throws(
       () => parseArgs([command, '--force']),
       new RegExp(`${command} does not take --force: it belongs to init`),
     );
   }
-  assert.throws(
-    () => parseArgs(['update', '--scope', 'user', '--force']),
-    /update does not take --force: it belongs to init/,
-  );
   assert.throws(
     () => parseArgs(['watch', 'on', '--force']),
     /watch does not take --force: it belongs to init/,
@@ -155,11 +157,11 @@ test('a user who passes --force to a command other than init gets an error that 
   assert.equal(parseArgs(['init', '--force']).force, true);
 });
 
-test('a user who passes --scope to another command gets an error that says it belongs to update', () => {
-  for (const command of ['start', 'init', 'stop']) {
+test('a user who passes --scope to another command gets an error that says it belongs to init', () => {
+  for (const command of ['start', 'serve', 'stop', 'logs', 'status']) {
     assert.throws(
       () => parseArgs([command, '--scope', 'user']),
-      new RegExp(`${command} does not take --scope: it belongs to update`),
+      new RegExp(`${command} does not take --scope: it belongs to init`),
     );
   }
 });

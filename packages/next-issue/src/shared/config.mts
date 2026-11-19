@@ -146,18 +146,21 @@ function existsAlready(): Error {
   return new Error(`${CONFIG_FILE} exists already. Use --force to replace it.`);
 }
 
-export async function writeDefaultConfig(root: string, force: boolean): Promise<string> {
+export async function writeDefaultConfig(
+  root: string,
+  force: boolean,
+): Promise<{ path: string; written: boolean }> {
   const path = configFile(root);
   await mkdir(dirname(path), { recursive: true });
   try {
     await writeJson(path, FILE_DEFAULTS, { flag: force ? 'w' : 'wx' });
   } catch (error) {
     if (hasCode(error, 'EEXIST')) {
-      throw existsAlready();
+      return { path, written: false };
     }
     throw error;
   }
-  return path;
+  return { path, written: true };
 }
 
 export async function moveOldConfig(root: string, force: boolean): Promise<string | undefined> {

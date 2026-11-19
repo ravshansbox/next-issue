@@ -38,7 +38,7 @@ Option A.
 - Each repository has one worker, which runs at most one run.
 - The `next-issue` CLI is the only kind of client, and any number of its instances can talk to the worker at the same time.
 - Shared behaviour, such as upgrading the worker and starting a run again, lives in the worker, so the client stays thin.
-- The `create-issue` and `answer-hand-over` skills ship in the `next-issue` package, and `next-issue update` installs them.
+- The `create-issue` and `answer-hand-over` skills ship in the `next-issue` package, and `next-issue init` installs them.
 
 ## Consequences
 

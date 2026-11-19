@@ -40,23 +40,17 @@ Give an issue the `status:todo` label to have it picked up. See [Issue format](h
 
 ### Skills for Claude Code
 
-To install the `create-issue` skill, which writes an issue that the harness can claim, and the `answer-hand-over` skill, which helps you answer a hand-over, run:
-
-```bash
-npx -y next-issue@latest update
-```
-
-It asks whether to install them for your user or for the project. See [Skills](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#skills).
+`init` (see [Configuration](#configuration)) installs the `create-issue` skill, which writes an issue that the harness can claim, and the `answer-hand-over` skill, which helps you answer a hand-over. It asks whether to install them for your user or for the project; `--scope user|project` answers in advance. Run `init` again after an upgrade of next-issue to get the skills of that version. See [Skills](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#skills).
 
 ## Configuration
 
-To write `.next-issue/config.json` with the defaults, run:
+To set up a repository, run:
 
 ```bash
 npx -y next-issue@latest init
 ```
 
-A field that is not in the file keeps its default. See [Configuration](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#configuration) for the details.
+It writes `.next-issue/config.json` with the defaults, or keeps the file when it is there already, and installs the skills. A field that is not in the file keeps its default. See [Configuration](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#configuration) for the details.
 
 | Field                   | Default            | Effect                                                              |
 | ----------------------- | ------------------ | ------------------------------------------------------------------- |
@@ -90,15 +84,14 @@ A field that is not in the file keeps its default. See [Configuration](https://g
 | `start`                 | Start a run: claim issues, fix them and push them to the base branch       |
 | `watch on\|off`         | Switch watching of the going run                                           |
 | `hunt on\|off`          | Switch hunting of the going run                                            |
-| `init`                  | Write the config file with the defaults                                    |
+| `init`                  | Write the config file with the defaults and install the skills             |
 | `stop`                  | Stop the going run after its current issues                                |
 | `status`                | Show the going run, its worker and its running issues                      |
 | `logs`                  | Show the latest run log and follow it                                      |
-| `update`                | Install the `create-issue` and `answer-hand-over` skills for Claude Code   |
 | `--force`               | With `init`: replace an existing config file                               |
 | `--watch on\|off`       | With `start`: read the open issues again after each pass. On by default    |
 | `--hunt on\|off`        | With `start`: hunt the repository for bugs. Off by default. Needs watching |
-| `--scope user\|project` | With `update`: install for the user (`~/.claude/skills/`) or the project   |
+| `--scope user\|project` | With `init`: install for the user (`~/.claude/skills/`) or the project     |
 | `--help`                | Show the option list                                                       |
 
 See [Commands and options](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#commands-and-options) for the details.

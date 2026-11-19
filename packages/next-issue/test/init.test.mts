@@ -15,22 +15,22 @@ const FULL_DISK = `--import=data:text/javascript,${encodeURIComponent(
   "import fs from 'node:fs/promises';import { syncBuiltinESMExports } from 'node:module';fs.cp = async (source, destination) => { await fs.mkdir(destination, { recursive: true }); await fs.writeFile(destination + '/SKILL.md', 'half'); throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' }); };syncBuiltinESMExports();",
 )}`;
 
-function update(cwd: string, home: string, args: string[]) {
-  return promisify(execFile)(process.execPath, [CLI, 'update', ...args], {
+function init(cwd: string, home: string, args: string[]) {
+  return promisify(execFile)(process.execPath, [CLI, 'init', ...args], {
     cwd,
     env: { ...process.env, HOME: home },
   });
 }
 
-function updateOnFullDisk(cwd: string, home: string, args: string[]) {
-  return promisify(execFile)(process.execPath, [FULL_DISK, CLI, 'update', ...args], {
+function initOnFullDisk(cwd: string, home: string, args: string[]) {
+  return promisify(execFile)(process.execPath, [FULL_DISK, CLI, 'init', ...args], {
     cwd,
     env: { ...process.env, HOME: home },
   });
 }
 
-function updateInTerminal(cwd: string, home: string, answer: string) {
-  const child = promisify(execFile)(process.execPath, [TERMINAL_STDIN, CLI, 'update'], {
+function initInTerminal(cwd: string, home: string, answer: string) {
+  const child = promisify(execFile)(process.execPath, [TERMINAL_STDIN, CLI, 'init'], {
     cwd,
     env: { ...process.env, HOME: home },
   });
@@ -52,26 +52,62 @@ async function assertInstalled(folder: string): Promise<void> {
   }
 }
 
-test('a user who runs update --scope user outside a repository gets the skills in ~/.claude/skills and output that names them', async () => {
+async function untouched(root: string, home: string): Promise<void> {
+  assert.deepEqual(await readdir(home), []);
+  assert.deepEqual((await readdir(root)).sort(), ['.git', '.worktrees']);
+  assert.doesNotMatch(await readFile(join(root, '.git/info/exclude'), 'utf8'), /\.next-issue\//);
+}
+
+test('a user who runs init --scope user gets the config file, the exclude lines and the skills in ~/.claude/skills, with output that names each', async () => {
   const home = await tempDir();
-  const cwd = await tempDir();
-  const { stdout } = await update(cwd, home, ['--scope', 'user']);
+  const root = await repository();
+  const { stdout } = await init(root, home, ['--scope', 'user']);
   const folder = join(home, '.claude', 'skills');
   await assertInstalled(folder);
+  assert.match(stdout, /wrote .*\.next-issue\/config\.json\n/);
+  assert.match(stdout, /added \.next-issue\/ to .*info\/exclude/);
   assert.match(stdout, new RegExp(`wrote ${join(folder, 'create-issue')}\n`));
   assert.match(stdout, new RegExp(`wrote ${join(folder, 'answer-hand-over')}\n`));
 });
 
-test('a user who runs update --scope project in a linked worktree gets the skills in .claude/skills of the main worktree', async () => {
+test('a user who runs init --scope project in a linked worktree gets the skills in .claude/skills of the main worktree', async () => {
   const home = await tempDir();
   const root = await repository();
   const linked = await linkedWorktree(root);
-  await update(linked, home, ['--scope', 'project']);
+  await init(linked, home, ['--scope', 'project']);
   await assertInstalled(join(root, '.claude', 'skills'));
   assert.deepEqual(await readdir(home), []);
 });
 
-test('a user who runs update over older copies gets them replaced and keeps their other skills', async () => {
+test('a user who runs init with a config file there already keeps the file, sees kept with its path, gets the skills and the exclude lines, and exit code 0', async () => {
+  const home = await tempDir();
+  const root = await repository();
+  await mkdir(join(root, '.next-issue'));
+  await writeFile(join(root, '.next-issue/config.json'), '{ "maxCiFixes": 9 }\n');
+  const { stdout } = await init(root, home, ['--scope', 'user']);
+  assert.equal(
+    await readFile(join(root, '.next-issue/config.json'), 'utf8'),
+    '{ "maxCiFixes": 9 }\n',
+  );
+  assert.match(stdout, new RegExp(`kept ${join(root, '.next-issue/config.json')}\n`));
+  assert.match(stdout, /added \.next-issue\/ to .*info\/exclude/);
+  await assertInstalled(join(home, '.claude', 'skills'));
+});
+
+test('a user who runs init --force with a config file there gets the defaults in it and the skills', async () => {
+  const home = await tempDir();
+  const root = await repository();
+  await mkdir(join(root, '.next-issue'));
+  await writeFile(join(root, '.next-issue/config.json'), '{ "maxCiFixes": 9 }\n');
+  await init(root, home, ['--scope', 'user', '--force']);
+  assert.equal(
+    JSON.parse(await readFile(join(root, '.next-issue/config.json'), 'utf8')).maxCiFixes,
+    5,
+  );
+  await assertInstalled(join(home, '.claude', 'skills'));
+});
+
+test('a user who runs init over older copies of the skills gets them replaced and keeps their other skills', async () => {
   const home = await tempDir();
   const folder = join(home, '.claude', 'skills');
   await mkdir(join(folder, 'create-issue'), { recursive: true });
@@ -79,7 +115,7 @@ test('a user who runs update over older copies gets them replaced and keeps thei
   await writeFile(join(folder, 'create-issue', 'old.md'), 'old');
   await mkdir(join(folder, 'mine'));
   await writeFile(join(folder, 'mine', 'SKILL.md'), 'mine');
-  await update(await tempDir(), home, ['--scope', 'user']);
+  await init(await repository(), home, ['--scope', 'user']);
   await assertInstalled(folder);
   assert.deepEqual((await readdir(join(folder, 'create-issue'))).sort(), [
     'SKILL.md',
@@ -89,13 +125,13 @@ test('a user who runs update over older copies gets them replaced and keeps thei
   assert.deepEqual((await readdir(folder)).sort(), ['answer-hand-over', 'create-issue', 'mine']);
 });
 
-test('a user who runs update when the copy fails part way keeps the skill installed before, has no half-written copy left and gets an error and exit code 1', async () => {
+test('a user who runs init when the skill copy fails part way keeps the skill installed before, has no half-written copy left and gets an error and exit code 1', async () => {
   const home = await tempDir();
   const folder = join(home, '.claude', 'skills');
   await mkdir(join(folder, 'create-issue'), { recursive: true });
   await writeFile(join(folder, 'create-issue', 'SKILL.md'), 'old');
   await assert.rejects(
-    updateOnFullDisk(await tempDir(), home, ['--scope', 'user']),
+    initOnFullDisk(await repository(), home, ['--scope', 'user']),
     (error: { code: number; stderr: string }) => {
       assert.equal(error.code, 1);
       assert.match(error.stderr, /next-issue failed: ENOSPC/);
@@ -107,36 +143,24 @@ test('a user who runs update when the copy fails part way keeps the skill instal
   assert.equal(await readFile(join(folder, 'create-issue', 'SKILL.md'), 'utf8'), 'old');
 });
 
-test('a user who runs update with no --scope and no terminal gets an error that names --scope, exit code 1 and no skill written', async () => {
+test('a user who runs init with no --scope and no terminal gets an error that names init and --scope, exit code 1 and nothing written', async () => {
   const home = await tempDir();
   const root = await repository();
   await linkedWorktree(root);
-  await assert.rejects(update(root, home, []), (error: { code: number; stderr: string }) => {
+  await assert.rejects(init(root, home, []), (error: { code: number; stderr: string }) => {
     assert.equal(error.code, 1);
-    assert.match(error.stderr, /--scope user\|project/);
+    assert.match(error.stderr, /init needs --scope user\|project/);
     return true;
   });
-  assert.deepEqual(await readdir(home), []);
-  assert.deepEqual((await readdir(root)).sort(), ['.git', '.worktrees']);
+  await untouched(root, home);
 });
 
-test('a user who runs update --scope project outside a git repository gets exit code 1 and no skill written', async () => {
-  const home = await tempDir();
-  const cwd = await tempDir();
-  await assert.rejects(update(cwd, home, ['--scope', 'project']), (error: { code: number }) => {
-    assert.equal(error.code, 1);
-    return true;
-  });
-  assert.deepEqual(await readdir(home), []);
-  assert.deepEqual(await readdir(cwd), []);
-});
-
-test('a user who runs update in a terminal with no --scope is asked where to install the skills and gets them in the folder they answer', async () => {
+test('a user who runs init in a terminal with no --scope is asked where to install the skills and gets them in the folder they answer', async () => {
   for (const answer of ['user', 'u', 'project', 'p']) {
     const home = await tempDir();
     const root = await repository();
     await linkedWorktree(root);
-    const { stdout } = await updateInTerminal(root, home, `${answer}\n`);
+    const { stdout } = await initInTerminal(root, home, `${answer}\n`);
     assert.match(stdout, /~\/\.claude\/skills/);
     assert.match(stdout, /\.claude\/skills of the main worktree/);
     const base = answer.startsWith('u') ? home : root;
@@ -144,18 +168,17 @@ test('a user who runs update in a terminal with no --scope is asked where to ins
   }
 });
 
-test('a user who runs update in a terminal and gives another answer than user or project gets an error that names them, exit code 1 and no skill written', async () => {
+test('a user who runs init in a terminal and gives another answer than user or project gets an error that names them, exit code 1 and nothing written', async () => {
   const home = await tempDir();
   const root = await repository();
   await linkedWorktree(root);
   await assert.rejects(
-    updateInTerminal(root, home, 'both\n'),
+    initInTerminal(root, home, 'both\n'),
     (error: { code: number; stderr: string }) => {
       assert.equal(error.code, 1);
       assert.match(error.stderr, /answer user or project/);
       return true;
     },
   );
-  assert.deepEqual(await readdir(home), []);
-  assert.deepEqual((await readdir(root)).sort(), ['.git', '.worktrees']);
+  await untouched(root, home);
 });

@@ -1,15 +1,6 @@
 import { CONFIG_FILE } from './config-fields.mts';
 
-type Command =
-  | 'start'
-  | 'init'
-  | 'serve'
-  | 'stop'
-  | 'status'
-  | 'logs'
-  | 'watch'
-  | 'hunt'
-  | 'update';
+type Command = 'start' | 'init' | 'serve' | 'stop' | 'status' | 'logs' | 'watch' | 'hunt';
 
 export type Scope = 'user' | 'project';
 
@@ -37,17 +28,7 @@ const RUN_FLAGS = new Map<string, RunFlag>([
   ['--hunt', 'hunt'],
 ]);
 
-const COMMANDS: Command[] = [
-  'start',
-  'init',
-  'serve',
-  'stop',
-  'status',
-  'logs',
-  'watch',
-  'hunt',
-  'update',
-];
+const COMMANDS: Command[] = ['start', 'init', 'serve', 'stop', 'status', 'logs', 'watch', 'hunt'];
 
 export const USAGE = `next-issue <command> [options]
 
@@ -56,13 +37,12 @@ export const USAGE = `next-issue <command> [options]
     --hunt on|off   hunt the repository for bugs and file issues alongside the issues, needs watching (default off)
   watch on|off      switch watching of the going run; off also turns hunting off
   hunt on|off       switch hunting of the going run; on also turns watching on
-  init              write ${CONFIG_FILE} with the defaults and add .next-issue/ and .worktrees/ to info/exclude
+  init              set up the repository: write ${CONFIG_FILE}, add .next-issue/ and .worktrees/ to info/exclude and install the skills; run it again after an upgrade
+    --scope user|project
+                    user: in ~/.claude/skills; project: in .claude/skills of the main worktree (asks when not given)
   stop              stop the going run after its current issues
   status            show the going run, its worker and its running issues
   logs              show the latest run log and follow it
-  update            install the create-issue and answer-hand-over skills for Claude Code
-    --scope user|project
-                    user: in ~/.claude/skills; project: in .claude/skills of the main worktree (asks when not given)
 
   --force           replace an existing config file, with init
   --help            show this text
@@ -81,8 +61,8 @@ export function parseArgs(argv: string[]): Args {
   if (args.command !== undefined && args.command !== 'start' && runFlag !== undefined) {
     throw new Error(`${args.command} does not take ${runFlag}: it belongs to start`);
   }
-  if (args.command !== undefined && args.command !== 'update' && args.scope !== undefined) {
-    throw new Error(`${args.command} does not take --scope: it belongs to update`);
+  if (args.command !== undefined && args.command !== 'init' && args.scope !== undefined) {
+    throw new Error(`${args.command} does not take --scope: it belongs to init`);
   }
   if ((args.command === 'watch' || args.command === 'hunt') && args.on === undefined) {
     throw new Error(`${args.command} takes on or off`);

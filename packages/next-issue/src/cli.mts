@@ -10,7 +10,7 @@ import { serve } from './worker/serve.mts';
 import { startInWorker } from './cli/start.mts';
 import { STATE_DIR } from './shared/state.mts';
 import { statusInWorker, stopInWorker, switchInWorker } from './cli/switch-run.mts';
-import { chooseScope, installSkills } from './cli/update.mts';
+import { chooseScope, installSkills } from './cli/skills.mts';
 import { WORKTREE_DIR } from './shared/worktree.mts';
 
 function write(stream: NodeJS.WriteStream, text: string): Promise<void> {
@@ -30,12 +30,9 @@ async function main(): Promise<number> {
     await write(process.stderr, USAGE);
     return 1;
   }
-  if (args.command === 'update') {
-    return update(args);
-  }
   const root = await repoRoot(process.cwd());
   if (args.command === 'init') {
-    return init(root, args.force);
+    return init(root, args);
   }
   await rejectOldConfig(root);
   if (args.command === 'stop') {
@@ -71,22 +68,19 @@ async function logs(root: string): Promise<number> {
   return followLog(root, file, { tail }, (text) => write(process.stdout, text));
 }
 
-async function update(args: Args): Promise<number> {
+async function init(root: string, args: Args): Promise<number> {
   const scope = await chooseScope(args.scope);
-  for (const folder of await installSkills(scope)) {
-    await write(process.stdout, `wrote ${folder}\n`);
-  }
-  return 0;
-}
-
-async function init(root: string, force: boolean): Promise<number> {
-  const moved = await moveOldConfig(root, force);
+  const moved = await moveOldConfig(root, args.force);
   if (moved === undefined) {
-    await write(process.stdout, `wrote ${await writeDefaultConfig(root, force)}\n`);
+    const { path, written } = await writeDefaultConfig(root, args.force);
+    await write(process.stdout, `${written ? 'wrote' : 'kept'} ${path}\n`);
   } else {
     await write(process.stdout, `moved ${OLD_CONFIG_FILE} to ${moved}\n`);
   }
   await excludeStateDirectories(root, process.stdout);
+  for (const folder of await installSkills(scope)) {
+    await write(process.stdout, `wrote ${folder}\n`);
+  }
   return 0;
 }
 

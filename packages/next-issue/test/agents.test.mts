@@ -87,7 +87,7 @@ test('an implementer gets the skills of its repository', async (t) => {
   assert.match(bodies[0]!, /project-skill/);
 });
 
-test('an agent in an issue worktree leaves out the create-issue and answer-hand-over skills that next-issue update installed in the project', async (t) => {
+test('an agent in an issue worktree leaves out the create-issue and answer-hand-over skills that next-issue init installed in the project', async (t) => {
   const { recorder, request, bodies } = await claude(t, [text('done')]);
   const worktree = join(request.cwd, '.worktrees', '7');
   for (const folder of [request.cwd, worktree]) {

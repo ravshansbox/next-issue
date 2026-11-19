@@ -137,13 +137,13 @@ The console shows the run and issue milestones, verdicts, hand-overs, errors, ea
 
 ## Configuration
 
-To write the file with the defaults, run the `init` command in the repository:
+To set up a repository, run the `init` command in it:
 
 ```bash
 npx -y next-issue@latest init
 ```
 
-The command writes `.next-issue/config.json` in the main worktree and adds `.next-issue/` and `.worktrees/` to `info/exclude` in the git directory, which linked worktrees share. It removes those two lines from `.gitignore`, and deletes `.gitignore` when nothing else is left in it. It moves a `next-issue.config.json` in the root to `.next-issue/config.json`; every other command stops while that old file is there. It stops when the config file is there already; `--force` replaces it. Any other command with `--force` exits with 1 and the error `<command> does not take --force: it belongs to init`. The file holds no `setupCommand`, because the harness deduces one from the lock file of the project.
+The command writes `.next-issue/config.json` in the main worktree and adds `.next-issue/` and `.worktrees/` to `info/exclude` in the git directory, which linked worktrees share. It removes those two lines from `.gitignore`, and deletes `.gitignore` when nothing else is left in it. It moves a `next-issue.config.json` in the root to `.next-issue/config.json`; every other command stops while that old file is there. When the config file is there already, it keeps it unchanged and prints `kept <path>`; `--force` replaces it with the defaults. It also installs the skills, see [Skills](#skills), so run it again after an upgrade of next-issue to get the skills of that version. Any other command with `--force` exits with 1 and the error `<command> does not take --force: it belongs to init`. The file holds no `setupCommand`, because the harness deduces one from the lock file of the project.
 
 `start` and `serve` also add the two lines to `info/exclude` and remove them from `.gitignore`, so a repository needs no `init` to run. They do not create the config file.
 
@@ -264,12 +264,12 @@ To drop an issue instead, close it. The next run that finds a saved state for an
 
 The package ships two skills for Claude Code: `create-issue` writes an issue that the worker can claim, and `answer-hand-over` helps you answer a hand-over. They run no next-issue command: a watching run picks up a new or retried issue at its next read of the open issues.
 
-`next-issue update` installs them, so Claude Code finds them:
+`next-issue init` installs them, so Claude Code finds them:
 
 - `--scope user` writes them to `~/.claude/skills/`, for every repository;
 - `--scope project` writes them to `.claude/skills/` of the main worktree of the repository it runs in, also from a linked worktree. It fails outside a git repository.
 
-With no `--scope`, it asks which one in the terminal, and fails on another answer than `user` or `project` (or `u` or `p`). With no `--scope` and no terminal to ask, such as in a script, it fails with `update needs --scope user|project` and writes nothing. It replaces the `create-issue` and `answer-hand-over` folders there, so files of an older copy go, and keeps the other skills of the folder. It copies each skill to a `.<skill>.new` folder next to it first and swaps it in only when the copy succeeds, so when the copy fails, such as on a full disk, the skill installed before stays in place and `update` exits with 1 and `next-issue failed: <error>`. It prints `wrote <folder>` for each skill and exits with 0. Run it again after you update `next-issue` to get the skills of that version.
+With no `--scope`, it asks which one in the terminal before it writes anything, and fails with exit code 1 on another answer than `user` or `project` (or `u` or `p`). With no `--scope` and no terminal to ask, such as in a script, it fails with `init needs --scope user|project`, exits with 1 and writes nothing. When the question or the answer fails, the config file and `info/exclude` stay unchanged. Any other command with `--scope` exits with 1 and the error `<command> does not take --scope: it belongs to init`. It replaces the `create-issue` and `answer-hand-over` folders there, so files of an older copy go, and keeps the other skills of the folder. It copies each skill to a `.<skill>.new` folder next to it first and swaps it in only when the copy succeeds, so when the copy fails, such as on a full disk, the skill installed before stays in place and `init` exits with 1 and `next-issue failed: <error>`. It prints `wrote <folder>` for each skill and exits with 0. Run it again after you upgrade `next-issue` to get the skills of that version.
 
 The worker's agents never get these skills, see [Requirements](#requirements).
 
@@ -311,11 +311,10 @@ Claude does not implement the issue in that session. The worker does the work. T
 | `start`                 | Start a run: claim issues, fix them and push them to the base branch                                                                       |
 | `watch on\|off`         | Switch watching of the going run, see [Watch for new issues](#watch-for-new-issues)                                                        |
 | `hunt on\|off`          | Switch hunting of the going run, see [Hunt for bugs](#hunt-for-bugs)                                                                       |
-| `init`                  | Write the config file with the defaults                                                                                                    |
+| `init`                  | Write the config file with the defaults and install the skills, see [Configuration](#configuration) and [Skills](#skills)                  |
 | `stop`                  | Stop the going run after its current issues, see [Worker](#worker)                                                                         |
 | `logs`                  | Show the latest run log and follow it, see [Observability](#observability)                                                                 |
-| `update`                | Install the `create-issue` and `answer-hand-over` skills for Claude Code, see [Skills](#skills)                                            |
-| `--scope user\|project` | With `update`: install the skills in `~/.claude/skills/` (`user`) or in `.claude/skills/` of the main worktree (`project`)                 |
+| `--scope user\|project` | With `init`: install the skills in `~/.claude/skills/` (`user`) or in `.claude/skills/` of the main worktree (`project`)                   |
 | `--force`               | Replace an existing config file, with `init`                                                                                               |
 | `--watch on\|off`       | With `start`: on reads the open issues again after each pass, off does one pass and ends. On by default                                    |
 | `--hunt on\|off`        | With `start`: hunt the repository for bugs alongside the issues, see [Hunt for bugs](#hunt-for-bugs). Off by default. On needs watching on |

@@ -240,7 +240,7 @@ test('the worker manages every status label of the default config', async () => 
 
 test('a user who runs init gets a config file that gives the defaults', async () => {
   const dir = await root();
-  const path = await writeDefaultConfig(dir, false);
+  const { path } = await writeDefaultConfig(dir, false);
   assert.equal(path, join(dir, CONFIG_FILE));
   assert.deepEqual(await loadConfig(dir), await loadConfig(await root()));
   assert.match(await readFile(path, 'utf8'), /\n$/);
@@ -256,7 +256,7 @@ test('a user who runs init gets a config file that gives the defaults', async ()
 });
 
 test('a user who runs init finds the keys of the config file sorted at every level', async () => {
-  const path = await writeDefaultConfig(await root(), false);
+  const { path } = await writeDefaultConfig(await root(), false);
   const written = JSON.parse(await readFile(path, 'utf8'));
   assert.ok(keysSorted(written));
   assert.deepEqual(Object.keys(written.labels), [
@@ -279,7 +279,10 @@ test('a user who runs init finds the keys of the config file sorted at every lev
 
 test('a user who runs init without force keeps an existing config file, and with force gets the defaults', async () => {
   const dir = await root('{ "maxCiFixes": 9 }');
-  await assert.rejects(writeDefaultConfig(dir, false), /exists already/);
+  assert.deepEqual(await writeDefaultConfig(dir, false), {
+    path: join(dir, CONFIG_FILE),
+    written: false,
+  });
   assert.equal((await loadConfig(dir)).maxCiFixes, 9);
   await writeDefaultConfig(dir, true);
   assert.equal((await loadConfig(dir)).maxCiFixes, 5);

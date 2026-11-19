@@ -260,11 +260,12 @@ test('an agent who retries an issue tells the user what it did, with no next-iss
   );
 });
 
-test('a person who reads the next-issue README learns about the skills and next-issue update', async () => {
+test('a person who reads the next-issue README learns that next-issue init installs the skills', async () => {
   const readme = await readFile(readmeFile, 'utf8');
   assert.match(readme, /`create-issue` skill/);
   assert.match(readme, /`answer-hand-over` skill/);
-  assert.match(readme, /\| `update`/);
+  assert.match(readme, /`init`[^\n]*installs the `create-issue` skill/);
+  assert.doesNotMatch(readme, /`update`|next-issue@latest update/);
   assert.doesNotMatch(readme, /refresh/);
 });
 

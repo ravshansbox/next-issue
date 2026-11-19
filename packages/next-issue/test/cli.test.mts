@@ -39,7 +39,10 @@ async function serveWorker(root: string, env: NodeJS.ProcessEnv = process.env) {
 }
 
 async function initCommand(cwd: string) {
-  return promisify(execFile)(process.execPath, [CLI, 'init'], { cwd });
+  return promisify(execFile)(process.execPath, [CLI, 'init', '--scope', 'user'], {
+    cwd,
+    env: { ...process.env, HOME: await tempDir() },
+  });
 }
 
 async function exists(path: string): Promise<boolean> {
