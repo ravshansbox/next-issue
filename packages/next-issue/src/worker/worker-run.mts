@@ -106,7 +106,7 @@ export function stoppingMessage(root: string, run: Run, id?: string): WorkerMess
     type: 'stopping',
     root,
     waiting,
-    hunting: waiting && run.huntBusy?.() === true,
+    hunting: run.huntBusy?.() === true,
     ...(id === undefined ? {} : { id }),
   };
 }
@@ -164,8 +164,7 @@ function runInterrupts(run: Run): Interrupts {
   return {
     afterIssue: () => run.stop !== undefined,
     afterRound: () => run.stop === 'round' || run.stop === 'now',
-    sleep: (ms, hunting, woken) => {
-      run.huntBusy = hunting;
+    sleep: (ms, woken) => {
       return wakeableSleep(run, ms, run.stop !== undefined, woken);
     },
   };
@@ -177,5 +176,8 @@ export function runControls(run: Run, update: (next: Progress) => void): RunCont
     hunting: run.hunting,
     watching: run.watching,
     onEvent: (record) => update(applyEvent(run.progress, record)),
+    onHunter: (busy) => {
+      run.huntBusy = busy;
+    },
   };
 }

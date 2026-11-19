@@ -9,13 +9,14 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { hasCode } from '../src/shared/errors.mts';
 import { lockHolder } from '../src/shared/lock.mts';
+import type { RunControls } from '../src/worker/run.mts';
 import { type RunRepo, startWorker } from '../src/worker/serve.mts';
 import { packageVersion } from '../src/shared/version.mts';
 import { type Connection, findWorker } from '../src/shared/worker-client.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
 import { idleGh } from './fake-gh.mts';
 import { repository, sleep, until } from './helpers.mts';
-import { connect, fakeRuns } from './worker-harness.mts';
+import { type Client, connect, fakeRuns } from './worker-harness.mts';
 
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
 
@@ -175,21 +176,110 @@ test('a user who runs watch or hunt with no worker or no run going sees that no 
   assert.equal(fake.calls.length, 0);
 });
 
-test('a user who runs stop with a run going sees that the run will stop after its current issues, exit code 0 at once, and the worker go on with no signal', async (t) => {
-  const root = await repository(ORIGIN);
+async function runningInWorker(t: TestContext, root: string) {
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo);
   const other = await connect(t, workerPaths(root).socketPath);
   other.send({ type: 'start', root });
   await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'running');
+  return { fake, other };
+}
+
+async function runIssues(other: Client, root: string, controls: RunControls, issues: number[]) {
+  for (const issue of issues) {
+    controls.onEvent!({ kind: 'issue.start', issue });
+  }
+  await other.next(
+    (value) => value.type === 'runs' && value.runs[root]?.issues.length === issues.length,
+  );
+}
+
+test('a user who runs stop while the run waits between passes with no hunt going sees that the run stopped, exit code 0 and the wait ended', async (t) => {
+  const root = await repository(ORIGIN);
+  const { fake, other } = await runningInWorker(t, root);
+  const slept = fake.controls().interrupts.sleep(60_000);
   const stopped = cliCommand(t, root, ['stop']);
   assert.equal(await stopped.exited, 0, stopped.stderr());
-  assert.equal(stopped.stdout(), 'next-issue: the run will stop after its current issues\n');
+  assert.equal(stopped.stdout(), 'next-issue: the run stopped\n');
+  assert.equal(await slept, false);
+  fake.finish();
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'stopped');
+});
+
+test('a user who runs stop while the run is between steps of a pass with no issue held and no hunt going sees that the run is stopping and exit code 0', async (t) => {
+  const root = await repository(ORIGIN);
+  const { fake } = await runningInWorker(t, root);
+  const stopped = cliCommand(t, root, ['stop']);
+  assert.equal(await stopped.exited, 0, stopped.stderr());
+  assert.equal(stopped.stdout(), 'next-issue: the run is stopping\n');
+  fake.finish();
+});
+
+test('a user who runs stop while the run holds issues sees that the run will stop after each of them, exit code 0 at once, and the worker go on with no signal', async (t) => {
+  const root = await repository(ORIGIN);
+  const { fake, other } = await runningInWorker(t, root);
+  await runIssues(other, root, fake.controls(), [12, 15, 16]);
+  const stopped = cliCommand(t, root, ['stop']);
+  assert.equal(await stopped.exited, 0, stopped.stderr());
+  assert.equal(stopped.stdout(), 'next-issue: the run will stop after #12, #15 and #16\n');
   assert.equal(fake.controls().interrupts.afterIssue(), true);
   assert.equal(fake.controls().interrupts.afterRound(), false);
   await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'stopping');
   fake.finish();
   await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'stopped');
+});
+
+test('a user who runs stop while a hunt is going and no issue runs sees that the run will stop after its current hunt and exit code 0', async (t) => {
+  const root = await repository(ORIGIN);
+  const { fake } = await runningInWorker(t, root);
+  fake.controls().onHunter!(() => true);
+  const stopped = cliCommand(t, root, ['stop']);
+  assert.equal(await stopped.exited, 0, stopped.stderr());
+  assert.equal(stopped.stdout(), 'next-issue: the run will stop after its current hunt\n');
+  fake.finish();
+});
+
+test('a user who runs stop while the run holds issues and a hunt is going sees that the run will stop after them and its current hunt and exit code 0', async (t) => {
+  const root = await repository(ORIGIN);
+  const { fake, other } = await runningInWorker(t, root);
+  await runIssues(other, root, fake.controls(), [12, 15]);
+  fake.controls().onHunter!(() => true);
+  const stopped = cliCommand(t, root, ['stop']);
+  assert.equal(await stopped.exited, 0, stopped.stderr());
+  assert.equal(
+    stopped.stdout(),
+    'next-issue: the run will stop after #12, #15 and its current hunt\n',
+  );
+  fake.finish();
+});
+
+test('a user who runs stop with a worker that sends no stopping reply sees that the run will stop after its current issues and exit code 0', async (t) => {
+  const root = await repository(ORIGIN);
+  const { socketPath } = workerPaths(root);
+  await mkdir(dirname(socketPath), { recursive: true });
+  const progress = { status: 'running', watching: true, hunting: false, issues: [] };
+  const server = new WebSocketServer({ server: createServer().listen(socketPath) });
+  t.after(() => new Promise((resolve) => server.close(() => resolve(undefined))));
+  t.after(() => server.options.server?.close());
+  const received: unknown[] = [];
+  server.on('connection', (socket) => {
+    socket.send(JSON.stringify({ type: 'hello', version: '0.0.0-old' }));
+    socket.send(JSON.stringify({ type: 'runs', runs: { [root]: progress } }));
+    socket.on('message', (data) => received.push(JSON.parse(String(data))));
+  });
+  const stopped = cliCommand(t, root, ['stop']);
+  assert.equal(await stopped.exited, 0, stopped.stderr());
+  assert.equal(stopped.stdout(), 'next-issue: the run will stop after its current issues\n');
+  assert.equal(received.length, 1);
+  assert.deepEqual(
+    { ...(received[0] as object), id: undefined },
+    {
+      type: 'stop',
+      root,
+      after: 'issue',
+      id: undefined,
+    },
+  );
 });
 
 test('a user who runs stop while the run is stopping sees that it is stopping already and exit code 0', async (t) => {
@@ -217,12 +307,10 @@ test('a user who runs stop while the run stops for an upgrade sees that it will 
   await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'running');
   other.send({ type: 'hello', version: await packageVersion() });
   await other.next((value) => value.type === 'runs' && value.runs[root]?.upgrade !== undefined);
+  await runIssues(other, root, fake.controls(), [7]);
   const stopped = cliCommand(t, root, ['stop']);
   assert.equal(await stopped.exited, 0, stopped.stderr());
-  assert.equal(
-    stopped.stdout(),
-    'next-issue: the run will stop after its current issues and not start again\n',
-  );
+  assert.equal(stopped.stdout(), 'next-issue: the run will stop after #7 and not start again\n');
   const dropped = await other.next(
     (value) => value.type === 'runs' && value.runs[root]?.upgrade === undefined,
   );
@@ -537,4 +625,19 @@ test('a user who runs start --hunt on while a worker older than request ids has 
     withoutExcludeNotes(started.stderr()),
     statusLines('next-issue: the run is running in worker 0.0.0-old', 'watching on, hunting on'),
   );
+});
+
+test('a user who runs stop while the run stops for an upgrade with no issue held and no hunt going sees that it is stopping and will not start again', async (t) => {
+  const root = await repository(ORIGIN);
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo, '0.0.0-old');
+  const other = await connect(t, workerPaths(root).socketPath);
+  other.send({ type: 'start', root, args: ['--watch', 'on'] });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'running');
+  other.send({ type: 'hello', version: await packageVersion() });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.upgrade !== undefined);
+  const stopped = cliCommand(t, root, ['stop']);
+  assert.equal(await stopped.exited, 0, stopped.stderr());
+  assert.equal(stopped.stdout(), 'next-issue: the run is stopping and will not start again\n');
+  fake.finish();
 });

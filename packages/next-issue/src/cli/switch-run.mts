@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { isNewer, type Progress, type RunningIssue } from '../shared/protocol.mts';
 import { packageVersion } from '../shared/version.mts';
-import { CLOSED, type Connection, findWorker, going } from '../shared/worker-client.mts';
+import {
+  ANSWER_TIMEOUT_MS,
+  CLOSED,
+  type Connection,
+  findWorker,
+  going,
+} from '../shared/worker-client.mts';
 
 export type SwitchName = 'watch' | 'hunt';
 
@@ -75,13 +81,50 @@ export function stopInWorker(root: string): Promise<string> {
     if (progress.status === 'stopping' && progress.upgrade === undefined) {
       return 'next-issue: the run is stopping already\n';
     }
-    connection.send({ type: 'stop', root, after: 'issue' });
-    await connection.end();
-    if (progress.upgrade !== undefined) {
-      return 'next-issue: the run will stop after its current issues and not start again\n';
-    }
-    return 'next-issue: the run will stop after its current issues\n';
+    const reply = await stopReply(connection, root);
+    return `next-issue: ${stopText(progress, reply)}\n`;
   });
+}
+
+type StopReply = { waiting: boolean; hunting: boolean };
+
+function stopReply(connection: Connection, root: string): Promise<StopReply | undefined> {
+  const id = randomUUID();
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(undefined), ANSWER_TIMEOUT_MS);
+    connection.listen((message) => {
+      if (message.type === 'stopping' && message.id === id) {
+        clearTimeout(timer);
+        resolve(message);
+      }
+    });
+    void connection.closed.then(() => {
+      clearTimeout(timer);
+      resolve(undefined);
+    });
+    connection.send({ type: 'stop', root, after: 'issue', id });
+  });
+}
+
+function stopText(progress: Progress, reply: StopReply | undefined): string {
+  const upgrading = progress.upgrade !== undefined;
+  const ending = upgrading ? ' and not start again' : '';
+  if (reply === undefined) {
+    return `the run will stop after its current issues${ending}`;
+  }
+  const waits = progress.issues.map(({ issue }) => `#${issue}`);
+  if (reply.hunting) {
+    waits.push('its current hunt');
+  }
+  if (waits.length > 0) {
+    return `the run will stop after ${listText(waits)}${ending}`;
+  }
+  const state = reply.waiting ? 'the run stopped' : 'the run is stopping';
+  return upgrading ? `${state} and will not start again` : state;
+}
+
+function listText(items: string[]): string {
+  return items.length === 1 ? items[0]! : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
 }
 
 export function statusInWorker(root: string): Promise<string> {

@@ -1432,7 +1432,8 @@ test('a client of a watch run gets the summary of each pass, and a client of any
 test('a client that stops a run waiting between passes is told it waits, and whether a hunt is going', async (t) => {
   for (const hunting of [false, true]) {
     const { fake, client } = await startedRun(t);
-    const slept = fake.controls().interrupts.sleep(60_000, () => hunting);
+    fake.controls().onHunter?.(() => hunting);
+    const slept = fake.controls().interrupts.sleep(60_000);
     client.send({ type: 'stop', root: '/repo', id: 'stop-1' });
     assert.deepEqual(await client.next((value) => value.type === 'stopping'), {
       type: 'stopping',
@@ -1442,12 +1443,20 @@ test('a client that stops a run waiting between passes is told it waits, and whe
       id: 'stop-1',
     });
     assert.equal(await slept, false);
+    fake.finish();
+  }
+});
+
+test('a client that stops a run working on issues is told it does not wait, and whether a hunt is going', async (t) => {
+  for (const hunting of [false, true]) {
+    const { fake, client } = await startedRun(t);
+    fake.controls().onHunter?.(() => hunting);
     client.send({ type: 'stop', root: '/repo', after: 'round' });
     assert.deepEqual(await client.next((value) => value.type === 'stopping'), {
       type: 'stopping',
       root: '/repo',
       waiting: false,
-      hunting: false,
+      hunting,
     });
     fake.finish();
   }

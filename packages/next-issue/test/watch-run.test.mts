@@ -52,7 +52,7 @@ async function startWatch(t: TestContext, args: Args, options: Options = {}): Pr
       interrupts: {
         afterIssue: () => stopped,
         afterRound: () => false,
-        sleep: (ms, _busy, woken) =>
+        sleep: (ms, woken) =>
           new Promise((resolve) => {
             sleeps.push(ms / 60_000);
             wake = () => resolve(false);
