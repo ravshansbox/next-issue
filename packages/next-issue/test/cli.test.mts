@@ -222,7 +222,10 @@ test('a user who runs next-issue start while another run of start is going in th
   const called = join(bin, 'called');
   await installGh(t, bin, `#!/bin/sh\ntouch "${called}"\nexit 1\n`);
   const { stderr } = await promisify(execFile)(process.execPath, [CLI, 'start'], { cwd: root });
-  assert.match(stderr, /^the run is running in worker .*\nwatching on, hunting off\n/m);
+  assert.match(
+    stderr,
+    /^a run is going already\nrunning in worker .*\nwatching on, hunting off\n/m,
+  );
   assert.equal(await exists(called), false);
 });
 

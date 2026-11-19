@@ -133,7 +133,7 @@ export function statusInWorker(root: string): Promise<string> {
 
 export function statusText(version: string, progress: Progress): string {
   const lines = [
-    `the run is ${progress.status} in worker ${version}`,
+    `${progress.status} in worker ${version}`,
     `watching ${onOffText(progress.watching)}, hunting ${onOffText(progress.hunting)}`,
   ];
   if (progress.upgrade !== undefined) {

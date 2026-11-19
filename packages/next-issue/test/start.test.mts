@@ -348,7 +348,7 @@ test('a user who runs status with a run going sees its status, the worker versio
   assert.equal(
     status.stdout(),
     [
-      `the run is running in worker ${await packageVersion()}`,
+      `running in worker ${await packageVersion()}`,
       'watching on, hunting on',
       '#624 reviewing (round 2)',
       '#625 starting',
@@ -376,7 +376,7 @@ test('a user who runs status while the run stops for an upgrade sees the run sto
   assert.equal(
     status.stdout(),
     [
-      'the run is stopping in worker 0.0.0-old',
+      'stopping in worker 0.0.0-old',
       'watching on, hunting off',
       `stopping for an upgrade to ${await packageVersion()}`,
       'no issue is running',
@@ -459,7 +459,8 @@ test('a user who runs start while an older worker has a watch run going sees the
   assert.equal(
     withoutExcludeNotes(started.stderr()),
     [
-      'the run is stopping in worker 0.0.0-old',
+      'a run is going already',
+      'stopping in worker 0.0.0-old',
       'watching on, hunting on',
       `stopping for an upgrade to ${version}`,
       'no issue is running',
@@ -491,7 +492,7 @@ async function goingRun(t: TestContext, root: string, args: string[] = []) {
 }
 
 function statusLines(status: string, settings: string): string {
-  return [status, settings, 'no issue is running', ''].join('\n');
+  return ['a run is going already', status, settings, 'no issue is running', ''].join('\n');
 }
 
 test('a user who runs start while a run is going sees the status of that run on stderr, exit code 0, and the run keep going with its settings and no second run', async (t) => {
@@ -501,10 +502,7 @@ test('a user who runs start while a run is going sees the status of that run on 
   assert.equal(await started.exited, 0, started.stderr());
   assert.equal(
     withoutExcludeNotes(started.stderr()),
-    statusLines(
-      `the run is running in worker ${await packageVersion()}`,
-      'watching on, hunting on',
-    ),
+    statusLines(`running in worker ${await packageVersion()}`, 'watching on, hunting on'),
   );
   assert.equal(started.stdout(), '');
   assert.equal(fake.calls.length, 1);
@@ -525,7 +523,7 @@ test('a user who runs start with --watch or --hunt while a run is going sees the
     assert.equal(await started.exited, 0, started.stderr());
     assert.equal(
       withoutExcludeNotes(started.stderr()),
-      statusLines(`the run is running in worker ${await packageVersion()}`, settings),
+      statusLines(`running in worker ${await packageVersion()}`, settings),
     );
     assert.equal(fake.controls().watching?.on(), watching);
     assert.equal(fake.controls().hunting?.on(), hunting);
@@ -543,10 +541,7 @@ test('a user who runs start after stop sees the stop cancelled, the run running 
   assert.equal(await started.exited, 0, started.stderr());
   assert.equal(
     withoutExcludeNotes(started.stderr()),
-    statusLines(
-      `the run is running in worker ${await packageVersion()}`,
-      'watching on, hunting off',
-    ),
+    statusLines(`running in worker ${await packageVersion()}`, 'watching on, hunting off'),
   );
   assert.equal(fake.controls().interrupts.afterIssue(), false);
   const hunted = cliCommand(t, root, ['hunt', 'on']);
@@ -620,7 +615,7 @@ test('a user who runs start --hunt on while a worker older than request ids has 
   assert.equal(await started.exited, 0, started.stderr());
   assert.equal(
     withoutExcludeNotes(started.stderr()),
-    statusLines('the run is running in worker 0.0.0-old', 'watching on, hunting on'),
+    statusLines('running in worker 0.0.0-old', 'watching on, hunting on'),
   );
 });
 
