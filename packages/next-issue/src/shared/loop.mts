@@ -8,8 +8,6 @@ export type Loop = {
   stop: () => boolean;
   beforeClaim?: () => Promise<void>;
   concurrency?: number;
-  // Aborts when a client asks for new issues; a pass then reads the open issues again, even with every slot taken.
-  refreshed?: () => AbortSignal;
 };
 
 export type LoopResult = {
@@ -17,7 +15,6 @@ export type LoopResult = {
   stoppedAt?: number;
   error?: unknown;
   crash?: { failure: unknown };
-  refreshed?: AbortSignal;
 };
 
 type Settled = { issue: number; slot: Slot; report?: IssueReport; failure?: unknown };
@@ -39,98 +36,63 @@ export async function runIssues(loop: Loop, seen = new Set<number>()): Promise<L
   let stopped = false;
   let unclaimed = true;
   let recount = false;
-  const ended = new AbortController();
-  let refresh = refreshes(loop, ended.signal);
   const tried: Tried = { ended: new Set(), labels: new Map(), blocked: new Set() };
-  try {
-    for (;;) {
-      if (stopped && !loop.stop()) {
-        stopped = false;
-        stoppedAt = undefined;
-        claiming = true;
-      }
-      if (claiming && (recount || (unclaimed && slots.open()))) {
-        recount = false;
-        refresh = refreshes(loop, ended.signal, refresh);
-        try {
-          ({ claiming, unclaimed } = await claimIssues(loop, seen, tried, { running, slots }));
-        } catch (failure) {
-          error = failure;
-          claiming = false;
-        }
-      }
-      if (running.size === 0) {
-        break;
-      }
-      const settled = await Promise.race([...running.values(), slots.freed(), refresh.asked]);
-      if (settled === 'refresh') {
-        recount = true;
-        refresh = refreshes(loop, ended.signal, refresh);
-        continue;
-      }
-      if (settled === undefined) {
-        continue;
-      }
-      const { issue, slot, report, failure } = settled;
-      running.delete(issue);
-      slot.free();
-      unclaimed = true;
-      recount = true;
-      if (report === undefined) {
-        crash ??= { failure };
+  for (;;) {
+    if (stopped && !loop.stop()) {
+      stopped = false;
+      stoppedAt = undefined;
+      claiming = true;
+    }
+    if (claiming && (recount || (unclaimed && slots.open()))) {
+      recount = false;
+      try {
+        ({ claiming, unclaimed } = await claimIssues(loop, seen, tried, { running, slots }));
+      } catch (failure) {
+        error = failure;
         claiming = false;
-        stopped = false;
-        continue;
-      }
-      reports.push(report);
-      if (retryable(report)) {
-        tried.ended.add(issue);
-      }
-      if (report.blocked === true) {
-        tried.blocked.add(issue);
-      }
-      if (report.outcome === 'done') {
-        readmitBlocked(seen, tried);
-      }
-      if (claiming && (loop.stop() || report.halt === true)) {
-        stoppedAt = issue;
-        claiming = false;
-        stopped = true;
-      }
-      if (report.halt === true) {
-        stopped = false;
-      }
-      if (report.outcome === 'done' && !claiming) {
-        await loop.issues().catch(() => undefined);
       }
     }
-  } finally {
-    ended.abort();
+    if (running.size === 0) {
+      break;
+    }
+    const settled = await Promise.race([...running.values(), slots.freed()]);
+    if (settled === undefined) {
+      continue;
+    }
+    const { issue, slot, report, failure } = settled;
+    running.delete(issue);
+    slot.free();
+    unclaimed = true;
+    recount = true;
+    if (report === undefined) {
+      crash ??= { failure };
+      claiming = false;
+      stopped = false;
+      continue;
+    }
+    reports.push(report);
+    if (retryable(report)) {
+      tried.ended.add(issue);
+    }
+    if (report.blocked === true) {
+      tried.blocked.add(issue);
+    }
+    if (report.outcome === 'done') {
+      readmitBlocked(seen, tried);
+    }
+    if (claiming && (loop.stop() || report.halt === true)) {
+      stoppedAt = issue;
+      claiming = false;
+      stopped = true;
+    }
+    if (report.halt === true) {
+      stopped = false;
+    }
+    if (report.outcome === 'done' && !claiming) {
+      await loop.issues().catch(() => undefined);
+    }
   }
-  return { ...loopResult(reports, stoppedAt, error, crash), ...refreshedOf(refresh) };
-}
-
-function refreshedOf(refresh: Refresh): { refreshed?: AbortSignal } {
-  return refresh.signal === undefined ? {} : { refreshed: refresh.signal };
-}
-
-type Refresh = { signal?: AbortSignal; asked: Promise<'refresh'> };
-
-function refreshes(loop: Loop, ended: AbortSignal, previous?: Refresh): Refresh {
-  const signal = loop.refreshed?.();
-  if (previous !== undefined && previous.signal === signal) {
-    return previous;
-  }
-  return {
-    signal,
-    asked: new Promise((resolve) => {
-      if (signal?.aborted === true) {
-        resolve('refresh');
-      } else {
-        signal?.addEventListener('abort', () => resolve('refresh'), { once: true, signal: ended });
-      }
-    }),
-  };
+  return loopResult(reports, stoppedAt, error, crash);
 }
 
 function loopResult(

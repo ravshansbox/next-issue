@@ -96,12 +96,6 @@ Help the user understand why the worker handed an issue over, then answer the ha
      gh issue edit --repo <repo> <number> --remove-label "<needs-human>" --add-label "<skip>"
      ```
 
-10. After a retry, with or without guidance, run `next-issue refresh`, with no question first. When `next-issue` is not on the `PATH`, run `npx -y next-issue@latest` in its place, here and below. When it prints `asked the run to check for new issues now`, tell the user that the going run was asked to check for issues now. Ask no question.
-
-    When it prints `no run is going in this repository`, ask only whether to start a run. On yes, run `next-issue start` in the background, such as with the `run_in_background` option of the Bash tool, since it goes on until the run ends, and tell the user that the run started. The run watches for new issues. On no, do nothing.
-
-    When it prints `the run is stopping, so nothing was asked`, tell the user that the stopping run will not claim the issue. When it prints `the run is stopping for an upgrade`, tell the user that the run starts again on the newer worker and claims the issue then. Ask no question.
-
-    When it prints `the run does not watch for new issues`, ask only whether to turn watching on. On yes, run `next-issue watch on`, then `next-issue refresh`, and tell the user what they print. On no, do nothing.
+10. After a retry, with or without guidance, tell the user what you did. Run no next-issue command and ask nothing about a run.
 
 11. Ask whether to answer another waiting issue. On yes, go back to step 3.

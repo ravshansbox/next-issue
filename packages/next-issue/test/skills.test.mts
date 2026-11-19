@@ -3,7 +3,6 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { parseArgs } from '../src/shared/args.mts';
 import { ISSUE_SECTIONS } from '../src/shared/issue-format.mts';
 
 const skills = new URL('../skills/', import.meta.url);
@@ -24,18 +23,6 @@ test('a person who installs next-issue gets the create-issue and answer-hand-ove
   for (const name of ['create-issue', 'answer-hand-over']) {
     const skill = await readFile(new URL(`${name}/SKILL.md`, skills), 'utf8');
     assert.match(skill, new RegExp(`^---\\nname: ${name}\\n`));
-  }
-});
-
-test('an agent who follows a skill runs only next-issue commands that the CLI takes', async () => {
-  for (const name of ['create-issue', 'answer-hand-over']) {
-    const skill = await readFile(new URL(`${name}/SKILL.md`, skills), 'utf8');
-    assert.doesNotMatch(skill, /mcp__/);
-    const commands = [...skill.matchAll(/run `next-issue ([^`]+)`/g)].map((match) => match[1]!);
-    assert.ok(commands.length > 0, name);
-    for (const command of commands) {
-      assert.doesNotThrow(() => parseArgs(command.split(' ')), `${name} runs ${command}`);
-    }
   }
 });
 
@@ -175,20 +162,17 @@ test('a person who reads the next-issue behaviour doc learns which repository th
   assert.match(behaviour, /repository of the `remote` of `\.next-issue\/config\.json`/);
 });
 
-test('an agent who files an issue with the create-issue skill nudges the going run first and asks only whether to start a run when none is going', async () => {
+test('an agent who files an issue with the create-issue skill gives the user the url or urls and stops, with no next-issue command and no question about a run', async () => {
   const skill = await readFile(createIssue, 'utf8');
   const behaviour = await readFile(behaviourFile, 'utf8');
   assert.match(
     skill,
-    /run `next-issue refresh`, with no question first[\s\S]*Ask no question[\s\S]*ask only whether to start a run\. On yes, run `next-issue start` in the background/,
+    /Once the issue exists, or the last issue of a split, give the user the issue url, or each url of a split, and stop\. Run no next-issue command and ask nothing about a run\./,
   );
-  assert.match(
-    skill,
-    /does not watch for new issues`[\s\S]*ask only whether to turn watching on\. On yes, run `next-issue watch on`, then `next-issue refresh`/,
-  );
-  assert.match(skill, /`npx -y next-issue@latest`/);
+  assert.doesNotMatch(skill, /next-issue (refresh|start|watch)|npx/);
   assert.doesNotMatch(skill, /c\) change the issue/);
-  assert.match(behaviour, /runs `next-issue refresh` with no question first/);
+  assert.doesNotMatch(behaviour, /refresh/);
+  assert.match(behaviour, /gives you the issue url, or each url of a split, and stops/);
 });
 
 test('an agent who answers a hand-over lists the waiting issues of <repo> and passes --repo <repo> to every gh command', async () => {
@@ -262,15 +246,17 @@ test('an agent who retries, guides or gives up changes the labels of the issue o
   assert.match(skill, /When `labels\.ready` is `""`, leave out `--add-label "<ready>"`/);
 });
 
-test('an agent who retries an issue nudges the going run and offers a start only when no run is going', async () => {
+test('an agent who retries an issue tells the user what it did, with no next-issue command and no question about a run', async () => {
   const skill = await readFile(answerHandOver, 'utf8');
+  const behaviour = await readFile(behaviourFile, 'utf8');
   assert.match(
     skill,
-    /run `next-issue refresh`, with no question first[\s\S]*ask only whether to start a run\. On yes, run `next-issue start` in the background/,
+    /After a retry, with or without guidance, tell the user what you did\. Run no next-issue command and ask nothing about a run\./,
   );
+  assert.doesNotMatch(skill, /next-issue (refresh|start|watch)|npx/);
   assert.match(
-    skill,
-    /does not watch for new issues`[\s\S]*ask only whether to turn watching on\. On yes, run `next-issue watch on`, then `next-issue refresh`/,
+    behaviour,
+    /after a retry, tells you what it did\. It runs no next-issue command and asks nothing about a run/,
   );
 });
 
@@ -279,6 +265,7 @@ test('a person who reads the next-issue README learns about the skills and next-
   assert.match(readme, /`create-issue` skill/);
   assert.match(readme, /`answer-hand-over` skill/);
   assert.match(readme, /\| `update`/);
+  assert.doesNotMatch(readme, /refresh/);
 });
 
 test('a person who uses Claude Code in this repository gets the same skills as the packaged ones', async () => {

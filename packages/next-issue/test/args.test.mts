@@ -138,7 +138,7 @@ test('a user who passes --scope with no value or another value gets an error tha
 });
 
 test('a user who passes --force to a command other than init gets an error that says it belongs to init', () => {
-  for (const command of ['start', 'serve', 'stop', 'logs', 'refresh', 'update']) {
+  for (const command of ['start', 'serve', 'stop', 'logs', 'update']) {
     assert.throws(
       () => parseArgs([command, '--force']),
       new RegExp(`${command} does not take --force: it belongs to init`),

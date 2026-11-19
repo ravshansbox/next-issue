@@ -26,7 +26,6 @@ import {
   dropUpgrade,
   endStatus,
   newRun,
-  requestRefresh,
   requestStop,
   requestUpgrade,
   type Run,
@@ -297,8 +296,6 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       toggle(refuse, value.root, value.on, setHunting);
     } else if (value.type === 'watch') {
       toggle(refuse, value.root, value.on, setWatching);
-    } else if (value.type === 'refresh') {
-      requestRefresh(runs.get(value.root));
     } else if (value.type === 'rejoin') {
       followed = true;
       if (lateEnd !== undefined) {

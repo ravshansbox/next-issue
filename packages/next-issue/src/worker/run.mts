@@ -33,8 +33,6 @@ export type RunControls = {
   hunting?: Switch;
   // The worker passes a switch that its clients turn on and off; without one, the run keeps --watch.
   watching?: Switch;
-  // The worker passes the signal of its clients' refresh requests, which end a watch wait early.
-  refreshed?: () => AbortSignal;
   beforeClaim?: () => Promise<void>;
 };
 
@@ -116,16 +114,15 @@ export function watchRun(
   const hunt = hunter(context);
   return watchIssues({
     ...loop,
-    wait: (minutes, refreshed) => {
+    wait: (minutes, woken) => {
       recorder.event('watch.wait', { minutes });
       passStart = recorder.summary();
-      return interrupts.sleep(minutesToMs(minutes), () => hunt.busy(), refreshed);
+      return interrupts.sleep(minutesToMs(minutes), () => hunt.busy(), woken);
     },
     passEnd: (issues) => print({ ...recorder.summary(passStart), issues }),
     hunter: hunt,
     hunting: controls.hunting ?? onOff(args.hunt),
     watching: controls.watching,
-    refreshed: controls.refreshed,
   });
 }
 

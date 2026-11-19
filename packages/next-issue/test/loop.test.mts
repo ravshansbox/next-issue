@@ -3,7 +3,6 @@ import { test } from 'node:test';
 import type { Issue } from '../src/shared/github.mts';
 import type { Outcome } from '../src/shared/job.mts';
 import { exitCode, type Loop, runIssues } from '../src/shared/loop.mts';
-import { refresher } from '../src/worker/refresh.mts';
 import { until } from './helpers.mts';
 import { issue, report } from './loop-harness.mts';
 
@@ -333,30 +332,6 @@ test('a person who reads the run log sees the open count drop when an issue ends
   const run = runIssues({ ...fake, concurrency: 1 });
   await until(() => fake.status() === 2, 'an open count of 2');
   assert.deepEqual(fake.processed, [1, 2]);
-  firstEnds.open();
-  await run;
-  assert.deepEqual(fake.processed, [1, 2, 3]);
-});
-
-test('a person who files an issue and asks for a refresh while every slot is taken sees the open count rise in the run log, and no issue is claimed for it', async () => {
-  const fake = counted([1, 2]);
-  const firstEnds = gate();
-  fake.process = async (target) => {
-    fake.processed.push(target.number);
-    if (target.number === 1) {
-      await firstEnds.promise;
-    }
-    fake.open.delete(target.number);
-    return report(target.number, 'done');
-  };
-  const refresh = refresher();
-  const run = runIssues({ ...fake, concurrency: 1, refreshed: refresh.refreshed });
-  await until(() => fake.processed.length === 1, 'the first processed issue');
-  assert.equal(fake.status(), 2);
-  fake.open.add(3);
-  refresh.refresh();
-  await until(() => fake.status() === 3, 'an open count of 3');
-  assert.deepEqual(fake.processed, [1]);
   firstEnds.open();
   await run;
   assert.deepEqual(fake.processed, [1, 2, 3]);

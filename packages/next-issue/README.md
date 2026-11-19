@@ -90,7 +90,6 @@ A field that is not in the file keeps its default. See [Configuration](https://g
 | `start`                 | Start a run: claim issues, fix them and push them to the base branch       |
 | `watch on\|off`         | Switch watching of the going run                                           |
 | `hunt on\|off`          | Switch hunting of the going run                                            |
-| `refresh`               | Ask the going run to check for new issues now                              |
 | `init`                  | Write the config file with the defaults                                    |
 | `serve`                 | Run the worker of this repository that the clients talk to                 |
 | `stop`                  | Stop the going run after its current issues                                |

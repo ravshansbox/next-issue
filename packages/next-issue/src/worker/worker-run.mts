@@ -10,7 +10,6 @@ import {
   type Upgrade,
   type WorkerMessage,
 } from '../shared/protocol.mts';
-import { type Refresher, refresher } from './refresh.mts';
 import type { RunControls } from './run.mts';
 
 export type Run = {
@@ -22,7 +21,6 @@ export type Run = {
   huntBusy?: () => boolean;
   watching: Toggle;
   hunting: Toggle;
-  refresher: Refresher;
 };
 
 export function newRun(progress: Progress): Run {
@@ -31,7 +29,6 @@ export function newRun(progress: Progress): Run {
     children: runChildren(),
     watching: onOff(progress.watching === true),
     hunting: onOff(progress.hunting),
-    refresher: refresher(),
   };
 }
 
@@ -124,15 +121,6 @@ export function switchRefusal(run: Run | undefined, on: boolean): string | undef
   return on && run!.stoppedByPerson === true ? 'the run is stopping' : undefined;
 }
 
-// Only a running watch run refreshes: it wakes the wait between passes, or reads the open issues again during a pass.
-export function requestRefresh(run: Run | undefined): boolean {
-  if (run?.progress.status !== 'running' || !run.watching.on() || run.stop !== undefined) {
-    return false;
-  }
-  run.refresher.refresh();
-  return true;
-}
-
 export function setHunting(run: Run, on: boolean): void {
   if (on) {
     run.watching.set(true);
@@ -157,9 +145,9 @@ function runInterrupts(run: Run): Interrupts {
   return {
     afterIssue: () => run.stop !== undefined,
     afterRound: () => run.stop === 'round' || run.stop === 'now',
-    sleep: (ms, hunting, refreshed) => {
+    sleep: (ms, hunting, woken) => {
       run.huntBusy = hunting;
-      return wakeableSleep(run, ms, run.stop !== undefined, refreshed);
+      return wakeableSleep(run, ms, run.stop !== undefined, woken);
     },
   };
 }
@@ -169,7 +157,6 @@ export function runControls(run: Run, update: (next: Progress) => void): RunCont
     interrupts: runInterrupts(run),
     hunting: run.hunting,
     watching: run.watching,
-    refreshed: run.refresher.refreshed,
     onEvent: (record) => update(applyEvent(run.progress, record)),
   };
 }

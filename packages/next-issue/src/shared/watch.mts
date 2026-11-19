@@ -11,8 +11,8 @@ export type Hunter = {
 };
 
 export type Watch = Loop & {
-  // `refreshed` aborts when a client asks for new issues; the wait then ends early.
-  wait: (minutes: number, refreshed?: AbortSignal) => Promise<boolean>;
+  // `woken` aborts when watching is switched; the wait then ends early.
+  wait: (minutes: number, woken?: AbortSignal) => Promise<boolean>;
   passEnd: (reports: IssueReport[]) => Promise<void>;
   hunter?: Hunter;
   hunting?: Switch;
@@ -35,7 +35,6 @@ export async function watchIssues(watch: Watch): Promise<LoopResult> {
           running,
           failed,
           watch.issues,
-          watch.refreshed,
           () => ended.signal.aborted || watch.stop(),
           ended.signal,
         );
@@ -75,7 +74,6 @@ async function huntIssues(
   running: Set<number>,
   failed: ReadonlySet<number>,
   issues: () => Promise<Issue[]>,
-  refreshes: (() => AbortSignal) | undefined,
   stopped: () => boolean,
   signal: AbortSignal,
 ): Promise<void> {
@@ -101,9 +99,8 @@ async function huntIssues(
       continue;
     }
     const changed = hunting.changed();
-    const refreshed = refreshes?.() ?? new AbortController().signal;
-    await hunter.wait(backOffMinutes(step), AbortSignal.any([signal, changed, refreshed]));
-    if (changed.aborted || refreshed.aborted) {
+    await hunter.wait(backOffMinutes(step), AbortSignal.any([signal, changed]));
+    if (changed.aborted) {
       step = 0;
     } else {
       step += 1;
@@ -118,9 +115,8 @@ async function watchPasses(failed: Set<number>, watch: Watch): Promise<LoopResul
   for (;;) {
     const pass = await runIssues(watch, new Set(failed));
     addReports(reports, pass.reports);
-    const { refreshed, ...result } = pass;
     if (pass.crash !== undefined) {
-      return { ...result, reports };
+      return { ...pass, reports };
     }
     recordFailures(failed, pass.reports);
     if (handled(pass.reports) > 0) {
@@ -128,17 +124,14 @@ async function watchPasses(failed: Set<number>, watch: Watch): Promise<LoopResul
       step = 0;
     }
     if (pass.error !== undefined || pass.stoppedAt !== undefined) {
-      return { ...result, reports };
+      return { ...pass, reports };
     }
     if (watch.stop() || !watching()) {
       return { reports };
     }
     const minutes = backOffMinutes(step);
     step += 1;
-    const signals = [refreshed ?? watch.refreshed?.(), watch.watching?.changed()].filter(
-      (signal) => signal !== undefined,
-    );
-    const woken = signals.length === 0 ? undefined : AbortSignal.any(signals);
+    const woken = watch.watching?.changed();
     if (!(await watch.wait(minutes, woken))) {
       if (woken?.aborted !== true || watch.stop() || !watching()) {
         return { reports };

@@ -25,28 +25,6 @@ export function switchInWorker(root: string, name: SwitchName, on: boolean): Pro
   });
 }
 
-export function refreshInWorker(root: string): Promise<string> {
-  return inWorker(root, async (connection, progress) => {
-    if (isNewer(await packageVersion(), connection.version)) {
-      throw new Error(
-        'the worker of the going run is older than next-issue, so it cannot refresh. Stop the run, then start it again',
-      );
-    }
-    if (progress.status === 'stopping' && progress.upgrade !== undefined) {
-      return 'next-issue: the run is stopping for an upgrade, so nothing was asked; it starts again on the newer worker and picks up new issues then\n';
-    }
-    if (progress.status === 'stopping') {
-      return 'next-issue: the run is stopping, so nothing was asked\n';
-    }
-    if (progress.watching === false) {
-      return 'next-issue: the run does not watch for new issues, so nothing was asked\n';
-    }
-    connection.send({ type: 'refresh', root });
-    await connection.end();
-    return 'next-issue: asked the run to check for new issues now\n';
-  });
-}
-
 async function inWorker(
   root: string,
   act: (connection: Connection, progress: Progress) => Promise<string>,

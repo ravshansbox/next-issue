@@ -1,15 +1,6 @@
 import { CONFIG_FILE } from './config-fields.mts';
 
-type Command =
-  | 'start'
-  | 'init'
-  | 'serve'
-  | 'stop'
-  | 'logs'
-  | 'watch'
-  | 'hunt'
-  | 'refresh'
-  | 'update';
+type Command = 'start' | 'init' | 'serve' | 'stop' | 'logs' | 'watch' | 'hunt' | 'update';
 
 export type Scope = 'user' | 'project';
 
@@ -37,17 +28,7 @@ const RUN_FLAGS = new Map<string, RunFlag>([
   ['--hunt', 'hunt'],
 ]);
 
-const COMMANDS: Command[] = [
-  'start',
-  'init',
-  'serve',
-  'stop',
-  'logs',
-  'watch',
-  'hunt',
-  'refresh',
-  'update',
-];
+const COMMANDS: Command[] = ['start', 'init', 'serve', 'stop', 'logs', 'watch', 'hunt', 'update'];
 
 export const USAGE = `next-issue <command> [options]
 
@@ -56,7 +37,6 @@ export const USAGE = `next-issue <command> [options]
     --hunt on|off   hunt the repository for bugs and file issues alongside the issues, needs watching (default off)
   watch on|off      switch watching of the going run; off also turns hunting off
   hunt on|off       switch hunting of the going run; on also turns watching on
-  refresh           ask the going run to check for new issues now
   init              write ${CONFIG_FILE} with the defaults and add .next-issue/ and .worktrees/ to info/exclude
   serve             run the worker of this repository that the clients talk to
   stop              stop the going run after its current issues

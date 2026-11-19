@@ -200,34 +200,11 @@ async function watchingRun(t: TestContext, root: string) {
   return { child, exited, stderr: () => stderr };
 }
 
-async function refreshCommand(root: string): Promise<string> {
-  const { stdout } = await promisify(execFile)(process.execPath, [CLI, 'refresh'], { cwd: root });
-  return stdout;
-}
-
-function waits(stderr: string): number {
-  return stderr.split('\n').filter((line) => line.includes('watch.wait')).length;
-}
-
-test('a user who runs refresh with no worker sees that no run is going, exit code 0 and no worker started', async () => {
+test('a user who runs refresh sees an unknown command error and exit code 1', async () => {
   const root = await repository();
-  assert.equal(await refreshCommand(root), 'next-issue: no run is going in this repository\n');
-  assert.equal(await exists(workerPaths(root).lockPath), false);
-});
-
-test('a user who runs refresh while a run watches sees that the run was asked, and the run checks for new issues at once', async (t) => {
-  const root = await repository();
-  const { child, exited, stderr } = await watchingRun(t, root);
-  t.after(() => child.kill('SIGKILL'));
-  assert.equal(
-    await refreshCommand(root),
-    'next-issue: asked the run to check for new issues now\n',
-  );
-  while (waits(stderr()) < 2) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  child.kill('SIGINT');
-  assert.equal(await exited, 0);
+  const error = await cliFails(['refresh'], { cwd: root });
+  assert.equal(error?.code, 1);
+  assert.match(error?.stderr ?? '', /Unknown command: refresh/);
 });
 
 test('a user who starts a run without init gets .next-issue/ and .worktrees/ in info/exclude, out of .gitignore, and no config file', async (t) => {
@@ -739,12 +716,12 @@ test('a user who runs --help start sees the same usage as start --help and exit 
   assert.equal(helpStart.stdout, startHelp.stdout);
 });
 
-test('a user who runs --help sees start as a command with the on|off run flags under it, then the watch, hunt and refresh commands', async () => {
+test('a user who runs --help sees start as a command with the on|off run flags under it, then the watch and hunt commands', async () => {
   const { stdout } = await promisify(execFile)(process.execPath, [CLI, '--help']);
   assert.match(stdout, /^next-issue <command> \[options\]$/m);
   assert.match(
     stdout,
-    /^ {2}start {13}.*\n {4}--watch on\|off {2}.*default on.*\n {4}--hunt on\|off {3}.*default off.*\n {2}watch on\|off {6}.*\n {2}hunt on\|off {7}.*\n {2}refresh {11}.*\n {2}init /m,
+    /^ {2}start {13}.*\n {4}--watch on\|off {2}.*default on.*\n {4}--hunt on\|off {3}.*default off.*\n {2}watch on\|off {6}.*\n {2}hunt on\|off {7}.*\n {2}init /m,
   );
 });
 

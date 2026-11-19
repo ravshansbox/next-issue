@@ -221,21 +221,6 @@ test('a client that switches watching with no run going gets an error and no run
   assert.equal(fake.calls.length, 0);
 });
 
-test('a client that asks a run to refresh after it switched watching on wakes its wait', async (t) => {
-  const fake = fakeRuns();
-  const { socketPath } = await worker(t, fake);
-  const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo', args: ['--watch', 'off'] });
-  await client.next(watchingIs(false));
-  client.send({ type: 'watch', root: '/repo', on: true });
-  await client.next(watchingIs(true));
-  const refreshed = fake.controls().refreshed!();
-  client.send({ type: 'refresh', root: '/repo' });
-  client.send(AFTER);
-  await client.next(answered);
-  assert.equal(refreshed.aborted, true);
-});
-
 test('a client whose requests carry an id gets each refusal back with the id of the request it answers', async (t) => {
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
@@ -243,16 +228,14 @@ test('a client whose requests carry an id gets each refusal back with the id of 
   client.send({ type: 'hunt', root: '/repo', on: true, id: 'hunt-1' });
   client.send({ type: 'start', root: '/repo', args: ['--once'], id: 'start-1' });
   client.send({ type: 'stop', root: '/repo', after: 'later' as never, id: 'stop-1' });
-  client.send({ type: 'refresh', root: '/other', id: 'refresh-1' });
   const errors: WorkerMessage[] = [];
-  for (let count = 0; count < 4; count += 1) {
+  for (let count = 0; count < 3; count += 1) {
     errors.push(await client.next((value) => value.type === 'error'));
   }
   assert.deepEqual(errors, [
     { type: 'error', root: '/repo', message: 'no run is going in this repository', id: 'hunt-1' },
     { type: 'error', root: '/repo', message: 'Unknown argument: --once', id: 'start-1' },
     { type: 'error', root: '/repo', message: 'stop does not take --after later', id: 'stop-1' },
-    { type: 'error', root: '/other', message: 'the worker serves /repo only', id: 'refresh-1' },
   ]);
 });
 
@@ -297,7 +280,7 @@ const stopping = (value: WorkerMessage) =>
 const stoppedRun = (value: WorkerMessage) =>
   value.type === 'runs' && value.runs['/repo']?.status === 'stopped';
 
-const AFTER = { type: 'refresh', root: '/other', id: 'after' } as const;
+const AFTER = { type: 'stop', root: '/other', id: 'after' } as const;
 
 const AFTER_ERROR = {
   type: 'error',
@@ -305,54 +288,6 @@ const AFTER_ERROR = {
   message: 'the worker serves /repo only',
   id: 'after',
 };
-
-const answered = (value: WorkerMessage) => value.type === 'error' && value.id === 'after';
-
-test('a client that asks a waiting watch run to refresh wakes its wait, and the run goes on', async (t) => {
-  const fake = fakeRuns();
-  const { socketPath } = await worker(t, fake);
-  const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo', args: ['--watch', 'on'] });
-  await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
-  const controls = fake.controls();
-  const refreshed = controls.refreshed!();
-  const asleep = controls.interrupts.sleep(60_000, undefined, refreshed);
-  client.send({ type: 'refresh', root: '/repo' });
-  assert.equal(await asleep, false);
-  assert.equal(refreshed.aborted, true);
-  assert.equal(controls.interrupts.afterIssue(), false);
-  const another = await connect(t, socketPath);
-  const runs = await another.next(runsOf);
-  assert.equal(runs.type === 'runs' && runs.runs['/repo']?.status, 'running');
-});
-
-test('a client that asks a stopping run to refresh changes nothing and the run still stops', async (t) => {
-  const fake = fakeRuns();
-  const { socketPath } = await worker(t, fake);
-  const client = await connect(t, socketPath);
-  client.send({ type: 'start', root: '/repo', args: ['--watch', 'on'] });
-  await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
-  client.send({ type: 'stop', root: '/repo' });
-  await client.next(stopping);
-  const refreshed = fake.controls().refreshed!();
-  client.send({ type: 'refresh', root: '/repo' });
-  client.send(AFTER);
-  await client.next(answered);
-  assert.equal(refreshed.aborted, false);
-  assert.equal(fake.controls().interrupts.afterIssue(), true);
-  fake.finish();
-  await client.next(stoppedRun);
-});
-
-test('a client that asks for a refresh with no run going gets no error and no run starts', async (t) => {
-  const fake = fakeRuns();
-  const { socketPath } = await worker(t, fake);
-  const client = await connect(t, socketPath);
-  client.send({ type: 'refresh', root: '/repo' });
-  client.send(AFTER);
-  assert.deepEqual(await client.next((value) => value.type === 'error'), AFTER_ERROR);
-  assert.equal(fake.calls.length, 0);
-});
 
 test('a client that stops a run with no point sees it claim nothing new, finish its issues and end as stopped', async (t) => {
   const { fake, client } = await startedRun(t);
@@ -493,8 +428,7 @@ test('a client that sends a malformed message gets no reply, no run starts and t
     { type: 'start', root: '/repo', args: '--hunt' },
     { type: 'start', root: '/repo', args: [1] },
     { type: 'stop' },
-    { type: 'refresh' },
-    { type: 'refresh', root: '/repo', id: 5 },
+    { type: 'stop', root: '/repo', id: 5 },
     { type: 'hunt', root: '/repo' },
     { type: 'hunt', root: '/repo', on: 'yes' },
     { type: 'watch', root: '/repo' },
