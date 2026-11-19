@@ -192,7 +192,7 @@ export async function lock(
 ): Promise<HeldLock | undefined> {
   const started = await readStart(process.pid);
   if (started === undefined) {
-    throw new Error('next-issue: cannot read the start time of this process');
+    throw new Error('cannot read the start time of this process');
   }
   const text = `${process.pid} ${started}\n`;
   const deadline = Date.now() + waitMs;

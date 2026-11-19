@@ -48,7 +48,7 @@ class Sink {
     }
     this.failed = true;
     this.output(
-      `next-issue: the run log ${this.file} cannot be written (${message(error)}); the run goes on without it\n`,
+      `the run log ${this.file} cannot be written (${message(error)}); the run goes on without it\n`,
     );
   }
 

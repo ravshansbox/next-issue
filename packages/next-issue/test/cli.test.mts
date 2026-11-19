@@ -145,10 +145,10 @@ test('a user who starts a watch run with no open issue sees start exit with 0 an
   assert.deepEqual(waits, ['watch.wait minutes=1']);
 });
 
-const STARTED = /next-issue: the run started in the worker/;
+const STARTED = /^the run started in the worker/m;
 
 const HELD =
-  /next-issue failed: the next-issue worker exited before it listened: exit code 1 \(see \.next-issue\/worker\.log\)/;
+  /^the next-issue worker exited before it listened: exit code 1 \(see \.next-issue\/worker\.log\)$/m;
 
 async function holdLock(root: string, pid: number): Promise<string> {
   await mkdir(stateDir(root), { recursive: true });
@@ -222,7 +222,7 @@ test('a user who runs next-issue start while another run of start is going in th
   const called = join(bin, 'called');
   await installGh(t, bin, `#!/bin/sh\ntouch "${called}"\nexit 1\n`);
   const { stderr } = await promisify(execFile)(process.execPath, [CLI, 'start'], { cwd: root });
-  assert.match(stderr, /^next-issue: the run is running in worker .*\nwatching on, hunting off\n/m);
+  assert.match(stderr, /^the run is running in worker .*\nwatching on, hunting off\n/m);
   assert.equal(await exists(called), false);
 });
 
@@ -255,7 +255,7 @@ test('a user who serves a linked worktree while the worker of the main worktree 
     (failure: { code: number; stderr: string }) => failure,
   );
   assert.equal(error?.code, 1);
-  assert.equal(error?.stderr, 'next-issue: another worker is running\n');
+  assert.equal(error?.stderr, 'another worker is running\n');
 });
 
 test('a user who serves the repository while another process holds worker.lock sees that another worker is running and gets no worker', async (t) => {
@@ -268,7 +268,7 @@ test('a user who serves the repository while another process holds worker.lock s
     (failure: { code: number; stderr: string }) => failure,
   );
   assert.equal(error?.code, 1);
-  assert.match(error?.stderr ?? '', /\nnext-issue: another worker is running\n$/);
+  assert.match(error?.stderr ?? '', /\nanother worker is running\n$/);
   assert.equal(await exists(workerPaths(root).socketPath), false);
   assert.equal(await readFile(workerPaths(root).lockPath, 'utf8'), lock);
 });
@@ -295,10 +295,9 @@ test('a user who starts a run in a repository with no origin finds the error of 
   const root = await repository();
   await singleRun(root);
   assert.equal(await gone(workerPaths(root).lockPath), true);
-  assert.match(
-    await readFile(workerPaths(root).logPath, 'utf8'),
-    /next-issue failed: .*No such remote 'origin'/,
-  );
+  const log = await readFile(workerPaths(root).logPath, 'utf8');
+  assert.match(log, /No such remote 'origin'/);
+  assert.doesNotMatch(log, /^next-issue/m);
 });
 
 test('a user who runs next-issue over a worker.lock that a dead process left takes it over and leaves no worker.lock', async () => {
@@ -316,7 +315,7 @@ test('a user who runs next-issue over a worker.lock that a dead process left tak
 test('a user who stops the worker with SIGTERM sees it exit and remove its socket and lock files', async () => {
   const root = await repository();
   const { child, exited, stderr } = await serveWorker(root);
-  assert.match(stderr(), /worker listening on .*\.next-issue\/worker\.sock/);
+  assert.match(stderr(), /^worker listening on .*\.next-issue\/worker\.sock$/m);
   child.kill('SIGTERM');
   assert.equal(await exited, 'SIGTERM');
   assert.deepEqual(await readdir(stateDir(root)), []);
@@ -533,7 +532,7 @@ test('a user who runs logs in a repository with no run log sees an error and exi
     (failure: { code: number; stderr: string }) => failure,
   );
   assert.equal(error?.code, 1);
-  assert.equal(error?.stderr, 'next-issue: no run log in .next-issue/runs\n');
+  assert.equal(error?.stderr, 'no run log in .next-issue/runs\n');
 });
 
 async function inTerminal(command: string): Promise<string[]> {

@@ -92,7 +92,7 @@ function withoutExcludeNotes(text: string): string {
 }
 
 const STARTED =
-  'next-issue: the run started in the worker; follow it with npx -y next-issue@latest logs and stop it with npx -y next-issue@latest stop\n';
+  'the run started in the worker; follow it with npx -y next-issue@latest logs and stop it with npx -y next-issue@latest stop\n';
 
 test('a user who runs start sees one line that the run started naming logs and stop, nothing on stdout, exit code 0 and the run keep going in the worker', async (t) => {
   const root = await repository(ORIGIN);
@@ -143,10 +143,10 @@ test('a user who runs watch or hunt with a run going sees the run switch, the ne
   other.send({ type: 'start', root });
   await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'running');
   for (const [argv, printed, watching, hunting] of [
-    [['hunt', 'on'], 'next-issue: watching on, hunting on\n', true, true],
-    [['watch', 'off'], 'next-issue: watching off, hunting off\n', false, false],
-    [['watch', 'on'], 'next-issue: watching on, hunting off\n', true, false],
-    [['hunt', 'off'], 'next-issue: watching on, hunting off\n', true, false],
+    [['hunt', 'on'], 'watching on, hunting on\n', true, true],
+    [['watch', 'off'], 'watching off, hunting off\n', false, false],
+    [['watch', 'on'], 'watching on, hunting off\n', true, false],
+    [['hunt', 'off'], 'watching on, hunting off\n', true, false],
   ] as const) {
     const switched = cliCommand(t, root, [...argv]);
     assert.equal(await switched.exited, 0, switched.stderr());
@@ -165,14 +165,14 @@ test('a user who runs watch or hunt with no worker or no run going sees that no 
   ]) {
     const switched = cliCommand(t, root, argv);
     assert.equal(await switched.exited, 0);
-    assert.equal(switched.stdout(), 'next-issue: no run is going in this repository\n');
+    assert.equal(switched.stdout(), 'no run is going in this repository\n');
   }
   await assert.rejects(readFile(workerPaths(root).logPath, 'utf8'));
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo);
   const switched = cliCommand(t, root, ['watch', 'off']);
   assert.equal(await switched.exited, 0);
-  assert.equal(switched.stdout(), 'next-issue: no run is going in this repository\n');
+  assert.equal(switched.stdout(), 'no run is going in this repository\n');
   assert.equal(fake.calls.length, 0);
 });
 
@@ -200,7 +200,7 @@ test('a user who runs stop while the run waits between passes with no hunt going
   const slept = fake.controls().interrupts.sleep(60_000);
   const stopped = cliCommand(t, root, ['stop']);
   assert.equal(await stopped.exited, 0, stopped.stderr());
-  assert.equal(stopped.stdout(), 'next-issue: the run stopped\n');
+  assert.equal(stopped.stdout(), 'the run stopped\n');
   assert.equal(await slept, false);
   fake.finish();
   await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'stopped');
@@ -211,7 +211,7 @@ test('a user who runs stop while the run is between steps of a pass with no issu
   const { fake } = await runningInWorker(t, root);
   const stopped = cliCommand(t, root, ['stop']);
   assert.equal(await stopped.exited, 0, stopped.stderr());
-  assert.equal(stopped.stdout(), 'next-issue: the run is stopping\n');
+  assert.equal(stopped.stdout(), 'the run is stopping\n');
   fake.finish();
 });
 
@@ -221,7 +221,7 @@ test('a user who runs stop while the run holds issues sees that the run will sto
   await runIssues(other, root, fake.controls(), [12, 15, 16]);
   const stopped = cliCommand(t, root, ['stop']);
   assert.equal(await stopped.exited, 0, stopped.stderr());
-  assert.equal(stopped.stdout(), 'next-issue: the run will stop after #12, #15 and #16\n');
+  assert.equal(stopped.stdout(), 'the run will stop after #12, #15 and #16\n');
   assert.equal(fake.controls().interrupts.afterIssue(), true);
   assert.equal(fake.controls().interrupts.afterRound(), false);
   await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'stopping');
@@ -235,7 +235,7 @@ test('a user who runs stop while a hunt is going and no issue runs sees that the
   fake.controls().onHunter!(() => true);
   const stopped = cliCommand(t, root, ['stop']);
   assert.equal(await stopped.exited, 0, stopped.stderr());
-  assert.equal(stopped.stdout(), 'next-issue: the run will stop after its current hunt\n');
+  assert.equal(stopped.stdout(), 'the run will stop after its current hunt\n');
   fake.finish();
 });
 
@@ -246,10 +246,7 @@ test('a user who runs stop while the run holds issues and a hunt is going sees t
   fake.controls().onHunter!(() => true);
   const stopped = cliCommand(t, root, ['stop']);
   assert.equal(await stopped.exited, 0, stopped.stderr());
-  assert.equal(
-    stopped.stdout(),
-    'next-issue: the run will stop after #12, #15 and its current hunt\n',
-  );
+  assert.equal(stopped.stdout(), 'the run will stop after #12, #15 and its current hunt\n');
   fake.finish();
 });
 
@@ -269,7 +266,7 @@ test('a user who runs stop with a worker that sends no stopping reply sees that 
   });
   const stopped = cliCommand(t, root, ['stop']);
   assert.equal(await stopped.exited, 0, stopped.stderr());
-  assert.equal(stopped.stdout(), 'next-issue: the run will stop after its current issues\n');
+  assert.equal(stopped.stdout(), 'the run will stop after its current issues\n');
   assert.equal(received.length, 1);
   assert.deepEqual(
     { ...(received[0] as object), id: undefined },
@@ -293,7 +290,7 @@ test('a user who runs stop while the run is stopping sees that it is stopping al
   await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'stopping');
   const stopped = cliCommand(t, root, ['stop']);
   assert.equal(await stopped.exited, 0, stopped.stderr());
-  assert.equal(stopped.stdout(), 'next-issue: the run is stopping already\n');
+  assert.equal(stopped.stdout(), 'the run is stopping already\n');
   assert.equal(fake.controls().interrupts.afterRound(), true);
   fake.finish();
 });
@@ -310,7 +307,7 @@ test('a user who runs stop while the run stops for an upgrade sees that it will 
   await runIssues(other, root, fake.controls(), [7]);
   const stopped = cliCommand(t, root, ['stop']);
   assert.equal(await stopped.exited, 0, stopped.stderr());
-  assert.equal(stopped.stdout(), 'next-issue: the run will stop after #7 and not start again\n');
+  assert.equal(stopped.stdout(), 'the run will stop after #7 and not start again\n');
   const dropped = await other.next(
     (value) => value.type === 'runs' && value.runs[root]?.upgrade === undefined,
   );
@@ -322,13 +319,13 @@ test('a user who runs stop with no worker or no run going sees that no run is go
   const root = await repository(ORIGIN);
   const alone = cliCommand(t, root, ['stop']);
   assert.equal(await alone.exited, 0);
-  assert.equal(alone.stdout(), 'next-issue: no run is going in this repository\n');
+  assert.equal(alone.stdout(), 'no run is going in this repository\n');
   await assert.rejects(readFile(workerPaths(root).logPath, 'utf8'));
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo);
   const idle = cliCommand(t, root, ['stop']);
   assert.equal(await idle.exited, 0);
-  assert.equal(idle.stdout(), 'next-issue: no run is going in this repository\n');
+  assert.equal(idle.stdout(), 'no run is going in this repository\n');
   assert.equal(fake.calls.length, 0);
 });
 
@@ -351,7 +348,7 @@ test('a user who runs status with a run going sees its status, the worker versio
   assert.equal(
     status.stdout(),
     [
-      `next-issue: the run is running in worker ${await packageVersion()}`,
+      `the run is running in worker ${await packageVersion()}`,
       'watching on, hunting on',
       '#624 reviewing (round 2)',
       '#625 starting',
@@ -379,7 +376,7 @@ test('a user who runs status while the run stops for an upgrade sees the run sto
   assert.equal(
     status.stdout(),
     [
-      'next-issue: the run is stopping in worker 0.0.0-old',
+      'the run is stopping in worker 0.0.0-old',
       'watching on, hunting off',
       `stopping for an upgrade to ${await packageVersion()}`,
       'no issue is running',
@@ -393,13 +390,13 @@ test('a user who runs status with no worker or no run going sees that no run is 
   const root = await repository(ORIGIN);
   const alone = cliCommand(t, root, ['status']);
   assert.equal(await alone.exited, 0);
-  assert.equal(alone.stdout(), 'next-issue: no run is going in this repository\n');
+  assert.equal(alone.stdout(), 'no run is going in this repository\n');
   await assert.rejects(readFile(workerPaths(root).logPath, 'utf8'));
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo);
   const idle = cliCommand(t, root, ['status']);
   assert.equal(await idle.exited, 0);
-  assert.equal(idle.stdout(), 'next-issue: no run is going in this repository\n');
+  assert.equal(idle.stdout(), 'no run is going in this repository\n');
   assert.equal(fake.calls.length, 0);
 });
 
@@ -418,7 +415,7 @@ test('a user who runs start with no worker sees a worker start in the background
   assert.equal(await started.exited, 0, started.stderr());
   assert.equal(withoutExcludeNotes(started.stderr()), STARTED);
   const log = await readFile(workerPaths(root).logPath, 'utf8');
-  assert.match(log, /worker listening on .*worker\.sock/);
+  assert.match(log, /^worker listening on .*worker\.sock$/m);
 });
 
 test('a user who runs start while an idle worker is alive sees the run go in that worker, the started line and nothing on stdout', async (t) => {
@@ -462,7 +459,7 @@ test('a user who runs start while an older worker has a watch run going sees the
   assert.equal(
     withoutExcludeNotes(started.stderr()),
     [
-      'next-issue: the run is stopping in worker 0.0.0-old',
+      'the run is stopping in worker 0.0.0-old',
       'watching on, hunting on',
       `stopping for an upgrade to ${version}`,
       'no issue is running',
@@ -505,7 +502,7 @@ test('a user who runs start while a run is going sees the status of that run on 
   assert.equal(
     withoutExcludeNotes(started.stderr()),
     statusLines(
-      `next-issue: the run is running in worker ${await packageVersion()}`,
+      `the run is running in worker ${await packageVersion()}`,
       'watching on, hunting on',
     ),
   );
@@ -528,7 +525,7 @@ test('a user who runs start with --watch or --hunt while a run is going sees the
     assert.equal(await started.exited, 0, started.stderr());
     assert.equal(
       withoutExcludeNotes(started.stderr()),
-      statusLines(`next-issue: the run is running in worker ${await packageVersion()}`, settings),
+      statusLines(`the run is running in worker ${await packageVersion()}`, settings),
     );
     assert.equal(fake.controls().watching?.on(), watching);
     assert.equal(fake.controls().hunting?.on(), hunting);
@@ -547,7 +544,7 @@ test('a user who runs start after stop sees the stop cancelled, the run running 
   assert.equal(
     withoutExcludeNotes(started.stderr()),
     statusLines(
-      `next-issue: the run is running in worker ${await packageVersion()}`,
+      `the run is running in worker ${await packageVersion()}`,
       'watching on, hunting off',
     ),
   );
@@ -567,7 +564,7 @@ test('a user who runs start after a stop after the round or now sees start fail 
     await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'stopping');
     const started = startCommand(t, root, ['--hunt', 'on']);
     assert.equal(await started.exited, 1);
-    assert.match(started.stderr(), /next-issue failed: the run is stopping/);
+    assert.match(started.stderr(), /^the run is stopping$/m);
     assert.equal(fake.controls().interrupts.afterRound(), true);
     assert.equal(fake.controls().hunting?.on(), false);
     assert.equal(fake.calls.length, 1);
@@ -586,7 +583,7 @@ test('a user who runs a newer start with --watch off after a stop after the roun
   await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'stopping');
   const started = startCommand(t, root, ['--watch', 'off']);
   assert.equal(await started.exited, 1);
-  assert.match(started.stderr(), /next-issue failed: the run is stopping/);
+  assert.match(started.stderr(), /^the run is stopping$/m);
   assert.equal(fake.controls().watching?.on(), true);
   assert.equal(fake.controls().interrupts.afterRound(), true);
   fake.finish();
@@ -623,7 +620,7 @@ test('a user who runs start --hunt on while a worker older than request ids has 
   assert.equal(await started.exited, 0, started.stderr());
   assert.equal(
     withoutExcludeNotes(started.stderr()),
-    statusLines('next-issue: the run is running in worker 0.0.0-old', 'watching on, hunting on'),
+    statusLines('the run is running in worker 0.0.0-old', 'watching on, hunting on'),
   );
 });
 
@@ -638,6 +635,6 @@ test('a user who runs stop while the run stops for an upgrade with no issue held
   await other.next((value) => value.type === 'runs' && value.runs[root]?.upgrade !== undefined);
   const stopped = cliCommand(t, root, ['stop']);
   assert.equal(await stopped.exited, 0, stopped.stderr());
-  assert.equal(stopped.stdout(), 'next-issue: the run is stopping and will not start again\n');
+  assert.equal(stopped.stdout(), 'the run is stopping and will not start again\n');
   fake.finish();
 });

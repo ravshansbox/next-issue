@@ -134,7 +134,7 @@ test('a user who runs init when the skill copy fails part way keeps the skill in
     initOnFullDisk(await repository(), home, ['--scope', 'user']),
     (error: { code: number; stderr: string }) => {
       assert.equal(error.code, 1);
-      assert.match(error.stderr, /next-issue failed: ENOSPC/);
+      assert.match(error.stderr, /^ENOSPC/m);
       return true;
     },
   );

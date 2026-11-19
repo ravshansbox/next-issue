@@ -61,7 +61,7 @@ async function main(): Promise<number> {
 async function logs(root: string): Promise<number> {
   const file = await newestRunLog(root);
   if (file === undefined) {
-    await write(process.stderr, `next-issue: no run log in ${STATE_DIR}/runs\n`);
+    await write(process.stderr, `no run log in ${STATE_DIR}/runs\n`);
     return 1;
   }
   const tail = process.stdout.isTTY ? Math.max(1, (process.stdout.rows || 24) - 1) : undefined;
@@ -100,7 +100,7 @@ async function excludeStateDirectories(root: string, stream: NodeJS.WriteStream)
 main().then(
   (code) => process.exit(code),
   async (error: unknown) => {
-    await write(process.stderr, `next-issue failed: ${message(error)}\n`);
+    await write(process.stderr, `${message(error)}\n`);
     process.exit(1);
   },
 );

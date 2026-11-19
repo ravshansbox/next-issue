@@ -122,7 +122,7 @@ test('a run whose log write fails keeps passing events to its listener and repor
   assert.deepEqual(seen, ['run.start', 'issue.start', 'issue.end']);
   const reports = written.filter((line) => line.includes('ENOSPC'));
   assert.equal(reports.length, 1);
-  assert.match(reports[0]!, /run log/);
+  assert.match(reports[0]!, /^the run log /);
   await target.close();
 });
 

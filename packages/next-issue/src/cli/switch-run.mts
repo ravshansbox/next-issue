@@ -13,7 +13,7 @@ export type SwitchName = 'watch' | 'hunt';
 
 const FIELDS = { watch: 'watching', hunt: 'hunting' } as const;
 
-const NO_RUN = 'next-issue: no run is going in this repository\n';
+const NO_RUN = 'no run is going in this repository\n';
 
 function onOffText(on: boolean | undefined): string {
   return on === true ? 'on' : 'off';
@@ -27,7 +27,7 @@ export function switchInWorker(root: string, name: SwitchName, on: boolean): Pro
       );
     }
     const progress = await switched(connection, root, name, on);
-    return `next-issue: watching ${onOffText(progress.watching)}, hunting ${onOffText(progress.hunting)}\n`;
+    return `watching ${onOffText(progress.watching)}, hunting ${onOffText(progress.hunting)}\n`;
   });
 }
 
@@ -79,10 +79,10 @@ export function switched(
 export function stopInWorker(root: string): Promise<string> {
   return inWorker(root, async (connection, progress) => {
     if (progress.status === 'stopping' && progress.upgrade === undefined) {
-      return 'next-issue: the run is stopping already\n';
+      return 'the run is stopping already\n';
     }
     const reply = await stopReply(connection, root);
-    return `next-issue: ${stopText(progress, reply)}\n`;
+    return `${stopText(progress, reply)}\n`;
   });
 }
 
@@ -133,7 +133,7 @@ export function statusInWorker(root: string): Promise<string> {
 
 export function statusText(version: string, progress: Progress): string {
   const lines = [
-    `next-issue: the run is ${progress.status} in worker ${version}`,
+    `the run is ${progress.status} in worker ${version}`,
     `watching ${onOffText(progress.watching)}, hunting ${onOffText(progress.hunting)}`,
   ];
   if (progress.upgrade !== undefined) {

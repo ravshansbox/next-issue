@@ -98,7 +98,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       await resumeOnSuccessor(options.root, how, resumeArgs(run));
     } catch (error) {
       const reason = `the worker could not start next-issue ${restart}: ${message(error)}`;
-      process.stderr.write(`next-issue: ${reason}\n`);
+      process.stderr.write(`${reason}\n`);
       run.progress = { ...run.progress, status: 'failed', error: reason };
       broadcast(sockets, runs);
     }
@@ -224,7 +224,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
           });
         },
         (error: unknown) => {
-          process.stderr.write(`next-issue failed: ${message(error)}\n`);
+          process.stderr.write(`${message(error)}\n`);
           update({ ...run.progress, status: 'failed', error: message(error) });
           return sendAllSent(sockets, { type: 'end', root, code: 1, error: message(error) });
         },
@@ -361,7 +361,7 @@ export async function serve(root: string, logCheckMs = LOG_CHECK_MS): Promise<nu
   });
   if (worker === undefined) {
     stopTrimming();
-    process.stderr.write('next-issue: another worker is running\n');
+    process.stderr.write('another worker is running\n');
     return 1;
   }
   const end = (signal: NodeJS.Signals): void => {
@@ -377,7 +377,7 @@ export async function serve(root: string, logCheckMs = LOG_CHECK_MS): Promise<nu
   process.on('SIGTERM', onTerminate);
   process.on('SIGINT', onInterrupt);
   process.on('SIGHUP', onHangUp);
-  process.stderr.write(`next-issue: worker listening on ${paths.socketPath}\n`);
+  process.stderr.write(`worker listening on ${paths.socketPath}\n`);
   await worker.closed;
   stopTrimming();
   return 0;
