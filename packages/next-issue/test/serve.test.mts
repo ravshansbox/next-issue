@@ -231,8 +231,8 @@ test('a client whose requests carry an id gets each refusal back with the id of 
   }
   assert.deepEqual(errors, [
     { type: 'error', root: '/repo', message: 'no run is going in this repository', id: 'hunt-1' },
-    { type: 'error', root: '/repo', message: 'Unknown argument: --once', id: 'start-1' },
-    { type: 'error', root: '/repo', message: 'stop does not take --after later', id: 'stop-1' },
+    { type: 'error', root: '/repo', message: 'Unknown argument: `--once`', id: 'start-1' },
+    { type: 'error', root: '/repo', message: '`stop` does not take `--after later`', id: 'stop-1' },
   ]);
 });
 
@@ -241,17 +241,17 @@ test('a client that starts a run with a command or a flag that start does not ta
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
   for (const [args, message] of [
-    [['init'], 'start does not take init'],
-    [['start'], 'start does not take start'],
-    [['--once'], 'Unknown argument: --once'],
-    [['--json'], 'Unknown argument: --json'],
-    [['--max', '1'], 'Unknown argument: --max'],
-    [['--reset'], 'Unknown argument: --reset'],
-    [['--verbose'], 'Unknown argument: --verbose'],
-    [['--quiet'], 'Unknown argument: --quiet'],
-    [['--force'], 'start does not take --force'],
-    [['--help'], 'start does not take --help'],
-    [['--merge'], 'Unknown argument: --merge'],
+    [['init'], '`start` does not take `init`'],
+    [['start'], '`start` does not take `start`'],
+    [['--once'], 'Unknown argument: `--once`'],
+    [['--json'], 'Unknown argument: `--json`'],
+    [['--max', '1'], 'Unknown argument: `--max`'],
+    [['--reset'], 'Unknown argument: `--reset`'],
+    [['--verbose'], 'Unknown argument: `--verbose`'],
+    [['--quiet'], 'Unknown argument: `--quiet`'],
+    [['--force'], '`start` does not take `--force`'],
+    [['--help'], '`start` does not take `--help`'],
+    [['--merge'], 'Unknown argument: `--merge`'],
   ] as const) {
     client.send({ type: 'start', root: '/repo', args: [...args] });
     assert.deepEqual(await client.next((value) => value.type === 'error'), {
@@ -383,7 +383,7 @@ test('a client that stops a run with an unknown point gets an error and the run 
   assert.deepEqual(await client.next((value) => value.type === 'error'), {
     type: 'error',
     root: '/repo',
-    message: 'stop does not take --after tool',
+    message: '`stop` does not take `--after tool`',
   });
   assert.equal(fake.controls().interrupts.afterIssue(), false);
 });

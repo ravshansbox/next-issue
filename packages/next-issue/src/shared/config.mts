@@ -143,7 +143,7 @@ function configFile(root: string): string {
 }
 
 function existsAlready(): Error {
-  return new Error(`${CONFIG_FILE} exists already. Use --force to replace it.`);
+  return new Error(`${CONFIG_FILE} exists already. Use \`--force\` to replace it.`);
 }
 
 export async function writeDefaultConfig(
@@ -180,7 +180,7 @@ export async function moveOldConfig(root: string, force: boolean): Promise<strin
 export async function rejectOldConfig(root: string): Promise<void> {
   if ((await readTextIfPresent(join(root, OLD_CONFIG_FILE))) !== undefined) {
     throw new Error(
-      `${OLD_CONFIG_FILE} moved to ${CONFIG_FILE}. Run npx -y next-issue@latest init to move it.`,
+      `${OLD_CONFIG_FILE} moved to ${CONFIG_FILE}. Run \`npx -y next-issue@latest init\` to move it.`,
     );
   }
 }

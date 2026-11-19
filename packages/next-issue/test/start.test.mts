@@ -92,7 +92,7 @@ function withoutExcludeNotes(text: string): string {
 }
 
 const STARTED =
-  'the run started in the worker; follow it with npx -y next-issue@latest logs and stop it with npx -y next-issue@latest stop\n';
+  'the run started in the worker; follow it with `npx -y next-issue@latest logs` and stop it with `npx -y next-issue@latest stop`\n';
 
 test('a user who runs start sees one line that the run started naming logs and stop, nothing on stdout, exit code 0 and the run keep going in the worker', async (t) => {
   const root = await repository(ORIGIN);
@@ -123,7 +123,10 @@ test('a user who runs start with --hunt on and --watch off sees an error that hu
   const root = await repository(ORIGIN);
   const started = startCommand(t, root, ['--hunt', 'on', '--watch', 'off']);
   assert.equal(await started.exited, 1);
-  assert.match(started.stderr(), /hunting needs watching/);
+  assert.match(
+    started.stderr(),
+    /hunting needs watching: `--hunt on` does not go with `--watch off`/,
+  );
 });
 
 test('a user who runs start with --watch and no value or another value sees an error and exit code 1', async (t) => {
@@ -131,7 +134,7 @@ test('a user who runs start with --watch and no value or another value sees an e
   for (const args of [['--watch'], ['--watch', 'yes']]) {
     const started = startCommand(t, root, args);
     assert.equal(await started.exited, 1);
-    assert.match(started.stderr(), /--watch takes on or off/);
+    assert.match(started.stderr(), /`--watch` takes `on` or `off`/);
   }
 });
 
@@ -438,7 +441,7 @@ test('a user who runs watch or hunt with no value or another value sees an error
   for (const argv of [['watch'], ['hunt', 'yes']]) {
     const switched = cliCommand(t, root, argv);
     assert.equal(await switched.exited, 1);
-    assert.match(switched.stderr(), new RegExp(`${argv[0]} takes on or off`));
+    assert.match(switched.stderr(), new RegExp(`\`${argv[0]}\` takes \`on\` or \`off\``));
   }
 });
 

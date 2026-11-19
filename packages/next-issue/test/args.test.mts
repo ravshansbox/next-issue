@@ -19,7 +19,7 @@ test('a user who passes --watch or --hunt with no value or another value gets an
     for (const rest of [[], ['yes'], ['--force']]) {
       assert.throws(
         () => parseArgs(['start', flag, ...rest]),
-        new RegExp(`${flag} takes on or off`),
+        new RegExp(`\`${flag}\` takes \`on\` or \`off\``),
       );
     }
   }
@@ -30,7 +30,10 @@ test('a user who passes --hunt on with --watch off gets an error that says hunti
     ['--hunt', 'on', '--watch', 'off'],
     ['--watch', 'off', '--hunt', 'on'],
   ]) {
-    assert.throws(() => parseArgs(['start', ...argv]), /hunting needs watching/);
+    assert.throws(
+      () => parseArgs(['start', ...argv]),
+      /hunting needs watching: `--hunt on` does not go with `--watch off`/,
+    );
   }
 });
 
@@ -47,25 +50,28 @@ test('a user who runs watch or hunt with on or off gets that command and value',
 test('a user who runs watch or hunt with no value or another value gets an error that says it takes on or off', () => {
   for (const command of ['watch', 'hunt']) {
     for (const rest of [[], ['yes'], ['--force']]) {
-      assert.throws(() => parseArgs([command, ...rest]), new RegExp(`${command} takes on or off`));
+      assert.throws(
+        () => parseArgs([command, ...rest]),
+        new RegExp(`\`${command}\` takes \`on\` or \`off\``),
+      );
     }
-    assert.throws(() => parseArgs([command, 'on', 'off']), /Unknown argument: off/);
+    assert.throws(() => parseArgs([command, 'on', 'off']), /Unknown argument: `off`/);
   }
 });
 
 test('a user who passes start, init, serve, stop, logs, watch or hunt first gets that command, and elsewhere gets an error', () => {
   assert.equal(parseArgs(['start']).command, 'start');
-  assert.throws(() => parseArgs(['--watch', 'on', 'start']), /Unknown argument: start/);
+  assert.throws(() => parseArgs(['--watch', 'on', 'start']), /Unknown argument: `start`/);
   assert.equal(parseArgs(['stop']).command, 'stop');
   assert.equal(parseArgs(['init', '--force']).command, 'init');
-  assert.throws(() => parseArgs(['--force', 'init']), /Unknown argument: init/);
-  assert.throws(() => parseArgs(['run']), /Unknown command: run/);
+  assert.throws(() => parseArgs(['--force', 'init']), /Unknown argument: `init`/);
+  assert.throws(() => parseArgs(['run']), /Unknown command: `run`/);
   assert.equal(parseArgs(['serve']).command, 'serve');
 });
 
 test('a user who passes an unknown option gets the run stopped', () => {
-  assert.throws(() => parseArgs(['--nope']), /Unknown argument: --nope/);
-  assert.throws(() => parseArgs(['--issue', '7']), /Unknown argument: --issue/);
+  assert.throws(() => parseArgs(['--nope']), /Unknown argument: `--nope`/);
+  assert.throws(() => parseArgs(['--issue', '7']), /Unknown argument: `--issue`/);
 });
 
 test('a user who passes --hunt on asks to hunt and keeps watching, and --hunt off turns hunting off', () => {
@@ -82,13 +88,13 @@ test('a user who passes a flag to serve gets an error that serve does not take i
   ]) {
     assert.throws(
       () => parseArgs(['serve', ...argv]),
-      new RegExp(`serve does not take ${argv[0]}`),
+      new RegExp(`\`serve\` does not take \`${argv[0]}\``),
     );
   }
 });
 
 test('a user who passes an unknown flag or --help to serve gets the usual result', () => {
-  assert.throws(() => parseArgs(['serve', '--unknown']), /Unknown argument: --unknown/);
+  assert.throws(() => parseArgs(['serve', '--unknown']), /Unknown argument: `--unknown`/);
   assert.equal(parseArgs(['serve', '--help']).help, true);
   assert.equal(parseArgs(['serve', '--help', '--hunt', 'on']).help, true);
 });
@@ -102,7 +108,10 @@ test('a user who passes a run flag with no command gets an error that says to us
     ['--watch', 'on'],
     ['--hunt', 'on'],
   ]) {
-    assert.throws(() => parseArgs(argv), /no command given: use npx -y next-issue@latest start/);
+    assert.throws(
+      () => parseArgs(argv),
+      /no command given: use `npx -y next-issue@latest start` to start a run/,
+    );
   }
 });
 
@@ -118,7 +127,7 @@ test('a user who passes a run flag to another command gets an error that names t
     for (const flag of ['--watch', '--hunt']) {
       assert.throws(
         () => parseArgs([command, flag, 'on']),
-        new RegExp(`^Error: ${command} does not take ${flag}: it belongs to start$`),
+        new RegExp(`^Error: \`${command}\` does not take \`${flag}\`: it belongs to \`start\`$`),
       );
     }
   }
@@ -132,14 +141,17 @@ test('a user who runs init with --scope user or project gets that scope, and wit
 });
 
 test('a user who passes update gets an unknown command error and a usage text that does not list it', () => {
-  assert.throws(() => parseArgs(['update']), /Unknown command: update/);
+  assert.throws(() => parseArgs(['update']), /Unknown command: `update`/);
   assert.doesNotMatch(USAGE, /update/);
   assert.match(USAGE, /init[^\n]*\n(\s+--[^\n]*\n)*\s+--scope user\|project/);
 });
 
 test('a user who passes --scope with no value or another value gets an error that says it takes user or project', () => {
   for (const rest of [[], ['all'], ['--force']]) {
-    assert.throws(() => parseArgs(['init', '--scope', ...rest]), /--scope takes user or project/);
+    assert.throws(
+      () => parseArgs(['init', '--scope', ...rest]),
+      /`--scope` takes `user` or `project`/,
+    );
   }
 });
 
@@ -147,12 +159,12 @@ test('a user who passes --force to a command other than init gets an error that 
   for (const command of ['start', 'serve', 'stop', 'logs']) {
     assert.throws(
       () => parseArgs([command, '--force']),
-      new RegExp(`${command} does not take --force: it belongs to init`),
+      new RegExp(`\`${command}\` does not take \`--force\`: it belongs to \`init\``),
     );
   }
   assert.throws(
     () => parseArgs(['watch', 'on', '--force']),
-    /watch does not take --force: it belongs to init/,
+    /`watch` does not take `--force`: it belongs to `init`/,
   );
   assert.equal(parseArgs(['init', '--force']).force, true);
 });
@@ -161,7 +173,7 @@ test('a user who passes --scope to another command gets an error that says it be
   for (const command of ['start', 'serve', 'stop', 'logs', 'status']) {
     assert.throws(
       () => parseArgs([command, '--scope', 'user']),
-      new RegExp(`${command} does not take --scope: it belongs to init`),
+      new RegExp(`\`${command}\` does not take \`--scope\`: it belongs to \`init\``),
     );
   }
 });

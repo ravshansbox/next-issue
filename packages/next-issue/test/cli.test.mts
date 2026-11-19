@@ -132,6 +132,21 @@ test('a user who runs init with a root next-issue.config.json sees it moved to .
   assert.match(stdout, /moved next-issue\.config\.json to .*\.next-issue\/config\.json/);
 });
 
+test('a user who runs init with a root next-issue.config.json and a .next-issue/config.json gets an error that says to use --force', async () => {
+  const root = await repository();
+  await writeFile(join(root, 'next-issue.config.json'), '{}\n');
+  await initCommand(root);
+  await writeFile(join(root, 'next-issue.config.json'), '{}\n');
+  await assert.rejects(initCommand(root), (error: { code: number; stderr: string }) => {
+    assert.notEqual(error.code, 0);
+    assert.match(
+      error.stderr,
+      /\.next-issue\/config\.json exists already\. Use `--force` to replace it\./,
+    );
+    return true;
+  });
+});
+
 test('a user who runs another command with a root next-issue.config.json gets an error that the config moved and says to run npx -y next-issue@latest init', async () => {
   const root = await repository();
   await writeFile(join(root, 'next-issue.config.json'), '{}\n');
@@ -141,7 +156,7 @@ test('a user who runs another command with a root next-issue.config.json gets an
       assert.notEqual(error.code, 0);
       assert.match(
         error.stderr,
-        /moved to \.next-issue\/config\.json\. Run npx -y next-issue@latest init to move it\./,
+        /moved to \.next-issue\/config\.json\. Run `npx -y next-issue@latest init` to move it\./,
       );
       return true;
     },
@@ -211,7 +226,7 @@ test('a user who runs refresh sees an unknown command error and exit code 1', as
   const root = await repository();
   const error = await cliFails(['refresh'], { cwd: root });
   assert.equal(error?.code, 1);
-  assert.match(error?.stderr ?? '', /Unknown command: refresh/);
+  assert.match(error?.stderr ?? '', /Unknown command: `refresh`/);
 });
 
 test('a user who starts a run without init gets .next-issue/ and .claude/worktrees/ in info/exclude, out of .gitignore, and no config file', async (t) => {
@@ -659,7 +674,7 @@ test('a user who runs next-issue --watch on sees an error that says to use npx -
   assert.equal(error?.code, 1);
   assert.match(
     error?.stderr ?? '',
-    /no command given: use npx -y next-issue@latest start to start a run, or see npx -y next-issue@latest --help/,
+    /no command given: use `npx -y next-issue@latest start` to start a run, or see `npx -y next-issue@latest --help`/,
   );
   assert.equal(await exists(called), false);
 });
@@ -669,7 +684,7 @@ test('a user who runs next-issue start --once sees an unknown argument error, ex
   const { env, called } = await oldGit(t, '2.50.0');
   const error = await cliFails(['start', '--once'], { cwd: root, env });
   assert.equal(error?.code, 1);
-  assert.match(error?.stderr ?? '', /Unknown argument: --once/);
+  assert.match(error?.stderr ?? '', /Unknown argument: `--once`/);
   assert.equal(await exists(called), false);
 });
 
@@ -686,7 +701,7 @@ for (const args of [
     const { env, called } = await oldGit(t, '2.50.0');
     const error = await cliFails(args, { cwd: root, env });
     assert.equal(error?.code, 1);
-    assert.match(error?.stderr ?? '', new RegExp(`Unknown argument: ${args[1]}`));
+    assert.match(error?.stderr ?? '', new RegExp(`Unknown argument: \`${args[1]}\``));
     assert.equal(await exists(called), false);
   });
 }
@@ -727,7 +742,7 @@ for (const args of [
     assert.equal(error?.code, 1);
     assert.match(
       error?.stderr ?? '',
-      new RegExp(`${args[0]} does not take ${args[1]}: it belongs to start`),
+      new RegExp(`\`${args[0]}\` does not take \`${args[1]}\`: it belongs to \`start\``),
     );
   });
 }
@@ -738,7 +753,7 @@ test('a user who runs serve --hunt on gets an error, exit code 1 and no worker',
     promisify(execFile)(process.execPath, [CLI, 'serve', '--hunt', 'on'], { cwd: root }),
     (error: { code: number; stderr: string }) => {
       assert.equal(error.code, 1);
-      assert.match(error.stderr, /serve does not take --hunt/);
+      assert.match(error.stderr, /`serve` does not take `--hunt`/);
       return true;
     },
   );

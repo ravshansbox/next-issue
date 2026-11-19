@@ -41,7 +41,7 @@ export async function chooseScope(scope: Scope | undefined): Promise<Scope> {
   }
   if (process.stdin.isTTY !== true) {
     throw new Error(
-      'init needs --scope user|project when there is no terminal to ask where to install the skills',
+      '`init` needs `--scope user|project` when there is no terminal to ask where to install the skills',
     );
   }
   return askScope(process.stdin, process.stdout);

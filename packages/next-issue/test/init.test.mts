@@ -149,7 +149,7 @@ test('a user who runs init with no --scope and no terminal gets an error that na
   await linkedWorktree(root);
   await assert.rejects(init(root, home, []), (error: { code: number; stderr: string }) => {
     assert.equal(error.code, 1);
-    assert.match(error.stderr, /init needs --scope user\|project/);
+    assert.match(error.stderr, /`init` needs `--scope user\|project`/);
     return true;
   });
   await untouched(root, home);

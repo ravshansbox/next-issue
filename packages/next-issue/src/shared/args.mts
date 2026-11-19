@@ -55,34 +55,34 @@ export function parseArgs(argv: string[]): Args {
   }
   if (args.command === undefined && flag !== undefined) {
     throw new Error(
-      'no command given: use npx -y next-issue@latest start to start a run, or see npx -y next-issue@latest --help',
+      'no command given: use `npx -y next-issue@latest start` to start a run, or see `npx -y next-issue@latest --help`',
     );
   }
   if (args.command !== undefined && args.command !== 'start' && runFlag !== undefined) {
-    throw new Error(`${args.command} does not take ${runFlag}: it belongs to start`);
+    throw new Error(`\`${args.command}\` does not take \`${runFlag}\`: it belongs to \`start\``);
   }
   if (args.command !== undefined && args.command !== 'init' && args.scope !== undefined) {
-    throw new Error(`${args.command} does not take --scope: it belongs to init`);
+    throw new Error(`\`${args.command}\` does not take \`--scope\`: it belongs to \`init\``);
   }
   if ((args.command === 'watch' || args.command === 'hunt') && args.on === undefined) {
-    throw new Error(`${args.command} takes on or off`);
+    throw new Error(`\`${args.command}\` takes \`on\` or \`off\``);
   }
   if (args.command !== undefined && args.command !== 'init' && args.force) {
-    throw new Error(`${args.command} does not take --force: it belongs to init`);
+    throw new Error(`\`${args.command}\` does not take \`--force\`: it belongs to \`init\``);
   }
   return args;
 }
 
 function onOffValue(name: string, value: string | undefined): boolean {
   if (value !== 'on' && value !== 'off') {
-    throw new Error(`${name} takes on or off`);
+    throw new Error(`\`${name}\` takes \`on\` or \`off\``);
   }
   return value === 'on';
 }
 
 function scopeValue(value: string | undefined): Scope {
   if (value !== 'user' && value !== 'project') {
-    throw new Error('--scope takes user or project');
+    throw new Error('`--scope` takes `user` or `project`');
   }
   return value;
 }
@@ -128,11 +128,11 @@ function readArgs(passed: string[]): {
       index += 1;
       given[RUN_FLAGS.get(arg)!] = onOffValue(arg, argv[index]);
     } else {
-      throw new Error(`Unknown argument: ${arg}`);
+      throw new Error(`Unknown argument: \`${arg}\``);
     }
   }
   if (given.hunt === true && given.watch === false) {
-    throw new Error('hunting needs watching: --hunt on does not go with --watch off');
+    throw new Error('hunting needs watching: `--hunt on` does not go with `--watch off`');
   }
   args.watch = given.watch ?? true;
   args.hunt = given.hunt ?? false;
@@ -142,7 +142,7 @@ function readArgs(passed: string[]): {
 function command(arg: string): Command {
   const found = COMMANDS.find((name) => name === arg);
   if (found === undefined) {
-    throw new Error(`Unknown command: ${arg}`);
+    throw new Error(`Unknown command: \`${arg}\``);
   }
   return found;
 }
@@ -152,14 +152,14 @@ const OUTPUT_ONLY: Switch[] = ['force', 'help'];
 export function parseStartArgs(argv: string[]): Args {
   const { args } = readArgs(argv);
   if (args.command !== undefined) {
-    throw new Error(`start does not take ${args.command}`);
+    throw new Error(`\`start\` does not take \`${args.command}\``);
   }
   if (args.scope !== undefined) {
-    throw new Error('start does not take --scope');
+    throw new Error('`start` does not take `--scope`');
   }
   const refused = OUTPUT_ONLY.find((name) => args[name]);
   if (refused !== undefined) {
-    throw new Error(`start does not take --${refused}`);
+    throw new Error(`\`start\` does not take \`--${refused}\``);
   }
   return { ...args, command: 'start' };
 }

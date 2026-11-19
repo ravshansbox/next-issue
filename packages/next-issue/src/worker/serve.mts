@@ -235,7 +235,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   const stop = (socket: Peer, refuse: Refuse, root: string, after: unknown, id?: string) => {
     const point = stopPoint(after);
     if (point === undefined) {
-      refuse(`stop does not take --after ${String(after)}`);
+      refuse(`\`stop\` does not take \`--after ${String(after)}\``);
       return;
     }
     const run = runs.get(root);
