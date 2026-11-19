@@ -14,8 +14,9 @@ Turn the problem of the user into one GitHub issue, or a split of linked issues 
 
 3. Judge whether the change fits one atomic commit that leaves the trunk green. When it does not, propose a split into issues that each land alone and keep the trunk green, in the order they land, and note which issues of the split each one depends on.
 4. Ask numbered questions about anything that is unclear: the scope, the expected behaviour, the acceptance criteria. When you propose a split, ask the user to confirm the split with the other questions. Label options with letters and recommend one. Ask again until no question is open.
-5. Write the body from `template.md` into a temporary file. Keep every heading of the template and its order. Leave `Open questions` empty.
-6. Find the ready label, `<ready>`: the value of `labels.ready` in `.next-issue/config.json` at the root of the repository. The worker claims only issues with that label. When `labels.ready` is not set, or there is no config file, `<ready>` is `status:todo`.
+5. List every choice the implementer would have to make, for example the approach, where data comes from, what to delete and which files to change. Ask the user about each choice that has more than one reasonable answer, with lettered options and a recommended one. Ask these with the questions of step 4.
+6. Write the body from `template.md` into a temporary file. Keep every heading of the template and its order. Write each answered choice in `Decisions`. Leave `Decisions` empty when no choice needed asking. Leave `Open questions` empty.
+7. Find the ready label, `<ready>`: the value of `labels.ready` in `.next-issue/config.json` at the root of the repository. The worker claims only issues with that label. When `labels.ready` is not set, or there is no config file, `<ready>` is `status:todo`.
 
    Create the `<ready>` label when the repository does not have it:
 
@@ -34,31 +35,31 @@ Turn the problem of the user into one GitHub issue, or a split of linked issues 
 
    `<blockers>` is the comma-separated list of the numbers of the issues it depends on. Leave out `--blocked-by <blockers>` when the issue has no blocker. When gh does not know `--blocked-by` (it needs GitHub CLI 2.94.0 or later), do not create the issue: ask the user to upgrade gh.
 
-7. Only once the issue exists with every blocker linked, add the ready label, unless `labels.ready` is empty. Add no label other than `<ready>`:
+8. Only once the issue exists with every blocker linked, add the ready label, unless `labels.ready` is empty. Add no label other than `<ready>`:
 
    ```bash
    gh issue edit --repo <repo> <number> --add-label "<ready>"
    ```
 
-   For a confirmed split, repeat steps 5 to 7 for each issue of the split, in order. Create each one with `--blocked-by` the issues of the split it depends on, so it is linked before you add its ready label.
+   For a confirmed split, repeat steps 6 to 8 for each issue of the split, in order. Create each one with `--blocked-by` the issues of the split it depends on, so it is linked before you add its ready label.
 
-8. Once the issue exists with its ready label, or the last issue of a split has its ready label, run `npx -y next-issue@latest status` once. When `labels.ready` is empty, run it too, since the worker claims every open issue.
+9. Once the issue exists with its ready label, or the last issue of a split has its ready label, run `npx -y next-issue@latest status` once. When `labels.ready` is empty, run it too, since the worker claims every open issue.
 
    When the first line of the status starts with `stopping`, run no `start`: the run is stopping, so the issue waits for the next run. Otherwise run `npx -y next-issue@latest start` once. It starts a run when none is going, and joins a going run.
 
    Then give the user the issue url, or each url of a split, and the outcome of `start`, or that the run is stopping, in one line, and stop.
 
-9. When the user asks for a change to the issue, make the change on GitHub. Write the new body into the temporary file and run:
+10. When the user asks for a change to the issue, make the change on GitHub. Write the new body into the temporary file and run:
 
-   ```bash
-   gh issue edit --repo <repo> <number> --body-file <file>
-   ```
+    ```bash
+    gh issue edit --repo <repo> <number> --body-file <file>
+    ```
 
-   To change the title, run:
+    To change the title, run:
 
-   ```bash
-   gh issue edit --repo <repo> <number> --title "<title>"
-   ```
+    ```bash
+    gh issue edit --repo <repo> <number> --title "<title>"
+    ```
 
 Once the issue exists, do not implement it in this session. The next-issue worker does the work.
 
@@ -66,6 +67,7 @@ Once the issue exists, do not implement it in this session. The next-issue worke
 
 - Problem: what is wrong or missing, and who it affects.
 - Context and findings: what you found in the code and the docs, with paths.
-- Acceptance criteria: a list of checks that show the issue is done, each one observable. Write each check as a plain bullet (`- `), not a task-list checkbox (`- [ ]`), since nothing ticks the boxes.
+- Decisions: each choice the user made about how to do the change, with the chosen option. Empty when no choice needed asking.
+- Acceptance criteria: a list of checks that show the issue is done, each one observable. Name each concrete target, such as each file, test or item, instead of a count or a general phrase like "update the docs". Write each check as a plain bullet (`- `), not a task-list checkbox (`- [ ]`), since nothing ticks the boxes.
 - Out of scope: what the issue does not cover.
 - Open questions: empty when the issue is created.

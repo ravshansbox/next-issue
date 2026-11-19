@@ -58,6 +58,15 @@ test('a user who hunts with one free place sees the hunter told to file at most 
   }
 });
 
+test('a user who hunts sees the hunter told to write the approach it chose under Decisions, or leave it empty', async (t) => {
+  const target = await harness(t);
+  await hunt(target.context, 1);
+  assert.match(
+    target.prompts[0]!.prompt,
+    /Write the approach you chose in the Decisions section, or leave it empty when no choice is needed\./,
+  );
+});
+
 test('a user who hunts in a repository without the ready label sees the harness create the ready and source labels before the hunter runs', async (t) => {
   const target = await harness(t);
   const order: string[] = [];

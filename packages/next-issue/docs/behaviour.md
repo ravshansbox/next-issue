@@ -29,9 +29,10 @@ Every agent prompt holds the body of the issue and the comments of users with wr
 
 1. `Problem`
 2. `Context and findings`
-3. `Acceptance criteria`
-4. `Out of scope`
-5. `Open questions`, empty when the issue is created
+3. `Decisions`, empty when no choice needed asking
+4. `Acceptance criteria`
+5. `Out of scope`
+6. `Open questions`, empty when the issue is created
 
 The list lives in `src/shared/issue-format.mts`. The [`create-issue` skill](#create-an-issue) writes an issue in this format, and a contract test fails when its template and the list disagree. The harness does not reject an issue without the format.
 

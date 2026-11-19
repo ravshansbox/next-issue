@@ -304,7 +304,7 @@ export function huntPrompt(
       `Before you file an issue, search the open and closed issues for a duplicate, for example with \`gh issue list --repo ${repository} --state all --search "<words>"\`. Do not file a finding when a duplicate exists.`,
       `File each issue with \`gh issue create --repo ${repository}${label} --title "<conventional commit subject>" --body-file -\`.`,
       `The body holds these sections as \`##\` headings, in this order: ${ISSUE_SECTIONS.map((section) => `\`## ${section}\``).join(', ')}.`,
-      'Give the file and line of each piece of evidence. Leave the Open questions section empty.',
+      'Give the file and line of each piece of evidence. Write the approach you chose in the Decisions section, or leave it empty when no choice is needed. Leave the Open questions section empty.',
       'End your final message with one line in the form `issue: <url>` for each issue you filed, or one `issue: none` line when you filed nothing.',
     ].join('\n'),
   ]);

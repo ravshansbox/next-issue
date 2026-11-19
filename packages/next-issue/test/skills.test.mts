@@ -19,6 +19,42 @@ test('an agent who reads the create-issue template finds the issue sections of n
   assert.match(template, /## Open questions\s*$/);
 });
 
+test('an agent who reads the create-issue template finds the Decisions section between Context and findings and Acceptance criteria', async () => {
+  const template = await readFile(new URL('create-issue/template.md', skills), 'utf8');
+  const headings = [...template.matchAll(/^## (.+)$/gm)].map((match) => match[1]);
+  assert.deepEqual(headings, [
+    'Problem',
+    'Context and findings',
+    'Decisions',
+    'Acceptance criteria',
+    'Out of scope',
+    'Open questions',
+  ]);
+});
+
+test('an agent who creates an issue lists every choice the implementer faces, asks about each open one and records the answers under Decisions', async () => {
+  const skill = await readFile(createIssue, 'utf8');
+  assert.match(
+    skill,
+    /5\. List every choice the implementer would have to make[^\n]*Ask the user about each choice that has more than one reasonable answer, with lettered options and a recommended one\./,
+  );
+  assert.match(skill, /Write each answered choice in `Decisions`/);
+  assert.match(skill, /Leave `Decisions` empty when no choice needed asking/);
+  assert.match(skill, /^- Decisions: /m);
+  assert.match(
+    skill,
+    /^- Acceptance criteria: [^\n]*Name each concrete target, such as each file, test or item, instead of a count or a general phrase like "update the docs"\./m,
+  );
+});
+
+test('a person who reads the next-issue behaviour doc finds Decisions in the issue format after Context and findings', async () => {
+  const behaviour = await readFile(behaviourFile, 'utf8');
+  assert.match(
+    behaviour,
+    /2\. `Context and findings`\n3\. `Decisions`[^\n]*\n4\. `Acceptance criteria`/,
+  );
+});
+
 test('a person who installs next-issue gets the create-issue and answer-hand-over skills', async () => {
   for (const name of ['create-issue', 'answer-hand-over']) {
     const skill = await readFile(new URL(`${name}/SKILL.md`, skills), 'utf8');
@@ -33,7 +69,7 @@ test('an agent who creates an issue with the create-issue skill adds the ready l
     skill,
     /--blocked-by <blockers>[\s\S]*gh issue edit --repo <repo> <number> --add-label "<ready>"/,
   );
-  assert.match(skill, /repeat steps 5 to 7 for each issue of the split/);
+  assert.match(skill, /repeat steps 6 to 8 for each issue of the split/);
 });
 
 test('an agent who creates an issue with blockers passes them to gh issue create, so the issue never exists unblocked', async () => {
