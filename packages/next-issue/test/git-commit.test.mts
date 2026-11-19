@@ -6,7 +6,7 @@ import { commitAll, HookError } from '../src/shared/git-commit.mts';
 import { addWorktree } from '../src/shared/worktree.mts';
 import { clones, git } from './clones.mts';
 
-test('commitAll that a pre-commit hook stops throws a hook error with the hook output', async () => {
+test('the worker gets a hook error with the hook output when a pre-commit hook stops its commit', async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   const hooks = join(path, '..', 'hooks');
@@ -24,7 +24,7 @@ test('commitAll that a pre-commit hook stops throws a hook error with the hook o
   });
 });
 
-test('commitAll that a commit-msg hook stops throws a hook error with the hook output', async () => {
+test('the worker gets a hook error with the hook output when a commit-msg hook stops its commit', async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   const hooks = join(path, '..', 'hooks');
@@ -47,7 +47,7 @@ test('commitAll that a commit-msg hook stops throws a hook error with the hook o
   assert.equal(await git(path, 'log', '-1', '--format=%s'), 'fix: a change');
 });
 
-test('commitAll whose commit signing fails throws an error that is not a hook error', async () => {
+test('the worker gets an error that is not a hook error when commit signing fails', async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   await git(path, 'config', 'user.name', 't');
@@ -63,7 +63,7 @@ test('commitAll whose commit signing fails throws an error that is not a hook er
   });
 });
 
-test('commitAll whose git add fails throws an error that is not a hook error', async () => {
+test('the worker gets an error that is not a hook error when git add fails', async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   await writeFile(join(path, 'b.txt'), 'b\n');

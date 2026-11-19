@@ -30,7 +30,7 @@ const STATE: IssueState = {
   reviewLog: [{ round: 1, findings: '- a b' }],
 };
 
-test('the state survives the round trip', async () => {
+test('the worker reads back the state it saved', async () => {
   const target = await repo();
   await writeState(target, STATE);
   assert.deepEqual(await readState(target, 7), STATE);
@@ -49,7 +49,7 @@ test('a caller that reads a state file of an earlier version with a fingerprint 
   ]);
 });
 
-test('a write of the state that fails part-way leaves the earlier state file readable and unchanged', async (t) => {
+test('the worker leaves the earlier state file readable and unchanged when a write of the state fails part-way', async (t) => {
   const target = await repo();
   await writeState(target, STATE);
   const path = join(stateDir(target.root), '7.json');
@@ -72,7 +72,7 @@ test('a write of the state that fails part-way leaves the earlier state file rea
   assert.deepEqual(await readdir(stateDir(target.root)), ['7.json']);
 });
 
-test('a completed write of the state leaves only the state file, and savedIssues lists only the issue', async () => {
+test('the worker leaves only the state file after a completed write, and lists only that issue as saved', async () => {
   const target = await repo();
   await writeState(target, STATE);
   await writeState(target, { ...STATE, ciFixes: 2 });
@@ -81,7 +81,7 @@ test('a completed write of the state leaves only the state file, and savedIssues
   assert.deepEqual(await savedIssues(target), [7]);
 });
 
-test('a missing state gives undefined', async () => {
+test('the worker reads no state when the state file is missing', async () => {
   assert.equal(await readState(await repo(), 7), undefined);
 });
 
@@ -121,11 +121,11 @@ for (const text of [
   });
 }
 
-test('resetState clears the hand-over mark', () => {
+test('the worker clears the hand-over mark when it resets the state', () => {
   assert.equal(resetState({ ...STATE, handedOver: true }).handedOver, undefined);
 });
 
-test('resetState drops the budgets and keeps the resume point', () => {
+test('the worker drops the budgets and keeps the resume point when it resets the state', () => {
   assert.deepEqual(resetState(STATE), {
     ...STATE,
     ciFixes: 0,
@@ -135,7 +135,7 @@ test('resetState drops the budgets and keeps the resume point', () => {
   });
 });
 
-test('resetState sends an approved issue back to review and drops its closing mark, review start and squash start', () => {
+test('the worker sends an approved issue back to review and drops its closing mark, review start and squash start when it resets the state', () => {
   const reset = resetState({
     ...STATE,
     phase: 'approved',
@@ -149,7 +149,7 @@ test('resetState sends an approved issue back to review and drops its closing ma
   assert.equal(reset.squashing, undefined);
 });
 
-test('dropState takes the state away and accepts a state that is not there', async () => {
+test('the worker takes the state away and accepts a state that is not there', async () => {
   const target = await repo();
   await writeState(target, STATE);
   await dropState(target, 7);

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { message, parseJson } from '../src/shared/errors.mts';
 
-test('parseJson reads valid JSON and throws the given failure for invalid JSON', () => {
+test('the worker reads valid JSON and throws the given failure for invalid JSON', () => {
   assert.deepEqual(
     parseJson('{"a":1}', () => 'unused'),
     { a: 1 },

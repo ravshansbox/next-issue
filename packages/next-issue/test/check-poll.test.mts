@@ -22,7 +22,7 @@ function probe(list: Array<'none' | 'some'>, watch: CheckState[]): ChecksProbe &
   return state;
 }
 
-test('a passing build waits out the grace time before it gives pass', async () => {
+test('the worker waits out the grace time on a passing build before it reports pass', async () => {
   const target = probe(['some'], ['pass']);
   const time = fakeClock();
   assert.equal(await pollChecks(target, OPTIONS, time), 'pass');
@@ -30,18 +30,18 @@ test('a passing build waits out the grace time before it gives pass', async () =
   assert.equal(time.time, 60_000);
 });
 
-test('a check that fails after the first checks passed gives fail', async () => {
+test('the worker reports fail for a check that fails after the first checks passed', async () => {
   const target = probe(['some'], ['pass', 'pass', 'fail']);
   const time = fakeClock();
   assert.equal(await pollChecks(target, OPTIONS, time), 'fail');
   assert.equal(time.time, 20_000);
 });
 
-test('a build that fails gives fail', async () => {
+test('the worker reports fail for a build that fails', async () => {
   assert.equal(await pollChecks(probe(['some'], ['fail']), OPTIONS, fakeClock()), 'fail');
 });
 
-test('a pending build waits and asks again', async () => {
+test('the worker waits and asks again while a build is pending', async () => {
   const target = probe(['some'], ['pending', 'pending', 'pass']);
   const time = fakeClock();
   assert.equal(await pollChecks(target, { ...OPTIONS, graceMs: 0 }, time), 'pass');
@@ -49,7 +49,7 @@ test('a pending build waits and asks again', async () => {
   assert.equal(time.time, 20_000);
 });
 
-test('a check that starts late is not read as no check', async () => {
+test('the worker does not read a check that starts late as no check', async () => {
   const target = probe(['none', 'none', 'some'], ['pass']);
   const time = fakeClock();
   assert.equal(await pollChecks(target, OPTIONS, time), 'pass');
@@ -57,7 +57,7 @@ test('a check that starts late is not read as no check', async () => {
   assert.equal(time.time, 60_000);
 });
 
-test('no check after the grace time gives none', async () => {
+test('the worker reports none when no check shows up within the grace time', async () => {
   const target = probe(['none'], []);
   const time = fakeClock();
   assert.equal(await pollChecks(target, OPTIONS, time), 'none');
@@ -65,21 +65,21 @@ test('no check after the grace time gives none', async () => {
   assert.equal(time.time, 60_000);
 });
 
-test('a passing build with a grace time as long as the timeout gives pass at the deadline', async () => {
+test('the worker reports pass at the deadline for a passing build with a grace time as long as the timeout', async () => {
   const time = fakeClock();
   const options = { intervalSeconds: 15, graceMs: 60_000, timeoutMs: 60_000 };
   assert.equal(await pollChecks(probe(['some'], ['pass']), options, time), 'pass');
   assert.equal(time.time, 60_000);
 });
 
-test('no check with a grace time longer than the timeout gives none at the deadline', async () => {
+test('the worker reports none at the deadline when no check shows up and the grace time is longer than the timeout', async () => {
   const time = fakeClock();
   const options = { intervalSeconds: 15, graceMs: 120_000, timeoutMs: 60_000 };
   assert.equal(await pollChecks(probe(['none'], []), options, time), 'none');
   assert.equal(time.time, 60_000);
 });
 
-test('a pending build at the deadline gives timeout', async () => {
+test('the worker reports timeout for a build still pending at the deadline', async () => {
   const options = { intervalSeconds: 15, graceMs: 60_000, timeoutMs: 60_000 };
   assert.equal(
     await pollChecks(
@@ -91,13 +91,13 @@ test('a pending build at the deadline gives timeout', async () => {
   );
 });
 
-test('a grace time of zero gives none at once', async () => {
+test('the worker reports none at once when the grace time is zero', async () => {
   const target = probe(['none'], []);
   assert.equal(await pollChecks(target, { ...OPTIONS, graceMs: 0 }, fakeClock()), 'none');
   assert.equal(target.polls, 1);
 });
 
-test('the deadline stops the wait', async () => {
+test('the worker stops waiting for the checks at the deadline', async () => {
   const time = fakeClock();
   const target: ChecksProbe = {
     lags: async () => true,
@@ -127,7 +127,7 @@ test('a run stopped now whose deadline passes during the wait gets the stop and 
   );
 });
 
-test('the watch gets only the time that is left', async () => {
+test('the worker gives the check watch only the time that is left', async () => {
   const seen: number[] = [];
   const target: ChecksProbe = {
     lags: async () => true,
@@ -142,11 +142,11 @@ test('the watch gets only the time that is left', async () => {
   assert.deepEqual(seen, [25_000, 15_000, 5_000]);
 });
 
-test('a timeout from the watch is passed on', async () => {
+test('the worker passes on a timeout from the check watch', async () => {
   assert.equal(await pollChecks(probe(['some'], ['timeout']), OPTIONS, fakeClock()), 'timeout');
 });
 
-test('the checks are read only when the pull request shows the pushed commit', async () => {
+test('the worker reads the checks only once the pull request shows the pushed commit', async () => {
   const heads = ['old', 'old', 'new'];
   const base = probe(['some'], ['pass']);
   const target: ChecksProbe = {
@@ -161,7 +161,7 @@ test('the checks are read only when the pull request shows the pushed commit', a
   assert.equal(time.time, 20_000);
 });
 
-test('the grace time starts when the pull request shows the pushed commit', async () => {
+test('the worker starts the grace time once the pull request shows the pushed commit', async () => {
   const heads = ['old', 'old', 'old'];
   const base = probe(['none'], []);
   const target: ChecksProbe = {
@@ -175,7 +175,7 @@ test('the grace time starts when the pull request shows the pushed commit', asyn
   assert.equal(time.time, 90_000);
 });
 
-test('a pull request that never shows the pushed commit gives timeout', async () => {
+test('the worker reports timeout for a pull request that never shows the pushed commit', async () => {
   const base = probe(['some'], ['pass']);
   const target: ChecksProbe = {
     list: base.list,
@@ -230,7 +230,7 @@ test('a person who pushes to the pull request before the wait starts stops the w
   assert.equal(time.time, 0);
 });
 
-test('a check read that fails once is tried again', async () => {
+test('the worker tries a check read again when it fails once', async () => {
   let calls = 0;
   const target: ChecksProbe = {
     lags: async () => true,
@@ -249,7 +249,7 @@ test('a check read that fails once is tried again', async () => {
   assert.equal(time.time, 10_000);
 });
 
-test('a check watch that fails once is tried again', async () => {
+test('the worker tries a check watch again when it fails once', async () => {
   let calls = 0;
   const target: ChecksProbe = {
     lags: async () => true,
@@ -268,7 +268,7 @@ test('a check watch that fails once is tried again', async () => {
   assert.equal(time.time, 10_000);
 });
 
-test('a check read that keeps failing passes the error on', async () => {
+test('the worker passes on the error of a check read that keeps failing', async () => {
   const target: ChecksProbe = {
     lags: async () => true,
     head: async () => {

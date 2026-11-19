@@ -27,7 +27,7 @@ async function branch(): Promise<{ path: string; other: string }> {
   return { path, other };
 }
 
-test('squashOnto makes one commit on top of the base, and pushToBase lands it there', async () => {
+test('the worker squashes the change into one commit on top of the base and lands it there', async () => {
   const { path, other } = await branch();
   await commit(other, 'd.txt');
   await git(other, 'push', '-q', 'origin', 'main');
@@ -43,7 +43,7 @@ test('squashOnto makes one commit on top of the base, and pushToBase lands it th
   assert.equal(await git(other, 'rev-parse', 'HEAD'), await git(path, 'rev-parse', 'HEAD'));
 });
 
-test('squashOnto makes no commit for a change that the base already holds', async () => {
+test('the worker makes no squash commit for a change that the base already holds', async () => {
   const { path } = await branch();
   await git(path, 'reset', '-q', '--hard', 'origin/main');
   const head = await git(path, 'rev-parse', 'HEAD');
@@ -51,7 +51,7 @@ test('squashOnto makes no commit for a change that the base already holds', asyn
   assert.equal(await git(path, 'rev-parse', 'HEAD'), head);
 });
 
-test('squashOnto commits a change made only of new untracked files', async () => {
+test('the worker squashes a change made only of new untracked files', async () => {
   const { path } = await branch();
   await git(path, 'reset', '-q', '--hard', 'origin/main');
   await writeFile(join(path, 'new.txt'), 'new\n');
@@ -60,7 +60,7 @@ test('squashOnto commits a change made only of new untracked files', async () =>
   assert.equal(await git(path, 'show', '--format=', '--name-only', 'HEAD'), 'new.txt');
 });
 
-test('squashOnto that a pre-commit hook stops keeps the branch head, and a retry still squashes onto the base', async () => {
+test('the worker keeps the branch head when a pre-commit hook stops the squash, and a retry still squashes onto the base', async () => {
   const { path } = await branch();
   const head = await git(path, 'rev-parse', 'HEAD');
   const hooks = join(path, '..', 'hooks');
@@ -77,7 +77,7 @@ test('squashOnto that a pre-commit hook stops keeps the branch head, and a retry
   assert.equal(await git(path, 'log', '-1', '--format=%s'), 'feat: add b and c');
 });
 
-test('pushToBase refuses a change that is behind the base', async () => {
+test('the worker refuses to push a change that is behind the base', async () => {
   const { path, other } = await branch();
   await commit(other, 'd.txt');
   await git(other, 'push', '-q', 'origin', 'main');
@@ -88,7 +88,7 @@ test('pushToBase refuses a change that is behind the base', async () => {
   assert.equal(await baseMoved(path, 'main', 'origin'), true);
 });
 
-test('pushToBase that the remote refuses on an unchanged base returns the error of git, and baseMoved says the base did not move', async () => {
+test('the worker gets the error of git when the remote refuses a push on an unchanged base, and sees the base did not move', async () => {
   const { path } = await branch();
   const hooks = join(path, '..', 'hooks');
   await mkdir(hooks, { recursive: true });
@@ -102,7 +102,7 @@ test('pushToBase that the remote refuses on an unchanged base returns the error 
   assert.equal(await baseMoved(path, 'main', 'origin'), false);
 });
 
-test('revertOnBase pushes a revert to the base and leaves the change on the branch on top of it', async () => {
+test('the worker pushes a revert to the base and leaves the change on the branch on top of it', async () => {
   const { path, other } = await branch();
   await squashOnto(path, 'origin/main', 'feat: add b and c');
   await pushToBase(path, 'origin', 'main');
@@ -129,7 +129,7 @@ test('revertOnBase pushes a revert to the base and leaves the change on the bran
   assert.equal(await readFile(join(path, 'b.txt'), 'utf8'), 'b.txt\n');
 });
 
-test('reapplyRevert puts the change back on a branch that the base reset, and leaves a branch that already holds it', async () => {
+test('the worker puts the reverted change back on a branch that the base reset, and leaves a branch that already holds it', async () => {
   const { path } = await branch();
   await squashOnto(path, 'origin/main', 'feat: add b and c');
   await pushToBase(path, 'origin', 'main');
@@ -154,7 +154,7 @@ test('reapplyRevert puts the change back on a branch that the base reset, and le
   assert.equal(await git(path, 'rev-parse', 'HEAD'), head);
 });
 
-test('revertOnBase that cannot push puts the branch back as it was', async () => {
+test('the worker puts the branch back as it was when it cannot push a revert', async () => {
   const { path, other } = await branch();
   await squashOnto(path, 'origin/main', 'feat: add b and c');
   await pushToBase(path, 'origin', 'main');
@@ -199,7 +199,7 @@ function revertOf(sha: string): Revert {
   };
 }
 
-test('revertOnBase whose revert conflicts with the base aborts it and puts the branch back', async () => {
+test('the worker aborts a revert that conflicts with the base and puts the branch back', async () => {
   const { path, other, sha } = await landed();
   await writeFile(join(other, 'b.txt'), 'changed\n');
   await git(other, 'commit', '-q', '-am', 'change b');
@@ -211,7 +211,7 @@ test('revertOnBase whose revert conflicts with the base aborts it and puts the b
   await assert.rejects(git(path, 'rev-parse', '-q', '--verify', 'REVERT_HEAD'));
 });
 
-test('revertOnBase of a change that the base already reverted pushes nothing and puts the change back on the branch on top of the base', async () => {
+test('the worker pushes nothing for a change that the base already reverted and puts the change back on the branch on top of the base', async () => {
   const { path, other, sha } = await landed();
   await git(other, 'revert', '--no-edit', sha);
   await git(other, 'push', '-q', 'origin', 'main');
@@ -231,7 +231,7 @@ async function failCommits(path: string): Promise<void> {
   await git(path, 'config', 'gpg.program', 'false');
 }
 
-test('revertOnBase whose revert commit fails puts the branch back', async () => {
+test('the worker puts the branch back when the revert commit fails', async () => {
   const { path, sha } = await landed();
   await failCommits(path);
   await assert.rejects(revertOnBase(path, revertOf(sha)));
@@ -239,7 +239,7 @@ test('revertOnBase whose revert commit fails puts the branch back', async () => 
   assert.equal(await git(path, 'rev-parse', 'HEAD'), sha);
 });
 
-test('revertOnBase whose revert commit fails and whose branch cannot be checked out again reports the commit error', async () => {
+test('the worker reports the commit error when the revert commit fails and the branch cannot be checked out again', async () => {
   const { path, sha } = await landed();
   await failCommits(path);
   await assert.rejects(
@@ -252,7 +252,7 @@ test('revertOnBase whose revert commit fails and whose branch cannot be checked 
   );
 });
 
-test('revertOnBase of a run stopped before the push reports the stop and puts the branch back', async () => {
+test('the worker reports the stop and puts the branch back when the run stops before the revert push', async () => {
   const { path, sha } = await landed();
   const children = runChildren();
   const pushing = async () => stopRunChildren(children);
@@ -264,7 +264,7 @@ test('revertOnBase of a run stopped before the push reports the stop and puts th
   assert.equal(await git(path, 'rev-parse', 'HEAD'), sha);
 });
 
-test('revertOnBase whose push loses a race retries on the new base tip', async () => {
+test('the worker retries a revert push that loses a race on the new base tip', async () => {
   const { path, other, sha } = await landed();
   const hooks = join(path, '..', 'hooks');
   await mkdir(hooks, { recursive: true });
@@ -307,7 +307,7 @@ async function pushLandsAndFails(path: string, after = ''): Promise<void> {
   await git(path, 'config', 'core.hooksPath', hooks);
 }
 
-test('revertOnBase whose push lands although git push reports a failure treats the revert as landed', async () => {
+test('the worker treats a revert as landed when its push lands although git push reports a failure', async () => {
   const { path, other, sha } = await landed();
   await pushLandsAndFails(path);
   assert.equal(await revertOnBase(path, revertOf(sha)), 'pushed');
@@ -318,7 +318,7 @@ test('revertOnBase whose push lands although git push reports a failure treats t
   assert.equal(await readFile(join(path, 'b.txt'), 'utf8'), 'b.txt\n');
 });
 
-test('revertOnBase whose push reports a failure and whose fetch of the base fails does not report the revert as landed', async () => {
+test('the worker does not report a revert as landed when its push reports a failure and the fetch of the base fails', async () => {
   const { path, sha } = await landed();
   await pushLandsAndFails(path, `git config remote.origin.url '${join(path, 'missing.git')}'`);
   await assert.rejects(revertOnBase(path, revertOf(sha)));
@@ -326,7 +326,7 @@ test('revertOnBase whose push reports a failure and whose fetch of the base fail
   assert.equal(await git(path, 'rev-parse', 'HEAD'), sha);
 });
 
-test('isLanded tells a branch whose head the base already holds from one with a commit the base lacks', async () => {
+test('the worker tells a branch whose head the base already holds from one with a commit the base lacks', async () => {
   const { path, other } = await branch();
   assert.equal(await isLanded(path, 'main', 'origin'), false);
   assert.equal((await pushToBase(path, 'origin', 'main')).pushed, true);
@@ -340,7 +340,7 @@ test('isLanded tells a branch whose head the base already holds from one with a 
   assert.equal(await isLanded(path, 'main', 'origin'), false);
 });
 
-test('isOnBase fetches the base and tells a commit pushed from elsewhere from one the base lacks', async () => {
+test('the worker fetches the base and tells a commit pushed from elsewhere from one the base lacks', async () => {
   const { path, other } = await branch();
   const sha = await git(path, 'rev-parse', 'HEAD');
   assert.equal(await isOnBase(path, 'main', 'origin', sha), false);

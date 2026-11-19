@@ -47,7 +47,7 @@ async function written(file: string): Promise<number> {
   throw new Error('The child wrote no id.');
 }
 
-test('run gives the code, the output and the error output', async () => {
+test('a command that the worker runs gives its code, its output and its error output', async () => {
   const result = await run(
     NODE,
     script("process.stdout.write('out'); process.stderr.write('err'); process.exit(3)"),
@@ -58,19 +58,19 @@ test('run gives the code, the output and the error output', async () => {
   assert.equal(result.timedOut, false);
 });
 
-test('run sends the input to the child', async () => {
+test('a command that the worker runs gets the input the worker sends', async () => {
   const result = await run(NODE, script('process.stdin.pipe(process.stdout)'), { input: 'hello' });
   assert.equal(result.stdout, 'hello');
   assert.equal(result.code, 0);
 });
 
-test('run kills a child that passes the time limit', async () => {
+test('the worker kills a command that passes the time limit', async () => {
   const result = await run(NODE, script('setTimeout(() => {}, 10000)'), { timeoutMs: 100 });
   assert.equal(result.timedOut, true);
   assert.notEqual(result.code, 0);
 });
 
-test('two runs that start together each keep their own default time limit', async () => {
+test('the worker keeps the default time limit of each of two commands that start together', async () => {
   const sleeper = script('setTimeout(() => {}, 3000)');
   const [short, long] = await Promise.all([
     withDefaultTimeout(100, async () => {
@@ -87,14 +87,14 @@ test('two runs that start together each keep their own default time limit', asyn
   assert.equal(long.code, 0);
 });
 
-test('run stops on the time limit even when a grandchild holds the output open', async () => {
+test('the worker stops a command on the time limit even when a grandchild holds the output open', async () => {
   const started = Date.now();
   const result = await run('bash', ['-lc', 'sleep 30 & sleep 30'], { timeoutMs: 300 });
   assert.equal(result.timedOut, true);
   assert.ok(Date.now() - started < 10_000);
 });
 
-test('run settles a command that exits at once, leaving a background job on its output, with its own code and output', async () => {
+test('the worker settles a command that exits at once, leaving a background job on its output, with its own code and output', async () => {
   const started = Date.now();
   const result = await run('bash', ['-c', 'echo out; echo err >&2; sleep 5 & exit 4'], {
     timeoutMs: 3000,
@@ -106,7 +106,7 @@ test('run settles a command that exits at once, leaving a background job on its 
   assert.ok(Date.now() - started < 1500);
 });
 
-test('run settles a command that exits at once, leaving a setsid process on its output, before the time limit', async () => {
+test('the worker settles a command that exits at once, leaving a setsid process on its output, before the time limit', async () => {
   const started = Date.now();
   const result = await run('bash', ['-c', 'echo out; setsid sleep 5 & exit 0'], {
     timeoutMs: 3000,
@@ -186,7 +186,7 @@ test(
   },
 );
 
-test('run kills a grandchild that outlives its parent on the time limit', async () => {
+test('the worker kills a grandchild that outlives its parent on the time limit', async () => {
   const dir = await tempDir();
   const file = join(dir, 'pid');
   try {
@@ -202,7 +202,7 @@ test('run kills a grandchild that outlives its parent on the time limit', async 
   }
 });
 
-test('run kills a background process that a command leaves behind when it exits', async () => {
+test('the worker kills a background process that a command leaves behind when it exits', async () => {
   const dir = await tempDir();
   const file = join(dir, 'pid');
   try {
@@ -256,25 +256,25 @@ test('a user who interrupts the worker while a command runs kills the command, s
   assert.equal(await stopped(), true);
 });
 
-test('run keeps only the tail of a long output', async () => {
+test('the worker keeps only the tail of a long command output', async () => {
   const result = await run(NODE, script("process.stdout.write('a'.repeat(100))"), {
     tailChars: 10,
   });
   assert.equal(result.stdout, 'a'.repeat(10));
 });
 
-test('run keeps only the tail of a long error output', async () => {
+test('the worker keeps only the tail of a long command error output', async () => {
   const result = await run(NODE, script("process.stderr.write('b'.repeat(100))"), {
     tailChars: 10,
   });
   assert.equal(result.stderr, 'b'.repeat(10));
 });
 
-test('run reports a command that does not exist', async () => {
+test('the worker reports a command that does not exist', async () => {
   await assert.rejects(run('next-issue-no-such-command', []), /ENOENT/);
 });
 
-test('the observer sees every command', async () => {
+test('the worker shows every command it runs to the observer', async () => {
   const seen: CommandRecord[] = [];
   setCommandObserver((record) => seen.push(record));
   try {
@@ -293,7 +293,7 @@ test('the observer sees every command', async () => {
   assert.equal(seen[1]!.stderr, 'bad');
 });
 
-test('must gives the trimmed output and throws on a code that is not zero', async () => {
+test('the worker gets the trimmed output of a command that must pass, and throws on a code that is not zero', async () => {
   assert.equal(await must(NODE, script("process.stdout.write(' text \\n')")), 'text');
   await assert.rejects(
     must(NODE, script("process.stderr.write('why'); process.exit(4)")),
@@ -301,14 +301,14 @@ test('must gives the trimmed output and throws on a code that is not zero', asyn
   );
 });
 
-test('must reports a child that passes the time limit', async () => {
+test('the worker reports a command that must pass and passes the time limit', async () => {
   await assert.rejects(
     must(NODE, script('setTimeout(() => {}, 10000)'), { timeoutMs: 100 }),
     /did not finish in time/,
   );
 });
 
-test('run shows the output of the child on the error stream when asked', async () => {
+test('the worker shows the output of a command on the error stream when asked', async () => {
   const exec = new URL('../src/shared/exec.mts', import.meta.url).href;
   const inner = `import { run } from ${JSON.stringify(exec)}; await run(process.execPath, ["-e", "process.stdout.write('shown')"], { show: true });`;
   const result = await run(NODE, ['--input-type=module', '-e', inner]);

@@ -9,7 +9,7 @@ import { tempDir } from './temp-dir.mts';
 
 const MANAGED = ['status:todo', 'status:in-progress', 'status:in-review', 'status:done'];
 
-test('labelArgs removes only a label that is present', () => {
+test('the worker removes only a label that is present', () => {
   assert.deepEqual(labelArgs('status:in-review', MANAGED, ['status:todo', 'type: bug']), [
     '--add-label',
     'status:in-review',
@@ -18,7 +18,7 @@ test('labelArgs removes only a label that is present', () => {
   ]);
 });
 
-test('labelArgs removes a present label held in another case, by its own name', () => {
+test('the worker removes a present label held in another case by its own name', () => {
   assert.deepEqual(labelArgs('status:in-review', MANAGED, ['Status:Todo']), [
     '--add-label',
     'status:in-review',
@@ -27,7 +27,7 @@ test('labelArgs removes a present label held in another case, by its own name', 
   ]);
 });
 
-test('labelArgs never removes the label it adds', () => {
+test('the worker never removes the label it adds', () => {
   assert.deepEqual(labelArgs('status:done', MANAGED, ['status:done', 'status:in-review']), [
     '--add-label',
     'status:done',
@@ -55,7 +55,7 @@ esac
   return dir;
 }
 
-test('setLabel creates a missing label once and records no failed command', async (t) => {
+test('the worker creates a missing label once and records no failed command', async (t) => {
   const dir = await fakeGh(t);
   const seen: CommandRecord[] = [];
   setCommandObserver((record) => seen.push(record));
@@ -70,7 +70,7 @@ test('setLabel creates a missing label once and records no failed command', asyn
   assert.equal(await readFile(join(dir, 'labels'), 'utf8'), 'status:todo\nstatus:new\n');
 });
 
-test('setLabel tries the create again when it failed', async (t) => {
+test('the worker tries a label create again when it failed', async (t) => {
   const dir = await fakeGh(t, '');
   const seen: CommandRecord[] = [];
   setCommandObserver((record) => seen.push(record));
@@ -84,7 +84,7 @@ test('setLabel tries the create again when it failed', async (t) => {
   assert.equal(creates.length, 2);
 });
 
-test('setLabel creates a label again when a person deleted it after the worker read the labels', async (t) => {
+test('the worker creates a label again when a person deleted it after the worker read the labels', async (t) => {
   const dir = await tempDir();
   const labels = join(dir, 'labels');
   await writeFile(labels, 'status:todo\n');
@@ -105,7 +105,7 @@ esac
   assert.equal(await readFile(labels, 'utf8'), 'status:todo\n');
 });
 
-test('setLabel shows the create error when the label create fails twice', async (t) => {
+test('the worker shows the create error when the label create fails twice', async (t) => {
   const dir = await tempDir();
   const script = `#!/bin/sh
 case "$1 $2" in
@@ -124,7 +124,7 @@ esac
   );
 });
 
-test('ensureLabel creates a missing label and leaves a known one alone', async (t) => {
+test('the worker creates a missing label and leaves a known one alone', async (t) => {
   const dir = await fakeGh(t);
   const repo = { owner: 'acme', name: 'ensure', root: dir };
   await ensureLabel(repo, 'status:todo');
@@ -132,7 +132,7 @@ test('ensureLabel creates a missing label and leaves a known one alone', async (
   assert.equal(await readFile(join(dir, 'labels'), 'utf8'), 'status:todo\nsource:hunt\n');
 });
 
-test('ensureLabel accepts an existing label listed after the first 1,000 labels of the repository', async (t) => {
+test('the worker accepts an existing label listed after the first 1,000 labels of the repository', async (t) => {
   const dir = await tempDir();
   const labels = join(dir, 'labels');
   const others = Array.from({ length: 1000 }, (_, index) => `other-${index}\n`).join('');

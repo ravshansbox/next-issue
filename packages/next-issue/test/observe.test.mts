@@ -11,7 +11,7 @@ async function recorder(): Promise<Recorder> {
   return Recorder.create(await tempDir());
 }
 
-test('every event goes to the log file with the run id', async () => {
+test('the run writes every event to the log file with the run id', async () => {
   const target = await recorder();
   target.record('run.start', { repo: 'acme/tool' });
   target.record('issues', { open: 2 });
@@ -23,7 +23,7 @@ test('every event goes to the log file with the run id', async () => {
   assert.equal(typeof records[0]!.ts, 'string');
 });
 
-test('a scope adds its fields to every event under it', async () => {
+test('the run adds the fields of a scope to every event under it', async () => {
   const target = await recorder();
   const issue = target.scope({ issue: 7 });
   const role = issue.scope({ role: 'fixer' });
@@ -35,7 +35,7 @@ test('a scope adds its fields to every event under it', async () => {
   assert.equal(records[1]!.issue, undefined);
 });
 
-test('a step writes a start and an end with the time', async () => {
+test('the run writes a start and an end with the time for each step', async () => {
   const target = await recorder();
   const result = await target.step('checks', { pr: 3 }, async () => 'pass');
   assert.equal(result, 'pass');
@@ -48,7 +48,7 @@ test('a step writes a start and an end with the time', async () => {
   assert.equal(typeof records[1]!.ms, 'number');
 });
 
-test('a step that throws writes an error event and passes the throw on', async () => {
+test('the run writes an error event for a step that throws and passes the throw on', async () => {
   const target = await recorder();
   await assert.rejects(
     target.step('push', {}, async () => {
@@ -61,7 +61,7 @@ test('a step that throws writes an error event and passes the throw on', async (
   assert.equal(records[1]!.error, 'no remote');
 });
 
-test('the summary counts the events and adds the tokens per role', async () => {
+test('the run summary counts the events and adds the tokens per role', async () => {
   const target = await recorder();
   const usage = { input: 10, output: 5, cacheRead: 2, cacheWrite: 1, total: 18 };
   target.usage('implementer', usage, 100);
@@ -79,7 +79,7 @@ test('the summary counts the events and adds the tokens per role', async () => {
   await target.close();
 });
 
-test('a summary since an earlier one holds only the tokens and events after it', async () => {
+test('the run summary since an earlier one holds only the tokens and events after it', async () => {
   const target = await recorder();
   const usage = { input: 10, output: 5, cacheRead: 2, cacheWrite: 1, total: 18 };
   target.usage('implementer', usage, 100);

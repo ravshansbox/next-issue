@@ -156,7 +156,7 @@ test('a user who resumes a handed-over issue that is handed over again gets the 
   assert.equal(state?.ciFixes, 0);
 });
 
-test('a handed-over issue that still has the needs-human label is not claimed', async (t) => {
+test('the run does not claim a handed-over issue that still has the needs-human label', async (t) => {
   const target = await harness(t, {
     issue: { ...ISSUE, labels: ['status:needs-human'] },
     saved: HANDED_OVER,
@@ -316,7 +316,7 @@ test('a user who resumes from a state file without a title gets the change lande
   assert.match(target.messages.at(-1)!, /^fix: Add a flag \(#7\)$/);
 });
 
-test('a saved state carries on and does not implement again', async (t) => {
+test('the run carries on from a saved state and does not implement again', async (t) => {
   const target = await harness(t, {
     issue: IN_PROGRESS,
     saved: {

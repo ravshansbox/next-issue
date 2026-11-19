@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { changes, harness, roles } from './harness.mts';
 
-test('the check budget hands the issue to a person', async (t) => {
+test('the worker hands the issue to a person once the check budget runs out', async (t) => {
   const target = await harness(t, { config: { maxCiFixes: 1 }, baseChecks: ['fail', 'fail'] });
   const report = await target.run();
   assert.equal(report.outcome, 'needs-human');
@@ -16,14 +16,14 @@ test('the check budget hands the issue to a person', async (t) => {
   assert.equal((await target.state())?.phase, 'review');
 });
 
-test('a check budget of zero stops before the first fix', async (t) => {
+test('the worker stops before the first check fix when the check budget is zero', async (t) => {
   const target = await harness(t, { config: { maxCiFixes: 0 }, baseChecks: ['fail'] });
   const report = await target.run();
   assert.equal(report.reason, 'check budget');
   assert.deepEqual(roles(target), ['implementer', 'reviewer']);
 });
 
-test('the review budget hands the issue to a person', async (t) => {
+test('the worker hands the issue to a person once the review budget runs out', async (t) => {
   const target = await harness(t, {
     config: { maxReviewRounds: 1 },
     verdicts: [changes('The count is wrong.')],

@@ -17,7 +17,7 @@ const BLOCKING: Verdict = {
   ],
 };
 
-test('parseVerdict reads the last json block of the reviewer text', () => {
+test('the worker reads the last json block of the reviewer text as the verdict', () => {
   const text = [
     'The rule says to end like this:',
     '```json\n{"summary": "example", "findings": []}\n```',
@@ -29,7 +29,7 @@ test('parseVerdict reads the last json block of the reviewer text', () => {
   assert.deepEqual(parseVerdict(text), BLOCKING);
 });
 
-test('parseVerdict reads a verdict whose strings hold three backticks', () => {
+test('the worker reads a verdict whose strings hold three backticks', () => {
   const verdict: Verdict = {
     summary: 'Quote ```x``` here.',
     findings: [{ severity: 'blocking', detail: 'Add a test:\n```ts\nassert(x)\n```' }],
@@ -45,7 +45,7 @@ test('parseVerdict reads a verdict whose strings hold three backticks', () => {
   assert.deepEqual(parseVerdict(`\`\`\`json\n${JSON.stringify(verdict)}\n\`\`\``), verdict);
 });
 
-test('parseVerdict reads a verdict whose strings quote a fenced json block', () => {
+test('the worker reads a verdict whose strings quote a fenced json block', () => {
   const verdict: Verdict = {
     summary: 'Quote ```json\n{}\n``` here.',
     findings: [{ severity: 'blocking', detail: 'Add to config:\n```json\n{"a": 1}\n```' }],
@@ -55,7 +55,7 @@ test('parseVerdict reads a verdict whose strings quote a fenced json block', () 
   assert.deepEqual(parseVerdict(`\`\`\`json\n${JSON.stringify(verdict)}\n\`\`\``), verdict);
 });
 
-test('parseVerdict gives undefined when the last json block is invalid after a valid one', () => {
+test('the worker finds no verdict when the last json block is invalid after a valid one', () => {
   const valid = JSON.stringify({ summary: 'ok', findings: [] });
   assert.equal(
     parseVerdict(`\`\`\`json\n${valid}\n\`\`\`\n\`\`\`json\n{"summary": \n\`\`\``),
@@ -67,13 +67,13 @@ test('parseVerdict gives undefined when the last json block is invalid after a v
   );
 });
 
-test('parseVerdict gives undefined without a valid json block', () => {
+test('the worker finds no verdict without a valid json block', () => {
   assert.equal(parseVerdict('Looks good to me.'), undefined);
   assert.equal(parseVerdict('```json\n{"summary": \n```'), undefined);
   assert.equal(parseVerdict('```json\n{"summary": "x"}\n```'), undefined);
 });
 
-test('readVerdict refuses a value that is not a verdict', () => {
+test('the worker refuses a verdict value of the wrong shape', () => {
   assert.equal(readVerdict(undefined), undefined);
   assert.equal(readVerdict('approve'), undefined);
   assert.equal(readVerdict({ summary: 'x' }), undefined);
@@ -82,7 +82,7 @@ test('readVerdict refuses a value that is not a verdict', () => {
   assert.deepEqual(readVerdict(BLOCKING), BLOCKING);
 });
 
-test('readVerdict refuses a finding that is not complete', () => {
+test('the worker refuses a verdict with a finding that is not complete', () => {
   const bad = (findings: unknown[]): unknown => ({ summary: 'x', findings });
   assert.equal(readVerdict(bad([{ detail: 'no severity' }])), undefined);
   assert.equal(readVerdict(bad([{ severity: 'bad', detail: 'wrong severity' }])), undefined);
@@ -91,7 +91,7 @@ test('readVerdict refuses a finding that is not complete', () => {
   assert.equal(readVerdict(bad([null])), undefined);
 });
 
-test('readVerdict drops the fields that it does not know', () => {
+test('the worker drops the verdict fields that it does not know', () => {
   assert.deepEqual(
     readVerdict({
       verdict: 'approve',
@@ -103,7 +103,7 @@ test('readVerdict drops the fields that it does not know', () => {
   );
 });
 
-test('every finding is open while a review round is left', () => {
+test('the worker keeps every finding open while a review round is left', () => {
   assert.equal(blockingFindings(BLOCKING).length, 1);
   assert.deepEqual(openFindings(BLOCKING, false), BLOCKING.findings);
   const taste: Verdict = {
@@ -113,7 +113,7 @@ test('every finding is open while a review round is left', () => {
   assert.equal(openFindings(taste, false).length, 1);
 });
 
-test('the last round leaves a minor finding open no more', () => {
+test('the worker no longer keeps a minor finding open in the last round', () => {
   assert.deepEqual(openFindings(BLOCKING, true), [
     { severity: 'blocking', detail: 'The count is wrong.' },
   ]);
@@ -125,7 +125,7 @@ test('the last round leaves a minor finding open no more', () => {
   assert.deepEqual(openFindings({ summary: '', findings: [] }, true), []);
 });
 
-test('readVerdict ignores an approve or reject field that the reviewer adds', () => {
+test('the worker ignores an approve or reject field that the reviewer adds', () => {
   assert.deepEqual(readVerdict({ verdict: 'approve', summary: 'Good enough.', findings: [] }), {
     summary: 'Good enough.',
     findings: [],
@@ -140,7 +140,7 @@ test('readVerdict ignores an approve or reject field that the reviewer adds', ()
   assert.match(formatVerdict(contradictory, open), /### next-issue · Review: changes requested/);
 });
 
-test('formatVerdict shows the head, the summary and every finding', () => {
+test('the worker shows the head, the summary and every finding of a verdict', () => {
   const text = formatVerdict(BLOCKING, BLOCKING.findings);
   assert.match(text, /### next-issue · Review: changes requested/);
   assert.match(text, /One problem is left\./);
@@ -149,7 +149,7 @@ test('formatVerdict shows the head, the summary and every finding', () => {
   assert.match(formatVerdict({ summary: 'Good.', findings: [] }, []), /Review: approved/);
 });
 
-test('an approval that leaves a finding says why', () => {
+test('the worker says why an approval leaves a finding', () => {
   const taste: Verdict = {
     summary: 'Taste only.',
     findings: [{ severity: 'minor', detail: 'The name is long.' }],

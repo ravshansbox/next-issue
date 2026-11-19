@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { processIssue } from '../src/worker/pipeline.mts';
 import { harness, ISSUE, roles } from './harness.mts';
 
-test('a clean run implements, reviews and finishes', async (t) => {
+test('the worker implements, reviews and finishes a clean issue', async (t) => {
   const target = await harness(t);
   const report = await target.run();
   assert.equal(report.outcome, 'done');
@@ -39,13 +39,13 @@ test('a user with several issues at once gets their worktrees made one at a time
   assert.equal(most, 1);
 });
 
-test('a base that stays behind goes to the log', async (t) => {
+test('the worker logs a base that stays behind', async (t) => {
   const target = await harness(t, { baseUpdated: false });
   await target.run();
   assert.equal(target.context.recorder.summary().counts['base.behind'], 1);
 });
 
-test('a base that the harness fast-forwards writes no such event', async (t) => {
+test('the worker logs no base.behind event when it fast-forwards the base', async (t) => {
   const target = await harness(t);
   await target.run();
   assert.equal(target.context.recorder.summary().counts['base.behind'], undefined);
@@ -57,7 +57,7 @@ test('a user whose issue branch cannot be fast-forwarded to its remote branch fi
   assert.equal(target.context.recorder.summary().counts['branch.behind'], 1);
 });
 
-test('the status labels go to the issue alone', async (t) => {
+test('the worker puts the status labels on the issue alone', async (t) => {
   const target = await harness(t);
   await target.run();
   assert.deepEqual(target.labels, [
@@ -67,7 +67,7 @@ test('the status labels go to the issue alone', async (t) => {
   ]);
 });
 
-test('a step that throws gives the error outcome and hands the issue over', async (t) => {
+test('the worker reports an error and hands the issue over when a step throws', async (t) => {
   const target = await harness(t, { fail: 'pushToBase' });
   const report = await target.run();
   assert.equal(report.outcome, 'error');
@@ -76,7 +76,7 @@ test('a step that throws gives the error outcome and hands the issue over', asyn
   assert.equal((await target.state())?.phase, 'approved');
 });
 
-test('a new issue asks for its worktree to start from the base branch', async (t) => {
+test('the worker starts the worktree of a new issue from the base branch', async (t) => {
   const target = await harness(t);
   await target.run();
   assert.deepEqual(target.starts, [true]);

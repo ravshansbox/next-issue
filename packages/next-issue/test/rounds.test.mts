@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { APPROVE, changes, harness, minor, roles } from './harness.mts';
 
-test('a minor finding starts a fix round', async (t) => {
+test('the worker starts a fix round for a minor finding', async (t) => {
   const target = await harness(t, { verdicts: [minor('The name is long.'), APPROVE] });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
@@ -12,7 +12,7 @@ test('a minor finding starts a fix round', async (t) => {
   assert.match(target.comments[0]!, /Review: changes requested/);
 });
 
-test('the last review round leaves a minor finding and approves', async (t) => {
+test('the worker leaves a minor finding and approves in the last review round', async (t) => {
   const target = await harness(t, {
     config: { maxReviewRounds: 1 },
     verdicts: [minor('The name is long.')],
@@ -25,7 +25,7 @@ test('the last review round leaves a minor finding and approves', async (t) => {
   assert.match(target.comments[0]!, /the review budget is spent/);
 });
 
-test('the last review round still hands over a blocking finding', async (t) => {
+test('the worker still hands over a blocking finding in the last review round', async (t) => {
   const target = await harness(t, {
     config: { maxReviewRounds: 2 },
     verdicts: [minor('The name is long.'), changes('The count is wrong.')],

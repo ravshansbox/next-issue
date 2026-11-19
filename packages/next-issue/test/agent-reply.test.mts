@@ -5,11 +5,11 @@ import { withoutClosingReferences } from '../src/shared/text.mts';
 
 const FALLBACK = 'fix: fallback';
 
-test('parseCommitSubject reads the last line of the agent text', () => {
+test('the worker reads the commit subject from the last line of the agent text', () => {
   assert.equal(parseCommitSubject('Done.\ncommit: feat: add a flag', FALLBACK), 'feat: add a flag');
 });
 
-test('parseCommitSubject reads the last commit line when the agent quoted the rule earlier', () => {
+test('the worker reads the last commit line as the subject when the agent quoted the rule earlier', () => {
   assert.equal(
     parseCommitSubject(
       'I will end with commit: <subject>\ncommit: docs: wrong\nDone.\ncommit: fix: right',
@@ -19,11 +19,11 @@ test('parseCommitSubject reads the last commit line when the agent quoted the ru
   );
 });
 
-test('parseCommitSubject accepts other letter cases and spaces', () => {
+test('the worker reads a commit line in other letter cases and with extra spaces', () => {
   assert.equal(parseCommitSubject('Commit:   fix: trim', FALLBACK), 'fix: trim');
 });
 
-test('parseCommitSubject falls back without a line', () => {
+test('the worker falls back to the default subject when the agent gives no commit line', () => {
   assert.equal(parseCommitSubject('No subject here', FALLBACK), FALLBACK);
   assert.equal(parseCommitSubject('commit:   ', FALLBACK), FALLBACK);
   assert.equal(parseCommitSubject('', FALLBACK), FALLBACK);
@@ -37,7 +37,7 @@ test('an agent reply with a bare commit line followed by prose parses to the fal
   );
 });
 
-test('parseCommitSubject drops the backticks an agent wrapped the subject in', () => {
+test('the worker drops the backticks an agent wrapped the commit subject in', () => {
   assert.equal(
     parseCommitSubject('commit: `fix(ucps): re-probe a batch`', FALLBACK),
     'fix(ucps): re-probe a batch',
@@ -46,18 +46,18 @@ test('parseCommitSubject drops the backticks an agent wrapped the subject in', (
   assert.equal(parseCommitSubject('commit: ` ci: deploy `', FALLBACK), 'ci: deploy');
 });
 
-test('parseCommitSubject keeps a backtick inside the subject', () => {
+test('the worker keeps a backtick inside the commit subject', () => {
   assert.equal(
     parseCommitSubject('commit: fix(api): reject a `null` body', FALLBACK),
     'fix(api): reject a `null` body',
   );
 });
 
-test('parseCommitSubject falls back when the subject is only backticks', () => {
+test('the worker falls back to the default subject when the commit subject is only backticks', () => {
   assert.equal(parseCommitSubject('commit: ``', FALLBACK), FALLBACK);
 });
 
-test('parseUnrelated reads the marker line', () => {
+test('the worker reads the unrelated failure from the marker line of the fixer', () => {
   assert.equal(
     parseUnrelated('looked at it\nunrelated: the spec fails on main too'),
     'the spec fails on main too',
@@ -65,20 +65,20 @@ test('parseUnrelated reads the marker line', () => {
   assert.equal(parseUnrelated('UNRELATED:   spaced  '), 'spaced');
 });
 
-test('parseUnrelated reads the last marker line when the agent quoted the rule earlier', () => {
+test('the worker reads the last unrelated marker line when the fixer quoted the rule earlier', () => {
   assert.equal(
     parseUnrelated('unrelated: <one sentence>\nchecked\nunrelated: main fails too'),
     'main fails too',
   );
 });
 
-test('parseUnrelated gives undefined without the marker', () => {
+test('the worker finds no unrelated failure in a reply without the marker', () => {
   assert.equal(parseUnrelated('commit: fix: the thing'), undefined);
   assert.equal(parseUnrelated('unrelated:   '), undefined);
   assert.equal(parseUnrelated(''), undefined);
 });
 
-test('parseUnrelated gives undefined for a bare marker line followed by a commit line', () => {
+test('the worker finds no unrelated failure in a bare marker line followed by a commit line', () => {
   assert.equal(
     parseUnrelated('Fixed the test.\nunrelated:\ncommit: fix: guard the null body'),
     undefined,
@@ -86,13 +86,13 @@ test('parseUnrelated gives undefined for a bare marker line followed by a commit
   assert.equal(parseUnrelated('unrelated:   \n\ncommit: fix: guard'), undefined);
 });
 
-test('parseUnrelated treats a placeholder value as no dispute', () => {
+test('the worker treats a placeholder unrelated value as no dispute', () => {
   for (const value of ['none', 'None', 'NONE', 'n/a', 'N/A', '-', ' none ']) {
     assert.equal(parseUnrelated(`fixed it\nunrelated: ${value}`), undefined, value);
   }
 });
 
-test('parseResolved reads the last marker line', () => {
+test('the worker reads the settled note from the last resolved marker line', () => {
   assert.equal(
     parseResolved('resolved: <how>\nran it\nresolved: the test failed before the fix'),
     'the test failed before the fix',
@@ -101,18 +101,18 @@ test('parseResolved reads the last marker line', () => {
   assert.equal(parseResolved('unrelated: wrong'), undefined);
 });
 
-test('parseResolved treats a placeholder value as no settlement', () => {
+test('the worker treats a placeholder resolved value as no settlement', () => {
   for (const value of ['none', 'None', 'NONE', 'n/a', 'N/A', '-', ' none ']) {
     assert.equal(parseResolved(`fixed it\nresolved: ${value}`), undefined, value);
   }
 });
 
-test('parseResolved gives undefined for a bare marker line followed by a commit line', () => {
+test('the worker finds no settled note in a bare resolved line followed by a commit line', () => {
   assert.equal(parseResolved('resolved:\ncommit: fix: guard the null body'), undefined);
   assert.equal(parseResolved('resolved:\n\nAdded the test.'), undefined);
 });
 
-test('withoutClosingReferences drops each closing keyword with its issue reference', () => {
+test('the worker drops each closing keyword with its issue reference from a commit subject', () => {
   assert.equal(withoutClosingReferences('fix: x (closes #7)', FALLBACK), 'fix: x');
   assert.equal(withoutClosingReferences('fix: x, fixes #7 and resolves #8', FALLBACK), 'fix: x');
   assert.equal(withoutClosingReferences('feat: y Closed: owner/repo#3', FALLBACK), 'feat: y');
@@ -127,7 +127,7 @@ test('withoutClosingReferences drops each closing keyword with its issue referen
   assert.equal(withoutClosingReferences('closes #7', FALLBACK), FALLBACK);
 });
 
-test('withoutClosingReferences drops a closing keyword with a GH-number reference in any case', () => {
+test('the worker drops a closing keyword with a GH-number reference in any case from a commit subject', () => {
   assert.equal(
     withoutClosingReferences('fix: handle empty input, closes GH-42', FALLBACK),
     'fix: handle empty input',
@@ -136,7 +136,7 @@ test('withoutClosingReferences drops a closing keyword with a GH-number referenc
   assert.equal(withoutClosingReferences('fix: resolves GH-12', FALLBACK), FALLBACK);
 });
 
-test('withoutClosingReferences leaves no leading punctuation when the subject starts with a closing reference', () => {
+test('the worker leaves no leading punctuation when a commit subject starts with a closing reference', () => {
   assert.equal(withoutClosingReferences('Fix #12: handle crash', FALLBACK), 'handle crash');
   assert.equal(withoutClosingReferences('Closes #5 - add retry', FALLBACK), 'add retry');
   assert.equal(withoutClosingReferences('Fix #4 — add retry', FALLBACK), 'add retry');
@@ -144,7 +144,7 @@ test('withoutClosingReferences leaves no leading punctuation when the subject st
   assert.equal(withoutClosingReferences('Fix #3 (api): x', FALLBACK), FALLBACK);
 });
 
-test('withoutClosingReferences gives the fallback when only the commit type is left', () => {
+test('the worker gives the fallback subject when only the commit type is left after it drops closing references', () => {
   assert.equal(withoutClosingReferences('fix: resolve #12', FALLBACK), FALLBACK);
   assert.equal(withoutClosingReferences('feat(api): closes #7', FALLBACK), FALLBACK);
   assert.equal(withoutClosingReferences('fix: fix #7', FALLBACK), FALLBACK);
@@ -152,7 +152,7 @@ test('withoutClosingReferences gives the fallback when only the commit type is l
   assert.equal(withoutClosingReferences('fix!: closes #7', FALLBACK), FALLBACK);
 });
 
-test('withoutClosingReferences keeps a subject with no closing reference', () => {
+test('the worker keeps a commit subject with no closing reference', () => {
   assert.equal(
     withoutClosingReferences('fix: resolve issue #7', FALLBACK),
     'fix: resolve issue #7',
@@ -163,7 +163,7 @@ test('withoutClosingReferences keeps a subject with no closing reference', () =>
   );
 });
 
-test('withoutClosingReferences keeps a subject whose number is followed by word characters', () => {
+test('the worker keeps a commit subject whose number is followed by word characters', () => {
   for (const subject of [
     'fix: resolve #1password sync',
     'feat: close #12th item',

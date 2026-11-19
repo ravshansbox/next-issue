@@ -27,13 +27,13 @@ const SUMMARY: RunSummary = {
   ],
 };
 
-test('formatSummary counts every outcome', () => {
+test('the run summary counts every outcome', () => {
   const lines = formatSummary(SUMMARY).split('\n');
   assert.equal(lines[0], 'run 2026-08-24T10-00-00-000Z');
   assert.equal(lines[1], 'issues 3: 1 done, 1 needs-human, 0 error, 1 skipped, 0 stopped');
 });
 
-test('formatSummary drops the empty fields of an issue', () => {
+test('the run summary drops the empty fields of an issue', () => {
   const lines = formatSummary(SUMMARY).split('\n');
   assert.match(lines[2]!, /#41 done\b.*reviews 2 .*1m12s$/);
   assert.doesNotMatch(lines[2]!, /ci fixes/);
@@ -63,13 +63,13 @@ test('a user sees seconds in an issue time of the summary only under 2 minutes, 
   assert.equal(spent(32_400_000), '9h');
 });
 
-test('formatSummary shortens the token totals', () => {
+test('the run summary shortens the token totals', () => {
   const lines = formatSummary(SUMMARY).split('\n');
   assert.equal(lines[5], 'tokens 59.6k (implementer 38.1k in 1, reviewer 21.5k in 3)');
   assert.equal(lines[6], `log ${SUMMARY.logFile}`);
 });
 
-test('formatSummary handles a run without issues', () => {
+test('the run summary shows a run without issues', () => {
   const empty = formatSummary({ ...SUMMARY, roles: {}, issues: [], total: emptyUsage() });
   assert.equal(
     empty.split('\n')[1],

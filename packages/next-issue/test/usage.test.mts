@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { addUsage, emptyUsage } from '../src/shared/usage.mts';
 
-test('addUsage adds every field', () => {
+test('the worker adds up every usage field of two agent runs', () => {
   const target = emptyUsage();
   addUsage(target, { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, total: 10 });
   addUsage(target, { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, total: 10 });

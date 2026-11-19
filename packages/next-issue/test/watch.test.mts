@@ -207,7 +207,7 @@ test('a user who asks to stop while a pass fetches the open issues gets no issue
   assert.equal(result.reports.length, 1);
 });
 
-test('a watch stops after a pass that halts the run', async () => {
+test('a watching run stops after a pass that halts the run', async () => {
   const fake = watcher([['needs-human'], ['done']]);
   const process = fake.process;
   fake.process = async (target) => ({ ...(await process(target)), halt: true });

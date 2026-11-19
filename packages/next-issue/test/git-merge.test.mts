@@ -22,7 +22,7 @@ async function diverged(): Promise<{ path: string; base: string }> {
   return { path, base: other };
 }
 
-test('startMerge merges a base that git can merge cleanly and commitMerge commits it with both parents', async () => {
+test('the worker merges a base that git can merge cleanly and commits it with both parents', async () => {
   const { path, base } = await diverged();
   await commit(base, 'b.txt');
   await git(base, 'push', '-q', 'origin', 'main');
@@ -40,7 +40,7 @@ test('startMerge merges a base that git can merge cleanly and commitMerge commit
   assert.equal(await isDirty(path), false);
 });
 
-test('startMerge lists the conflicted files, and commitMerge refuses them while they hold conflict markers', async () => {
+test('the worker lists the conflicted files of a merge and refuses to commit them while they hold conflict markers', async () => {
   const { path, base } = await diverged();
   await writeFile(join(base, 'a.txt'), 'base\n');
   await git(base, 'commit', '-q', '-am', 'base');
@@ -56,7 +56,7 @@ test('startMerge lists the conflicted files, and commitMerge refuses them while 
   await assert.rejects(git(path, 'rev-parse', '--verify', '--quiet', 'MERGE_HEAD'));
 });
 
-test('startMerge lists a modify/delete or binary conflict, which holds no conflict marker, as unmarked', async () => {
+test('the worker lists a modify/delete or binary conflict, which holds no conflict marker, as unmarked', async () => {
   const { repo, other } = await clones();
   await writeFile(join(other, 'gone.txt'), 'start\n');
   await writeFile(join(other, 'img.bin'), Buffer.from([0, 1, 2]));
@@ -79,7 +79,7 @@ test('startMerge lists a modify/delete or binary conflict, which holds no confli
   assert.deepEqual(started.unmarked, ['gone.txt', 'img.bin']);
 });
 
-test('commitMerge commits a conflict that the fixer resolved, and refuses a merge that the fixer aborted', async () => {
+test('the worker commits a conflict that the fixer resolved, and refuses a merge that the fixer aborted', async () => {
   const { path, base } = await diverged();
   await writeFile(join(base, 'a.txt'), 'base\n');
   await git(base, 'commit', '-q', '-am', 'base');
@@ -106,7 +106,7 @@ async function baseMoves(path: string, base: string): Promise<void> {
   await git(path, 'fetch', '-q', 'origin');
 }
 
-test('commitMerge keeps a merge that the fixer committed after the remote base moved on', async () => {
+test('the worker keeps a merge that the fixer committed after the remote base moved on', async () => {
   const { path, base } = await diverged();
   await writeFile(join(base, 'a.txt'), 'base\n');
   await git(base, 'commit', '-q', '-am', 'base');
@@ -121,7 +121,7 @@ test('commitMerge keeps a merge that the fixer committed after the remote base m
   assert.equal(await revision(path), merged);
 });
 
-test('commitMerge undoes a commit that the fixer committed without the merged base or with a conflict marker', async () => {
+test('the worker undoes a commit that the fixer made without the merged base or with a conflict marker', async () => {
   const { path, base } = await diverged();
   await writeFile(join(base, 'a.txt'), 'base\n');
   await git(base, 'commit', '-q', '-am', 'base');
@@ -139,7 +139,7 @@ test('commitMerge undoes a commit that the fixer committed without the merged ba
   assert.equal(await isDirty(path), false);
 });
 
-test('startMerge reports a branch that already holds the base with no merge to commit', async () => {
+test('the worker reports a branch that already holds the base with no merge to commit', async () => {
   const { path, base } = await diverged();
   await commit(base, 'b.txt');
   await git(base, 'push', '-q', 'origin', 'main');
@@ -150,7 +150,7 @@ test('startMerge reports a branch that already holds the base with no merge to c
   assert.equal(await revision(path), head);
 });
 
-test('commitMerge that a pre-commit hook stops throws a hook error and keeps the merge in progress', async () => {
+test('the worker gets a hook error when a pre-commit hook stops the merge commit, and keeps the merge in progress', async () => {
   const { path, base } = await diverged();
   await commit(base, 'b.txt');
   await git(base, 'push', '-q', 'origin', 'main');
@@ -169,7 +169,7 @@ test('commitMerge that a pre-commit hook stops throws a hook error and keeps the
   await git(path, 'rev-parse', '--verify', '--quiet', 'MERGE_HEAD');
 });
 
-test('startMerge lists a text conflict in a file with a conflict-marker-size attribute as marked, and commitMerge refuses its markers', async () => {
+test('the worker lists a text conflict in a file with a conflict-marker-size attribute as marked and refuses to commit its markers', async () => {
   const { path, base } = await diverged();
   await writeFile(join(path, '.gitattributes'), '*.txt conflict-marker-size=10\n');
   await git(path, 'add', '.gitattributes');
@@ -188,7 +188,7 @@ test('startMerge lists a text conflict in a file with a conflict-marker-size att
 });
 
 for (const autoupdate of ['false', 'true']) {
-  test(`startMerge ignores a recorded rerere resolution (autoupdate ${autoupdate}) and leaves the conflict markers for the fixer`, async () => {
+  test(`the worker ignores a recorded rerere resolution (autoupdate ${autoupdate}) and leaves the conflict markers for the fixer`, async () => {
     const { path, base } = await diverged();
     await git(path, 'config', 'rerere.enabled', 'true');
     await git(path, 'config', 'rerere.autoupdate', autoupdate);
@@ -209,7 +209,7 @@ for (const autoupdate of ['false', 'true']) {
   });
 }
 
-test('startMerge lists a text conflict as marked when the merged base adds a conflict-marker-size attribute, and commitMerge refuses its markers', async () => {
+test('the worker lists a text conflict as marked when the merged base adds a conflict-marker-size attribute and refuses to commit its markers', async () => {
   const { path, base } = await diverged();
   await writeFile(join(base, '.gitattributes'), '*.txt conflict-marker-size=10\n');
   await writeFile(join(base, 'a.txt'), 'base\n');

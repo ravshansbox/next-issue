@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { harness, ISSUE, roles, SAVED } from './harness.mts';
 
-test('a skipped issue does nothing', async (t) => {
+test('the worker does nothing with a skipped issue', async (t) => {
   const target = await harness(t, { issue: { ...ISSUE, labels: [] } });
   const report = await target.run();
   assert.equal(report.outcome, 'skipped');
@@ -10,7 +10,7 @@ test('a skipped issue does nothing', async (t) => {
   assert.deepEqual(roles(target), []);
 });
 
-test('an issue with an open blocker waits without a claim', async (t) => {
+test('the worker leaves an issue with an open blocker waiting without a claim', async (t) => {
   const target = await harness(t, { blockers: ['#3', 'acme/other#9'] });
   const report = await target.run();
   assert.equal(report.outcome, 'skipped');
@@ -19,7 +19,7 @@ test('an issue with an open blocker waits without a claim', async (t) => {
   assert.equal(target.context.recorder.summary().counts['issue.skip'], 1);
 });
 
-test('a saved issue carries on although a blocker is open', async (t) => {
+test('the worker carries on with a saved issue although a blocker is open', async (t) => {
   const target = await harness(t, {
     issue: { ...ISSUE, labels: ['status:in-progress'] },
     saved: SAVED,
@@ -30,7 +30,7 @@ test('a saved issue carries on although a blocker is open', async (t) => {
   assert.deepEqual(roles(target), ['reviewer']);
 });
 
-test('a blocker read that fails gives the error outcome without a claim', async (t) => {
+test('the worker reports an error without a claim when the blocker read fails', async (t) => {
   const target = await harness(t, { fail: 'openBlockers' });
   const report = await target.run();
   assert.equal(report.outcome, 'error');
@@ -39,7 +39,7 @@ test('a blocker read that fails gives the error outcome without a claim', async 
   assert.deepEqual(roles(target), []);
 });
 
-test('a needs-human issue whose comments cannot be read gives the error outcome without a claim', async (t) => {
+test('the worker reports an error without a claim when the comments of a needs-human issue cannot be read', async (t) => {
   const target = await harness(t, {
     issue: { ...ISSUE, labels: ['status:needs-human'] },
     fail: 'threadComments',

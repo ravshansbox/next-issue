@@ -24,13 +24,13 @@ async function withRuns(ages: Record<string, number>): Promise<string> {
   return root;
 }
 
-test('pruneRuns drops a run that is older than the limit', async () => {
+test('the worker drops a run log that is older than the limit', async () => {
   const root = await withRuns({ 'old.jsonl': 8, 'old.summary.json': 8, 'new.jsonl': 6 });
   assert.equal(await pruneRuns(root, 7), 2);
   assert.deepEqual((await readdir(runsDir(root))).sort(), ['new.jsonl']);
 });
 
-test('pruneRuns drops the session folder of a run that is older than the limit', async () => {
+test('the worker drops the session folder of a run that is older than the limit', async () => {
   const root = await withRuns({ 'new.jsonl': 6 });
   const dir = runsDir(root);
   await mkdir(join(dir, 'old', 'sessions'), { recursive: true });
@@ -43,7 +43,7 @@ test('pruneRuns drops the session folder of a run that is older than the limit',
   assert.deepEqual(await readdir(dir), ['new.jsonl']);
 });
 
-test('pruneRuns keeps the session folder of a run whose sessions are newer than the limit', async () => {
+test('the worker keeps the session folder of a run whose sessions are newer than the limit', async () => {
   const root = await withRuns({});
   const dir = runsDir(root);
   await mkdir(join(dir, 'long', 'sessions'), { recursive: true });
@@ -55,13 +55,13 @@ test('pruneRuns keeps the session folder of a run whose sessions are newer than 
   assert.deepEqual(await readdir(join(dir, 'long', 'sessions')), ['a.jsonl']);
 });
 
-test('pruneRuns with a limit of zero keeps every run', async () => {
+test('the worker keeps every run when the limit is zero', async () => {
   const root = await withRuns({ 'old.jsonl': 400 });
   assert.equal(await pruneRuns(root, 0), 0);
   assert.deepEqual(await readdir(runsDir(root)), ['old.jsonl']);
 });
 
-test('pruneRuns says nothing about a run directory that is not there', async () => {
+test('the worker says nothing about a run directory that is not there', async () => {
   assert.equal(await pruneRuns(await tempDir(), 7), 0);
 });
 

@@ -22,7 +22,7 @@ function loop(outcomes: Record<number, Outcome>, stops: boolean[] = []): Fake {
   return fake;
 }
 
-test('every issue is handled in order', async () => {
+test('the run handles every issue in order', async () => {
   const fake = loop({ 1: 'skipped', 2: 'done', 3: 'needs-human' });
   const result = await runIssues(fake);
   assert.deepEqual(fake.processed, [1, 2, 3]);
@@ -81,7 +81,7 @@ test('a run ends after an issue that leaves main broken', async () => {
   assert.equal(result.stoppedAt, 1);
 });
 
-test('an issue opened during the run is handled in the same run', async () => {
+test('the run handles an issue opened during the run in the same run', async () => {
   const fake = loop({ 1: 'done', 2: 'done' });
   const lists = [[issue(1)], [issue(1), issue(2)], [issue(1), issue(2)]];
   fake.issues = async () => lists.shift() ?? [];
@@ -89,7 +89,7 @@ test('an issue opened during the run is handled in the same run', async () => {
   assert.deepEqual(fake.processed, [1, 2]);
 });
 
-test('an issue closed during the run is not handled', async () => {
+test('the run does not handle an issue closed during the run', async () => {
   const fake = loop({ 1: 'done', 2: 'done', 3: 'done' });
   const lists = [[issue(1), issue(2), issue(3)], [issue(3)], []];
   fake.issues = async () => lists.shift() ?? [];
@@ -97,7 +97,7 @@ test('an issue closed during the run is not handled', async () => {
   assert.deepEqual(fake.processed, [1, 3]);
 });
 
-test('each issue is handled with the details fetched just before it', async () => {
+test('the run handles each issue with the details fetched just before it', async () => {
   const fake = loop({ 1: 'done', 2: 'done' });
   const changed = { ...issue(2), labels: ['status:todo'] };
   const lists = [[issue(1), issue(2)], [changed], []];
@@ -130,7 +130,7 @@ test('a run that cannot fetch the open issues ends with the reports of the issue
   assert.equal(result.error, failure);
 });
 
-test('the exit code is 1 only when an issue needs a person or failed', () => {
+test('the run exits with code 1 only when an issue needs a person or failed', () => {
   assert.equal(exitCode([report(1, 'done'), report(2, 'skipped')]), 0);
   assert.equal(exitCode([report(1, 'needs-human')]), 1);
   assert.equal(exitCode([report(1, 'error')]), 1);
@@ -177,7 +177,7 @@ test('a person who makes a skipped issue ready during the run gets it claimed ag
   assert.deepEqual(fake.processed, [1, 2, 1]);
 });
 
-test('an issue that comes back with the labels it had after its attempt is not claimed again and the run ends', async () => {
+test('the run does not claim again an issue that comes back with the labels it had after its attempt, and ends', async () => {
   const waiting = labelled(1, ['status:todo', 'status:needs-human']);
   const fake = listed(
     [[issue(1), issue(2)], [waiting, issue(2)], [waiting], [waiting], [waiting]],
@@ -189,7 +189,7 @@ test('an issue that comes back with the labels it had after its attempt is not c
   assert.equal(result.reports.length, 2);
 });
 
-test('an issue that failed with an error is not claimed again in the same run even when its labels change', async () => {
+test('the run does not claim again an issue that failed with an error, even when its labels change', async () => {
   const fake = listed(
     [[issue(1), issue(2)], [issue(1), issue(2)], [labelled(1, ['status:todo'])], []],
     ['error', 'done'],
@@ -198,7 +198,7 @@ test('an issue that failed with an error is not claimed again in the same run ev
   assert.deepEqual(fake.processed, [1, 2]);
 });
 
-test('an issue that failed with an error and was handed over is claimed again once a person makes it ready', async () => {
+test('the run claims again an issue that failed with an error and was handed over, once a person makes it ready', async () => {
   const waiting = labelled(1, ['status:todo', 'status:needs-human']);
   const fake = listed(
     [[issue(1), issue(2)], [waiting, issue(2)], [labelled(1, ['status:todo'])], []],
@@ -213,7 +213,7 @@ test('an issue that failed with an error and was handed over is claimed again on
   assert.deepEqual(fake.processed, [1, 2, 1]);
 });
 
-test('an issue that is done is not claimed again in the same run even when its labels change', async () => {
+test('the run does not claim again an issue that is done, even when its labels change', async () => {
   const fake = listed(
     [[issue(1), issue(2)], [issue(1), issue(2)], [labelled(1, ['status:done'])], []],
     ['done', 'done'],

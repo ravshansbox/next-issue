@@ -13,7 +13,7 @@ import {
 } from '../src/shared/worktree.mts';
 import { clones, commit, git } from './clones.mts';
 
-test('addWorktree takes a branch that exists only on the remote', async () => {
+test('the worker takes a branch that exists only on the remote for the worktree', async () => {
   const { repo, other } = await clones();
   await git(other, 'checkout', '-q', '-b', '3');
   const pushed = await commit(other, 'b.txt');
@@ -22,7 +22,7 @@ test('addWorktree takes a branch that exists only on the remote', async () => {
   assert.equal(await revision(path), pushed);
 });
 
-test('addWorktree fast-forwards a local branch that the remote left behind', async () => {
+test('the worker fast-forwards a local branch that the remote left behind for the worktree', async () => {
   const { repo, other } = await clones();
   await git(repo.root, 'branch', '3', 'main');
   await git(other, 'checkout', '-q', '-b', '3');
@@ -56,7 +56,7 @@ test('a user whose local branch 3 has drifted from the remote branch 3 is told i
   assert.equal(await revision(path), kept);
 });
 
-test('addWorktree starts a new branch from the base', async () => {
+test('the worker starts a new branch from the base for the worktree', async () => {
   const { repo } = await clones();
   const { path, baseUpdated } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   assert.equal(await revision(path), await revision(repo.root));
@@ -207,7 +207,7 @@ test('a user whose issue ends gets the worktree that holds its branch removed', 
   assert.equal(await findWorktree(repo, 'issue-3'), undefined);
 });
 
-test('addWorktree reports a base that it cannot fast-forward', async () => {
+test('the worker reports a base that it cannot fast-forward for the worktree', async () => {
   const { repo, other } = await clones();
   await commit(repo.root, 'local.txt');
   await commit(other, 'remote.txt');

@@ -12,13 +12,13 @@ function folderAfterExit(parent?: string): string {
   }).trim();
 }
 
-test('a temp folder is gone after the test process exits', () => {
+test('a test finds its temp folder gone after the test process exits', () => {
   const folder = folderAfterExit();
   assert.ok(folder.length > 0);
   assert.equal(existsSync(folder), false);
 });
 
-test('a temp folder made in a given parent is gone after the test process exits', () => {
+test('a test finds its temp folder made in a given parent gone after the test process exits', () => {
   const folder = folderAfterExit('/tmp');
   assert.ok(folder.startsWith('/tmp/'));
   assert.equal(existsSync(folder), false);

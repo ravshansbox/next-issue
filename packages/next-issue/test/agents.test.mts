@@ -132,7 +132,7 @@ test('an implementer that calls the Write tool writes the file', async (t) => {
   assert.equal(await readFile(join(request.cwd, 'note.txt'), 'utf8'), 'hi');
 });
 
-test('the harness gets the last text, the tool calls and the model of an agent', async (t) => {
+test('the worker gets the last text, the tool calls and the model of an agent', async (t) => {
   const { recorder, request } = await claude(t, [
     toolUse('Bash', { command: 'ls' }),
     text('  commit: fix: the thing  '),
@@ -156,7 +156,7 @@ test('a user who runs an agent sees its events but not its text in the output of
   assert.doesNotMatch(output, /agent says hello/);
 });
 
-test('the harness records a usage event without a cost for an agent', async (t) => {
+test('the worker records a usage event without a cost for an agent', async (t) => {
   const { recorder, request } = await claude(t, [text('done')]);
   const result = await runAgent(recorder, request);
   const usage = (await logRecords(recorder)).find((record) => record.kind === 'usage')!;
@@ -169,7 +169,7 @@ test('the harness records a usage event without a cost for an agent', async (t) 
   assert.equal('costUsd' in usage, false);
 });
 
-test('the harness saves the session of an agent next to the run log', async (t) => {
+test('the worker saves the session of an agent next to the run log', async (t) => {
   const { recorder, request } = await claude(t, [toolUse('Bash', { command: 'ls' }), text('done')]);
   const result = await runAgent(recorder, request);
   const dir = join(recorder.logFile.replace(/\.jsonl$/, ''), 'sessions');
@@ -180,7 +180,7 @@ test('the harness saves the session of an agent next to the run log', async (t) 
   assert.ok(saved.includes('"Bash"'));
 });
 
-test('the harness reports the error when the model of an agent fails', async (t) => {
+test('the worker reports the error when the model of an agent fails', async (t) => {
   const { recorder, request } = await claude(t, [{ error: 'no credit' }]);
   await assert.rejects(runAgent(recorder, request), /^Error: The coder agent failed: .*no credit/);
 });

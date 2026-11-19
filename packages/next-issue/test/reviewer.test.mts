@@ -86,7 +86,7 @@ test('a reviewer whose finding quotes a code block gets its verdict posted on th
   assert.ok(target.comments[0]!.includes(detail));
 });
 
-test('a verdict of the wrong shape counts as no verdict', async (t) => {
+test('the worker counts a verdict of the wrong shape as no verdict', async (t) => {
   const target = await harness(t, {
     verdicts: [{ summary: 'x' } as unknown as Verdict],
   });

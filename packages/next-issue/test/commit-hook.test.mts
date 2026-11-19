@@ -57,7 +57,7 @@ test('a fixer whose commit fails in a hook gets the hook output and commits the 
   assert.match(target.prompts[3]!.prompt, /oxlint: x is never used/);
 });
 
-test('a commit that keeps failing in a hook hands the issue to a person once maxCommitFixes runs out', async (t) => {
+test('the worker hands the issue to a person once maxCommitFixes runs out on a commit that keeps failing in a hook', async (t) => {
   const target = await harness(t, {
     config: { maxCommitFixes: 1 },
     commits: ['lint fails', 'lint fails'],
@@ -70,7 +70,7 @@ test('a commit that keeps failing in a hook hands the issue to a person once max
   assert.equal((await target.state())?.commitFixes, 1);
 });
 
-test('a commit that git itself refuses reports an error without a commit fix', async (t) => {
+test('the worker reports an error without a commit fix when git itself refuses a commit', async (t) => {
   const target = await harness(t, {
     commits: [new Error('git add -A failed with code 128: index.lock exists')],
   });

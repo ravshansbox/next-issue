@@ -43,7 +43,7 @@ for (const folder of ['My Проекты app', 'a#b?c:d']) {
   });
 }
 
-test('only the user who starts the worker can open its socket file', async (t) => {
+test('a user who starts the worker is the only user who can open its socket file', async (t) => {
   const { socketPath } = await worker(t, fakeRuns());
   assert.equal((await stat(socketPath)).mode & 0o777, 0o600);
 });

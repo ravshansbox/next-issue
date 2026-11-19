@@ -22,7 +22,7 @@ import { addWorktree } from '../src/shared/worktree.mts';
 import { clones, commit, git } from './clones.mts';
 import { tempDir } from './temp-dir.mts';
 
-test('parseRemote reads every remote form', () => {
+test('the worker reads every remote form', () => {
   const expected = { host: 'github.com', owner: 'acme', name: 'tool' };
   assert.deepEqual(parseRemote('git@github.com:acme/tool.git'), expected);
   assert.deepEqual(parseRemote('git@github.com:acme/tool'), expected);
@@ -31,7 +31,7 @@ test('parseRemote reads every remote form', () => {
   assert.deepEqual(parseRemote('http://github.com/acme/tool\n'), expected);
 });
 
-test('parseRemote keeps the host of a GitHub Enterprise remote in every form', () => {
+test('the worker keeps the host of a GitHub Enterprise remote in every form', () => {
   const expected = { host: 'github.example.com', owner: 'acme', name: 'tool' };
   assert.deepEqual(parseRemote('git@github.example.com:acme/tool.git'), expected);
   assert.deepEqual(parseRemote('ssh://git@GitHub.Example.com:2222/acme/tool.git'), expected);
@@ -104,11 +104,11 @@ test('a user in a linked worktree of a bare repository gets the root of that wor
   assert.equal(await repoRoot(join(linked, 'sub')), await realpath(linked));
 });
 
-test('parseRemote refuses an unknown form', () => {
+test('the worker refuses a remote of an unknown form', () => {
   assert.throws(() => parseRemote('acme/tool'), /Cannot parse/);
 });
 
-test('latestSubject gives the subject of the newest commit ahead of the base, and nothing on a branch that is not ahead', async () => {
+test('the worker gets the subject of the newest commit ahead of the base, and nothing on a branch that is not ahead', async () => {
   const { repo } = await clones();
   assert.equal(await latestSubject(repo.root, 'main', 'origin'), undefined);
   await commit(repo.root, 'b.txt');
@@ -116,7 +116,7 @@ test('latestSubject gives the subject of the newest commit ahead of the base, an
   assert.equal(await latestSubject(repo.root, 'main', 'origin'), 'c.txt');
 });
 
-test('discardChanges puts back a tracked file and removes a new one', async () => {
+test('the worker puts back a tracked file and removes a new one when it discards changes', async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   const head = await revision(path);
@@ -130,7 +130,7 @@ test('discardChanges puts back a tracked file and removes a new one', async () =
   assert.equal(await revision(path), head);
 });
 
-test('discardChanges throws away a change that the index holds', async () => {
+test('the worker throws away a change that the index holds when it discards changes', async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   const head = await revision(path);
@@ -145,7 +145,7 @@ test('discardChanges throws away a change that the index holds', async () => {
   assert.equal(await revision(path), head);
 });
 
-test('discardChanges undoes a commit that the reviewer made', async () => {
+test('the worker undoes a commit that the reviewer made when it discards changes', async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   const head = await revision(path);
@@ -157,7 +157,7 @@ test('discardChanges undoes a commit that the reviewer made', async () => {
   assert.equal(await readFile(join(path, 'a.txt'), 'utf8'), 'a.txt\n');
 });
 
-test('discardChanges ends a merge whose resolution matches HEAD, so a later merge can start', async () => {
+test('the worker ends a merge whose resolution matches HEAD when it discards changes, so a later merge can start', async () => {
   const { repo, other } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   await git(path, 'config', 'user.name', 't');
@@ -175,7 +175,7 @@ test('discardChanges ends a merge whose resolution matches HEAD, so a later merg
   await assert.rejects(git(path, 'rev-parse', '--quiet', '--verify', 'MERGE_HEAD'));
 });
 
-test('setAside moves a commit of the fixer to another branch and leaves nothing for a later commit to sweep up', async () => {
+test('the worker moves a commit of the fixer to another branch and leaves nothing for a later commit to sweep up', async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   const head = await revision(path);
@@ -187,7 +187,7 @@ test('setAside moves a commit of the fixer to another branch and leaves nothing 
   assert.equal(await commitAll(path, 'a later fix'), false);
 });
 
-test('saveEdits commits the tracked and untracked edits the fixer left, so a later checkout cannot lose them', async () => {
+test('the worker commits the tracked and untracked edits the fixer left, so a later checkout cannot lose them', async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   await git(path, 'config', 'user.name', 't');
@@ -235,7 +235,7 @@ test('a user whose git config hides untracked files still gets a new file of a d
   assert.equal(await git(path, 'show', 'HEAD:new.txt'), 'a new file');
 });
 
-test('disputeBranches lists the dispute branches of an issue only', async () => {
+test('the worker lists the dispute branches of one issue only', async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   await git(path, 'branch', '3-dispute-1');
@@ -244,7 +244,7 @@ test('disputeBranches lists the dispute branches of an issue only', async () => 
   assert.deepEqual(await disputeBranches(repo, '3'), ['3-dispute-1', '3-dispute-2']);
 });
 
-test('discardChanges keeps an ignored file and reports a clean worktree', async () => {
+test('the worker keeps an ignored file when it discards changes and reports a clean worktree', async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   await writeFile(join(path, '.gitignore'), 'deps/\n');
@@ -313,7 +313,7 @@ test('a run of issue 3 after a crash left its worktree on a detached HEAD with u
   assert.equal(await git(repo.root, 'show', `${aside}:new.txt`), 'new');
 });
 
-test('changedFiles gives the files that landed commits added or changed and leaves out deleted ones', async () => {
+test('the worker lists the files that landed commits added or changed and leaves out deleted ones', async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   const added = await commit(path, 'b.txt');

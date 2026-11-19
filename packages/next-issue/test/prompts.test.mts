@@ -102,13 +102,13 @@ test('the implementer and the fixer get the answer of a person to the hand-over 
   assert.doesNotMatch(implementPrompt(ISSUE, []), /hand-over/);
 });
 
-test('reviewPrompt asks for a full review when no earlier finding exists', () => {
+test('the reviewer is asked for a full review when no earlier finding exists', () => {
   const prompt = reviewPrompt(ISSUE, [], 'diff', []);
   assert.doesNotMatch(prompt, /Earlier findings/);
   assert.match(prompt, /Check correctness/);
 });
 
-test('reviewPrompt narrows a later round to the earlier findings', () => {
+test('a later reviewer is asked to check only the earlier findings', () => {
   const prompt = reviewPrompt(ISSUE, [], 'diff', ['Round 1:\n- The count is wrong.']);
   assert.match(prompt, /## Earlier findings\nRound 1:\n- The count is wrong\./);
   assert.doesNotMatch(prompt, /Check correctness/);
@@ -124,7 +124,7 @@ test('a later reviewer is told that a dispute answers every finding of its round
   assert.doesNotMatch(reviewPrompt(ISSUE, [], 'diff', []), /Withdraw every finding/);
 });
 
-test('reviewPrompt gives the reply of the implementer and asks for a finding when a behaviour change has no failing run', () => {
+test('the reviewer gets the reply of the implementer and is asked for a finding when a behaviour change has no failing run', () => {
   const prompt = reviewPrompt(ISSUE, [], 'diff', [], 'The test failed: expected 2, got 1.');
   assert.match(
     prompt,

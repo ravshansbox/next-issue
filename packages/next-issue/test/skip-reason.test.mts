@@ -11,19 +11,19 @@ function issue(labels: string[]): Issue {
   return { ...ISSUE, labels };
 }
 
-test('a fresh claim needs the ready label', () => {
+test('the worker claims a fresh issue only with the ready label', () => {
   assert.equal(skipReason(issue(['status:todo']), config, false), undefined);
   assert.equal(skipReason(issue([]), config, false), 'not-ready');
 });
 
-test('a stop label wins over everything', () => {
+test('the worker skips an issue with the stop label whatever else it has', () => {
   for (const label of ['status:done', 'status:needs-human', 'status:blocked']) {
     assert.equal(skipReason(issue(['status:todo', label]), config, false), 'stop-label');
     assert.equal(skipReason(issue([label]), config, true), 'stop-label');
   }
 });
 
-test('work that is already in flight is left alone', () => {
+test('the worker leaves alone an issue whose work is already in flight', () => {
   assert.equal(
     skipReason(issue(['status:todo', 'status:in-progress']), config, false),
     'in-flight',
@@ -31,13 +31,13 @@ test('work that is already in flight is left alone', () => {
   assert.equal(skipReason(issue(['status:todo', 'status:in-review']), config, false), 'in-flight');
 });
 
-test('a resume ignores the ready label and the flight labels', () => {
+test('the worker resumes a saved issue whatever its ready and flight labels', () => {
   assert.equal(skipReason(issue(['status:in-progress']), config, true), undefined);
   assert.equal(skipReason(issue(['status:in-review']), config, true), undefined);
   assert.equal(skipReason(issue([]), config, true), undefined);
 });
 
-test('an empty ready label turns the requirement off', async () => {
+test('the worker claims an issue without the ready label when the ready label is empty', async () => {
   const open = { ...config, labels: { ...config.labels, ready: '' } };
   assert.equal(skipReason(issue([]), open, false), undefined);
   assert.equal(skipReason(issue(['status:in-review']), open, false), 'in-flight');

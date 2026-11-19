@@ -23,7 +23,7 @@ test('a comment on the issue by a user without write access stays out of every a
   }
 });
 
-test('comments on the issue by users with write access reach the implementer and the reviewer in their order', async (t) => {
+test('the implementer and the reviewer get the comments on the issue by users with write access in their order', async (t) => {
   const target = await harness(t, { issueComments: ISSUE_COMMENTS, writers: ['owner', 'admin'] });
   await target.run();
   assert.deepEqual(roles(target), ['implementer', 'reviewer']);
@@ -35,7 +35,7 @@ test('comments on the issue by users with write access reach the implementer and
   }
 });
 
-test('comments on the issue by users with write access reach the fixer with the issue body', async (t) => {
+test('the fixer gets the comments on the issue by users with write access with the issue body', async (t) => {
   const target = await harness(t, {
     issueComments: ISSUE_COMMENTS,
     writers: ['owner', 'admin'],
@@ -73,7 +73,7 @@ test('a comment of the harness on the issue, in the current or an older heading 
   assert.match(target.prompts[0]!.prompt, /@owner: Use the flag name --quiet\./);
 });
 
-test('a comment on the issue that is left out writes its author to the run log', async (t) => {
+test('the worker writes the author of a comment it leaves out to the run log', async (t) => {
   const target = await harness(t, { issueComments: ISSUE_COMMENTS, writers: ['owner', 'admin'] });
   await target.run();
   const skips = target.events.filter((record) => record.kind === 'comment.skip');
@@ -83,7 +83,7 @@ test('a comment on the issue that is left out writes its author to the run log',
   );
 });
 
-test('a failed access check on a comment author stops the issue with an error', async (t) => {
+test('the worker stops the issue with an error when the access check on a comment author fails', async (t) => {
   const target = await harness(t, { issueComments: ISSUE_COMMENTS, accessFails: true });
   const report = await target.run();
   assert.equal(report.outcome, 'error');
@@ -172,7 +172,7 @@ test('a user without write access who posts a hand-over comment after the answer
   assert.match(fixer, /@owner: Use the fixture in test\/data\./);
 });
 
-test('a resumed hand-over without an answer from a person with write access gives the next agent no guidance', async (t) => {
+test('the next agent gets no guidance on a resumed hand-over without an answer from a person with write access', async (t) => {
   const target = await harness(t, {
     issue: UNLABELLED,
     saved: HANDED_OVER,
@@ -185,7 +185,7 @@ test('a resumed hand-over without an answer from a person with write access give
   assert.doesNotMatch(fixer, /Answer of a person/);
 });
 
-test('a resumed run that was not handed over reads no answer', async (t) => {
+test('the worker reads no answer on a resumed run that was not handed over', async (t) => {
   const target = await harness(t, {
     issue: UNLABELLED,
     saved: SAVED,

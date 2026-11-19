@@ -53,7 +53,7 @@ test('a user who runs watch or hunt with no value or another value gets an error
   }
 });
 
-test('start, init, serve, stop, logs, watch and hunt are commands, and only in the first place', () => {
+test('a user who passes start, init, serve, stop, logs, watch or hunt first gets that command, and elsewhere gets an error', () => {
   assert.equal(parseArgs(['start']).command, 'start');
   assert.throws(() => parseArgs(['--watch', 'on', 'start']), /Unknown argument: start/);
   assert.equal(parseArgs(['stop']).command, 'stop');
@@ -63,7 +63,7 @@ test('start, init, serve, stop, logs, watch and hunt are commands, and only in t
   assert.equal(parseArgs(['serve']).command, 'serve');
 });
 
-test('an unknown option stops the run', () => {
+test('a user who passes an unknown option gets the run stopped', () => {
   assert.throws(() => parseArgs(['--nope']), /Unknown argument: --nope/);
   assert.throws(() => parseArgs(['--issue', '7']), /Unknown argument: --issue/);
 });

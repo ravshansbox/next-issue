@@ -14,7 +14,7 @@ async function project(...files: string[]): Promise<string> {
   return path;
 }
 
-test('each lock file gives its install command', async () => {
+test('the worker picks the install command of each lock file', async () => {
   const expected: Array<[string, string]> = [
     ['pnpm-lock.yaml', 'pnpm install --frozen-lockfile'],
     ['package-lock.json', 'npm ci'],
@@ -32,35 +32,35 @@ test('each lock file gives its install command', async () => {
   }
 });
 
-test('a yarn project with .yarnrc.yml gets the immutable flag', async () => {
+test('the worker adds the immutable flag for a yarn project with .yarnrc.yml', async () => {
   assert.equal(
     await detectSetupCommand(await project('yarn.lock', '.yarnrc.yml')),
     'yarn install --immutable',
   );
 });
 
-test('a project with .yarnrc.yml and no yarn.lock gives no command', async () => {
+test('the worker picks no command for a project with .yarnrc.yml and no yarn.lock', async () => {
   assert.equal(await detectSetupCommand(await project('.yarnrc.yml')), undefined);
 });
 
-test('a project with .yarnrc.yml and bun.lock gets the bun command', async () => {
+test('the worker picks the bun command for a project with .yarnrc.yml and bun.lock', async () => {
   assert.equal(
     await detectSetupCommand(await project('.yarnrc.yml', 'bun.lock')),
     'bun install --frozen-lockfile',
   );
 });
 
-test('pnpm wins when more than one lock file is present', async () => {
+test('the worker picks pnpm when more than one lock file is present', async () => {
   assert.equal(
     await detectSetupCommand(await project('package-lock.json', 'pnpm-lock.yaml')),
     'pnpm install --frozen-lockfile',
   );
 });
 
-test('a project without a lock file gives no command', async () => {
+test('the worker picks no command for a project without a lock file', async () => {
   assert.equal(await detectSetupCommand(await project('package.json')), undefined);
 });
 
-test('a directory that is not there gives no command', async () => {
+test('the worker picks no command for a folder that is not there', async () => {
   assert.equal(await detectSetupCommand(join(tmpdir(), 'next-issue-does-not-exist')), undefined);
 });

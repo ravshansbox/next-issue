@@ -35,7 +35,7 @@ exec "${real}" "$@"
   });
 }
 
-test('the harness lands issue 3 while it sets up the worktree of issue 4, and both fetches succeed one after the other', async (t) => {
+test('the worker lands issue 3 while it sets up the worktree of issue 4, and both fetches succeed one after the other', async (t) => {
   const { repo, other } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   await git(path, 'config', 'user.name', 't');
@@ -52,7 +52,7 @@ test('the harness lands issue 3 while it sets up the worktree of issue 4, and bo
   assert.equal(await git(added.path, 'log', '-1', '--format=%s'), 'c.txt');
 });
 
-test('the harness pushes issue 3 to main while it sets up the worktree of issue 4, and the push and the fetch both succeed', async (t) => {
+test('the worker pushes issue 3 to main while it sets up the worktree of issue 4, and the push and the fetch both succeed', async (t) => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   await commit(path, 'b.txt');

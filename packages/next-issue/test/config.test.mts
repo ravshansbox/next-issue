@@ -25,7 +25,7 @@ async function root(content?: string): Promise<string> {
   return dir;
 }
 
-test('a missing file gives the defaults', async () => {
+test('a user with no config file gets the defaults', async () => {
   const config = await loadConfig(await root());
   assert.equal(config.remote, 'origin');
   assert.equal(config.maxCiFixes, 5);
@@ -43,7 +43,7 @@ test('a missing file gives the defaults', async () => {
   assert.equal(config.labels.hunt, 'source:hunt');
 });
 
-test('a change to a loaded config leaves the next load alone', async () => {
+test('the worker loads the config file afresh each time, untouched by changes to an earlier load', async () => {
   const dir = await root();
   const first = await loadConfig(dir);
   first.labels.done = 'shipped';
@@ -53,7 +53,7 @@ test('a change to a loaded config leaves the next load alone', async () => {
   assert.deepEqual(second.models, {});
 });
 
-test('the file merges into the defaults', async () => {
+test('a user whose config file sets some fields gets them merged into the defaults', async () => {
   const config = await loadConfig(
     await root(
       JSON.stringify({
@@ -71,11 +71,11 @@ test('the file merges into the defaults', async () => {
   assert.equal(config.labels.needsHuman, 'status:needs-human');
 });
 
-test('a broken file stops the run', async () => {
+test('a user whose config file is broken gets the run stopped', async () => {
   await assert.rejects(loadConfig(await root('{ oops')), /is not valid JSON/);
 });
 
-test('a config file that cannot be read stops the run', async () => {
+test('a user whose config file cannot be read gets the run stopped', async () => {
   const dir = await root();
   await mkdir(join(dir, CONFIG_FILE));
   await assert.rejects(loadConfig(dir), /\.next-issue\/config\.json cannot be read: .*EISDIR/);
@@ -113,7 +113,7 @@ test('a user who sets a timeout above what a timer can hold gets an error that n
   assert.equal(config.checkIntervalSeconds, 2147483);
 });
 
-test('a field of the wrong type stops the run', async () => {
+test('a user whose config file holds a field of the wrong type gets the run stopped', async () => {
   await assert.rejects(
     parse({ maxCiFixes: '3' }),
     /maxCiFixes must be a whole number of 0 or more/,
@@ -183,7 +183,7 @@ test('a user whose config still sets draftPullRequest gets an error that says to
   );
 });
 
-test('an unknown field stops the run', async () => {
+test('a user whose config file holds an unknown field gets the run stopped', async () => {
   await assert.rejects(parse({ maxCiFixed: 3 }), /unknown field: maxCiFixed/);
   await assert.rejects(parse({ models: { implementor: 'm' } }), /unknown model role: implementor/);
   await assert.rejects(parse({ labels: { blocked: 'x' } }), /unknown label name: blocked/);
@@ -210,14 +210,14 @@ test('a user who gives labels.hunt the name of the done label gets an error that
   );
 });
 
-test('a budget of zero and an empty ready label are allowed', async () => {
+test('a user who sets a budget of zero and an empty ready label gets them accepted', async () => {
   const config = await parse({ maxCiFixes: 0, checkGraceSeconds: 0, labels: { ready: '' } });
   assert.equal(config.maxCiFixes, 0);
   assert.equal(config.checkGraceSeconds, 0);
   assert.equal(config.labels.ready, '');
 });
 
-test('a model role of null uses the default model', async () => {
+test('a user who sets a model role to null gets the default model for it', async () => {
   const config = await parse({ models: { implementer: null, reviewer: null, fixer: 'm' } });
   assert.deepEqual(config.models, { fixer: 'm' });
 });
@@ -227,7 +227,7 @@ test('a user who sets models.default and models.hunter gets both models', async 
   assert.deepEqual(config.models, { default: 'a/all', hunter: 'a/hunt' });
 });
 
-test('managedLabels holds every label the harness sets', async () => {
+test('the worker manages every status label of the default config', async () => {
   const config = await loadConfig(await root());
   assert.deepEqual(managedLabels(config), [
     'status:todo',
@@ -238,7 +238,7 @@ test('managedLabels holds every label the harness sets', async () => {
   ]);
 });
 
-test('writeDefaultConfig writes a file that gives the defaults', async () => {
+test('a user who runs init gets a config file that gives the defaults', async () => {
   const dir = await root();
   const path = await writeDefaultConfig(dir, false);
   assert.equal(path, join(dir, CONFIG_FILE));
@@ -277,7 +277,7 @@ test('a user who runs init finds the keys of the config file sorted at every lev
   ]);
 });
 
-test('writeDefaultConfig keeps an existing file without force', async () => {
+test('a user who runs init without force keeps an existing config file, and with force gets the defaults', async () => {
   const dir = await root('{ "maxCiFixes": 9 }');
   await assert.rejects(writeDefaultConfig(dir, false), /exists already/);
   assert.equal((await loadConfig(dir)).maxCiFixes, 9);

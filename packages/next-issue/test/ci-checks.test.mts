@@ -109,7 +109,7 @@ esac
 
 const BASE_WAIT = { intervalSeconds: 1, graceMs: 0, timeoutMs: 10_000 };
 
-test('waitForCiChecks passes when every run on the commit ends without a failure or a cancel', async (t) => {
+test('the worker passes the checks when every run on the commit ends without a failure or a cancel', async (t) => {
   const dir = await fakeRunsGh(t, [
     { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'success' },
     {
@@ -126,7 +126,7 @@ test('waitForCiChecks passes when every run on the commit ends without a failure
   );
 });
 
-test('waitForCiChecks reports cancelled when every run on the commit was cancelled before it finished', async (t) => {
+test('the worker reports the checks cancelled when every run on the commit was cancelled before it finished', async (t) => {
   const dir = await fakeRunsGh(t, [
     { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'cancelled' },
     { databaseId: 2, name: 'Docs', status: 'completed', conclusion: 'skipped' },
@@ -137,7 +137,7 @@ test('waitForCiChecks reports cancelled when every run on the commit was cancell
   );
 });
 
-test('waitForCiChecks reports cancelled when the CI run on the commit was cancelled and another workflow succeeded', async (t) => {
+test('the worker reports the checks cancelled when the CI run on the commit was cancelled and another workflow succeeded', async (t) => {
   const dir = await fakeRunsGh(t, [
     { databaseId: 1, name: 'ci', status: 'completed', conclusion: 'cancelled' },
     {
@@ -153,7 +153,7 @@ test('waitForCiChecks reports cancelled when the CI run on the commit was cancel
   );
 });
 
-test('waitForCiChecks fails as soon as one run on the commit fails', async (t) => {
+test('the worker fails the checks as soon as one run on the commit fails', async (t) => {
   const dir = await fakeRunsGh(t, [
     { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'failure' },
     { databaseId: 2, name: 'Deploy', status: 'in_progress', conclusion: '' },
@@ -164,7 +164,7 @@ test('waitForCiChecks fails as soon as one run on the commit fails', async (t) =
   );
 });
 
-test('waitForCiChecks fails when a workflow run on the commit ends waiting for someone to approve it', async (t) => {
+test('the worker fails the checks when a workflow run on the commit ends waiting for someone to approve it', async (t) => {
   const dir = await fakeRunsGh(t, [
     {
       databaseId: 1,
@@ -180,7 +180,7 @@ test('waitForCiChecks fails when a workflow run on the commit ends waiting for s
   );
 });
 
-test('rerunFailedCi reruns a failed workflow run and leaves one that waits for approval alone', async (t) => {
+test('the worker reruns a failed workflow run and leaves one that waits for approval alone', async (t) => {
   const dir = await fakeRunsGh(
     t,
     [
@@ -221,7 +221,7 @@ test('rerunFailedCi reruns a failed workflow run and leaves one that waits for a
   assert.equal(await readFile(join(dir, 'reruns'), 'utf8'), '2\n');
 });
 
-test('waitForCiChecks reports none when the commit starts no run', async (t) => {
+test('the worker reports no checks when the commit starts no run', async (t) => {
   const dir = await fakeRunsGh(t, []);
   assert.equal(
     await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
@@ -229,7 +229,7 @@ test('waitForCiChecks reports none when the commit starts no run', async (t) => 
   );
 });
 
-test('waitForCiChecks fails when a check run from a CI other than GitHub Actions fails on the commit', async (t) => {
+test('the worker fails the checks when a check run from a CI other than GitHub Actions fails on the commit', async (t) => {
   const dir = await fakeRunsGh(t, [], [], {
     checkRuns: [
       {
@@ -247,7 +247,7 @@ test('waitForCiChecks fails when a check run from a CI other than GitHub Actions
   );
 });
 
-test('waitForCiChecks fails when a check run from a CI other than GitHub Actions waits for someone to act on the commit', async (t) => {
+test('the worker fails the checks when a check run from a CI other than GitHub Actions waits for someone to act on the commit', async (t) => {
   const dir = await fakeRunsGh(t, [], [], {
     checkRuns: [
       {
@@ -265,7 +265,7 @@ test('waitForCiChecks fails when a check run from a CI other than GitHub Actions
   );
 });
 
-test('waitForCiChecks waits for a pending commit status and fails when it then fails', async (t) => {
+test('the worker waits for a pending commit status and fails the checks when it then fails', async (t) => {
   const dir = await fakeRunsGh(t, [], [], {
     statuses: [
       [{ name: 'ci/jenkins', state: 'pending', url: 'https://ci.example/2' }],
@@ -278,7 +278,7 @@ test('waitForCiChecks waits for a pending commit status and fails when it then f
   );
 });
 
-test('waitForCiChecks fails when a failing commit status shows up after the first check has passed', async (t) => {
+test('the worker fails the checks when a failing commit status shows up after the first check has passed', async (t) => {
   const dir = await fakeRunsGh(t, [], [], {
     statuses: [
       [{ name: 'app/lint', state: 'success', url: '' }],
@@ -297,7 +297,7 @@ test('waitForCiChecks fails when a failing commit status shows up after the firs
   );
 });
 
-test('waitForCiChecks times out while a commit status stays pending', async (t) => {
+test('the worker times out the checks while a commit status stays pending', async (t) => {
   const dir = await fakeRunsGh(t, [], [], {
     statuses: [[{ name: 'ci/jenkins', state: 'pending', url: '' }]],
   });
@@ -310,7 +310,7 @@ test('waitForCiChecks times out while a commit status stays pending', async (t) 
   );
 });
 
-test('waitForCiChecks passes when every run and every commit status on the commit succeeds', async (t) => {
+test('the worker passes the checks when every run and every commit status on the commit succeeds', async (t) => {
   const dir = await fakeRunsGh(
     t,
     [{ databaseId: 1, name: 'CI', status: 'completed', conclusion: 'success' }],
@@ -334,7 +334,7 @@ test('waitForCiChecks passes when every run and every commit status on the commi
   );
 });
 
-test('rerunFailedCi reruns the failed jobs of the failed runs on the commit only and returns once they restart', async (t) => {
+test('the worker reruns the failed jobs of the failed runs on the commit only and goes on once they restart', async (t) => {
   const dir = await fakeRunsGh(
     t,
     [
@@ -384,7 +384,7 @@ test('rerunFailedCi reruns the failed jobs of the failed runs on the commit only
   assert.equal(await readFile(join(dir, 'reruns'), 'utf8'), '1\n');
 });
 
-test('failedCiLogs gives the logs of the failed runs on the commit only', async (t) => {
+test('the worker gives the fixer the logs of the failed runs on the commit only', async (t) => {
   const dir = await fakeRunsGh(t, [
     { databaseId: 1, name: 'CI', status: 'completed', conclusion: 'failure' },
     { databaseId: 2, name: 'Docs', status: 'completed', conclusion: 'success' },
@@ -400,7 +400,7 @@ test('failedCiLogs gives the logs of the failed runs on the commit only', async 
   assert.doesNotMatch(report, /Docs|boom in 2/);
 });
 
-test('failedCiLogs names the failed checks from other CI services with their links', async (t) => {
+test('the worker names the failed checks from other CI services with their links in the logs for the fixer', async (t) => {
   const dir = await fakeRunsGh(t, [], [], {
     checkRuns: [
       {
@@ -431,7 +431,7 @@ test('failedCiLogs names the failed checks from other CI services with their lin
   assert.doesNotMatch(report, /lint/);
 });
 
-test('failedCiLogs gives the one failed run the whole log budget when external checks failed next to it', async (t) => {
+test('the worker gives the one failed run the whole log budget when external checks failed next to it', async (t) => {
   const dir = await fakeRunsGh(
     t,
     [{ databaseId: 1, name: 'CI', status: 'completed', conclusion: 'failure' }],
@@ -499,7 +499,7 @@ const ISSUE_RUNS = [
   },
 ];
 
-test('waitForCiChecks passes when the push run of the commit passes, whatever the runs that other events started on it do', async (t) => {
+test('the worker passes the checks when the push run of the commit passes, whatever the runs that other events started on it do', async (t) => {
   const dir = await fakeRunsGh(t, ISSUE_RUNS);
   assert.equal(
     await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
@@ -507,7 +507,7 @@ test('waitForCiChecks passes when the push run of the commit passes, whatever th
   );
 });
 
-test('rerunFailedCi and failedCiLogs leave out a failed run that an event other than push started on the commit', async (t) => {
+test('the worker neither reruns nor reads the logs of a failed run that an event other than push started on the commit', async (t) => {
   const dir = await fakeRunsGh(t, ISSUE_RUNS);
   const repo = { owner: 'acme', name: 'tool', root: dir };
   assert.equal(await failedCiLogs(repo, 'abc', 'main', 1000), '');
@@ -560,7 +560,7 @@ const OTHER_REF_RUNS = [
   },
 ];
 
-test('waitForCiChecks passes when the push run of the base branch passes, whatever the push runs of a tag or another branch do', async (t) => {
+test('the worker passes the checks when the push run of the base branch passes, whatever the push runs of a tag or another branch do', async (t) => {
   const dir = await fakeRunsGh(t, OTHER_REF_RUNS);
   assert.equal(
     await waitForCiChecks({ owner: 'acme', name: 'tool', root: dir }, 'abc', 'main', BASE_WAIT),
@@ -568,7 +568,7 @@ test('waitForCiChecks passes when the push run of the base branch passes, whatev
   );
 });
 
-test('rerunFailedCi and failedCiLogs leave out a failed push run of a tag or another branch on the commit', async (t) => {
+test('the worker neither reruns nor reads the logs of a failed push run of a tag or another branch on the commit', async (t) => {
   const dir = await fakeRunsGh(t, OTHER_REF_RUNS);
   const repo = { owner: 'acme', name: 'tool', root: dir };
   assert.equal(await failedCiLogs(repo, 'abc', 'main', 1000), '');
@@ -889,7 +889,7 @@ test(
   },
 );
 
-test('rerunFailedCi leaves alone a failed run whose failed jobs were already rerun', async (t) => {
+test('the worker leaves alone a failed run whose failed jobs were already rerun', async (t) => {
   const dir = await fakeRunsGh(t, [
     { ...FAILED_CI, attempt: 2 },
     { ...FAILED_DOCS, attempt: 1 },
@@ -974,7 +974,7 @@ const RELEASE_FAILED_JOBS = {
   ],
 };
 
-test('waitForCiChecks passes when the only failed job of a workflow run is in the ignored checks', async (t) => {
+test('the worker passes the checks when the only failed job of a workflow run is in the ignored checks', async (t) => {
   const dir = await fakeRunsGh(t, [RELEASE_FAILED_CI], [], {
     jobs: RELEASE_FAILED_JOBS,
   });
@@ -983,7 +983,7 @@ test('waitForCiChecks passes when the only failed job of a workflow run is in th
   assert.equal(await waitForCiChecks(repo, 'abc', 'main', BASE_WAIT, [], []), 'fail');
 });
 
-test('waitForCiChecks does not wait for an ignored job that still runs once every other job passed', async (t) => {
+test('the worker does not wait for an ignored job that still runs once every other job passed', async (t) => {
   const dir = await fakeRunsGh(
     t,
     [
@@ -1019,7 +1019,7 @@ test('waitForCiChecks does not wait for an ignored job that still runs once ever
   assert.equal(await waitForCiChecks(repo, 'abc', 'main', BASE_WAIT, [], ['release']), 'pass');
 });
 
-test('waitForCiChecks keeps waiting for a running workflow run whose listed jobs have all finished', async (t) => {
+test('the worker keeps waiting for a running workflow run whose listed jobs have all finished', async (t) => {
   const dir = await fakeRunsGh(
     t,
     [
@@ -1052,7 +1052,7 @@ test('waitForCiChecks keeps waiting for a running workflow run whose listed jobs
   );
 });
 
-test('waitForCiChecks fails when a job outside the ignored checks fails next to an ignored one', async (t) => {
+test('the worker fails the checks when a job outside the ignored checks fails next to an ignored one', async (t) => {
   const dir = await fakeRunsGh(t, [RELEASE_FAILED_CI], [], {
     jobs: {
       1: [
@@ -1075,7 +1075,7 @@ test('waitForCiChecks fails when a job outside the ignored checks fails next to 
   assert.equal(await waitForCiChecks(repo, 'abc', 'main', BASE_WAIT, [], ['release']), 'fail');
 });
 
-test('waitForCiChecks leaves out a check run and a commit status whose names are in the ignored checks', async (t) => {
+test('the worker leaves out a check run and a commit status whose names are in the ignored checks', async (t) => {
   const dir = await fakeRunsGh(t, [], [], {
     checkRuns: [
       {
@@ -1102,7 +1102,7 @@ test('waitForCiChecks leaves out a check run and a commit status whose names are
   );
 });
 
-test('rerunFailedCi and failedCiLogs leave out a run whose only failed job is in the ignored checks', async (t) => {
+test('the worker neither reruns nor reads the logs of a run whose only failed job is in the ignored checks', async (t) => {
   const dir = await fakeRunsGh(t, [RELEASE_FAILED_CI], [], {
     jobs: RELEASE_FAILED_JOBS,
   });
@@ -1111,7 +1111,7 @@ test('rerunFailedCi and failedCiLogs leave out a run whose only failed job is in
   assert.deepEqual(await rerunFailedCi(repo, 'abc', 'main', () => {}, ['release']), []);
 });
 
-test('failedCiLogs gives the logs of the failed jobs outside the ignored checks only', async (t) => {
+test('the worker gives the fixer the logs of the failed jobs outside the ignored checks only', async (t) => {
   const dir = await fakeRunsGh(t, [RELEASE_FAILED_CI], [], {
     jobs: {
       1: [
