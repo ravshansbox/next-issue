@@ -91,9 +91,6 @@ export function parseArgs(argv: string[]): Args {
   if (args.command !== undefined && args.command !== 'init' && args.force) {
     throw new Error(`${args.command} does not take --force: it belongs to init`);
   }
-  if (args.command === 'serve' && flag !== undefined) {
-    throw new Error(`serve does not take ${flag}`);
-  }
   return args;
 }
 

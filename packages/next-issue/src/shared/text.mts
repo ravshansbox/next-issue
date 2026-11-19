@@ -39,12 +39,17 @@ export function fitComment(comment: string, cut: string): string {
 
 const COMMENT_OUTPUT_CHARS = 3000;
 
+/** A backtick fence longer than any backtick run in the text, and at least three long. */
+export function fenceFor(text: string): string {
+  const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length));
+  return '`'.repeat(Math.max(3, longest + 1));
+}
+
 export function outputBlock(output: string, limit = COMMENT_OUTPUT_CHARS): string {
   const kept = keepTail(output.trim(), limit);
   if (kept === '') {
     return '';
   }
-  const longest = Math.max(2, ...(kept.match(/`+/g) ?? []).map((run) => run.length));
-  const fence = '`'.repeat(longest + 1);
+  const fence = fenceFor(kept);
   return `\n\n${fence}\n${kept}\n${fence}\n`;
 }

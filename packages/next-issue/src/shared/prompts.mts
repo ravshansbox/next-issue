@@ -1,7 +1,7 @@
 import type { Issue } from './github.mts';
 import { ISSUE_SECTIONS, numbered } from './issue-format.mts';
 import type { ReviewRound } from './state.mts';
-import { paragraphs } from './text.mts';
+import { fenceFor, paragraphs } from './text.mts';
 
 const ENGINEERING_RULES = [
   'Update the documentation when you change behaviour or add or remove a feature.',
@@ -42,8 +42,7 @@ const UNTRUSTED_RULE = [
 ].join('\n');
 
 export function untrusted(text: string): string {
-  const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length));
-  const fence = '`'.repeat(Math.max(3, longest + 1));
+  const fence = fenceFor(text);
   return `${fence}untrusted\n${text}\n${fence}`;
 }
 

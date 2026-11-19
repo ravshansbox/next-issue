@@ -15,6 +15,11 @@ export function heldOnBase(state: IssueState, base: string): string {
     .join(', ');
 }
 
+/** Whether anything of this issue is, or may be, on the base with unknown checks. */
+export function holdsOnBase(state: IssueState): boolean {
+  return heldOnBase(state, '') !== '';
+}
+
 /** What a halt with an unchecked commit on the base means for the next runs. */
 export const HALT_NOTE =
   'The run halts, and no run lands another change until this issue resumes (after an answer or once the label is off) and checks the base, or a person gives it up with the skip label.';
@@ -26,7 +31,7 @@ export function blocksLanding(state: IssueState, base: string): boolean {
 
 /** Drops a saved halt once nothing of this issue is, or may be, on the base with unknown checks. */
 export function releaseSettled(state: IssueState): void {
-  if (heldOnBase(state, '') === '') {
+  if (!holdsOnBase(state)) {
     delete state.halted;
   }
 }

@@ -23,12 +23,12 @@ export async function pendingIssues(context: Context): Promise<Issue[]> {
     }
   }
   let openCount = issues.length;
-  const saved = await savedIssues(repo);
-  for (const number of saved) {
+  const states = await savedStates(context);
+  for (const [number, state] of states) {
     if (listed.has(number)) {
       continue;
     }
-    const { open, issue } = await savedIssue(context, number);
+    const { open, issue } = await savedIssue(context, number, state);
     if (open) {
       openCount += 1;
     }
@@ -37,7 +37,7 @@ export async function pendingIssues(context: Context): Promise<Issue[]> {
     }
   }
   context.recorder.event('issues', { open: openCount });
-  const blocking = await blockingIssues(context, saved);
+  const blocking = blockingIssues(context, states);
   // An issue that blocks every landing goes first, so its resume can lift the block before an older issue reaches the landing.
   return issues.sort(
     (a, b) =>
@@ -46,12 +46,21 @@ export async function pendingIssues(context: Context): Promise<Issue[]> {
   );
 }
 
-async function blockingIssues(context: Context, saved: number[]): Promise<Set<number>> {
-  const { repo, base } = context;
+type SavedState = IssueState | 'broken' | undefined;
+
+async function savedStates(context: Context): Promise<Map<number, SavedState>> {
+  const { repo } = context;
+  const states = new Map<number, SavedState>();
+  for (const number of await savedIssues(repo)) {
+    states.set(number, await readState(repo, number).catch(() => 'broken' as const));
+  }
+  return states;
+}
+
+function blockingIssues(context: Context, states: Map<number, SavedState>): Set<number> {
   const blocking = new Set<number>();
-  for (const number of saved) {
-    const state = await readState(repo, number).catch(() => undefined);
-    if (state !== undefined && blocksLanding(state, base)) {
+  for (const [number, state] of states) {
+    if (state !== undefined && state !== 'broken' && blocksLanding(state, context.base)) {
       blocking.add(number);
     }
   }
@@ -61,9 +70,9 @@ async function blockingIssues(context: Context, saved: number[]): Promise<Set<nu
 async function savedIssue(
   context: Context,
   number: number,
+  saved: SavedState,
 ): Promise<{ open: boolean; issue?: Issue }> {
   const { repo, ports } = context;
-  const saved = await readState(repo, number).catch(() => 'broken' as const);
   if (saved === undefined) {
     return { open: false };
   }
