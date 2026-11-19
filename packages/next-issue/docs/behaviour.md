@@ -249,7 +249,7 @@ A `setupCommand` that fails, or that does not finish in `setupTimeoutMinutes`, h
 
 Every agent prompt holds `.next-issue/notes.md` when it exists, so lessons such as test commands, tool quirks and deliberate behaviour carry over from one issue to the next. The implementer and the fixer may add a short note to it, and the prompt asks them to keep only what still holds. The reviewer and the hunter only read it.
 
-Every agent also reads each `CLAUDE.md` that Claude Code finds, such as the one in `~/.claude` and the one in the repository. Claude Code does not read `AGENTS.md`; a repository that keeps its rules there can add a `CLAUDE.md` that holds `@AGENTS.md`. The other rules there, such as code conventions and test style, still apply. But the harness owns the issue, the worktree, the branch, git, the commit, the push and the checks, and the prompt says so: a workflow rule in `CLAUDE.md` about these, such as "push to main" or "watch ci", does not apply to the agent. The hunter still files its issues with `gh issue create`.
+Every agent also reads each `CLAUDE.md` that Claude Code finds, such as the one in `~/.claude` and the one in the repository. Their rules, such as code conventions and test style, still apply. But the harness owns the issue, the worktree, the branch, git, the commit, the push and the checks, and the prompt says so: a workflow rule in `CLAUDE.md` about these, such as "push to main" or "watch ci", does not apply to the agent. The hunter still files its issues with `gh issue create`.
 
 ## Retry an issue that waits for a person
 

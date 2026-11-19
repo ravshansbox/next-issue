@@ -1,0 +1,3 @@
+- In an interactive session, do not edit files. File an issue with the `create-issue` skill instead.
+- Each package README covers only what a user needs to start and use the tool: overview, install and quick start, config table, commands and links. Put edge cases, failure handling and internal behaviour in `packages/<package>/docs/behaviour.md`. Update whichever file holds the behaviour you change, and keep the README short.
+- Run every next-issue command as `npx -y next-issue@latest <command>`. Never look it up on the `PATH` or use a global install or local build.
