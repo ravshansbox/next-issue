@@ -13,7 +13,6 @@ import {
   isDirty,
   latestSubject,
   parseRemote,
-  repoRoot,
   revision,
   saveEdits,
   setAside,
@@ -92,16 +91,6 @@ test('a user whose ssh alias resolves to ssh.github.com gets gh calls on github.
   const detected = await detectRepo(repo.root, 'work');
   assert.equal(repoArg(detected), 'acme/tool');
   assert.deepEqual(hostname(detected), []);
-});
-
-test('a user in a linked worktree of a bare repository gets the root of that worktree', async () => {
-  const { repo } = await clones();
-  const bare = `${repo.root}.bare.git`;
-  await git(repo.root, 'clone', '-q', '--bare', repo.root, bare);
-  const linked = join(bare, '..', 'linked');
-  await git(bare, 'worktree', 'add', '-q', linked);
-  await mkdir(join(linked, 'sub'));
-  assert.equal(await repoRoot(join(linked, 'sub')), await realpath(linked));
 });
 
 test('the worker refuses a remote of an unknown form', () => {

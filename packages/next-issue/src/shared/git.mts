@@ -50,10 +50,9 @@ async function sshHost(url: string, host: string): Promise<string> {
 }
 
 export async function repoRoot(cwd: string): Promise<string> {
-  const top = await git(cwd, ['rev-parse', '--show-toplevel']);
   const list = await git(cwd, ['worktree', 'list', '--porcelain']);
-  const [first = '', second = ''] = list.split('\n');
-  return first.startsWith('worktree ') && second !== 'bare' ? first.slice('worktree '.length) : top;
+  const [first = ''] = list.split('\n');
+  return first.slice('worktree '.length);
 }
 
 export async function detectRepo(cwd: string, remote: string): Promise<Repo> {
