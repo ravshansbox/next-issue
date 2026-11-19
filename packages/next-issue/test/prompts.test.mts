@@ -181,6 +181,22 @@ test('the implementer and every fixer kind are told the engineering rules', () =
   }
 });
 
+test('the implementer, every fixer kind and the first reviewer are told to keep each README to what a user needs to start and use the tool', () => {
+  const prompts = [
+    implementPrompt(ISSUE, []),
+    ...(['review', 'checks', 'local', 'conflict'] as const).map((kind) =>
+      fixPrompt(ISSUE, [], 'The reason.', 'the detail', [], kind),
+    ),
+    reviewPrompt(ISSUE, [], 'diff', []),
+  ];
+  for (const prompt of prompts) {
+    assert.match(
+      prompt,
+      /Keep each README to what a user needs to start and use the tool\. Put edge cases and internal behaviour in other docs\./,
+    );
+  }
+});
+
 test('each editing and reviewing agent is told that the harness owns the workflow rules of CLAUDE.md', () => {
   const prompts = [
     implementPrompt(ISSUE, []),

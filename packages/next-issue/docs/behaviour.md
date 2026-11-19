@@ -44,7 +44,8 @@ The implementer and the fixer get these rules in their prompt, and the first rev
 - remove the tests of a feature or behaviour that is removed;
 - test behaviour that a user can observe, and give each test a description that names the actor, the action and the observable outcome;
 - reuse existing code and patterns, stay consistent with the repository and pick the simpler option;
-- check an API, a command or a url in the repository or its dependencies before using it, and invent none.
+- check an API, a command or a url in the repository or its dependencies before using it, and invent none;
+- keep each README to what a user needs to start and use the tool, and put edge cases and internal behaviour in other docs.
 
 The reviewer rates a missing documentation update or a test that is not observable as a finding. In every round, it gives the file and line, or the command output, that supports each finding. Personal style rules, such as spelling, code comments or binding names, belong in the `CLAUDE.md` of each repository.
 
@@ -263,7 +264,7 @@ To drop an issue instead, close it. The next run that finds a saved state for an
 
 ## Skills
 
-The package ships two skills for Claude Code: `create-issue` writes an issue that the worker can claim, and `answer-hand-over` helps you answer a hand-over. `create-issue` starts the run once it files an issue. `answer-hand-over` runs no next-issue command: a watching run picks up a retried issue at its next read of the open issues.
+The package ships two skills for Claude Code: `create-issue` writes an issue that the worker can claim, and `answer-hand-over` helps you answer a hand-over. `create-issue` starts the run once it files an issue. `answer-hand-over` runs no next-issue command: a watching run picks up a retried issue at its next read of the open issues. Both skills run any next-issue command as `npx -y next-issue@latest <command>`, never from the `PATH`, a global install or a local build.
 
 `npx -y next-issue@latest init` installs them, so Claude Code finds them:
 
@@ -289,7 +290,7 @@ Claude finds the repository as the `create-issue` skill does and passes `--repo`
 
 ### Create an issue
 
-Ask Claude to write an issue, ask for a change in a repository with `.next-issue/config.json`, or run `/create-issue <problem>`. Claude then:
+Ask Claude to write an issue, ask for a change in a repository with `.next-issue/config.json`, or run `/create-issue <problem>`. For a change in such a repository, Claude files an issue instead of editing files. Claude then:
 
 1. restates the problem, reads the code when the problem touches it, and finds the open issues that must be done first;
 2. judges whether the change fits one atomic commit that leaves the trunk green. When it is too big for one atomic commit, it proposes a split into issues that each land alone and keep the trunk green;

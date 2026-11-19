@@ -1,11 +1,13 @@
 ---
 name: create-issue
-description: Turn a problem into a clear GitHub issue that the next-issue worker can claim. Use when the user wants to write, file or create an issue, or asks for a change to the code of a repository that has `.next-issue/config.json`.
+description: Turn a problem into a clear GitHub issue that the next-issue worker can claim. Use when the user wants to write, file or create an issue, or asks for a change to the code of a repository that has `.next-issue/config.json`. In that case, file an issue with this skill instead of editing files.
 ---
 
 # Create an issue
 
 Turn the problem of the user into one GitHub issue, or a split of linked issues when the change is too big for one commit, in the format of `template.md`, next to this file.
+
+Run any next-issue command as `npx -y next-issue@latest <command>`. Never run it from the `PATH`, a global install or a local build.
 
 1. Understand the problem. Restate it in your own words.
 2. Find the repository, `<repo>`, that the worker reads. `<remote>` is the value of `remote` in `.next-issue/config.json` at the root of the repository. When there is no config file or no `remote` field, `<remote>` is `origin`. Run `git remote get-url <remote>` and take `<owner>/<name>` from the url, without `.git`. That is `<repo>`. When the host of the url is not `github.com`, `<repo>` is `<host>/<owner>/<name>`, so gh acts on that host. For an ssh url, such as `git@<host>:<owner>/<name>.git`, run `ssh -G <host>` and take the host from its `hostname` line, since `<host>` may be an alias from the ssh config. The host `ssh.github.com` means `github.com` (GitHub's ssh over port 443), so `<repo>` is then `<owner>/<name>`. Pass `--repo <repo>` to every `gh` command, since gh otherwise may pick another remote, such as `upstream`.

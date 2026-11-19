@@ -142,6 +142,22 @@ test('a person who asks Claude for a change in a repository with .next-issue/con
   assert.match(description, /\.next-issue\/config\.json/);
 });
 
+test('a person who asks Claude for a change in a repository with .next-issue/config.json gets an issue filed instead of edited files', async () => {
+  const skill = await readFile(createIssue, 'utf8');
+  const description = skill.match(/^description: (.+)$/m)?.[1] ?? '';
+  assert.match(description, /file an issue with this skill instead of editing files/);
+});
+
+test('an agent who uses either packaged skill runs any next-issue command through npx with the latest version, never from the PATH, a global install or a local build', async () => {
+  for (const file of [createIssue, answerHandOver]) {
+    const skill = await readFile(file, 'utf8');
+    assert.match(
+      skill,
+      /Run any next-issue command as `npx -y next-issue@latest <command>`\. Never run it from the `PATH`, a global install or a local build\./,
+    );
+  }
+});
+
 test('an agent who creates an issue with the create-issue skill links it to the open issues it depends on', async () => {
   const skill = await readFile(createIssue, 'utf8');
   assert.match(skill, /gh issue list/);
@@ -305,7 +321,7 @@ test('an agent who retries an issue tells the user what it did, with no next-iss
     skill,
     /After a retry, with or without guidance, tell the user what you did\. Run no next-issue command and ask nothing about a run\./,
   );
-  assert.doesNotMatch(skill, /next-issue (refresh|start|watch)|npx/);
+  assert.doesNotMatch(skill, /next-issue(@latest)? (refresh|start|watch|status)/);
   assert.match(
     behaviour,
     /after a retry, tells you what it did\. It runs no next-issue command and asks nothing about a run/,

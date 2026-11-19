@@ -3,12 +3,16 @@ import { ISSUE_SECTIONS, numbered } from './issue-format.mts';
 import type { ReviewRound } from './state.mts';
 import { fenceFor, paragraphs } from './text.mts';
 
+const README_RULE =
+  'Keep each README to what a user needs to start and use the tool. Put edge cases and internal behaviour in other docs.';
+
 const ENGINEERING_RULES = [
   'Update the documentation when you change behaviour or add or remove a feature.',
   'Remove the tests of a feature or behaviour that you remove.',
   'Test behaviour that a user can observe, not internals. Give each test a description that names the actor, the action and the observable outcome.',
   'Reuse existing code and patterns, stay consistent with the repository and pick the simpler option.',
   'Check an API, a command or a url in the repository or its dependencies before you use it. Do not invent one.',
+  README_RULE,
 ].join('\n');
 
 const OTHER_RULES =
@@ -132,6 +136,7 @@ function reviewScope(earlier: string[]): string {
         'Check that the change updates the documentation when it changes behaviour or adds or removes a feature, and that it removes the tests of a removed feature or behaviour.',
         'Check that each test checks behaviour that a user can observe, and that its description names the actor, the action and the observable outcome.',
         'Check that the change reuses existing code and patterns, stays consistent with the repository and picks the simpler option, and that it uses no invented API, command or url.',
+        `Check that the change follows this rule: ${README_RULE}`,
         'A missing documentation update or a test that is not observable is a finding.',
       ].join('\n')
     : [
