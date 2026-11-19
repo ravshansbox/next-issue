@@ -42,7 +42,7 @@ async function fakeGh(t: TestContext, listed = 'status:todo'): Promise<string> {
   await writeFile(labels, 'status:todo\n');
   const script = `#!/bin/sh
 case "$1 $2" in
-  "api --paginate") printf '${listed}' ;;
+  "api --paginate") printf '${listed}' | jq -Rn '[inputs | {name: .}]' ;;
   "label create")
     if grep -qx -- "$3" "${labels}"; then echo "label with name $3 already exists" >&2; exit 1; fi
     echo "$3" >> "${labels}" ;;
@@ -90,7 +90,7 @@ test('setLabel creates a label again when a person deleted it after the worker r
   await writeFile(labels, 'status:todo\n');
   const script = `#!/bin/sh
 case "$1 $2" in
-  "api --paginate") cat "${labels}" ;;
+  "api --paginate") jq -Rn '[inputs | {name: .}]' "${labels}" ;;
   "label create") echo "$3" >> "${labels}" ;;
   "issue view") echo '{"labels":[]}' ;;
   "issue edit") grep -qx -- "$5" "${labels}" || { echo "'$5' not found" >&2; exit 1; } ;;
@@ -109,7 +109,7 @@ test('setLabel shows the create error when the label create fails twice', async 
   const dir = await tempDir();
   const script = `#!/bin/sh
 case "$1 $2" in
-  "api --paginate") ;;
+  "api --paginate") echo '[]' ;;
   "label create") echo "permission denied" >&2; exit 1 ;;
   "issue view") echo '{"labels":[]}' ;;
   "issue edit") echo "'$5' not found" >&2; exit 1 ;;
@@ -139,7 +139,7 @@ test('ensureLabel accepts an existing label listed after the first 1,000 labels 
   await writeFile(labels, `${others}source:hunt\n`);
   const script = `#!/bin/sh
 case "$1 $2" in
-  "api --paginate") cat "${labels}" ;;
+  "api --paginate") jq -Rn '[inputs | {name: .}]' "${labels}" ;;
   "label create")
     if grep -qx -- "$3" "${labels}"; then echo "label with name $3 already exists" >&2; exit 1; fi
     echo "$3" >> "${labels}" ;;

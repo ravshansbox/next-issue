@@ -407,7 +407,7 @@ async function labelledHunt(t: TestContext, name: string, labels: string, create
     dir,
     `#!/bin/sh
 case "$1 $2" in
-  "api --paginate") cat "${file}" ;;
+  "api --paginate") jq -Rn '[inputs | {name: .}]' "${file}" ;;
   "label create")
     ${refusal}
     if grep -qix -- "$3" "${file}"; then echo "label with name $3 already exists" >&2; exit 1; fi

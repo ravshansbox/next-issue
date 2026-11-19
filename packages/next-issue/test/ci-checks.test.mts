@@ -17,8 +17,51 @@ type External = {
   jobs?: Record<number, unknown[]>;
 };
 
-function jsonLines(items: unknown[]): string {
-  return items.map((item) => `${JSON.stringify(item)}\n`).join('');
+type Fake = Record<string, unknown>;
+
+function orNull(value: unknown): unknown {
+  return value === '' || value === undefined ? null : value;
+}
+
+function rawRuns(runs: unknown[]): string {
+  const workflowRuns = (runs as Fake[]).map(
+    ({ databaseId, attempt, branch, conclusion, ...run }) => ({
+      id: databaseId,
+      run_attempt: attempt ?? 1,
+      head_branch: orNull(branch),
+      conclusion: orNull(conclusion),
+      ...run,
+    }),
+  );
+  return JSON.stringify({ total_count: runs.length, workflow_runs: workflowRuns });
+}
+
+function rawJobs(jobs: unknown[]): string {
+  const rawJobList = (jobs as Fake[]).map(({ databaseId, conclusion, ...job }) => ({
+    id: databaseId,
+    conclusion: orNull(conclusion),
+    ...job,
+  }));
+  return JSON.stringify({ total_count: jobs.length, jobs: rawJobList });
+}
+
+function rawCheckRuns(checkRuns: unknown[]): string {
+  const rawCheckRunList = (checkRuns as Fake[]).map(({ app, url, conclusion, ...checkRun }) => ({
+    conclusion: orNull(conclusion),
+    app: { slug: app },
+    details_url: orNull(url),
+    ...checkRun,
+  }));
+  return JSON.stringify({ total_count: checkRuns.length, check_runs: rawCheckRunList });
+}
+
+function rawStatuses(statuses: unknown[]): string {
+  const rawStatusList = (statuses as Fake[]).map(({ name, url, ...status }) => ({
+    context: name,
+    target_url: orNull(url),
+    ...status,
+  }));
+  return JSON.stringify({ state: 'pending', statuses: rawStatusList });
 }
 
 function pushRuns(runs: unknown[]): unknown[] {
@@ -36,16 +79,16 @@ async function fakeRunsGh(
   { checkRuns = [], statuses = [[]], sha = 'abc', jobs = {} }: External = {},
 ): Promise<string> {
   const dir = await tempDir();
-  await writeFile(join(dir, 'check-runs'), jsonLines(checkRuns));
+  await writeFile(join(dir, 'check-runs'), rawCheckRuns(checkRuns));
   for (const [id, reply] of Object.entries(jobs)) {
-    await writeFile(join(dir, `jobs.${id}`), jsonLines(reply));
+    await writeFile(join(dir, `jobs.${id}`), rawJobs(reply));
   }
-  await writeFile(join(dir, 'runs'), jsonLines(pushRuns(runs)));
-  await writeFile(join(dir, 'rerun-runs'), jsonLines(pushRuns(rerunRuns)));
+  await writeFile(join(dir, 'runs'), rawRuns(pushRuns(runs)));
+  await writeFile(join(dir, 'rerun-runs'), rawRuns(pushRuns(rerunRuns)));
   for (const [index, reply] of statuses.entries()) {
-    await writeFile(join(dir, `status.${index}`), jsonLines(reply));
+    await writeFile(join(dir, `status.${index}`), rawStatuses(reply));
   }
-  await writeFile(join(dir, 'status.last'), jsonLines(statuses.at(-1) ?? []));
+  await writeFile(join(dir, 'status.last'), rawStatuses(statuses.at(-1) ?? []));
   const script = `#!/bin/sh
 d="$(dirname "$0")"
 case "$*" in
@@ -641,11 +684,11 @@ async function writeRuns(dir: string, file: string, runs: unknown[]): Promise<vo
   const planned = runs as PlannedRun[];
   await writeFile(
     join(dir, file),
-    jsonLines(pushRuns(planned.map((run) => ({ ...run, jobs: undefined })))),
+    rawRuns(pushRuns(planned.map(({ jobs: _jobs, ...run }) => run))),
   );
   for (const { databaseId, status, jobs } of planned) {
     if (jobs) {
-      await writeFile(join(dir, `${file}.jobs.${databaseId}`), jsonLines(jobs));
+      await writeFile(join(dir, `${file}.jobs.${databaseId}`), rawJobs(jobs));
     }
     if (status !== 'completed') {
       await writeFile(join(dir, `${file}.running.${databaseId}`), '');
@@ -681,8 +724,8 @@ case "$*" in
     if [ -f "$d/after-error.$n" ]; then cat "$d/after-error.$n" >&2; exit 1; fi
     f="$d/after.$n"; [ -f "$f" ] || f="$d/after.last"; echo "$f" > "$d/current"; cat "$f"; exit 0 ;;
   "api --paginate repos/acme/tool/actions/runs/"*"/jobs?filter=latest&per_page=100 --jq "*) id="\${3#repos/acme/tool/actions/runs/}"; id="\${id%%/*}"; cat "$(cat "$d/current").jobs.$id" 2>/dev/null; exit 0 ;;
-  "api --paginate repos/acme/tool/commits/2/check-runs?per_page=100 --jq "*) exit 0 ;;
-  "api --paginate repos/acme/tool/commits/2/status?per_page=100 --jq "*) exit 0 ;;
+  "api --paginate repos/acme/tool/commits/2/check-runs?per_page=100 --jq "*) echo '{"total_count":0,"check_runs":[]}'; exit 0 ;;
+  "api --paginate repos/acme/tool/commits/2/status?per_page=100 --jq "*) echo '{"state":"pending","statuses":[]}'; exit 0 ;;
 esac
 case "$1 $2" in
   "run view") echo "boom in $3" ;;

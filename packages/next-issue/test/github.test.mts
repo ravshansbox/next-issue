@@ -30,7 +30,7 @@ async function flakyGh(t: TestContext, failures: number, error: string): Promise
   const script = `#!/bin/sh
 echo "$1 $2" >> "${calls}"
 case "$1 $2" in
-  "api --paginate") echo status:todo ;;
+  "api --paginate") echo '[{"name":"status:todo"}]' ;;
   "issue view") echo '{"labels":[]}' ;;
   "issue edit"|"issue comment")
     cat > /dev/null
@@ -92,7 +92,7 @@ test('a user whose remote is on a GitHub Enterprise host sees every gh call name
 echo "$*" >> "${calls}"
 case "$1 $2" in
   "repo view") echo '{"defaultBranchRef":{"name":"trunk"}}' ;;
-  "api --hostname") echo 'acme/tool' ;;
+  "api --hostname") echo '{"id":1,"full_name":"acme/tool"}' ;;
   "issue close"|"issue reopen") ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
@@ -125,8 +125,8 @@ test('openBlockers lists the open blockers and names those of another repository
   );
   const script = `#!/bin/sh
 case "$*" in
-  "api --paginate repos/acme/tool/issues/7/dependencies/blocked_by "*) jq -r "$5" "${join(dir, 'response.json')}" ;;
-  "api repos/acme/tool/issues/7 "*) jq -r "$4" "${join(dir, 'issue.json')}" ;;
+  "api --paginate repos/acme/tool/issues/7/dependencies/blocked_by "*) cat "${join(dir, 'response.json')}" ;;
+  "api repos/acme/tool/issues/7 "*) cat "${join(dir, 'issue.json')}" ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `;
@@ -150,8 +150,8 @@ test('openBlockers gives #<n> for a blocker of the same repository when the remo
   );
   const script = `#!/bin/sh
 case "$*" in
-  "api --paginate repos/Acme/Tool/issues/7/dependencies/blocked_by "*) jq -r "$5" "${join(dir, 'response.json')}" ;;
-  "api repos/Acme/Tool/issues/7 "*) jq -r "$4" "${join(dir, 'issue.json')}" ;;
+  "api --paginate repos/Acme/Tool/issues/7/dependencies/blocked_by "*) cat "${join(dir, 'response.json')}" ;;
+  "api repos/Acme/Tool/issues/7 "*) cat "${join(dir, 'issue.json')}" ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `;
@@ -175,8 +175,8 @@ test('openBlockers gives #<n> for a blocker of the same repository when the remo
   );
   const script = `#!/bin/sh
 case "$*" in
-  "api --paginate repos/old/name/issues/7/dependencies/blocked_by "*) jq -r "$5" "${join(dir, 'response.json')}" ;;
-  "api repos/old/name/issues/7 "*) jq -r "$4" "${join(dir, 'issue.json')}" ;;
+  "api --paginate repos/old/name/issues/7/dependencies/blocked_by "*) cat "${join(dir, 'response.json')}" ;;
+  "api repos/old/name/issues/7 "*) cat "${join(dir, 'issue.json')}" ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `;
@@ -337,11 +337,31 @@ async function fakeApiGh(t: TestContext, script: string): Promise<string> {
   return dir;
 }
 
-test('threadComments reads the author, the body and the url of each comment of an issue or pull request', async (t) => {
-  const dir = await fakeApiGh(
+test('threadComments reads the author, the body, the url and the time of each comment of an issue or pull request', async (t) => {
+  const dir = await tempDir();
+  await writeFile(
+    join(dir, 'comments.json'),
+    JSON.stringify([
+      {
+        id: 1,
+        user: { login: 'owner' },
+        body: 'line one\nline two',
+        html_url: 'https://github.com/acme/tool/issues/42#issuecomment-1',
+        created_at: '2026-01-01T00:00:00Z',
+      },
+      {
+        id: 2,
+        user: { login: 'bot' },
+        body: null,
+        html_url: 'https://github.com/acme/tool/issues/42#issuecomment-2',
+        created_at: '2026-01-02T00:00:00Z',
+      },
+    ]),
+  );
+  await installGh(
     t,
-    `[ "$3" = "repos/acme/tool/issues/42/comments" ] || exit 1
-printf '%s\\n' '["owner","line one\\nline two","https://github.com/acme/tool/issues/42#issuecomment-1"]' '["bot",null]'`,
+    dir,
+    `#!/bin/sh\n[ "$3" = "repos/acme/tool/issues/42/comments" ] || exit 1\ncat "${join(dir, 'comments.json')}"\n`,
   );
   const repo = { owner: 'acme', name: 'tool', root: dir };
   assert.deepEqual(await threadComments(repo, 42), [
@@ -349,8 +369,14 @@ printf '%s\\n' '["owner","line one\\nline two","https://github.com/acme/tool/iss
       author: 'owner',
       body: 'line one\nline two',
       url: 'https://github.com/acme/tool/issues/42#issuecomment-1',
+      createdAt: '2026-01-01T00:00:00Z',
     },
-    { author: 'bot', body: '' },
+    {
+      author: 'bot',
+      body: '',
+      url: 'https://github.com/acme/tool/issues/42#issuecomment-2',
+      createdAt: '2026-01-02T00:00:00Z',
+    },
   ]);
 });
 
@@ -358,9 +384,9 @@ test('canWrite grants write access only to an admin or a writer', async (t) => {
   const dir = await fakeApiGh(
     t,
     `case "$2" in
-  */admin/permission) echo admin ;;
-  */writer/permission) echo write ;;
-  */reader/permission) echo read ;;
+  */admin/permission) echo '{"permission":"admin","role_name":"admin"}' ;;
+  */writer/permission) echo '{"permission":"write","role_name":"write"}' ;;
+  */reader/permission) echo '{"permission":"read","role_name":"read"}' ;;
   *) echo 'gh: Not Found (HTTP 404)' >&2; exit 1 ;;
 esac`,
   );
@@ -375,9 +401,9 @@ test('issueEditors gives the title and body and names the author for a title and
   const dir = await fakeApiGh(
     t,
     `case "$*" in
-  *"number=1 "*) echo '{"title":"T","body":"B","author":{"login":"stranger"},"editor":null,"lastEditedAt":null,"timelineItems":{"nodes":[]}}' ;;
-  *"number=2 "*) echo '{"title":"T","body":"B","author":{"login":"stranger"},"editor":{"login":"owner"},"lastEditedAt":"2026-01-02T00:00:00Z","timelineItems":{"nodes":[{"actor":{"login":"admin"}}]}}' ;;
-  *"number=3 "*) echo '{"title":"T","body":"B","author":null,"editor":null,"lastEditedAt":"2026-01-02T00:00:00Z","timelineItems":{"nodes":[{"actor":null}]}}' ;;
+  *"number=1 "*) echo '{"data":{"repository":{"issue":{"title":"T","body":"B","author":{"login":"stranger"},"editor":null,"lastEditedAt":null,"timelineItems":{"nodes":[]}}}}}' ;;
+  *"number=2 "*) echo '{"data":{"repository":{"issue":{"title":"T","body":"B","author":{"login":"stranger"},"editor":{"login":"owner"},"lastEditedAt":"2026-01-02T00:00:00Z","timelineItems":{"nodes":[{"actor":{"login":"admin"}}]}}}}}' ;;
+  *"number=3 "*) echo '{"data":{"repository":{"issue":{"title":"T","body":"B","author":null,"editor":null,"lastEditedAt":"2026-01-02T00:00:00Z","timelineItems":{"nodes":[{"actor":null}]}}}}}' ;;
   *) exit 1 ;;
 esac`,
   );
