@@ -8,11 +8,14 @@ import type { WorkerMessage } from '../src/shared/protocol.mts';
 import { startWorker } from '../src/worker/serve.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
 import { tempDir } from './temp-dir.mts';
-import { connect, fakeRuns, worker } from './worker-harness.mts';
+import { connect, fakeRegistry, fakeRuns, worker } from './worker-harness.mts';
 
 const SUCCESSOR = new URL('successor-worker.mts', import.meta.url).pathname;
 
-async function oldWorker(t: TestContext) {
+async function oldWorker(
+  t: TestContext,
+  options: Pick<Parameters<typeof startWorker>[0], 'registry' | 'successorLaunch'> = {},
+) {
   const root = await realpath(await tempDir('/tmp'));
   const { logPath: _logPath, ...paths } = workerPaths(root);
   const fake = fakeRuns();
@@ -21,6 +24,7 @@ async function oldWorker(t: TestContext) {
     ...paths,
     version: '2.0.0',
     runRepo: fake.runRepo,
+    ...options,
   });
   assert.ok(started);
   t.after(async () => {
@@ -152,4 +156,29 @@ test('a client that says hello with a malformed way to start the worker gets an 
       message: 'a hello message needs its launch as a command and a list of args',
     });
   }
+});
+
+test('a run with watching off that stops because npm serves a newer next-issue comes back on the newer worker with watching and hunting off', async (t) => {
+  const registry = await fakeRegistry(t, { version: '2.1.0' });
+  const { root, fake, started, socketPath } = await oldWorker(t, {
+    registry: registry.url,
+    successorLaunch: (version) => ({ command: process.execPath, args: [SUCCESSOR, version] }),
+  });
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root, args: ['--watch', 'off'] });
+  await client.next((value) => runOf(root, value)?.status === 'running');
+  await fake.controls().beforeClaim?.();
+  assert.equal(fake.controls().interrupts.afterIssue(), true);
+  fake.finish();
+  await started.closed;
+  const fresh = await connect(t, socketPath);
+  assert.deepEqual(await fresh.next((value) => value.type === 'hello'), {
+    type: 'hello',
+    version: '2.1.0',
+  });
+  const resumed = runOf(root, await fresh.next((value) => value.type === 'runs'));
+  assert.equal(resumed?.watching, false);
+  assert.equal(resumed?.hunting, false);
+  fresh.send({ type: 'rejoin', root });
+  await fresh.next((value) => value.type === 'end');
 });

@@ -46,7 +46,7 @@ export function parseMessage(text: string): ClientMessage | undefined {
   return isClientMessage(value) ? value : undefined;
 }
 
-export type Peer = { send: (data: string) => void };
+export type Peer = { send: (data: string, sent?: () => void) => void };
 
 export function send(socket: Peer, value: WorkerMessage): void {
   socket.send(JSON.stringify(value));

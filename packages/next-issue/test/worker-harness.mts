@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { request } from 'node:http';
-import { createConnection } from 'node:net';
+import { createServer, request } from 'node:http';
+import { type AddressInfo, createConnection } from 'node:net';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { TestContext } from 'node:test';
@@ -136,4 +136,30 @@ export function http(
     sent.on('error', reject);
     sent.end(body);
   });
+}
+
+export async function fakeRegistry(
+  t: TestContext,
+  answer: { version: string } | { status: number } | 'silent',
+): Promise<{ url: string; asked: () => number }> {
+  let asked = 0;
+  const server = createServer((_request, response) => {
+    asked += 1;
+    if (answer === 'silent') {
+      return;
+    }
+    if ('status' in answer) {
+      response.writeHead(answer.status).end();
+    } else {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ name: 'next-issue', version: answer.version }));
+    }
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => {
+    server.closeAllConnections();
+    return new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+  const { port } = server.address() as AddressInfo;
+  return { url: `http://127.0.0.1:${port}/next-issue/latest`, asked: () => asked };
 }

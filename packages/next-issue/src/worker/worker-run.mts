@@ -95,10 +95,10 @@ export function stoppingMessage(root: string, run: Run, id?: string): WorkerMess
   };
 }
 
-export function requestUpgrade(run: Run, upgrade: Upgrade): boolean {
+export function requestUpgrade(run: Run, upgrade: Upgrade, everyRun = false): boolean {
   if (
     !active(run) ||
-    !run.watching.on() ||
+    (!everyRun && !run.watching.on()) ||
     run.stoppedByPerson === true ||
     run.progress.upgrade !== undefined
   ) {

@@ -35,6 +35,7 @@ export type RunControls = {
   watching?: Switch;
   // The worker passes the signal of its clients' refresh requests, which end a watch wait early.
   refreshed?: () => AbortSignal;
+  beforeClaim?: () => Promise<void>;
 };
 
 export async function runRepo(root: string, args: Args, controls: RunControls): Promise<number> {
@@ -81,6 +82,7 @@ async function handle(
     issues: () => pendingIssues(context),
     process: (issue, slot) => processIssue(context, issue, slot),
     stop: interrupts.afterIssue,
+    beforeClaim: controls.beforeClaim,
     concurrency: config.concurrency,
   };
   const print = controls.print ?? (async () => undefined);

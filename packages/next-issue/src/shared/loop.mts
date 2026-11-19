@@ -6,6 +6,7 @@ export type Loop = {
   issues: () => Promise<Issue[]>;
   process: (issue: Issue, slot?: Slot) => Promise<IssueReport>;
   stop: () => boolean;
+  beforeClaim?: () => Promise<void>;
   concurrency?: number;
   // Aborts when a client asks for new issues; a pass then reads the open issues again, even with every slot taken.
   refreshed?: () => AbortSignal;
@@ -163,6 +164,10 @@ async function claimIssues(
   for (const issue of issues.filter((candidate) => !seen.has(candidate.number))) {
     if (!pool.slots.open()) {
       return { claiming: true, unclaimed: true };
+    }
+    await loop.beforeClaim?.();
+    if (loop.stop()) {
+      return { claiming: false, unclaimed: false };
     }
     seen.add(issue.number);
     const slot = pool.slots.claim();

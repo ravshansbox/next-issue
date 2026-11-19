@@ -377,3 +377,29 @@ test('a person who reads the run log sees the open count drop when the run close
   assert.deepEqual(fake.processed, [1]);
   assert.equal(fake.status(), 1);
 });
+
+test('a run whose check before a claim asks it to stop claims no issue', async () => {
+  const stopping = loop({ 1: 'done', 2: 'done' });
+  let stop = false;
+  stopping.stop = () => stop;
+  stopping.beforeClaim = async () => {
+    stop = true;
+  };
+  await runIssues(stopping);
+  assert.deepEqual(stopping.processed, []);
+});
+
+test('a run whose check before a claim changes nothing claims each issue after its check', async () => {
+  const going = loop({ 1: 'done', 2: 'done' });
+  const order: string[] = [];
+  going.beforeClaim = async () => {
+    order.push('check');
+  };
+  const process = going.process;
+  going.process = (target, slot) => {
+    order.push(`claim ${target.number}`);
+    return process(target, slot);
+  };
+  await runIssues(going);
+  assert.deepEqual(order, ['check', 'claim 1', 'check', 'claim 2']);
+});

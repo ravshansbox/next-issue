@@ -236,7 +236,8 @@ export async function rejoinRun(root: string): Promise<Connection | undefined> {
   const deadline = Date.now() + START_TIMEOUT_MS;
   while (Date.now() < deadline) {
     const found = await tryOpen(socketPath);
-    if (found !== undefined && going(found.runs[root])) {
+    if (found?.runs[root] !== undefined) {
+      found.send({ type: 'rejoin', root });
       return found;
     }
     found?.close();

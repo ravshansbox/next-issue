@@ -123,13 +123,15 @@ function follow(
         fail(message.message);
       } else if (message.type === 'end' && message.error !== undefined) {
         fail(message.error);
-      } else if (message.type === 'end' && latest?.upgrade !== undefined) {
-        upgradeEnd = message.code;
       } else if (message.type === 'end') {
         if (!args.watch && message.summary !== undefined) {
           out.print(process.stdout, formatSummary(message.summary));
         }
-        settle(message.code);
+        if (latest?.upgrade === undefined) {
+          settle(message.code);
+        } else {
+          upgradeEnd = message.code;
+        }
       }
     };
     const rejoin = async (upgrade: Upgrade): Promise<void> => {

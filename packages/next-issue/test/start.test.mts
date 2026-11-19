@@ -13,7 +13,7 @@ import { rejoinRun } from '../src/shared/worker-client.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
 import { idleGh } from './fake-gh.mts';
 import { repository, until } from './helpers.mts';
-import { connect, fakeRuns } from './worker-harness.mts';
+import { connect, fakeRegistry, fakeRuns } from './worker-harness.mts';
 
 const SUCCESSOR = fileURLToPath(new URL('successor-worker.mts', import.meta.url));
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
@@ -65,13 +65,20 @@ async function killWorker(root: string): Promise<void> {
   }
 }
 
-async function fakeWorker(t: TestContext, root: string, runRepo: RunRepo, version?: string) {
+async function fakeWorker(
+  t: TestContext,
+  root: string,
+  runRepo: RunRepo,
+  version?: string,
+  options: Pick<Parameters<typeof startWorker>[0], 'registry' | 'successorLaunch'> = {},
+) {
   const { logPath: _logPath, ...paths } = workerPaths(root);
   const worker = await startWorker({
     root,
     ...paths,
     version: version ?? (await packageVersion()),
     runRepo,
+    ...options,
   });
   assert.ok(worker);
   t.after(() => worker.close());
@@ -582,4 +589,37 @@ test('a user who presses Ctrl-C while start moves to the newer worker sees the r
   assert.equal(await started.exited, 3, started.stderr());
   assert.match(started.stderr(), /Stopping after the running issues/);
   assert.match(started.stderr(), /stopped: watching on, hunting on\n/);
+});
+
+test('a user whose start run with --watch off stops because npm serves a newer next-issue sees the summary of both runs, one update note and the exit code of the run that ends at once on the newer worker', async (t) => {
+  const root = await repository(ORIGIN);
+  const fake = fakeRuns();
+  const registry = await fakeRegistry(t, { version: '999.0.0' });
+  await fakeWorker(t, root, fake.runRepo, undefined, {
+    registry: registry.url,
+    successorLaunch: (version) => ({ command: process.execPath, args: [SUCCESSOR, version, '3'] }),
+  });
+  t.after(() => killWorker(root));
+  const started = startCommand(t, root, ['--watch', 'off']);
+  await until(() => fake.calls.length === 1, 'the run to start');
+  await fake.controls().beforeClaim?.();
+  fake.controls().ended?.({
+    runId: 'first',
+    logFile: 'first.jsonl',
+    roles: {},
+    counts: {},
+    total: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    issues: [],
+  });
+  fake.finish();
+  assert.equal(await started.exited, 3, started.stderr());
+  assert.match(started.stdout(), /^run first\n[\s\S]*^run resumed\n/m);
+  const version = await packageVersion();
+  assert.deepEqual(
+    started
+      .stderr()
+      .split('\n')
+      .filter((line) => line.includes('updated')),
+    [`next-issue: the worker was updated from ${version} to 999.0.0`],
+  );
 });

@@ -1524,3 +1524,38 @@ test('a client that stops a run waiting between passes is told it waits, and whe
     fake.finish();
   }
 });
+
+async function endedResume(t: TestContext) {
+  const fake = fakeRuns();
+  const { socketPath, worker: started } = await worker(t, fake);
+  const starter = await connect(t, socketPath);
+  starter.send({ type: 'start', root: '/repo', resume: true });
+  await starter.next((value) => value.type === 'runs' && value.runs['/repo']?.status === 'running');
+  fake.finish(3);
+  await starter.next((value) => value.type === 'end');
+  return { socketPath, started };
+}
+
+test('a client that rejoins a resumed run after it ended gets the end of the run, and the worker then closes', async (t) => {
+  const { socketPath, started } = await endedResume(t);
+  const late = await connect(t, socketPath);
+  late.send({ type: 'rejoin', root: '/repo' });
+  assert.deepEqual(await late.next((value) => value.type === 'end'), {
+    type: 'end',
+    root: '/repo',
+    code: 3,
+  });
+  await started.closed;
+});
+
+test('a client that starts a run while the worker holds the end of a resumed run for a rejoin gets an error that the worker is closing', async (t) => {
+  const { socketPath } = await endedResume(t);
+  const other = await connect(t, socketPath);
+  other.send({ type: 'start', root: '/repo', id: 'late' });
+  assert.deepEqual(await other.next((value) => value.type === 'error'), {
+    type: 'error',
+    root: '/repo',
+    message: 'the worker is closing, try again soon',
+    id: 'late',
+  });
+});

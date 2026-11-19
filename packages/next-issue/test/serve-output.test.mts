@@ -8,13 +8,13 @@ import { runRepo } from '../src/worker/run.mts';
 import { startWorker } from '../src/worker/serve.mts';
 import { installGh } from './fake-gh.mts';
 import { tempDir } from './temp-dir.mts';
-import { connect, fakeRuns, worker } from './worker-harness.mts';
+import { connect, fakeRegistry, fakeRuns, worker } from './worker-harness.mts';
 
 const issues = [
   { number: 1, title: 'issue 1', body: '', createdAt: '2026-01-01T00:00:00Z', labels: [] },
 ];
 
-async function repoWorker(t: TestContext, gh: string) {
+async function repoWorker(t: TestContext, gh: string, registry?: string) {
   t.mock.method(process.stderr, 'write', () => true);
   const root = await tempDir();
   await must('git', ['init', '-q'], { cwd: root });
@@ -34,6 +34,8 @@ async function repoWorker(t: TestContext, gh: string) {
     lockPath: join(dir, 'w.lock'),
     version: '2.0.0',
     runRepo,
+    registry: registry ?? (await fakeRegistry(t, { version: '2.0.0' })).url,
+    successorLaunch: () => ({ command: join(root, 'missing'), args: ['serve'] }),
   });
   assert.ok(started);
   t.after(() => started.close());
@@ -126,4 +128,50 @@ test('a client of a run whose summary is larger than 64 KiB gets the whole summa
   fake.finish(0);
   const end = await client.next((message) => message.type === 'end');
   assert.deepEqual(end, { type: 'end', root, code: 0, summary });
+});
+
+test('a client whose run is about to claim an issue while npm serves a newer next-issue sees the run claim nothing and stop for an upgrade to that version, even with watching off', async (t) => {
+  const registry = await fakeRegistry(t, { version: '2.1.0' });
+  const { root, client } = await repoWorker(t, WORKING_GH, registry.url);
+  client.send({ type: 'start', root, args: ['--watch', 'off'] });
+  const asked = await client.next(
+    (message) => message.type === 'runs' && message.runs[root]?.upgrade !== undefined,
+  );
+  assert.deepEqual(asked.type === 'runs' && asked.runs[root]!.upgrade, {
+    from: '2.0.0',
+    to: '2.1.0',
+    resumes: true,
+  });
+  const { end } = await outputUntilEnd(client, root);
+  assert.deepEqual(end.type === 'end' && end.summary?.issues, []);
+  assert.equal(registry.asked(), 1);
+});
+
+for (const [answer, what] of [
+  [{ version: '2.0.0' }, 'the same version'],
+  [{ version: '1.9.0' }, 'an older version'],
+  [{ status: 500 }, 'an error'],
+  ['silent', 'nothing for 3 seconds'],
+] as const) {
+  test(`a client whose run is about to claim an issue while npm answers with ${what} sees the run claim the issue as before`, async (t) => {
+    const registry = await fakeRegistry(t, answer);
+    const { root, client } = await repoWorker(t, WORKING_GH, registry.url);
+    client.send({ type: 'start', root, args: ['--watch', 'off'] });
+    const { end } = await outputUntilEnd(client, root);
+    assert.deepEqual(
+      end.type === 'end' && end.summary?.issues.map((report) => [report.issue, report.outcome]),
+      [[1, 'skipped']],
+    );
+    assert.equal(registry.asked(), 1);
+  });
+}
+
+test('a client whose run is about to claim an issue while npm cannot be reached sees the run claim the issue as before', async (t) => {
+  const { root, client } = await repoWorker(t, WORKING_GH, 'http://127.0.0.1:1/next-issue/latest');
+  client.send({ type: 'start', root, args: ['--watch', 'off'] });
+  const { end } = await outputUntilEnd(client, root);
+  assert.deepEqual(
+    end.type === 'end' && end.summary?.issues.map((report) => [report.issue, report.outcome]),
+    [[1, 'skipped']],
+  );
 });

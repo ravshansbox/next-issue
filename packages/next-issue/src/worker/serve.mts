@@ -7,11 +7,18 @@ import { stopChildren, withRunChildren } from '../shared/children.mts';
 import { message } from '../shared/errors.mts';
 import { lock } from '../shared/lock.mts';
 import { startProgress } from './progress.mts';
-import { type ClientMessage, isNewer, type Launch, type Progress } from '../shared/protocol.mts';
+import {
+  type ClientMessage,
+  isNewer,
+  type Launch,
+  type Progress,
+  type WorkerMessage,
+} from '../shared/protocol.mts';
 import { runRepo, type RunControls } from './run.mts';
 import type { RunSummary } from '../shared/summary.mts';
 import { packageVersion } from '../shared/version.mts';
 import { resumeOnSuccessor } from '../shared/worker-client.mts';
+import { latestVersion, NPM_LATEST, npxLaunch } from './latest-version.mts';
 import { keepLogTrimmed, LOG_CHECK_MS } from './worker-log.mts';
 import { checkSocketPath, workerPaths } from '../shared/worker-paths.mts';
 import {
@@ -60,10 +67,13 @@ type WorkerOptions = {
   runRepo: RunRepo;
   lockWaitMs?: number;
   idleMs?: number;
+  registry?: string;
+  successorLaunch?: (version: string) => Launch;
 };
 
 const LOCK_WAIT_MS = 5_000;
 const IDLE_MS = 30_000;
+const REJOIN_GRACE_MS = 5_000;
 
 export async function startWorker(options: WorkerOptions): Promise<Worker | undefined> {
   checkSocketPath(options.socketPath);
@@ -85,6 +95,24 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   const server = createServer();
   const sockets = new WebSocketServer({ server });
   const busy = (): boolean => [...runs.values()].some(active);
+
+  let followed = false;
+  let lateEnd: { end: WorkerMessage; sent: () => void } | undefined;
+  const awaitRejoin = (end: WorkerMessage): Promise<void> => {
+    if (followed) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      const timer = setTimeout(resolve, REJOIN_GRACE_MS);
+      lateEnd = {
+        end,
+        sent: () => {
+          clearTimeout(timer);
+          resolve();
+        },
+      };
+    });
+  };
 
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
   const idleMs = options.idleMs ?? IDLE_MS;
@@ -112,12 +140,12 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     }
   });
   const closeWhenIdle = (): void => {
-    if ((restart !== undefined || sockets.clients.size === 0) && !busy()) {
+    if ((restart !== undefined || sockets.clients.size === 0) && !busy() && lateEnd === undefined) {
       void close();
     }
   };
 
-  const upgradeBetweenIssues = (run: Run): void => {
+  const upgradeBetweenIssues = (run: Run, everyRun = false): void => {
     if (restart === undefined) {
       return;
     }
@@ -126,13 +154,28 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       to: restart,
       ...(successor === undefined ? {} : { resumes: true }),
     };
-    if (requestUpgrade(run, upgrade)) {
+    if (requestUpgrade(run, upgrade, everyRun)) {
       broadcast(sockets, runs);
     }
   };
 
+  const upgradeToLatest = async (run: Run): Promise<void> => {
+    const latest = await latestVersion(options.registry ?? NPM_LATEST);
+    if (latest === undefined || !isNewer(latest, options.version)) {
+      return;
+    }
+    if (restart === undefined) {
+      restart = latest;
+      successor = (options.successorLaunch ?? npxLaunch)(latest);
+    }
+    upgradeBetweenIssues(run, true);
+  };
+
   const start = (refuse: Refuse, root: string, argv: string[], resume: boolean): void => {
-    const refusal = startRefusal(runs.get(root), restart !== undefined);
+    const refusal =
+      lateEnd === undefined
+        ? startRefusal(runs.get(root), restart !== undefined)
+        : 'the worker is closing, try again soon';
     if (refusal !== undefined) {
       if (!resume) {
         refuse(refusal);
@@ -154,9 +197,16 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     };
     broadcast(sockets, runs);
     let summary: RunSummary | undefined;
+    const ended = async (end: WorkerMessage): Promise<void> => {
+      await sendAllSent(sockets, end);
+      if (resume) {
+        await awaitRejoin(end);
+      }
+    };
     withRunChildren(run.children, () =>
       options.runRepo(root, args, {
         ...runControls(run, update),
+        beforeClaim: () => upgradeToLatest(run),
         print: args.watch
           ? async (pass) => sendAll(sockets, { type: 'pass', root, summary: pass })
           : undefined,
@@ -172,7 +222,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       .then(
         (code) => {
           update({ ...run.progress, status: endStatus(run) });
-          return sendAllSent(sockets, {
+          return ended({
             type: 'end',
             root,
             code,
@@ -181,7 +231,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
         },
         (error: unknown) => {
           update({ ...run.progress, status: 'failed', error: message(error) });
-          return sendAllSent(sockets, { type: 'end', root, code: 1, error: message(error) });
+          return ended({ type: 'end', root, code: 1, error: message(error) });
         },
       )
       .finally(() => void close());
@@ -234,7 +284,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
           restart = value.version;
           successor = value.launch;
         }
-        runs.forEach(upgradeBetweenIssues);
+        runs.forEach((run) => upgradeBetweenIssues(run));
         closeWhenIdle();
       }
     } else if (value.root !== options.root) {
@@ -249,6 +299,12 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       toggle(refuse, value.root, value.on, setWatching);
     } else if (value.type === 'refresh') {
       requestRefresh(runs.get(value.root));
+    } else if (value.type === 'rejoin') {
+      followed = true;
+      if (lateEnd !== undefined) {
+        const { end, sent } = lateEnd;
+        socket.send(JSON.stringify(end), () => sent());
+      }
     }
   };
 
@@ -292,7 +348,12 @@ function upgradedRun(run: Run): boolean {
 }
 
 function resumeArgs(run: Run): string[] {
-  return ['--watch', 'on', '--hunt', run.progress.hunting ? 'on' : 'off'];
+  return [
+    '--watch',
+    run.progress.watching === true ? 'on' : 'off',
+    '--hunt',
+    run.progress.hunting ? 'on' : 'off',
+  ];
 }
 
 function refuser(socket: Peer, value: ClientMessage, served: string): Refuse {
