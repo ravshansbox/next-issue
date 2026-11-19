@@ -1,4 +1,4 @@
-import { onKill } from '../shared/children.mts';
+import { onKill, runStopped } from '../shared/children.mts';
 import { escalateAndFinish } from '../shared/handover.mts';
 import type { Finished, Run } from '../shared/job.mts';
 import { writeState, writeStateNow } from '../shared/state.mts';
@@ -18,27 +18,27 @@ export async function spendBudget(
   budget: Budget,
   note: string,
   reason: string,
-  beforeHandOver?: () => Promise<void>,
+  beforeHandOver?: () => Promise<string | void>,
 ): Promise<Finished | undefined> {
   const { context, state } = job;
   const { round, limit } = budgetUse(job, budget);
   if (round >= limit) {
-    await beforeHandOver?.();
-    return escalateAndFinish(job, note, reason);
+    const after = (await beforeHandOver?.()) ?? '';
+    return escalateAndFinish(job, `${note}${after}`, reason);
   }
   state[budget] += 1;
   await writeState(context.repo, state);
   return undefined;
 }
 
-export async function refundBudget(job: Run, budget: Budget): Promise<void> {
+async function refundBudget(job: Run, budget: Budget): Promise<void> {
   const { context, state } = job;
   state[budget] = Math.max(0, state[budget] - 1);
   await writeState(context.repo, state);
 }
 
-/** Gives the spent budget back if the process is killed (third Ctrl-C) while `body` runs. */
-export async function refundOnKill<T>(
+/** Gives the spent budget back if the process is killed (third Ctrl-C) or the run is stopped while `body` runs. */
+export async function refundIfCut<T>(
   job: Run,
   budget: Budget,
   body: () => Promise<T>,
@@ -51,8 +51,16 @@ export async function refundOnKill<T>(
     writeStateNow(context.repo, state);
   });
   try {
-    return await body();
-  } finally {
-    forget();
+    try {
+      return await body();
+    } finally {
+      forget();
+    }
+  } catch (error) {
+    if (runStopped()) {
+      undo?.();
+      await refundBudget(job, budget);
+    }
+    throw error;
   }
 }

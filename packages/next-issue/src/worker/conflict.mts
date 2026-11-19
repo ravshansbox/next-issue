@@ -1,6 +1,5 @@
 import { parseCommitSubject } from './agent-reply.mts';
-import { refundBudget, refundOnKill, spendBudget } from './budget.mts';
-import { runStopped } from '../shared/children.mts';
+import { refundIfCut, spendBudget } from './budget.mts';
 import type { Merge } from '../shared/git-merge.mts';
 import { commitWork, runFixer } from './fix.mts';
 import { escalateAndFinish } from '../shared/handover.mts';
@@ -100,11 +99,8 @@ async function resolve(job: Run, merge: Merge): Promise<boolean> {
         ports.commitMerge(cwd, merge, message),
       );
     };
-    return await (files.length > 0 ? refundOnKill(job, 'ciFixes', fixAndCommit) : fixAndCommit());
+    return await (files.length > 0 ? refundIfCut(job, 'ciFixes', fixAndCommit) : fixAndCommit());
   } catch (error) {
-    if (files.length > 0 && runStopped()) {
-      await refundBudget(job, 'ciFixes');
-    }
     await ports.abortMerge(worktree, before);
     throw error;
   }

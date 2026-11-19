@@ -1,9 +1,8 @@
-import { budgetUse, refundBudget, refundOnKill } from './budget.mts';
-import { evenWhenStopped, refuseWhenStopped, runStopped } from '../shared/children.mts';
+import { refundIfCut, spendBudget } from './budget.mts';
+import { evenWhenStopped, refuseWhenStopped } from '../shared/children.mts';
 import { minutesToMs } from '../shared/durations.mts';
 import { succeeded } from '../shared/exec.mts';
-import { escalateCheckFix, type Fix, fixRound } from './fix.mts';
-import { escalateAndFinish } from '../shared/handover.mts';
+import { escalateCheckFix, fixRound } from './fix.mts';
 import type { Finished, Run } from '../shared/job.mts';
 import type { CheckResult } from '../shared/ports.mts';
 import { writeState } from '../shared/state.mts';
@@ -85,37 +84,28 @@ async function failedCheck(
   command: string,
   result: CheckResult,
 ): Promise<Finished | false> {
-  const { context, log, state } = job;
-  const { repo, base } = context;
+  const { context, log } = job;
+  const { config, base } = context;
   const note = failure(job, command, result);
   log.event('check.fail', { cmd: command, code: result.code, timedOut: result.timedOut });
-  const { round, limit } = budgetUse(job, 'ciFixes');
-  if (round >= limit) {
-    return escalateAndFinish(
+  const exhausted = await spendBudget(
+    job,
+    'ciFixes',
+    `${note} The limit of ${config.maxCiFixes} check fixes was reached, so the harness did not push the change to ${base}.${outputBlock(result.output)}`,
+    `local checks failed: ${command}`,
+  );
+  if (exhausted) {
+    return exhausted;
+  }
+  const fix = await refundIfCut(job, 'ciFixes', () =>
+    fixRound(
       job,
-      `${note} The limit of ${limit} check fixes was reached, so the harness did not push the change to ${base}.${outputBlock(result.output)}`,
-      `local checks failed: ${command}`,
-    );
-  }
-  state.ciFixes += 1;
-  await writeState(repo, state);
-  let fix: Fix;
-  try {
-    fix = await refundOnKill(job, 'ciFixes', () =>
-      fixRound(
-        job,
-        `${note} The harness runs it before the push to ${base}.`,
-        result.output,
-        [],
-        'local',
-      ),
-    );
-  } catch (error) {
-    if (runStopped()) {
-      await refundBudget(job, 'ciFixes');
-    }
-    throw error;
-  }
+      `${note} The harness runs it before the push to ${base}.`,
+      result.output,
+      [],
+      'local',
+    ),
+  );
   if (!fix.committed) {
     return escalateCheckFix(job, fix.unrelated, `local checks (\`${command}\`)`);
   }

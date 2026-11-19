@@ -1,5 +1,5 @@
 import type { Restarted } from '../shared/ci-checks.mts';
-import { budgetUse, refundBudget, refundOnKill } from './budget.mts';
+import { refundIfCut, spendBudget } from './budget.mts';
 import { type CheckState, checkWaiting } from '../shared/check-poll.mts';
 import { runStopped } from '../shared/children.mts';
 import { asError, message } from '../shared/errors.mts';
@@ -136,24 +136,22 @@ async function rerunFailed(job: Run, sha: string): Promise<Restarted[]> {
 async function failedChecksFix(job: Run, sha: string, refused?: string): Promise<Gate> {
   const { context, log, state } = job;
   const { repo, config, ports, base } = context;
-  const { round, limit } = budgetUse(job, 'ciFixes');
-  if (round >= limit) {
-    const reverted = await revertFailedChecks(job);
-    return escalateAndFinish(
-      job,
-      `The checks on ${base} failed and the limit of ${limit} check fixes was reached.${reverted}`,
-      'check budget',
-    );
+  const exhausted = await spendBudget(
+    job,
+    'ciFixes',
+    `The checks on ${base} failed and the limit of ${config.maxCiFixes} check fixes was reached.`,
+    'check budget',
+    () => revertFailedChecks(job),
+  );
+  if (exhausted) {
+    return exhausted;
   }
-  state.ciFixes += 1;
-  await writeState(repo, state);
   let logs: string;
   try {
-    logs = await refundOnKill(job, 'ciFixes', () =>
+    logs = await refundIfCut(job, 'ciFixes', () =>
       ports.failedCiLogs(repo, sha, base, config.logMaxChars, config.ignoredChecks),
     );
   } catch (error) {
-    await refundStopped(job);
     return escalateError(
       job,
       error,
@@ -164,7 +162,7 @@ async function failedChecksFix(job: Run, sha: string, refused?: string): Promise
   log.event('ci-checks.logs', { chars: logs.length });
   let fix: Fix;
   try {
-    fix = await refundOnKill(job, 'ciFixes', () =>
+    fix = await refundIfCut(job, 'ciFixes', () =>
       fixRound(
         job,
         `The checks on ${base} failed after the change landed there.${refusedNote(refused)}`,
@@ -174,7 +172,6 @@ async function failedChecksFix(job: Run, sha: string, refused?: string): Promise
       ),
     );
   } catch (error) {
-    await refundStopped(job);
     return escalateError(
       job,
       error,
@@ -227,12 +224,6 @@ function namedFile(logs: string, files: string[]): string | undefined {
 
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-async function refundStopped(job: Run): Promise<void> {
-  if (runStopped()) {
-    await refundBudget(job, 'ciFixes');
-  }
 }
 
 /** A landed commit whose checks cannot be read leaves the base unknown, so the run halts and keeps the commit. */

@@ -1,8 +1,8 @@
 import { REVIEWING } from '../shared/agents.mts';
 import { runStopped } from '../shared/children.mts';
-import { budgetUse, refundBudget, refundOnKill, spendBudget } from './budget.mts';
+import { budgetUse, refundIfCut, spendBudget } from './budget.mts';
 import { message } from '../shared/errors.mts';
-import { type Fix, fixRound, type Unfixed } from './fix.mts';
+import { fixRound, type Unfixed } from './fix.mts';
 import { escalateAndFinish } from '../shared/handover.mts';
 import { ROUND_CONTINUE, type Round, type Run, runRole, setStatus } from '../shared/job.mts';
 import { landApproved } from './land.mts';
@@ -33,18 +33,10 @@ export async function reviewRound(job: Run): Promise<Round> {
   }
 
   const earlier = history(state.reviewLog);
-  let text: string;
-  try {
-    text = await refundOnKill(job, 'reviewRounds', async () => {
-      await setStatus(context, issue.number, config.labels.inReview);
-      return runReviewer(job, earlier);
-    });
-  } catch (error) {
-    if (runStopped()) {
-      await refundBudget(job, 'reviewRounds');
-    }
-    throw error;
-  }
+  const text = await refundIfCut(job, 'reviewRounds', async () => {
+    await setStatus(context, issue.number, config.labels.inReview);
+    return runReviewer(job, earlier);
+  });
   const verdict = parseVerdict(text);
   if (verdict === undefined) {
     return escalateAndFinish(job, 'The reviewer gave no verdict.', 'no verdict');
@@ -72,24 +64,14 @@ async function changesRequestedRound(job: Run, open: Finding[], earlier: string[
   state.reviewLog.push({ round: state.reviewRounds, findings });
   await writeState(job.context.repo, state);
 
-  const forget = (): void => {
-    state.reviewLog.pop();
-  };
-  let fix: Fix;
-  try {
-    fix = await refundOnKill(
-      job,
-      'reviewRounds',
-      () => fixRound(job, 'The reviewer requested changes.', findings, earlier, 'review'),
-      forget,
-    );
-  } catch (error) {
-    if (runStopped()) {
-      forget();
-      await refundBudget(job, 'reviewRounds');
-    }
-    throw error;
-  }
+  const fix = await refundIfCut(
+    job,
+    'reviewRounds',
+    () => fixRound(job, 'The reviewer requested changes.', findings, earlier, 'review'),
+    () => {
+      state.reviewLog.pop();
+    },
+  );
   if (!fix.committed) {
     return unfixedRound(job, fix);
   }
