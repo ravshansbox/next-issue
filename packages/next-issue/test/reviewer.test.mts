@@ -377,7 +377,10 @@ test('a user who stops the run after the revert push lands and then resumes gets
   });
   assert.equal((await resumed.run()).reason, 'revert stopped');
   await git(repo.root, 'fetch', '-q', 'origin');
-  assert.equal(await git(repo.root, 'log', '-1', '--format=%s', 'origin/main'), 'revert: issue #7');
+  assert.equal(
+    await git(repo.root, 'log', '-1', '--format=%s', 'origin/main'),
+    'revert: Add a flag (#7)',
+  );
   assert.equal(
     await git(repo.root, 'rev-parse', '7^'),
     await git(repo.root, 'rev-parse', 'origin/main'),

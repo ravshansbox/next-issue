@@ -27,7 +27,7 @@ test('a user whose base branch moved without a conflict gets the base merged wit
   assert.equal(report.outcome, 'done');
   assert.equal(report.ciFixes, 0);
   assert.deepEqual(roles(target), ['implementer', 'reviewer']);
-  assert.match(target.messages.at(-1)!, /^fix: work on #7\n/);
+  assert.match(target.messages.at(-1)!, /^fix: work on #7 \(#7\)$/);
 });
 
 test('a user whose change conflicts with the base branch gets the fixer to resolve it from the check budget, and the change landed', async (t) => {
@@ -81,9 +81,9 @@ test('a user whose merge of the base fails in a hook gets the hook output to the
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  assert.match(target.messages[1]!, /^chore: merge origin\/main\n\nRefs #/);
-  assert.match(target.messages[2]!, /^chore: merge the base\n/);
-  assert.match(target.messages.at(-1)!, /^fix: work on #7\n/);
+  assert.match(target.messages[1]!, /^chore: merge origin\/main \(#7\)$/);
+  assert.match(target.messages[2]!, /^chore: merge the base \(#7\)$/);
+  assert.match(target.messages.at(-1)!, /^fix: work on #7 \(#7\)$/);
   assert.match(target.prompts.at(-1)!.prompt, /commitlint: subject may not be empty/);
 });
 
@@ -94,7 +94,7 @@ test('a user who resumes an issue whose squash failed after a merge of the base 
   };
   const report = await failed.run();
   assert.equal(report.outcome, 'error');
-  assert.match(failed.messages.at(-1)!, /^chore: merge origin\/main\n/);
+  assert.match(failed.messages.at(-1)!, /^chore: merge origin\/main \(#7\)$/);
   assert.equal((await failed.state())?.title, 'fix: work on #7');
   const body = failed.issueNotes.at(-1)!.body;
   const answered = await harness(t, {
@@ -108,7 +108,7 @@ test('a user who resumes an issue whose squash failed after a merge of the base 
   });
   const resumed = await answered.run();
   assert.equal(resumed.outcome, 'done');
-  assert.match(answered.messages.at(-1)!, /^fix: work on #7\n/);
+  assert.match(answered.messages.at(-1)!, /^fix: work on #7 \(#7\)$/);
 });
 
 type Fixer = (worktree: string) => Promise<unknown>;

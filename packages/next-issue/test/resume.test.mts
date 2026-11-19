@@ -304,7 +304,7 @@ test('a user who resumes an implemented issue gets the change landed with the sa
     saved: { ...SAVED, phase: 'implemented', title: 'feat: add the saved flag' },
   });
   await target.run();
-  assert.match(target.messages.at(-1)!, /^feat: add the saved flag\n/);
+  assert.match(target.messages.at(-1)!, /^feat: add the saved flag \(#7\)$/);
 });
 
 test('a user who resumes from a state file without a title gets the change landed with a conventional subject', async (t) => {
@@ -313,7 +313,7 @@ test('a user who resumes from a state file without a title gets the change lande
     saved: { ...SAVED, phase: 'implemented' },
   });
   await target.run();
-  assert.match(target.messages.at(-1)!, /^fix: resolve issue #7\n/);
+  assert.match(target.messages.at(-1)!, /^fix: Add a flag \(#7\)$/);
 });
 
 test('a saved state carries on and does not implement again', async (t) => {

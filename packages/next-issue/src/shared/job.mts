@@ -9,7 +9,7 @@ import type { Ports } from './ports.mts';
 import { notesBlock } from './prompts.mts';
 import type { Slot } from './slots.mts';
 import { type IssueState, notesPath } from './state.mts';
-import { paragraphs } from './text.mts';
+import { paragraphs, withoutClosingReferences } from './text.mts';
 
 export type Context = {
   repo: Repo;
@@ -107,7 +107,19 @@ export async function runRole(
 }
 
 export function fallbackTitle(issue: Issue): string {
-  return `fix: resolve issue #${issue.number}`;
+  return titleSubject('fix', issue);
+}
+
+export function titleSubject(type: string, issue: Issue): string {
+  return withoutClosingReferences(`${type}: ${issue.title}`, `${type}: the issue`);
+}
+
+export function commitMessage(subject: string, issue: Issue): string {
+  return `${withoutIssueSuffix(subject)} (#${issue.number})`;
+}
+
+export function withoutIssueSuffix(subject: string): string {
+  return subject.replace(/(?:\s*\(#\d+\))+\s*$/, '');
 }
 
 export async function setStatus(

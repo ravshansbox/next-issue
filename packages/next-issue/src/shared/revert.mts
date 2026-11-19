@@ -1,6 +1,6 @@
 import { runStopped } from './children.mts';
 import { message } from './errors.mts';
-import type { Run } from './job.mts';
+import { commitMessage, fallbackTitle, type Run, titleSubject } from './job.mts';
 import { updateLocalBase } from './local-base.mts';
 import { type IssueState, writeState } from './state.mts';
 import { HALT_NOTE, releaseSettled } from './unsettled.mts';
@@ -53,8 +53,8 @@ export function sentence(text: string): string {
 }
 
 export function reapplyMessage(job: Run): string {
-  const { number } = job.issue;
-  return `${job.state.changeTitle ?? job.state.title ?? `fix: resolve issue #${number}`}\n\nRefs #${number}`;
+  const { issue, state } = job;
+  return commitMessage(state.changeTitle ?? state.title ?? fallbackTitle(issue), issue);
 }
 
 export function restoreChange(state: IssueState): void {
@@ -76,7 +76,7 @@ export async function revert(job: Run): Promise<string> {
       remote: config.remote,
       branch,
       shas,
-      message: `revert: issue #${issue.number}\n\nRefs #${issue.number}`,
+      message: commitMessage(titleSubject('revert', issue), issue),
       reapply: reapplyMessage(job),
       pushing: async (sha) => {
         state.reverting = sha;

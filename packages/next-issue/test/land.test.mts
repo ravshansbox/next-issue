@@ -9,7 +9,7 @@ test('a user whose change is approved gets it pushed to the base branch as one c
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.deepEqual(target.landed, ['2']);
-  assert.match(target.messages.at(-1)!, /^feat: add the flag\n\nRefs #7$/);
+  assert.match(target.messages.at(-1)!, /^feat: add the flag \(#7\)$/);
   assert.deepEqual(target.closed, [7]);
   assert.equal(target.labels.at(-1)!.label, 'status:done');
 });
@@ -231,11 +231,21 @@ test('a user whose checks on main fail after the landing gets the fix landed the
   assert.equal(report.ciFixes, 1);
   assert.deepEqual(target.landed, ['2', '4']);
   assert.deepEqual(target.baseWaits, ['2', '4']);
-  assert.match(target.messages.at(-1)!, /^fix: repair main\n/);
+  assert.match(target.messages.at(-1)!, /^fix: repair main \(#7\)$/);
   assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer']);
   assert.match(target.prompts[2]!.prompt, /The checks on main failed after the change landed/);
   assert.match(target.prompts[2]!.prompt, /the failed main logs/);
   assert.deepEqual(target.reverts, []);
+});
+
+test('a user whose issue title holds a closing keyword gets a revert on main that closes no issue', async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, title: 'Crash fixes #12' },
+    baseChecks: ['fail'],
+    fixerText: 'unrelated: the server does not mount the release',
+  });
+  await target.run();
+  assert.deepEqual(target.reverts, [{ shas: ['2'], message: 'revert: Crash (#7)' }]);
 });
 
 test('a user whose checks on main fail for an unrelated reason gets the change reverted, the issue handed over and the run halted', async (t) => {
@@ -247,7 +257,7 @@ test('a user whose checks on main fail for an unrelated reason gets the change r
   assert.equal(report.outcome, 'needs-human');
   assert.equal(report.reason, 'unrelated failure');
   assert.equal(report.halt, true);
-  assert.deepEqual(target.reverts, [{ shas: ['2'], message: 'revert: issue #7\n\nRefs #7' }]);
+  assert.deepEqual(target.reverts, [{ shas: ['2'], message: 'revert: Add a flag (#7)' }]);
   assert.match(
     target.comments.at(-1)!,
     /needs help\n\nThe checks on main fail for a reason this change did not cause: .* The harness reverted the change on main\./,

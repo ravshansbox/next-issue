@@ -47,7 +47,7 @@ test('a user whose check fails gets the fixer with the command and its output, a
   assert.equal(target.baseMerges, 2);
   assert.deepEqual(target.landed, ['4']);
   assert.equal(report.ciFixes, 1);
-  assert.match(target.messages.at(-1)!, /^feat: add the flag\n\nRefs #7$/);
+  assert.match(target.messages.at(-1)!, /^feat: add the flag \(#7\)$/);
   assert.deepEqual(target.closed, [7]);
 });
 

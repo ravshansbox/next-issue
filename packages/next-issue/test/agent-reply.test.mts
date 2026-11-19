@@ -1,11 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import {
-  parseCommitSubject,
-  parseResolved,
-  parseUnrelated,
-  withoutClosingReferences,
-} from '../src/worker/agent-reply.mts';
+import { parseCommitSubject, parseResolved, parseUnrelated } from '../src/worker/agent-reply.mts';
+import { withoutClosingReferences } from '../src/shared/text.mts';
 
 const FALLBACK = 'fix: fallback';
 

@@ -85,7 +85,7 @@ test('a user who resumes a claimed issue whose branch is already ahead of the ba
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  assert.match(target.messages.at(-1)!, /^fix: earlier work\n/);
+  assert.match(target.messages.at(-1)!, /^fix: earlier work \(#7\)$/);
 });
 
 test('a user whose issue is handed over after the review gets the verdict and the reason on the issue', async (t) => {
@@ -255,7 +255,7 @@ test('an implementer whose reply holds only a placeholder question line gets its
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  assert.match(target.messages[0]!, /^feat: add a flag\n/);
+  assert.match(target.messages[0]!, /^feat: add a flag \(#7\)$/);
   assert.deepEqual(target.bodies, []);
 });
 

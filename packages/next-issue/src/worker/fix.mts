@@ -1,19 +1,21 @@
-import {
-  parseCommitSubject,
-  parseResolved,
-  parseUnrelated,
-  withoutClosingReferences,
-} from './agent-reply.mts';
+import { parseCommitSubject, parseResolved, parseUnrelated } from './agent-reply.mts';
 import { CODING } from '../shared/agents.mts';
 import { type BudgetUse, budgetUse } from './budget.mts';
 import { runStopped } from '../shared/children.mts';
 import { message } from '../shared/errors.mts';
 import { HookError } from '../shared/git-commit.mts';
 import { escalateAndFinish } from '../shared/handover.mts';
-import { fallbackTitle, type Finished, type Run, runRole } from '../shared/job.mts';
+import {
+  commitMessage,
+  fallbackTitle,
+  type Finished,
+  type Run,
+  runRole,
+  withoutIssueSuffix,
+} from '../shared/job.mts';
 import { type FixKind, fixPrompt, hookPrompt } from '../shared/prompts.mts';
 import { writeState } from '../shared/state.mts';
-import { keepTail } from '../shared/text.mts';
+import { keepTail, withoutClosingReferences } from '../shared/text.mts';
 
 type NoChange = { unrelated: string } | { resolved: string };
 
@@ -122,7 +124,7 @@ async function disputedFix(
   // A retry or the revert after a failed check cleans this worktree, so edits left there would be lost.
   const saved = await ports.saveEdits(
     worktree,
-    `fix: edits left by the ${kind === 'review' ? 'review' : 'check'} fixer\n\nRefs #${issue.number}`,
+    commitMessage(`fix: edits left by the ${kind === 'review' ? 'review' : 'check'} fixer`, issue),
   );
   const disputed = await ports.revision(worktree);
   if (disputed === before) {
@@ -157,9 +159,9 @@ export async function commitWork(
   const { ports } = context;
   const commitChanges = commit ?? ports.commitAll;
   for (;;) {
-    subject = withoutClosingReferences(subject, fallbackTitle(issue));
+    subject = withoutClosingReferences(withoutIssueSuffix(subject), fallbackTitle(issue));
     try {
-      const committed = await commitChanges(worktree, `${subject}\n\nRefs #${issue.number}`);
+      const committed = await commitChanges(worktree, commitMessage(subject, issue));
       if (committed) {
         log.event('commit', { subject });
       }

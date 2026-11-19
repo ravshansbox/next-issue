@@ -25,28 +25,6 @@ export function parseQuestions(text: string): string[] {
     .filter((question) => !PLACEHOLDERS.has(question.toLowerCase()));
 }
 
-const CLOSING_REFERENCE =
-  /(\s*[,;]?\s*(?:and\s+)?)\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?)(\s*:\s*|\s+)(?:[\w.-]+\/[\w.-]+#\d+|#\d+|GH-\d+|https?:\/\/\S+\/(?:issues|pull)\/\d+)(?!\w)/gi;
-
-const BARE_TYPE = /^\w+(?:\([^)]*\))?!?$/;
-
-export function withoutClosingReferences(subject: string, fallback: string): string {
-  const cleaned = subject
-    .replace(
-      CLOSING_REFERENCE,
-      (_match, _lead: string, keyword: string, separator: string, offset: number) =>
-        offset === 0 && separator.includes(':') ? `${keyword}: ` : '',
-    )
-    .replace(/\(\s*\)|\[\s*\]/g, '')
-    .replace(/\s+/g, ' ')
-    .replace(/[\s,;:]+$/, '')
-    .replace(/^(?:[\s,;:\u2013\u2014]|-(?!\d))+/, '')
-    .trim();
-  const closes = subject.search(CLOSING_REFERENCE) !== -1;
-  const unusable = closes && (BARE_TYPE.test(cleaned) || /^[^\p{L}\p{N}-]/u.test(cleaned));
-  return cleaned && !unusable ? cleaned : fallback;
-}
-
 export function parseCommitSubject(text: string, fallback: string): string {
   const subject = lastMatch(text, /^commit:[^\S\r\n]*(.*)$/gim)
     ?.replace(/^`+|`+$/g, '')

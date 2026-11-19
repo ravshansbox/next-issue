@@ -19,8 +19,8 @@ test('an implementer whose subject a commit-msg hook rejects commits again with 
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  assert.match(target.messages[0]!, /^Bad subject\n/);
-  assert.match(target.messages[1]!, /^fix: count the issues\n/);
+  assert.match(target.messages[0]!, /^Bad subject \(#7\)$/);
+  assert.match(target.messages[1]!, /^fix: count the issues \(#7\)$/);
 });
 
 test('an implementer whose hook fix names no subject commits again with the earlier subject', async (t) => {
@@ -30,8 +30,8 @@ test('an implementer whose hook fix names no subject commits again with the earl
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  assert.match(target.messages[0]!, /^fix: count the issues\n/);
-  assert.match(target.messages[1]!, /^fix: count the issues\n/);
+  assert.match(target.messages[0]!, /^fix: count the issues \(#7\)$/);
+  assert.match(target.messages[1]!, /^fix: count the issues \(#7\)$/);
 });
 
 test('a fixer whose subject a commit-msg hook rejects commits again with the subject from the fix', async (t) => {
@@ -42,8 +42,8 @@ test('a fixer whose subject a commit-msg hook rejects commits again with the sub
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  assert.match(target.messages[1]!, /^Bad subject\n/);
-  assert.match(target.messages[2]!, /^fix: rename the counter\n/);
+  assert.match(target.messages[1]!, /^Bad subject \(#7\)$/);
+  assert.match(target.messages[2]!, /^fix: rename the counter \(#7\)$/);
 });
 
 test('a fixer whose commit fails in a hook gets the hook output and commits the fix', async (t) => {
