@@ -59,8 +59,7 @@ export type ClientMessage =
     }
   | { type: 'stop'; root: string; after?: StopPoint; id?: string }
   | { type: 'hunt'; root: string; on: boolean; id?: string }
-  | { type: 'watch'; root: string; on: boolean; id?: string }
-  | { type: 'rejoin'; root: string };
+  | { type: 'watch'; root: string; on: boolean; id?: string };
 
 export type WorkerMessage =
   | { type: 'hello'; version: string }

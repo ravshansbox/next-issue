@@ -33,7 +33,16 @@ export async function connect(t: TestContext, socketPath: string): Promise<Clien
       waiter();
     }
   });
-  const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()));
+  let isClosed = false;
+  const closed = new Promise<void>((resolve) =>
+    socket.once('close', () => {
+      isClosed = true;
+      for (const waiter of waiters.splice(0)) {
+        waiter();
+      }
+      resolve();
+    }),
+  );
   await new Promise<void>((resolve, reject) => {
     socket.once('open', () => resolve());
     socket.once('error', reject);
@@ -47,6 +56,9 @@ export async function connect(t: TestContext, socketPath: string): Promise<Clien
         const index = seen.findIndex(match);
         if (index >= 0) {
           return seen.splice(0, index + 1).at(-1)!;
+        }
+        if (isClosed) {
+          throw new Error(`client.next: the connection closed while waiting for ${String(match)}`);
         }
         const remaining = deadline - Date.now();
         if (remaining <= 0) {

@@ -10,65 +10,6 @@ export type RunSummary = {
   issues: IssueReport[];
 };
 
-const OUTCOMES: Outcome[] = ['done', 'needs-human', 'error', 'skipped', 'stopped'];
-
-export function formatSummary(summary: RunSummary): string {
-  const tally = OUTCOMES.map((outcome) => `${count(summary.issues, outcome)} ${outcome}`).join(
-    ', ',
-  );
-  const roles = Object.entries(summary.roles)
-    .map(([role, totals]) => `${role} ${tokens(totals.total)} in ${totals.calls}`)
-    .join(', ');
-  const lines = [
-    `run ${summary.runId}`,
-    `issues ${summary.issues.length}: ${tally}`,
-    ...summary.issues.map((report) => `  ${issueLine(report)}`),
-    `tokens ${tokens(summary.total.total)}${roles.length > 0 ? ` (${roles})` : ''}`,
-    `log ${summary.logFile}`,
-  ];
-  return `${lines.join('\n')}\n`;
-}
-
 export function count(reports: IssueReport[], outcome: Outcome): number {
   return reports.filter((report) => report.outcome === outcome).length;
-}
-
-function issueLine(report: IssueReport): string {
-  const parts = [`#${report.issue} ${report.outcome.padEnd(11)}`];
-  if (report.ciFixes > 0) {
-    parts.push(`ci fixes ${report.ciFixes}`);
-  }
-  if (report.reviewRounds > 0) {
-    parts.push(`reviews ${report.reviewRounds}`);
-  }
-  if (report.ms > 0) {
-    parts.push(duration(report.ms));
-  }
-  if (report.reason !== undefined) {
-    parts.push(`(${report.reason})`);
-  }
-  return parts.join('  ').trimEnd();
-}
-
-function duration(ms: number): string {
-  const seconds = Math.round(ms / 1000);
-  if (seconds < 120) {
-    return seconds < 60 ? `${seconds}s` : `1m${String(seconds - 60).padStart(2, '0')}s`;
-  }
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) {
-    return `${minutes}m`;
-  }
-  const spare = minutes % 60;
-  return spare === 0 ? `${Math.floor(minutes / 60)}h` : `${Math.floor(minutes / 60)}h${spare}m`;
-}
-
-function tokens(value: number): string {
-  if (value < 1000) {
-    return String(value);
-  }
-  if (value < 1_000_000) {
-    return `${(value / 1000).toFixed(1)}k`;
-  }
-  return `${(value / 1_000_000).toFixed(2)}M`;
 }

@@ -179,6 +179,6 @@ test('a run with watching off that stops because npm serves a newer next-issue c
   const resumed = runOf(root, await fresh.next((value) => value.type === 'runs'));
   assert.equal(resumed?.watching, false);
   assert.equal(resumed?.hunting, false);
-  fresh.send({ type: 'rejoin', root });
+  fresh.send({ type: 'stop', root });
   await fresh.next((value) => value.type === 'end');
 });

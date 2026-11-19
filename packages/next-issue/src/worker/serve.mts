@@ -7,13 +7,7 @@ import { stopChildren, withRunChildren } from '../shared/children.mts';
 import { message } from '../shared/errors.mts';
 import { lock } from '../shared/lock.mts';
 import { startProgress } from './progress.mts';
-import {
-  type ClientMessage,
-  isNewer,
-  type Launch,
-  type Progress,
-  type WorkerMessage,
-} from '../shared/protocol.mts';
+import { type ClientMessage, isNewer, type Launch, type Progress } from '../shared/protocol.mts';
 import { runRepo, type RunControls } from './run.mts';
 import type { RunSummary } from '../shared/summary.mts';
 import { packageVersion } from '../shared/version.mts';
@@ -72,7 +66,6 @@ type WorkerOptions = {
 
 const LOCK_WAIT_MS = 5_000;
 const IDLE_MS = 30_000;
-const REJOIN_GRACE_MS = 5_000;
 
 export async function startWorker(options: WorkerOptions): Promise<Worker | undefined> {
   checkSocketPath(options.socketPath);
@@ -94,24 +87,6 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   const server = createServer();
   const sockets = new WebSocketServer({ server });
   const busy = (): boolean => [...runs.values()].some(active);
-
-  let followed = false;
-  let lateEnd: { end: WorkerMessage; sent: () => void } | undefined;
-  const awaitRejoin = (end: WorkerMessage): Promise<void> => {
-    if (followed) {
-      return Promise.resolve();
-    }
-    return new Promise((resolve) => {
-      const timer = setTimeout(resolve, REJOIN_GRACE_MS);
-      lateEnd = {
-        end,
-        sent: () => {
-          clearTimeout(timer);
-          resolve();
-        },
-      };
-    });
-  };
 
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
   const idleMs = options.idleMs ?? IDLE_MS;
@@ -139,7 +114,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     }
   });
   const closeWhenIdle = (): void => {
-    if ((restart !== undefined || sockets.clients.size === 0) && !busy() && lateEnd === undefined) {
+    if ((restart !== undefined || sockets.clients.size === 0) && !busy()) {
       void close();
     }
   };
@@ -171,10 +146,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   };
 
   const start = (refuse: Refuse, root: string, argv: string[], resume: boolean): void => {
-    const refusal =
-      lateEnd === undefined
-        ? startRefusal(runs.get(root), restart !== undefined)
-        : 'the worker is closing, try again soon';
+    const refusal = startRefusal(runs.get(root), restart !== undefined);
     if (refusal !== undefined) {
       if (!resume) {
         refuse(refusal);
@@ -196,12 +168,6 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     };
     broadcast(sockets, runs);
     let summary: RunSummary | undefined;
-    const ended = async (end: WorkerMessage): Promise<void> => {
-      await sendAllSent(sockets, end);
-      if (resume) {
-        await awaitRejoin(end);
-      }
-    };
     withRunChildren(run.children, () =>
       options.runRepo(root, args, {
         ...runControls(run, update),
@@ -221,7 +187,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       .then(
         (code) => {
           update({ ...run.progress, status: endStatus(run) });
-          return ended({
+          return sendAllSent(sockets, {
             type: 'end',
             root,
             code,
@@ -231,7 +197,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
         (error: unknown) => {
           process.stderr.write(`next-issue failed: ${message(error)}\n`);
           update({ ...run.progress, status: 'failed', error: message(error) });
-          return ended({ type: 'end', root, code: 1, error: message(error) });
+          return sendAllSent(sockets, { type: 'end', root, code: 1, error: message(error) });
         },
       )
       .finally(() => void close());
@@ -297,12 +263,6 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       toggle(refuse, value.root, value.on, setHunting);
     } else if (value.type === 'watch') {
       toggle(refuse, value.root, value.on, setWatching);
-    } else if (value.type === 'rejoin') {
-      followed = true;
-      if (lateEnd !== undefined) {
-        const { end, sent } = lateEnd;
-        socket.send(JSON.stringify(end), () => sent());
-      }
     }
   };
 

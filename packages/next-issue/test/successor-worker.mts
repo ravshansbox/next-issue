@@ -11,18 +11,6 @@ const started = await startWorker({
   version: process.argv[2] ?? '2.1.0',
   runRepo: (_root, args, controls) =>
     new Promise((resolve) => {
-      if (!args.watch) {
-        controls.ended?.({
-          runId: 'resumed',
-          logFile: 'resumed.jsonl',
-          roles: {},
-          counts: {},
-          total: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-          issues: [],
-        });
-        resolve(Number(process.argv[3] ?? '0'));
-        return;
-      }
       const timer = setInterval(() => {
         if (controls.interrupts.afterIssue()) {
           clearInterval(timer);
