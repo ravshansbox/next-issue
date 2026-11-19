@@ -84,3 +84,18 @@ export async function remoteMain(other: string): Promise<string> {
   await git(other, 'fetch', '-q', 'origin');
   return git(other, 'rev-parse', 'origin/main');
 }
+
+export async function landedNames(other: string): Promise<string[]> {
+  const landed = await remoteMain(other);
+  return (await git(other, 'ls-tree', '--name-only', landed)).split('\n');
+}
+
+export async function landedFiles(other: string): Promise<Files> {
+  const landed = await remoteMain(other);
+  const names = await landedNames(other);
+  const files: Files = {};
+  for (const name of names) {
+    files[name] = await git(other, 'show', `${landed}:${name}`);
+  }
+  return files;
+}

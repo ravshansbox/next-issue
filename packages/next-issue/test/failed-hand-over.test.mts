@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { APPROVE, changes, harness, ISSUE, roles, SAVED } from './harness.mts';
+import { APPROVE, changes, commentFails, harness, ISSUE, roles, SAVED } from './harness.mts';
 
 const IN_REVIEW = { ...ISSUE, labels: ['status:in-review'] };
 const BEFORE = { ...SAVED, ciFixes: 1, commitFixes: 1 };
@@ -129,16 +129,6 @@ test('a user whose hand-over posts its label and comment gets the next run to re
   assert.equal(resumed?.ciFixes ?? 0, 0);
 });
 
-function commentFails(target: Target) {
-  const commentOnIssue = target.context.ports.commentOnIssue;
-  target.context.ports.commentOnIssue = async (repo, issue, body) => {
-    if (body.includes('needs help')) {
-      throw new Error('gh: HTTP 502');
-    }
-    return commentOnIssue(repo, issue, body);
-  };
-}
-
 async function labelledWithoutComment(t: test.TestContext) {
   const target = await harness(t, {
     issue: IN_REVIEW,
@@ -147,7 +137,7 @@ async function labelledWithoutComment(t: test.TestContext) {
     writers: ['owner', 'bot'],
     config: { maxReviewRounds: 1 },
   });
-  commentFails(target);
+  commentFails(target, 'gh: HTTP 502');
   assert.equal((await target.run()).outcome, 'error');
   assert.ok(target.labels.some((entry) => entry.label === 'status:needs-human'));
   return target;

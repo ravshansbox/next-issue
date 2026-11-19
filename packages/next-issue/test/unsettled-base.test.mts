@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { IssueReport } from '../src/shared/job.mts';
-import { runIssues } from '../src/shared/loop.mts';
 import { pendingIssues } from '../src/worker/pending.mts';
 import { processIssue } from '../src/worker/pipeline.mts';
 import { readState, writeState } from '../src/shared/state.mts';
-import { APPROVE, changes, type Harness, harness, ISSUE, SAVED } from './harness.mts';
+import { APPROVE, changes, harness, ISSUE, runLoop, SAVED } from './harness.mts';
 
 const IN_REVIEW = { ...ISSUE, labels: ['status:in-review'] };
 
@@ -269,17 +267,6 @@ test('a user whose resume with a landed commit failed its setup gets no other is
 });
 
 const OLDER = { ...ISSUE, number: 5, createdAt: '2025-12-01T00:00:00Z' };
-
-async function runLoop(target: Harness, concurrency: number): Promise<IssueReport[]> {
-  const { context } = target;
-  const { reports } = await runIssues({
-    issues: () => pendingIssues(context),
-    process: (issue) => processIssue(context, issue),
-    stop: () => false,
-    concurrency,
-  });
-  return reports;
-}
 
 for (const concurrency of [1, 2]) {
   test(`a user who answers a halted issue while an older issue is held back by it gets the halted commit checked and the older issue landed (concurrency ${concurrency})`, async (t) => {

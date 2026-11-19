@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { CODING } from '../src/shared/agents.mts';
 import { Recorder } from '../src/shared/observe.mts';
+import { sleep } from './helpers.mts';
 import { tempDir } from './temp-dir.mts';
 
 export type Block =
@@ -26,10 +27,6 @@ let calls = 0;
 export function toolUse(name: string, input: Record<string, unknown>): Reply {
   calls += 1;
   return { content: [{ type: 'tool_use', id: `toolu_${calls}`, name, input }] };
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function stream(response: ServerResponse, model: string, content: Block[], delayMs: number) {

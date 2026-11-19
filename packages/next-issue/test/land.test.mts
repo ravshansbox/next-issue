@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { processIssue } from '../src/worker/pipeline.mts';
 import { readState, type IssueState } from '../src/shared/state.mts';
-import { APPROVE, harness, ISSUE, PUSH_REJECTED, roles } from './harness.mts';
+import { APPROVE, commentFails, harness, ISSUE, PUSH_REJECTED, roles } from './harness.mts';
 
 test('a user whose change is approved gets it pushed to the base branch as one commit, the issue closed and done', async (t) => {
   const target = await harness(t, { implementerText: ['Done.\ncommit: feat: add the flag'] });
@@ -134,7 +134,7 @@ test('a user who stops the run before the revert of main reaches the base and th
 
 test('a user whose push to the base branch reports a failure, whose fetch of the base fails and whose hand-over fails gets the run halted with both reasons', async (t) => {
   const target = await harness(t, { pushLandsAndFails: true, baseFetchFails: true });
-  commentFails(target);
+  commentFails(target, 'gh: could not resolve host');
   const report = await target.run();
   assert.equal(report.outcome, 'error');
   assert.equal(report.reason, 'push unknown; the hand-over failed: gh: could not resolve host');
@@ -146,16 +146,6 @@ test('a user whose push to the base branch reports a failure, whose fetch of the
     [['push unknown', 'gh: could not resolve host']],
   );
 });
-
-function commentFails(target: Awaited<ReturnType<typeof harness>>) {
-  const commentOnIssue = target.context.ports.commentOnIssue;
-  target.context.ports.commentOnIssue = async (repo, issue, body) => {
-    if (body.includes('needs help')) {
-      throw new Error('gh: could not resolve host');
-    }
-    return commentOnIssue(repo, issue, body);
-  };
-}
 
 test('a user whose push to the base branch keeps failing gets the issue handed over', async (t) => {
   const target = await harness(t, { pushRejects: 3 });
@@ -746,7 +736,7 @@ test('a user whose checks on main are all cancelled before they finish gets the 
 
 test('a user whose checks on main do not finish in time and whose hand-over fails gets the run halted with both reasons', async (t) => {
   const target = await harness(t, { baseChecks: ['timeout'] });
-  commentFails(target);
+  commentFails(target, 'gh: could not resolve host');
   const report = await target.run();
   assert.equal(report.outcome, 'error');
   assert.equal(
@@ -758,7 +748,7 @@ test('a user whose checks on main do not finish in time and whose hand-over fail
 
 test('a user whose checks on main fail with no check fix left and whose hand-over fails gets the run halted with both reasons', async (t) => {
   const target = await harness(t, { config: { maxCiFixes: 0 }, baseChecks: ['fail'] });
-  commentFails(target);
+  commentFails(target, 'gh: could not resolve host');
   const report = await target.run();
   assert.equal(report.outcome, 'error');
   assert.equal(report.reason, 'check budget; the hand-over failed: gh: could not resolve host');
@@ -1006,7 +996,7 @@ test('a user whose hand-over fails after a revert of main gets the reverted chan
     config: { maxCiFixes: 0 },
     baseChecks: ['fail'],
   });
-  commentFails(first);
+  commentFails(first, 'gh: could not resolve host');
   assert.equal((await first.run()).outcome, 'error');
   const { report, rolesAtPush } = await resumeAfterRevert(t, await first.state(), [
     'status:in-review',
@@ -1032,7 +1022,7 @@ test('a user whose hand-over fails after a resumed stopped revert of main gets t
   });
   second.context.ports.isOnBase = async (_worktree, _base, _remote, sha) =>
     sha === saved?.reverting;
-  commentFails(second);
+  commentFails(second, 'gh: could not resolve host');
   assert.equal((await second.run()).outcome, 'error');
   assert.deepEqual(second.landed, []);
   const { report, rolesAtPush } = await resumeAfterRevert(t, await second.state(), [

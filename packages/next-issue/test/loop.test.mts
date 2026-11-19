@@ -4,6 +4,7 @@ import type { Issue } from '../src/shared/github.mts';
 import type { Outcome } from '../src/shared/job.mts';
 import { exitCode, type Loop, runIssues } from '../src/shared/loop.mts';
 import { refresher } from '../src/worker/refresh.mts';
+import { until } from './helpers.mts';
 import { issue, report } from './loop-harness.mts';
 
 type Fake = Loop & { processed: number[] };
@@ -293,13 +294,6 @@ function gate(): Gate {
   return { promise, open };
 }
 
-async function until(done: () => boolean): Promise<void> {
-  for (let tries = 0; !done(); tries += 1) {
-    assert.ok(tries < 3000, 'timed out');
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-}
-
 type Counted = Fake & { open: Set<number>; status: () => number | undefined };
 
 function counted(numbers: number[]): Counted {
@@ -337,7 +331,7 @@ test('a person who reads the run log sees the open count drop when an issue ends
     return report(target.number, 'done');
   };
   const run = runIssues({ ...fake, concurrency: 1 });
-  await until(() => fake.status() === 2);
+  await until(() => fake.status() === 2, 'an open count of 2');
   assert.deepEqual(fake.processed, [1, 2]);
   firstEnds.open();
   await run;
@@ -357,11 +351,11 @@ test('a person who files an issue and asks for a refresh while every slot is tak
   };
   const refresh = refresher();
   const run = runIssues({ ...fake, concurrency: 1, refreshed: refresh.refreshed });
-  await until(() => fake.processed.length === 1);
+  await until(() => fake.processed.length === 1, 'the first processed issue');
   assert.equal(fake.status(), 2);
   fake.open.add(3);
   refresh.refresh();
-  await until(() => fake.status() === 3);
+  await until(() => fake.status() === 3, 'an open count of 3');
   assert.deepEqual(fake.processed, [1]);
   firstEnds.open();
   await run;

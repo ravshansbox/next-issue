@@ -4,7 +4,14 @@ import { pushToBase } from '../src/shared/git-land.mts';
 import { PORTS } from '../src/shared/ports.mts';
 import { clones, git } from './clones.mts';
 import { type Harness, harness } from './harness.mts';
-import { type Files, pushBase, remoteMain, useGit, writeFiles } from './real-git.mts';
+import {
+  type Files,
+  landedNames as landedFiles,
+  pushBase,
+  remoteMain,
+  useGit,
+  writeFiles,
+} from './real-git.mts';
 
 const CHECK = 'echo generated > generated.txt; echo changed >> a.txt; test -f fixed.txt';
 
@@ -20,11 +27,6 @@ async function checked(
   useGit(target, (worktree) => writeFiles(worktree, fix));
   target.context.ports.runCheck = PORTS.runCheck;
   return { target, other };
-}
-
-async function landedFiles(other: string): Promise<string[]> {
-  const landed = await remoteMain(other);
-  return (await git(other, 'ls-tree', '--name-only', landed)).split('\n');
 }
 
 test('a user whose check writes files and then passes after a fix gets only the fix and the change pushed to the base', async (t) => {

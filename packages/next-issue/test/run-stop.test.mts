@@ -3,12 +3,12 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { parseArgs } from '../src/shared/args.mts';
-import { must } from '../src/shared/exec.mts';
 import type { Interrupts } from '../src/shared/interrupt.mts';
 import type { Fields } from '../src/shared/observe.mts';
 import { runRepo } from '../src/worker/run.mts';
 import { onOff, type Switch } from '../src/shared/switch.mts';
 import { installGh } from './fake-gh.mts';
+import { repository } from './helpers.mts';
 import { tempDir } from './temp-dir.mts';
 
 type RunOptions = {
@@ -40,11 +40,7 @@ async function runLog(
     createdAt: `2026-01-0${number}T00:00:00Z`,
     labels: [],
   }));
-  const root = await tempDir();
-  await must('git', ['init', '-q'], { cwd: root });
-  await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/stop.git'], {
-    cwd: root,
-  });
+  const root = await repository('https://github.com/acme/stop.git');
   await mkdir(join(root, '.next-issue'), { recursive: true });
   await writeFile(
     join(root, '.next-issue', 'config.json'),

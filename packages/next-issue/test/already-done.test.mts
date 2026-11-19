@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { type TestContext, test } from 'node:test';
 import { clones, git } from './clones.mts';
 import { APPROVE, changes, harness, ISSUE, type Plan } from './harness.mts';
-import { type Files, remoteMain, useGit, writeFiles } from './real-git.mts';
+import { landedFiles, useGit, writeFiles } from './real-git.mts';
 
 const DONE = 'I changed nothing.\ndone: src/flag.mts already reads the flag at line 12.';
 
@@ -127,16 +127,6 @@ async function doneThenReviewer(
   };
   const { outcome } = await first.run();
   return { root: repo.root, other, outcome };
-}
-
-async function landedFiles(other: string): Promise<Files> {
-  const landed = await remoteMain(other);
-  const names = (await git(other, 'ls-tree', '--name-only', landed)).split('\n');
-  const files: Files = {};
-  for (const name of names) {
-    files[name] = await git(other, 'show', `${landed}:${name}`);
-  }
-  return files;
 }
 
 test('a person who retries an issue after its already done reviewer edited and committed files and then timed out gets only the change of the next implementer landed', async (t) => {

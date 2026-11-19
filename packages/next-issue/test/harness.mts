@@ -12,7 +12,9 @@ import { type Config, loadConfig } from '../src/shared/config.mts';
 import { HookError } from '../src/shared/git-commit.mts';
 import type { Issue } from '../src/shared/github.mts';
 import type { Context, IssueReport } from '../src/shared/job.mts';
+import { runIssues } from '../src/shared/loop.mts';
 import { Recorder } from '../src/shared/observe.mts';
+import { pendingIssues } from '../src/worker/pending.mts';
 import { processIssue } from '../src/worker/pipeline.mts';
 import type { Ports } from '../src/shared/ports.mts';
 import { type IssueState, readState, writeState } from '../src/shared/state.mts';
@@ -584,4 +586,28 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
 
 export function roles(target: Harness): string[] {
   return target.prompts.map((entry) => entry.role);
+}
+
+export async function runLoop(
+  target: Harness,
+  concurrency = target.context.config.concurrency,
+): Promise<IssueReport[]> {
+  const { context } = target;
+  const { reports } = await runIssues({
+    issues: () => pendingIssues(context),
+    process: (issue, slot) => processIssue(context, issue, slot),
+    stop: () => false,
+    concurrency,
+  });
+  return reports;
+}
+
+export function commentFails(target: Harness, error: string): void {
+  const commentOnIssue = target.context.ports.commentOnIssue;
+  target.context.ports.commentOnIssue = async (repo, issue, body) => {
+    if (body.includes('needs help')) {
+      throw new Error(error);
+    }
+    return commentOnIssue(repo, issue, body);
+  };
 }

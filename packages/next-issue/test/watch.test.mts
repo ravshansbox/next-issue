@@ -14,6 +14,7 @@ import { refresher } from '../src/worker/refresh.mts';
 import { type Watch, watchIssues } from '../src/shared/watch.mts';
 import { installGh } from './fake-gh.mts';
 import { harness, ISSUE } from './harness.mts';
+import { sleep } from './helpers.mts';
 import { issue, report } from './loop-harness.mts';
 import { tempDir } from './temp-dir.mts';
 
@@ -596,10 +597,6 @@ test('a user whose watch ends while the hunter waits after a failed hunt sees th
   steps.push('watch end');
   assert.deepEqual(steps, ['hunt failed', 'wait 1', 'wait end', 'watch end']);
 });
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((done) => setTimeout(done, ms));
-}
 
 test('a user who watches with --hunt sees a claim leave the waiting hunter alone, with no new read of the open issues or their blockers before its back-off ends', async (t) => {
   const target = await harness(t, { open: [{ ...ISSUE, number: 100 }] });

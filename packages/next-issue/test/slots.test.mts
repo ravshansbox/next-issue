@@ -1,11 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
-import type { IssueReport } from '../src/shared/job.mts';
-import { runIssues } from '../src/shared/loop.mts';
-import { pendingIssues } from '../src/worker/pending.mts';
-import { processIssue } from '../src/worker/pipeline.mts';
-import { APPROVE, type Harness, harness, ISSUE, type Plan } from './harness.mts';
+import { APPROVE, type Harness, harness, ISSUE, type Plan, runLoop } from './harness.mts';
 
 const WAIT_MS = 1000;
 
@@ -79,17 +75,6 @@ function assertBefore(order: string[], first: string, then: string): void {
     order.indexOf(first) < order.indexOf(then),
     `${first} before ${then} in ${order.join(', ')}`,
   );
-}
-
-async function runLoop(target: Harness): Promise<IssueReport[]> {
-  const { context } = target;
-  const { reports } = await runIssues({
-    issues: () => pendingIssues(context),
-    process: (issue, slot) => processIssue(context, issue, slot),
-    stop: () => false,
-    concurrency: context.config.concurrency,
-  });
-  return reports;
 }
 
 test('a user with concurrency 1 whose approved issue waits for its checks gets the next issue claimed and its implementer run meanwhile', async (t) => {

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { must } from '../src/shared/exec.mts';
+import { linkedWorktree, repository } from './helpers.mts';
 import { tempDir } from './temp-dir.mts';
 
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
@@ -38,19 +38,6 @@ function updateInTerminal(cwd: string, home: string, answer: string) {
   return child;
 }
 
-async function linkedWorktree(): Promise<{ root: string; linked: string }> {
-  const root = await tempDir();
-  await must('git', ['init', '-q'], { cwd: root });
-  await must(
-    'git',
-    ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'first'],
-    { cwd: root },
-  );
-  const linked = join(root, '.worktrees', '42');
-  await must('git', ['worktree', 'add', '-q', '-b', '42', linked], { cwd: root });
-  return { root, linked };
-}
-
 async function assertInstalled(folder: string): Promise<void> {
   for (const file of [
     'create-issue/SKILL.md',
@@ -77,7 +64,8 @@ test('a user who runs update --scope user outside a repository gets the skills i
 
 test('a user who runs update --scope project in a linked worktree gets the skills in .claude/skills of the main worktree', async () => {
   const home = await tempDir();
-  const { root, linked } = await linkedWorktree();
+  const root = await repository();
+  const linked = await linkedWorktree(root);
   await update(linked, home, ['--scope', 'project']);
   await assertInstalled(join(root, '.claude', 'skills'));
   assert.deepEqual(await readdir(home), []);
@@ -121,7 +109,8 @@ test('a user who runs update when the copy fails part way keeps the skill instal
 
 test('a user who runs update with no --scope and no terminal gets an error that names --scope, exit code 1 and no skill written', async () => {
   const home = await tempDir();
-  const { root } = await linkedWorktree();
+  const root = await repository();
+  await linkedWorktree(root);
   await assert.rejects(update(root, home, []), (error: { code: number; stderr: string }) => {
     assert.equal(error.code, 1);
     assert.match(error.stderr, /--scope user\|project/);
@@ -145,7 +134,8 @@ test('a user who runs update --scope project outside a git repository gets exit 
 test('a user who runs update in a terminal with no --scope is asked where to install the skills and gets them in the folder they answer', async () => {
   for (const answer of ['user', 'u', 'project', 'p']) {
     const home = await tempDir();
-    const { root } = await linkedWorktree();
+    const root = await repository();
+    await linkedWorktree(root);
     const { stdout } = await updateInTerminal(root, home, `${answer}\n`);
     assert.match(stdout, /~\/\.claude\/skills/);
     assert.match(stdout, /\.claude\/skills of the main worktree/);
@@ -156,7 +146,8 @@ test('a user who runs update in a terminal with no --scope is asked where to ins
 
 test('a user who runs update in a terminal and gives another answer than user or project gets an error that names them, exit code 1 and no skill written', async () => {
   const home = await tempDir();
-  const { root } = await linkedWorktree();
+  const root = await repository();
+  await linkedWorktree(root);
   await assert.rejects(
     updateInTerminal(root, home, 'both\n'),
     (error: { code: number; stderr: string }) => {

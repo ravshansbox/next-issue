@@ -10,23 +10,19 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { test } from 'node:test';
+import { type TestContext, test } from 'node:test';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { must } from '../src/shared/exec.mts';
 import { processStart } from '../src/shared/lock.mts';
 import { runsDir, stateDir } from '../src/shared/state.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
+import { idleGh, installGh } from './fake-gh.mts';
+import { linkedWorktree, repository, until } from './helpers.mts';
 import { tempDir } from './temp-dir.mts';
 import { connect } from './worker-harness.mts';
 
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
-
-async function repository(): Promise<string> {
-  const root = await tempDir();
-  await must('git', ['init', '-q'], { cwd: root });
-  return root;
-}
 
 async function serveWorker(root: string, env: NodeJS.ProcessEnv = process.env) {
   const child = spawn(process.execPath, [CLI, 'serve'], { cwd: root, env });
@@ -39,17 +35,6 @@ async function serveWorker(root: string, env: NodeJS.ProcessEnv = process.env) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   return { child, exited, stderr: () => stderr };
-}
-
-async function linkedWorktree(root: string): Promise<string> {
-  await must(
-    'git',
-    ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'first'],
-    { cwd: root },
-  );
-  const linked = join(root, '.worktrees', '42');
-  await must('git', ['worktree', 'add', '-q', '-b', '42', linked], { cwd: root });
-  return linked;
 }
 
 async function initCommand(cwd: string) {
@@ -143,24 +128,11 @@ test('a user who runs another command with a root next-issue.config.json gets an
   );
 });
 
-test('a user who runs --watch with no open issue sees one wait of 1 minute and no summary after Ctrl-C', async () => {
-  const root = await tempDir();
-  await must('git', ['init', '-q'], { cwd: root });
-  await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/watch.git'], {
-    cwd: root,
-  });
-  const bin = await tempDir();
-  const script = `#!/bin/sh
-case "$1 $2" in
-  "repo view") echo '{"defaultBranchRef":{"name":"main"}}' ;;
-  "issue list") echo '[]' ;;
-  *) echo "unexpected: $*" >&2; exit 1 ;;
-esac
-`;
-  await writeFile(join(bin, 'gh'), script, { mode: 0o755 });
+test('a user who runs --watch with no open issue sees one wait of 1 minute and no summary after Ctrl-C', async (t) => {
+  const root = await repository('https://github.com/acme/watch.git');
   const child = spawn(process.execPath, [CLI, 'start', '--watch', 'on'], {
     cwd: root,
-    env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+    env: await idleGh(t),
   });
   let stdout = '';
   let stderr = '';
@@ -195,16 +167,13 @@ async function holdLock(root: string, pid: number): Promise<string> {
   return lock;
 }
 
-async function refusedRun(root: string, cwd = root) {
+async function refusedRun(t: TestContext, root: string, cwd = root) {
   const lockPath = workerPaths(root).lockPath;
   const lock = await readFile(lockPath, 'utf8');
   const bin = await tempDir();
   const called = join(bin, 'called');
-  await writeFile(join(bin, 'gh'), `#!/bin/sh\ntouch "${called}"\nexit 1\n`, { mode: 0o755 });
-  const error = await promisify(execFile)(process.execPath, [CLI, 'start'], {
-    cwd,
-    env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
-  }).then(
+  await installGh(t, bin, `#!/bin/sh\ntouch "${called}"\nexit 1\n`);
+  const error = await promisify(execFile)(process.execPath, [CLI, 'start'], { cwd }).then(
     () => undefined,
     (failure: { code: number; stderr: string }) => failure,
   );
@@ -214,26 +183,13 @@ async function refusedRun(root: string, cwd = root) {
   return error?.stderr ?? '';
 }
 
-async function idleGh(): Promise<NodeJS.ProcessEnv> {
-  const bin = await tempDir();
-  const script = `#!/bin/sh
-case "$1 $2" in
-  "repo view") echo '{"defaultBranchRef":{"name":"main"}}' ;;
-  "issue list") echo '[]' ;;
-  *) echo "unexpected: $*" >&2; exit 1 ;;
-esac
-`;
-  await writeFile(join(bin, 'gh'), script, { mode: 0o755 });
-  return { ...process.env, PATH: `${bin}:${process.env.PATH}` };
-}
-
-async function watchingRun(root: string) {
+async function watchingRun(t: TestContext, root: string) {
   await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/watch.git'], {
     cwd: root,
   });
   const child = spawn(process.execPath, [CLI, 'start', '--watch', 'on'], {
     cwd: root,
-    env: await idleGh(),
+    env: await idleGh(t),
   });
   let stderr = '';
   child.stderr.on('data', (chunk) => (stderr += chunk));
@@ -261,7 +217,7 @@ test('a user who runs refresh with no worker sees that no run is going, exit cod
 
 test('a user who runs refresh while a run watches sees that the run was asked, and the run checks for new issues at once', async (t) => {
   const root = await repository();
-  const { child, exited, stderr } = await watchingRun(root);
+  const { child, exited, stderr } = await watchingRun(t, root);
   t.after(() => child.kill('SIGKILL'));
   assert.equal(
     await refreshCommand(root),
@@ -277,7 +233,7 @@ test('a user who runs refresh while a run watches sees that the run was asked, a
 test('a user who starts a run without init gets .next-issue/ and .worktrees/ in info/exclude, out of .gitignore, and no config file', async (t) => {
   const root = await repository();
   await writeFile(join(root, '.gitignore'), 'node_modules/\n.next-issue/\n');
-  const { child, exited } = await watchingRun(root);
+  const { child, exited } = await watchingRun(t, root);
   t.after(() => child.kill('SIGKILL'));
   child.kill('SIGINT');
   assert.equal(await exited, 0);
@@ -300,7 +256,7 @@ test('a user who starts the worker without init gets .next-issue/ and .worktrees
 
 test('a user whose stderr reader exits before Ctrl-C sees the run stop with exit code 0 and a run.end event in the run log', async (t) => {
   const root = await repository();
-  const { child, exited } = await watchingRun(root);
+  const { child, exited } = await watchingRun(t, root);
   t.after(() => child.kill('SIGKILL'));
   child.stderr.destroy();
   await new Promise((resolve) => setTimeout(resolve, 200));
@@ -316,9 +272,9 @@ test('a user whose stderr reader exits before Ctrl-C sees the run stop with exit
 
 test('a user who runs next-issue while another run of start is going in the repository sees that a run is going, exit code 1 and no issue read', async (t) => {
   const root = await repository();
-  const { child, exited } = await watchingRun(root);
+  const { child, exited } = await watchingRun(t, root);
   t.after(() => child.kill('SIGKILL'));
-  assert.match(await refusedRun(root), RUN_GOING);
+  assert.match(await refusedRun(t, root), RUN_GOING);
   child.kill('SIGINT');
   assert.equal(await exited, 0);
 });
@@ -328,7 +284,7 @@ test('a user who runs next-issue while the worker has a run going sees that a ru
   await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/watch.git'], {
     cwd: root,
   });
-  const { child } = await serveWorker(root, await idleGh());
+  const { child } = await serveWorker(root, await idleGh(t));
   t.after(() => child.kill('SIGKILL'));
   const client = await connect(t, workerPaths(root).socketPath);
   client.send({ type: 'start', root, args: ['--watch', 'on'] });
@@ -338,7 +294,7 @@ test('a user who runs next-issue while the worker has a run going sees that a ru
       value.runs[root]?.status === 'running' &&
       value.runs[root].error === undefined,
   );
-  assert.match(await refusedRun(root), RUN_GOING);
+  assert.match(await refusedRun(t, root), RUN_GOING);
   client.send({ type: 'start', root });
   const refusal = await client.next((value) => value.type === 'error');
   assert.equal(refusal.type === 'error' && refusal.root, root);
@@ -350,7 +306,7 @@ test('a user who runs next-issue in a linked worktree while a process that does 
   const other = spawn('sleep', ['30']);
   t.after(() => other.kill('SIGKILL'));
   await holdLock(root, other.pid!);
-  assert.match(await refusedRun(root, linked), HELD);
+  assert.match(await refusedRun(t, root, linked), HELD);
   assert.equal(await exists(join(linked, '.next-issue')), false);
 });
 
@@ -360,7 +316,7 @@ test('a user who runs next-issue while worker.lock holds only the process id of 
   t.after(() => other.kill('SIGKILL'));
   await mkdir(stateDir(root), { recursive: true });
   await writeFile(workerPaths(root).lockPath, `${other.pid}\n`);
-  assert.match(await refusedRun(root), HELD);
+  assert.match(await refusedRun(t, root), HELD);
 });
 
 test('a user who serves a linked worktree while the worker of the main worktree is going sees that another worker is running', async (t) => {
@@ -463,21 +419,13 @@ function event(index: number): string {
 }
 
 async function runLog(lines: string[]): Promise<{ root: string; file: string }> {
-  const root = await tempDir();
-  await must('git', ['init', '-q'], { cwd: root });
+  const root = await repository();
   const dir = runsDir(root);
   await mkdir(join(dir, '2026-01-02T03-04-05-000Z', 'sessions'), { recursive: true });
   await writeFile(join(dir, '2026-01-01T00-00-00-000Z.jsonl'), `${event(99)}\n`);
   const file = join(dir, '2026-01-02T03-04-05-000Z.jsonl');
   await writeFile(file, lines.map((line) => `${line}\n`).join(''));
   return { root, file };
-}
-
-async function until(read: () => string, pattern: RegExp): Promise<void> {
-  for (let left = 600; left > 0 && !pattern.test(read()); left -= 1) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  assert.match(read(), pattern);
 }
 
 function followLogs(root: string, extra: string[]) {
@@ -493,9 +441,9 @@ test('a user who pipes logs sees every event of the newest run log rendered, the
   const { root, file } = await runLog([event(1), event(2)]);
   const { child, read, exited } = followLogs(root, []);
   t.after(() => child.kill('SIGKILL'));
-  await until(read, /step2\.end/);
+  await until(() => /step2\.end/.test(read()), 'step2.end in the output');
   await appendFile(file, `${event(3)}\n`);
-  await until(read, /step3\.end/);
+  await until(() => /step3\.end/.test(read()), 'step3.end in the output');
   child.kill('SIGINT');
   assert.equal(await exited, 0);
   assert.deepEqual(
@@ -518,9 +466,9 @@ test('a user who pipes logs sees the rest of the old run log, a new run marker, 
   const { root, file } = await runLog([event(1)]);
   const { child, read, exited } = followLogs(root, []);
   t.after(() => child.kill('SIGKILL'));
-  await until(read, /step1\.end/);
+  await until(() => /step1\.end/.test(read()), 'step1.end in the output');
   await restart(file, [event(3)]);
-  await until(read, /step3\.end/);
+  await until(() => /step3\.end/.test(read()), 'step3.end in the output');
   child.kill('SIGINT');
   assert.equal(await exited, 0);
   assert.deepEqual(
@@ -541,7 +489,7 @@ test('a user who pipes logs sees multi-byte characters intact across a long line
   const { root } = await runLog([long]);
   const { child, read, exited } = followLogs(root, []);
   t.after(() => child.kill('SIGKILL'));
-  await until(read, /\n$/);
+  await until(() => read().endsWith('\n'), 'a full line of output');
   child.kill('SIGINT');
   assert.equal(await exited, 0);
   assert.match(read(), /^\S+ xy text=é{117}\.\.\.\n$/);
@@ -560,7 +508,7 @@ test('a user who pipes logs sees a tool call as the role and kind, the tool name
   const { root } = await runLog([long]);
   const { child, read, exited } = followLogs(root, []);
   t.after(() => child.kill('SIGKILL'));
-  await until(read, /\n$/);
+  await until(() => read().endsWith('\n'), 'a full line of output');
   child.kill('SIGINT');
   assert.equal(await exited, 0);
   assert.match(read(), new RegExp(`^\\S+ #607 fixer\\.tool name=Bash command=${command}\\n$`));
@@ -584,7 +532,7 @@ test('a user who pipes logs sees the role of an agent event before its kind and 
   const { root } = await runLog([usage, failed]);
   const { child, read, exited } = followLogs(root, []);
   t.after(() => child.kill('SIGKILL'));
-  await until(read, /tool\.error/);
+  await until(() => /tool\.error/.test(read()), 'tool.error in the output');
   child.kill('SIGINT');
   assert.equal(await exited, 0);
   assert.deepEqual(
@@ -600,7 +548,7 @@ test('a user who pipes logs sees the valid events rendered and the line that is 
   const { root } = await runLog([event(1), 'not json', event(2)]);
   const { child, read, exited } = followLogs(root, []);
   t.after(() => child.kill('SIGKILL'));
-  await until(read, /step2\.end/);
+  await until(() => /step2\.end/.test(read()), 'step2.end in the output');
   child.kill('SIGINT');
   assert.equal(await exited, 0);
   assert.doesNotMatch(read(), /not json/);
@@ -619,9 +567,9 @@ test('a user whose reader closes the pipe sees logs exit with 0 at the next even
   let stderr = '';
   child.stdout.on('data', (chunk) => (stdout += chunk));
   child.stderr.on('data', (chunk) => (stderr += chunk));
-  await until(() => stdout, /step1\.end/);
+  await until(() => /step1\.end/.test(stdout), 'step1.end on stdout');
   await appendFile(file, `${event(2)}\n${event(3)}\n`);
-  await until(() => stderr, /exit=\d+/);
+  await until(() => /exit=\d+/.test(stderr), 'the exit line');
   assert.equal(stderr, 'exit=0\n');
 });
 
@@ -638,7 +586,7 @@ test(
     t.after(() => child.kill('SIGKILL'));
     let stderr = '';
     child.stderr.on('data', (chunk) => (stderr += chunk));
-    await until(() => stderr, /exit=\d+/);
+    await until(() => /exit=\d+/.test(stderr), 'the exit line');
     assert.equal(stderr, 'exit=0\n');
   },
 );
@@ -674,11 +622,11 @@ test('a user who runs logs in a terminal sees the last events that fit the scree
   let output = '';
   child.stdout.on('data', (chunk) => (output += chunk));
   const read = () => output.replace(/\r/g, '');
-  await until(read, /step10\.end/);
+  await until(() => /step10\.end/.test(read()), 'step10.end in the output');
   await appendFile(file, `${event(11)}\n`);
-  await until(read, /step11\.end/);
+  await until(() => /step11\.end/.test(read()), 'step11.end in the output');
   child.stdin.write('\x03');
-  await until(read, /exit=\d+/);
+  await until(() => /exit=\d+/.test(read()), 'the exit line');
   const lines = read()
     .split('\n')
     .filter((line) => line.includes('step'));
@@ -697,14 +645,14 @@ test('a user who runs logs in a terminal sees every event of the new run log fro
   let output = '';
   child.stdout.on('data', (chunk) => (output += chunk));
   const read = () => output.replace(/\r/g, '');
-  await until(read, /step1\.end/);
+  await until(() => /step1\.end/.test(read()), 'step1.end in the output');
   await restart(
     file,
     Array.from({ length: 10 }, (_, index) => event(index + 3)),
   );
-  await until(read, /step12\.end/);
+  await until(() => /step12\.end/.test(read()), 'step12.end in the output');
   child.stdin.write('\x03');
-  await until(read, /exit=\d+/);
+  await until(() => /exit=\d+/.test(read()), 'the exit line');
   assert.deepEqual(
     read()
       .split('\n')
@@ -727,9 +675,9 @@ function cliFails(args: string[], options: { cwd?: string; env?: NodeJS.ProcessE
   );
 }
 
-test('a user who runs next-issue with no argument sees the usage on standard error, exit code 1 and no issue read', async () => {
+test('a user who runs next-issue with no argument sees the usage on standard error, exit code 1 and no issue read', async (t) => {
   const root = await repository();
-  const { env, called } = await oldGit('2.50.0');
+  const { env, called } = await oldGit(t, '2.50.0');
   const error = await cliFails([], { cwd: root, env });
   const { stdout: usage } = await promisify(execFile)(process.execPath, [CLI, '--help']);
   assert.equal(error?.code, 1);
@@ -738,18 +686,18 @@ test('a user who runs next-issue with no argument sees the usage on standard err
   assert.equal(await exists(called), false);
 });
 
-test('a user who runs next-issue --watch on sees an error that says to use next-issue start, exit code 1 and no issue read', async () => {
+test('a user who runs next-issue --watch on sees an error that says to use next-issue start, exit code 1 and no issue read', async (t) => {
   const root = await repository();
-  const { env, called } = await oldGit('2.50.0');
+  const { env, called } = await oldGit(t, '2.50.0');
   const error = await cliFails(['--watch', 'on'], { cwd: root, env });
   assert.equal(error?.code, 1);
   assert.match(error?.stderr ?? '', /no command given: use next-issue start/);
   assert.equal(await exists(called), false);
 });
 
-test('a user who runs next-issue start --once sees an unknown argument error, exit code 1 and no issue read', async () => {
+test('a user who runs next-issue start --once sees an unknown argument error, exit code 1 and no issue read', async (t) => {
   const root = await repository();
-  const { env, called } = await oldGit('2.50.0');
+  const { env, called } = await oldGit(t, '2.50.0');
   const error = await cliFails(['start', '--once'], { cwd: root, env });
   assert.equal(error?.code, 1);
   assert.match(error?.stderr ?? '', /Unknown argument: --once/);
@@ -764,9 +712,9 @@ for (const args of [
   ['start', '--quiet'],
   ['logs', '--json'],
 ]) {
-  test(`a user who runs next-issue ${args.join(' ')} sees an unknown argument error, exit code 1 and no issue read`, async () => {
+  test(`a user who runs next-issue ${args.join(' ')} sees an unknown argument error, exit code 1 and no issue read`, async (t) => {
     const root = await repository();
-    const { env, called } = await oldGit('2.50.0');
+    const { env, called } = await oldGit(t, '2.50.0');
     const error = await cliFails(args, { cwd: root, env });
     assert.equal(error?.code, 1);
     assert.match(error?.stderr ?? '', new RegExp(`Unknown argument: ${args[1]}`));
@@ -828,7 +776,10 @@ test('a user who runs serve --hunt on gets an error, exit code 1 and no worker',
   assert.equal(await exists(workerPaths(root).lockPath), false);
 });
 
-async function oldGit(version: string): Promise<{ env: NodeJS.ProcessEnv; called: string }> {
+async function oldGit(
+  t: TestContext,
+  version: string,
+): Promise<{ env: NodeJS.ProcessEnv; called: string }> {
   const { stdout } = await promisify(execFile)('sh', ['-c', 'command -v git']);
   const bin = await tempDir();
   const called = join(bin, 'called');
@@ -837,16 +788,16 @@ async function oldGit(version: string): Promise<{ env: NodeJS.ProcessEnv; called
     `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "git version ${version}"; exit 0; fi\nexec "${stdout.trim()}" "$@"\n`,
     { mode: 0o755 },
   );
-  await writeFile(join(bin, 'gh'), `#!/bin/sh\ntouch "${called}"\nexit 1\n`, { mode: 0o755 });
-  return { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, called };
+  await installGh(t, bin, `#!/bin/sh\ntouch "${called}"\nexit 1\n`);
+  return { env: { ...process.env }, called };
 }
 
 const OLD_GIT = /git 2\.39\.5 is too old: next-issue needs git 2\.40 or later/;
 
-test('a user who runs next-issue on git 2.39 sees an error that names the found and needed git versions, exit code 1 and no issue read', async () => {
+test('a user who runs next-issue on git 2.39 sees an error that names the found and needed git versions, exit code 1 and no issue read', async (t) => {
   const root = await repository();
   await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/old.git'], { cwd: root });
-  const { env, called } = await oldGit('2.39.5');
+  const { env, called } = await oldGit(t, '2.39.5');
   const error = await promisify(execFile)(process.execPath, [CLI, 'start'], {
     cwd: root,
     env,
@@ -862,7 +813,7 @@ test('a user who runs next-issue on git 2.39 sees an error that names the found 
 test('a user who starts a run in the worker on git 2.39 sees the run end with an error that names the git versions and no issue read', async (t) => {
   const root = await realpath(await repository());
   await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/old.git'], { cwd: root });
-  const { env, called } = await oldGit('2.39.5');
+  const { env, called } = await oldGit(t, '2.39.5');
   const { child } = await serveWorker(root, env);
   t.after(() => child.kill('SIGKILL'));
   const client = await connect(t, workerPaths(root).socketPath);

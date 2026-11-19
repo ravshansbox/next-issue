@@ -1,47 +1,24 @@
 import assert from 'node:assert/strict';
 import { type ChildProcess, spawn } from 'node:child_process';
-import { readFile, realpath, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { type TestContext, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { onStop } from '../src/shared/children.mts';
 import { hasCode } from '../src/shared/errors.mts';
 import { lockHolder } from '../src/shared/lock.mts';
-import { must } from '../src/shared/exec.mts';
 import { type RunRepo, startWorker } from '../src/worker/serve.mts';
 import type { RunControls } from '../src/worker/run.mts';
 import { packageVersion } from '../src/shared/version.mts';
 import { rejoinRun } from '../src/shared/worker-client.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
-import { tempDir } from './temp-dir.mts';
+import { idleGh } from './fake-gh.mts';
+import { repository, until } from './helpers.mts';
 import { connect, fakeRuns } from './worker-harness.mts';
 
 const SUCCESSOR = fileURLToPath(new URL('successor-worker.mts', import.meta.url));
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
 
-async function repository(remote = true): Promise<string> {
-  const root = await realpath(await tempDir());
-  await must('git', ['init', '-q'], { cwd: root });
-  if (remote) {
-    await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/start.git'], {
-      cwd: root,
-    });
-  }
-  return root;
-}
-
-async function idleGh(): Promise<NodeJS.ProcessEnv> {
-  const bin = await tempDir();
-  const script = `#!/bin/sh
-case "$1 $2" in
-  "repo view") echo '{"defaultBranchRef":{"name":"main"}}' ;;
-  "issue list") echo '[]' ;;
-  *) echo "unexpected: $*" >&2; exit 1 ;;
-esac
-`;
-  await writeFile(join(bin, 'gh'), script, { mode: 0o755 });
-  return { ...process.env, PATH: `${bin}:${process.env.PATH}` };
-}
+const ORIGIN = 'https://github.com/acme/start.git';
 
 type Started = {
   child: ChildProcess;
@@ -88,16 +65,6 @@ async function killWorker(root: string): Promise<void> {
   }
 }
 
-async function until(check: () => boolean, what: string): Promise<void> {
-  for (let left = 1200; left > 0; left -= 1) {
-    if (check()) {
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-  throw new Error(`timed out waiting for ${what}`);
-}
-
 async function fakeWorker(t: TestContext, root: string, runRepo: RunRepo, version?: string) {
   const { logPath: _logPath, ...paths } = workerPaths(root);
   const worker = await startWorker({
@@ -112,22 +79,22 @@ async function fakeWorker(t: TestContext, root: string, runRepo: RunRepo, versio
 }
 
 test('a user who runs start with no flags sees the run wait for new issues after a pass instead of ending', async (t) => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   t.after(() => killWorker(root));
-  const started = startCommand(t, root, [], await idleGh());
+  const started = startCommand(t, root, [], await idleGh(t));
   await until(() => / watch\.wait /.test(started.stderr()), 'the wait after the pass');
   assert.equal(started.child.exitCode, null);
 });
 
 test('a user who runs start with --hunt on and --watch off sees an error that hunting needs watching and exit code 1', async (t) => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   const started = startCommand(t, root, ['--hunt', 'on', '--watch', 'off']);
   assert.equal(await started.exited, 1);
   assert.match(started.stderr(), /hunting needs watching/);
 });
 
 test('a user who runs start with --watch and no value or another value sees an error and exit code 1', async (t) => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   for (const args of [['--watch'], ['--watch', 'yes']]) {
     const started = startCommand(t, root, args);
     assert.equal(await started.exited, 1);
@@ -136,7 +103,7 @@ test('a user who runs start with --watch and no value or another value sees an e
 });
 
 test('a user who runs watch or hunt with a run going sees the run switch, the new setting printed and exit code 0', async (t) => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo);
   const other = await connect(t, workerPaths(root).socketPath);
@@ -158,7 +125,7 @@ test('a user who runs watch or hunt with a run going sees the run switch, the ne
 });
 
 test('a user who runs watch or hunt with no worker or no run going sees that no run is going, exit code 0 and no worker started', async (t) => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   for (const argv of [
     ['watch', 'on'],
     ['hunt', 'off'],
@@ -177,7 +144,7 @@ test('a user who runs watch or hunt with no worker or no run going sees that no 
 });
 
 test('a user who runs refresh while the worker has no run going sees that no run is going and exit code 0', async (t) => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo);
   const refreshed = cliCommand(t, root, ['refresh']);
@@ -187,7 +154,7 @@ test('a user who runs refresh while the worker has no run going sees that no run
 });
 
 test('a user who runs refresh while the run does not watch or is stopping sees that nothing was asked and exit code 0', async (t) => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo);
   const other = await connect(t, workerPaths(root).socketPath);
@@ -210,7 +177,7 @@ test('a user who runs refresh while the run does not watch or is stopping sees t
 });
 
 test('a user who runs refresh while the run stops for an upgrade sees that the run will start again on the newer worker and pick up new issues then, and exit code 0', async (t) => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo);
   const other = await connect(t, workerPaths(root).socketPath);
@@ -228,7 +195,7 @@ test('a user who runs refresh while the run stops for an upgrade sees that the r
 });
 
 test('a user who runs refresh while an older worker has a run going sees an error to restart the run and exit code 1', async (t) => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo, '0.0.0-old');
   const other = await connect(t, workerPaths(root).socketPath);
@@ -245,7 +212,7 @@ test('a user who runs refresh while an older worker has a run going sees an erro
 });
 
 test('a user who runs stop with a run going sees that the run will stop after its current issues, exit code 0 at once, and the worker go on with no signal', async (t) => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo);
   const other = await connect(t, workerPaths(root).socketPath);
@@ -262,7 +229,7 @@ test('a user who runs stop with a run going sees that the run will stop after it
 });
 
 test('a user who runs stop while the run is stopping sees that it is stopping already and exit code 0', async (t) => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo);
   const other = await connect(t, workerPaths(root).socketPath);
@@ -278,7 +245,7 @@ test('a user who runs stop while the run is stopping sees that it is stopping al
 });
 
 test('a user who runs stop while the run stops for an upgrade sees that it will stop and not start again, exit code 0, and the upgrade dropped', async (t) => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo, '0.0.0-old');
   const other = await connect(t, workerPaths(root).socketPath);
@@ -300,7 +267,7 @@ test('a user who runs stop while the run stops for an upgrade sees that it will 
 });
 
 test('a user who runs stop with no worker or no run going sees that no run is going, exit code 0 and no worker started', async (t) => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   const alone = cliCommand(t, root, ['stop']);
   assert.equal(await alone.exited, 0);
   assert.equal(alone.stdout(), 'next-issue: no run is going in this repository\n');
@@ -314,7 +281,7 @@ test('a user who runs stop with no worker or no run going sees that no run is go
 });
 
 test('a user who runs watch or hunt with no value or another value sees an error and exit code 1', async (t) => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   for (const argv of [['watch'], ['hunt', 'yes']]) {
     const switched = cliCommand(t, root, argv);
     assert.equal(await switched.exited, 1);
@@ -323,7 +290,7 @@ test('a user who runs watch or hunt with no value or another value sees an error
 });
 
 test('a user who runs start with no worker sees a worker start in the background with its output in .next-issue/worker.log, and the run error with exit code 1', async (t) => {
-  const root = await repository(false);
+  const root = await repository();
   const started = startCommand(t, root, []);
   assert.equal(await started.exited, 1);
   assert.match(started.stderr(), /next-issue failed: .*No such remote 'origin'/);
@@ -332,8 +299,8 @@ test('a user who runs start with no worker sees a worker start in the background
 });
 
 test('a user who runs start while an idle worker is alive sees the run go in that worker, its output on stderr and the summary on stdout', async (t) => {
-  const root = await repository();
-  const env = await idleGh();
+  const root = await repository(ORIGIN);
+  const env = await idleGh(t);
   const worker = spawn(process.execPath, [CLI, 'serve'], { cwd: root, env });
   t.after(() => worker.kill('SIGKILL'));
   let workerOutput = '';
@@ -347,8 +314,8 @@ test('a user who runs start while an idle worker is alive sees the run go in tha
 });
 
 test('a user who runs start with --watch off gets the text summary of the run on stdout and exit code 0', async (t) => {
-  const root = await repository();
-  const started = startCommand(t, root, ['--watch', 'off'], await idleGh());
+  const root = await repository(ORIGIN);
+  const started = startCommand(t, root, ['--watch', 'off'], await idleGh(t));
   assert.equal(await started.exited, 0);
   assert.match(started.stdout(), /^run \S+\nissues 0: .*\ntokens .*\nlog .*\.jsonl\n$/);
 });
@@ -362,7 +329,7 @@ test('a user who presses Ctrl-C three times sees the worker stop the run after t
     });
     return fake.runRepo(root, args, controls).finally(drop);
   };
-  const root = await repository();
+  const root = await repository(ORIGIN);
   await fakeWorker(t, root, runRepo);
   const started = startCommand(t, root, []);
   await until(() => fake.calls.length === 1, 'the run to start');
@@ -410,7 +377,7 @@ async function pressThreeTimes(
     });
     return fake.runRepo(root, args, controls).finally(drop);
   };
-  const root = await repository();
+  const root = await repository(ORIGIN);
   await fakeWorker(t, root, runRepo);
   const started = startCommand(t, root, []);
   await until(() => fake.calls.length === 1, 'the run to start');
@@ -447,7 +414,7 @@ test('a user who presses Ctrl-C a fourth time sees start end at once', async (t)
 });
 
 test('a user whose terminal closes during a run sees the run keep going in the worker', async (t) => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo);
   const started = startCommand(t, root, []);
@@ -462,7 +429,7 @@ test('a user whose terminal closes during a run sees the run keep going in the w
 });
 
 test('a user who runs start while an older idle worker is alive sees it close and the run go in a new worker', async (t) => {
-  const root = await repository(false);
+  const root = await repository();
   const fake = fakeRuns();
   const older = await fakeWorker(t, root, fake.runRepo, '0.0.0-old');
   const started = startCommand(t, root, []);
@@ -475,7 +442,7 @@ test('a user who runs start while an older idle worker is alive sees it close an
 test('a user who presses Ctrl-C while the run waits between passes sees "Stopping now.", or the hunt note while a hunt is going', async (t) => {
   for (const hunting of [false, true]) {
     const fake = fakeRuns();
-    const root = await repository();
+    const root = await repository(ORIGIN);
     const worker = await fakeWorker(t, root, fake.runRepo);
     const started = startCommand(t, root, ['--watch', 'on']);
     await until(() => fake.calls.length === 1, 'the run to start');
@@ -493,13 +460,9 @@ test('a user who presses Ctrl-C while the run waits between passes sees "Stoppin
 });
 
 test('a user who runs start while an older worker has a watch run going sees start refused with the coming update, and the run go on in the newer worker after its running issues', async (t) => {
-  const root = await repository();
-  const path = process.env.PATH;
-  process.env.PATH = (await idleGh()).PATH;
-  t.after(async () => {
-    process.env.PATH = path;
-    await killWorker(root);
-  });
+  const root = await repository(ORIGIN);
+  await idleGh(t);
+  t.after(() => killWorker(root));
   const fake = fakeRuns();
   const older = await fakeWorker(t, root, fake.runRepo, '0.0.0-old');
   const other = await connect(t, workerPaths(root).socketPath);
@@ -533,7 +496,7 @@ async function upgradingStart(
   finish: (code?: number) => void;
   controls: () => RunControls;
 }> {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo);
   t.after(async () => {
