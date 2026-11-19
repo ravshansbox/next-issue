@@ -29,7 +29,7 @@ Option A.
 
 - Hunting is off by default. `--hunt on` or `npx -y next-issue@latest hunt on` turns it on, and it needs watching.
 - The hunter hunts only while fewer than `huntCap` ready issues wait, and files at most enough to reach it.
-- It follows `next-issue.hunt.md` in the repository root, or a built-in prompt.
+- It follows `.next-issue/hunt.md`, or a built-in prompt.
 - The built-in prompt files only high-severity bugs that a user hits in normal use, and proposes to remove or simplify code that an earlier fix added instead of adding another guard, so the hunter does not file rare edge cases or grow the code it hunts.
 - It works in its own worktree, gets the tools of the reviewer (ADR 7) and changes no file.
 - Its issues get the ready label and the `source:hunt` label. Turning hunting on is the human step for them (ADR 2).

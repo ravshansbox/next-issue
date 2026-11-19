@@ -52,6 +52,10 @@ export function notesPath(root: string): string {
   return join(stateDir(root), 'notes.md');
 }
 
+export function huntInstructionsPath(root: string): string {
+  return join(stateDir(root), 'hunt.md');
+}
+
 export function runsDir(root: string): string {
   return join(stateDir(root), 'runs');
 }

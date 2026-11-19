@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { REVIEWING } from '../src/shared/agents.mts';
 import { parseRemote, revision } from '../src/shared/git.mts';
-import { HUNT_FILE, hunt, hunter, huntWorktree } from '../src/shared/hunt.mts';
+import { hunt, hunter, huntWorktree } from '../src/shared/hunt.mts';
 import { ISSUE_SECTIONS } from '../src/shared/issue-format.mts';
 import { ensureLabel } from '../src/shared/labels.mts';
 import { clones, commit, git } from './clones.mts';
@@ -13,20 +13,36 @@ import { installGh } from './fake-gh.mts';
 import { harness, ISSUE } from './harness.mts';
 import { tempDir } from './temp-dir.mts';
 
-test('a user who hunts with next-issue.hunt.md sees the hunter follow it in the hunt worktree with read-only tools', async (t) => {
+test('a user who hunts with .next-issue/hunt.md sees the hunter follow it under Instructions in the hunt worktree with read-only tools', async (t) => {
   const target = await harness(t);
-  await writeFile(join(target.context.repo.root, HUNT_FILE), 'Look only at the parser.\n');
+  await mkdir(join(target.context.repo.root, '.next-issue'), { recursive: true });
+  await writeFile(
+    join(target.context.repo.root, '.next-issue', 'hunt.md'),
+    'Look only at the parser.\n',
+  );
   await hunt(target.context, 1);
   assert.deepEqual(target.hunts, ['main']);
   assert.deepEqual(target.profiles, [
     { role: 'hunter', disallowedTools: REVIEWING.disallowedTools },
   ]);
   const prompt = target.prompts[0]!.prompt;
-  assert.match(prompt, /Look only at the parser\./);
-  assert.doesNotMatch(prompt, /Read the whole repository/);
+  assert.match(prompt, /## Instructions\nLook only at the parser\./);
+  assert.doesNotMatch(prompt, /File only a finding that a user hits in normal use\./);
 });
 
-test('a user who hunts with no next-issue.hunt.md sees the hunter told to file only high-severity bugs of normal use and to simplify code that an earlier fix added', async (t) => {
+test('a user who hunts with the old hunt file only in the repository root sees the hunter ignore it and get the built-in instructions', async (t) => {
+  const target = await harness(t);
+  await writeFile(
+    join(target.context.repo.root, ['next-issue', 'hunt', 'md'].join('.')),
+    'Look only at the parser.\n',
+  );
+  await hunt(target.context, 1);
+  const prompt = target.prompts[0]!.prompt;
+  assert.doesNotMatch(prompt, /Look only at the parser\./);
+  assert.match(prompt, /File only a finding that a user hits in normal use\./);
+});
+
+test('a user who hunts with no .next-issue/hunt.md sees the hunter told to file only high-severity bugs of normal use and to simplify code that an earlier fix added', async (t) => {
   const target = await harness(t);
   await hunt(target.context, 1);
   const prompt = target.prompts[0]!.prompt;

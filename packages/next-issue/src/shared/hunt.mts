@@ -10,10 +10,9 @@ import { type Context, withNotes } from './job.mts';
 import { oneAtATime } from './lock.mts';
 import { huntPrompt } from './prompts.mts';
 import { listedIssues, skipReason } from './skip.mts';
+import { huntInstructionsPath } from './state.mts';
 import type { Hunter } from './watch.mts';
 import { huntPath } from './worktree.mts';
-
-export const HUNT_FILE = 'next-issue.hunt.md';
 
 const FILED = /^issue:[^\S\r\n]*(\S+)[^\S\r\n]*$/gm;
 
@@ -60,7 +59,7 @@ export async function hunt(context: Context, count: number): Promise<boolean> {
         await ports.ensureLabel(repo, label);
       }
     }
-    const instructions = await readTextIfPresent(join(repo.root, HUNT_FILE));
+    const instructions = await readTextIfPresent(huntInstructionsPath(repo.root));
     const result = await ports.runAgent(recorder, {
       name: 'hunter',
       cwd,
