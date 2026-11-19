@@ -1249,6 +1249,22 @@ test('a person who turns watching or hunting on for a run they stopped gets an e
   assert.equal(controls.interrupts.afterIssue(), true);
 });
 
+test('a person who starts a run they stopped after the issue gets an error with the id of the start and the run ends as stopped', async (t) => {
+  const { fake, client } = await startedRun(t);
+  client.send({ type: 'stop', root: '/repo' });
+  await client.next(stopping);
+  client.send({ type: 'start', root: '/repo', id: 'start-1' });
+  assert.deepEqual(await client.next((value) => value.type === 'error'), {
+    type: 'error',
+    root: '/repo',
+    message: 'the run is stopping',
+    id: 'start-1',
+  });
+  assert.equal(fake.controls().interrupts.afterIssue(), true);
+  fake.finish();
+  await client.next(stoppedRun);
+});
+
 test('a client that resumes a run while a run is going gets no error and no second run starts', async (t) => {
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);

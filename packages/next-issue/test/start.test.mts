@@ -640,27 +640,8 @@ test('a user who runs start with --watch or --hunt while a run is going sees the
   fake.finish();
 });
 
-test('a user who runs start after stop sees the stop cancelled, the run running in the status, exit code 0, and hunt on work after it', async (t) => {
-  const root = await repository(ORIGIN);
-  const { fake, other } = await goingRun(t, root);
-  other.send({ type: 'stop', root });
-  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'stopping');
-  const started = startCommand(t, root, []);
-  assert.equal(await started.exited, 0, started.stderr());
-  assert.equal(
-    withoutSetupNotes(started.stderr()),
-    statusLines(`running in worker ${await packageVersion()}`, 'watching on, hunting off'),
-  );
-  assert.equal(fake.controls().interrupts.afterIssue(), false);
-  const hunted = cliCommand(t, root, ['hunt', 'on']);
-  assert.equal(await hunted.exited, 0, hunted.stderr());
-  assert.equal(fake.controls().hunting?.on(), true);
-  assert.equal(fake.calls.length, 1);
-  fake.finish();
-});
-
-test('a user who runs start after a stop after the round or now sees start fail with exit code 1 and the stop go on', async (t) => {
-  for (const after of ['round', 'now'] as const) {
+test('a user who runs start after a stop sees start fail with exit code 1 and the stop go on', async (t) => {
+  for (const after of ['issue', 'round', 'now'] as const) {
     const root = await repository(ORIGIN);
     const { fake, other } = await goingRun(t, root);
     other.send({ type: 'stop', root, after });
@@ -668,7 +649,8 @@ test('a user who runs start after a stop after the round or now sees start fail 
     const started = startCommand(t, root, ['--hunt', 'on']);
     assert.equal(await started.exited, 1);
     assert.match(started.stderr(), /^the run is stopping$/m);
-    assert.equal(fake.controls().interrupts.afterRound(), true);
+    assert.equal(fake.controls().interrupts.afterIssue(), true);
+    assert.equal(fake.controls().interrupts.afterRound(), after !== 'issue');
     assert.equal(fake.controls().hunting?.on(), false);
     assert.equal(fake.calls.length, 1);
     fake.finish();

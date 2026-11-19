@@ -65,12 +65,7 @@ export function runsMessage(runs: Map<string, Run>, id?: string): WorkerMessage 
 
 export function joinRun(run: Run, given: { watch?: boolean; hunt?: boolean }): string | undefined {
   if (run.stoppedByPerson === true) {
-    if (run.stop !== 'issue') {
-      return 'the run is stopping';
-    }
-    run.stop = undefined;
-    run.stoppedByPerson = false;
-    run.progress = { ...run.progress, status: 'running' };
+    return 'the run is stopping';
   }
   if (given.watch !== undefined) {
     setWatching(run, given.watch);
