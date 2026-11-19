@@ -262,7 +262,7 @@ To drop an issue instead, close it. The next run that finds a saved state for an
 
 ## Skills
 
-The package ships two skills for Claude Code: `create-issue` writes an issue that the worker can claim, and `answer-hand-over` helps you answer a hand-over. They run no next-issue command: a watching run picks up a new or retried issue at its next read of the open issues.
+The package ships two skills for Claude Code: `create-issue` writes an issue that the worker can claim, and `answer-hand-over` helps you answer a hand-over. `create-issue` starts the run once it files an issue. `answer-hand-over` runs no next-issue command: a watching run picks up a retried issue at its next read of the open issues.
 
 `npx -y next-issue@latest init` installs them, so Claude Code finds them:
 
@@ -295,8 +295,9 @@ Ask Claude to write an issue, ask for a change in a repository with `.next-issue
 3. asks numbered questions until none is open, including whether you confirm the split;
 4. creates the ready label with `gh label create` when the repository does not have it, then runs `gh issue create --body-file --blocked-by` with the body from [`template.md`](../skills/create-issue/template.md), the issues it depends on and no label, without showing the body first. The issue carries its blocker links from the moment it exists, so the worker waits for them even when `labels.ready` is empty and a run claims every open issue. It needs GitHub CLI 2.94.0 or later;
 5. adds the ready label with `gh issue edit --add-label` only after it links every blocker. It adds the ready label and no other label. The ready label is the `labels.ready` label of `.next-issue/config.json`, or `status:todo` when `labels.ready` is not set or there is no config file. With an empty `labels.ready`, the issue gets no label, since the worker then claims every open issue. For a confirmed split, it creates each issue in turn with the links to the issues of the split it depends on, and only then adds its ready label;
-6. gives you the issue url, or each url of a split, and stops. It runs no next-issue command and asks nothing about a run;
-7. changes the issue with `gh issue edit --body-file` or `--title` when you ask for a change.
+6. runs `npx -y next-issue@latest status`, then `npx -y next-issue@latest start` unless the run is `stopping`, once for the issue or a whole split, after the last ready label, also when `labels.ready` is empty. When the run is stopping, it runs no `start`, so the issue waits for the next run;
+7. gives you the issue url, or each url of a split, and the outcome of `start`, or that the run is stopping, in one line, and stops;
+8. changes the issue with `gh issue edit --body-file` or `--title` when you ask for a change.
 
 Claude files the issue, the ready label and the blocker links in the repository of the `remote` of `.next-issue/config.json`, or of `origin` when there is no config file or no `remote` field, as the worker does. It passes `--repo` to every `gh` command, so another remote, such as the `upstream` of a fork, never gets the issue.
 

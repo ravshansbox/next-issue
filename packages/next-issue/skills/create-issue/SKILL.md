@@ -42,7 +42,11 @@ Turn the problem of the user into one GitHub issue, or a split of linked issues 
 
    For a confirmed split, repeat steps 5 to 7 for each issue of the split, in order. Create each one with `--blocked-by` the issues of the split it depends on, so it is linked before you add its ready label.
 
-8. Once the issue exists, or the last issue of a split, give the user the issue url, or each url of a split, and stop. Run no next-issue command and ask nothing about a run.
+8. Once the issue exists with its ready label, or the last issue of a split has its ready label, run `npx -y next-issue@latest status` once. When `labels.ready` is empty, run it too, since the worker claims every open issue.
+
+   When the first line of the status starts with `stopping`, run no `start`: the run is stopping, so the issue waits for the next run. Otherwise run `npx -y next-issue@latest start` once. It starts a run when none is going, and joins a going run.
+
+   Then give the user the issue url, or each url of a split, and the outcome of `start`, or that the run is stopping, in one line, and stop.
 
 9. When the user asks for a change to the issue, make the change on GitHub. Write the new body into the temporary file and run:
 
