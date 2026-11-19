@@ -18,6 +18,7 @@ export type Run = {
   stoppedByPerson?: boolean;
   children: RunChildren;
   wake?: () => void;
+  lookNow: AbortController;
   huntBusy?: () => boolean;
   watching: Toggle;
   hunting: Toggle;
@@ -27,6 +28,7 @@ export function newRun(progress: Progress): Run {
   return {
     progress,
     children: runChildren(),
+    lookNow: new AbortController(),
     watching: onOff(progress.watching === true),
     hunting: onOff(progress.hunting),
   };
@@ -76,6 +78,8 @@ export function joinRun(run: Run, given: { watch?: boolean; hunt?: boolean }): s
   if (given.hunt !== undefined) {
     setHunting(run, given.hunt);
   }
+  run.lookNow.abort();
+  run.lookNow = new AbortController();
   return undefined;
 }
 
@@ -175,6 +179,7 @@ export function runControls(run: Run, update: (next: Progress) => void): RunCont
     interrupts: runInterrupts(run),
     hunting: run.hunting,
     watching: run.watching,
+    lookNow: () => run.lookNow.signal,
     onEvent: (record) => update(applyEvent(run.progress, record)),
     onHunter: (busy) => {
       run.huntBusy = busy;

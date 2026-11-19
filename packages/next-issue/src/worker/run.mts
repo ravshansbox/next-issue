@@ -33,6 +33,7 @@ export type RunControls = {
   hunting?: Switch;
   // The worker passes a switch that its clients turn on and off; without one, the run keeps --watch.
   watching?: Switch;
+  lookNow?: () => AbortSignal;
   beforeClaim?: () => Promise<void>;
   onHunter?: (busy: () => boolean) => void;
 };
@@ -127,6 +128,7 @@ export function watchRun(
     hunter: hunt,
     hunting: controls.hunting ?? onOff(args.hunt),
     watching: controls.watching,
+    lookNow: controls.lookNow,
   });
 }
 

@@ -11,13 +11,14 @@ export type Hunter = {
 };
 
 export type Watch = Loop & {
-  // `woken` aborts when watching is switched; the wait then ends early.
+  // `woken` aborts when watching is switched or `lookNow` aborts; the wait then ends early.
   wait: (minutes: number, woken?: AbortSignal) => Promise<boolean>;
   passEnd: (reports: IssueReport[]) => Promise<void>;
   hunter?: Hunter;
   hunting?: Switch;
   // Off ends the watch after the current pass, or at once during a wait.
   watching?: Switch;
+  lookNow?: () => AbortSignal;
 };
 
 const BACK_OFF_MINUTES = [1, 2, 3, 5, 10];
@@ -131,9 +132,13 @@ async function watchPasses(failed: Set<number>, watch: Watch): Promise<LoopResul
     }
     const minutes = backOffMinutes(step);
     step += 1;
-    const woken = watch.watching?.changed();
+    const woken = AbortSignal.any(
+      [watch.watching?.changed(), watch.lookNow?.()].filter(
+        (signal): signal is AbortSignal => signal !== undefined,
+      ),
+    );
     if (!(await watch.wait(minutes, woken))) {
-      if (woken?.aborted !== true || watch.stop() || !watching()) {
+      if (!woken.aborted || watch.stop() || !watching()) {
         return { reports };
       }
       step = 0;

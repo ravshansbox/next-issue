@@ -7,9 +7,10 @@ import { type Switch, onOff } from '../src/shared/switch.mts';
 import type { LoopResult } from '../src/shared/loop.mts';
 import { statusText } from '../src/cli/switch-run.mts';
 import { applyEvent, startProgress } from '../src/worker/progress.mts';
-import { watchRun } from '../src/worker/run.mts';
+import { type RunControls, watchRun } from '../src/worker/run.mts';
 import { until } from './helpers.mts';
 import { harness, ISSUE, type Plan, roles } from './harness.mts';
+import { connect, fakeRuns, worker } from './worker-harness.mts';
 
 type Running = {
   hunts: () => number;
@@ -26,6 +27,7 @@ type Options = {
   watching?: Switch;
   issues?: () => Promise<Issue[]>;
   plan?: Plan;
+  controls?: Partial<RunControls>;
 };
 
 async function startWatch(t: TestContext, args: Args, options: Options = {}): Promise<Running> {
@@ -67,6 +69,7 @@ async function startWatch(t: TestContext, args: Args, options: Options = {}): Pr
       },
       hunting: options.hunting,
       watching: options.watching,
+      ...options.controls,
     },
     async () => undefined,
   );
@@ -210,5 +213,58 @@ test('a user who reads the status of a watch run sees it wait to look again duri
   await until(() => run.passes() === 2, 'the second pass');
   assert.equal(status(), 'looking for an issue');
   release();
+  await run.end();
+});
+
+async function workerRun(t: TestContext) {
+  const fake = fakeRuns();
+  const { socketPath } = await worker(t, fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo' });
+  await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
+  const { interrupts: _interrupts, ...controls } = fake.controls();
+  const start = async (id: string): Promise<void> => {
+    client.send({ type: 'start', root: '/repo', id });
+    await client.next((value) => value.type === 'runs' && value.id === id);
+  };
+  return { controls, start };
+}
+
+test('a person who runs start on a watching run that waits between passes sees it look again at once, then wait 1 minute', async (t) => {
+  const { controls, start } = await workerRun(t);
+  const run = await startWatch(t, parseArgs(['start', '--watch', 'on']), { controls });
+  await until(() => run.sleeps.length === 1, 'the first wait');
+  run.elapse();
+  await until(() => run.sleeps.length === 2, 'the second wait');
+  await start('look');
+  await until(() => run.sleeps.length === 3, 'the third wait');
+  assert.equal(run.passes(), 3);
+  assert.deepEqual(run.sleeps, [1, 2, 1]);
+  await run.end();
+});
+
+test('a person who runs start on a watching run during a pass sees the run still wait its next back-off after that pass', async (t) => {
+  const { controls, start } = await workerRun(t);
+  let release = (): void => undefined;
+  const held = new Promise<Issue[]>((resolve) => {
+    release = () => resolve([]);
+  });
+  let fetches = 0;
+  const run = await startWatch(t, parseArgs(['start', '--watch', 'on']), {
+    controls,
+    issues: async () => {
+      fetches += 1;
+      return fetches === 2 ? held : [];
+    },
+  });
+  await until(() => run.sleeps.length === 1, 'the first wait');
+  run.elapse();
+  await until(() => run.passes() === 2, 'the second pass');
+  await start('look');
+  release();
+  await until(() => run.sleeps.length === 2, 'the second wait');
+  await delay(50);
+  assert.equal(run.passes(), 2);
+  assert.deepEqual(run.sleeps, [1, 2]);
   await run.end();
 });
