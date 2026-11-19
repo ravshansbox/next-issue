@@ -281,8 +281,21 @@ test('a user who hunts gets a worktree at the remote base', async () => {
   const pushed = await commit(other, 'b.txt');
   await git(other, 'push', '-q', 'origin', 'main');
   const path = await huntWorktree(repo, 'main', 'origin');
-  assert.equal(path, join(repo.root, '.claude', 'worktrees', 'hunt'));
+  assert.equal(path, join(repo.root, '.claude', 'worktrees', 'next-issue-hunt'));
   assert.equal(await revision(path), pushed);
+});
+
+test('a user with a worktree at .claude/worktrees/hunt keeps it and its edits when the hunter hunts', async () => {
+  const { repo } = await clones();
+  const mine = join(repo.root, '.claude', 'worktrees', 'hunt');
+  await git(repo.root, 'worktree', 'add', '-q', '-b', 'worktree-hunt', mine, 'origin/main');
+  await writeFile(join(mine, 'a.txt'), 'edited\n');
+  await writeFile(join(mine, 'untracked.txt'), 'untracked\n');
+  const path = await huntWorktree(repo, 'main', 'origin');
+  assert.equal(path, join(repo.root, '.claude', 'worktrees', 'next-issue-hunt'));
+  assert.equal(await git(mine, 'branch', '--show-current'), 'worktree-hunt');
+  assert.equal(await readFile(join(mine, 'a.txt'), 'utf8'), 'edited\n');
+  assert.equal(await readFile(join(mine, 'untracked.txt'), 'utf8'), 'untracked\n');
 });
 
 test('a user who hunts again gets the hunt worktree reset to the new remote base', async () => {

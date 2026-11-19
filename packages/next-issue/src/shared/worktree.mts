@@ -24,11 +24,11 @@ type Worktree = {
 export const WORKTREE_DIR = '.claude/worktrees';
 
 export function huntPath(repo: Repo): string {
-  return join(repo.root, WORKTREE_DIR, 'hunt');
+  return join(repo.root, WORKTREE_DIR, 'next-issue-hunt');
 }
 
 function worktreePath(repo: Repo, issue: number): string {
-  return join(repo.root, WORKTREE_DIR, String(issue));
+  return join(repo.root, WORKTREE_DIR, `next-issue-${issue}`);
 }
 
 export async function addWorktree(
