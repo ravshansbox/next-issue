@@ -9,7 +9,7 @@ import { followLog, newestRunLog } from './cli/logs.mts';
 import { serve } from './worker/serve.mts';
 import { startInWorker } from './cli/start.mts';
 import { STATE_DIR } from './shared/state.mts';
-import { stopInWorker, switchInWorker } from './cli/switch-run.mts';
+import { statusInWorker, stopInWorker, switchInWorker } from './cli/switch-run.mts';
 import { chooseScope, installSkills } from './cli/update.mts';
 import { WORKTREE_DIR } from './shared/worktree.mts';
 
@@ -40,6 +40,10 @@ async function main(): Promise<number> {
   await rejectOldConfig(root);
   if (args.command === 'stop') {
     await write(process.stdout, await stopInWorker(root));
+    return 0;
+  }
+  if (args.command === 'status') {
+    await write(process.stdout, await statusInWorker(root));
     return 0;
   }
   if (args.command === 'watch' || args.command === 'hunt') {

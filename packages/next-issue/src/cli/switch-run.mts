@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { isNewer, type Progress } from '../shared/protocol.mts';
+import { isNewer, type Progress, type RunningIssue } from '../shared/protocol.mts';
 import { packageVersion } from '../shared/version.mts';
 import { CLOSED, type Connection, findWorker, going } from '../shared/worker-client.mts';
 
@@ -82,4 +82,26 @@ export function stopInWorker(root: string): Promise<string> {
     }
     return 'next-issue: the run will stop after its current issues\n';
   });
+}
+
+export function statusInWorker(root: string): Promise<string> {
+  return inWorker(root, async (connection, progress) => {
+    const lines = [
+      `next-issue: the run is ${progress.status} in worker ${connection.version}`,
+      `watching ${onOffText(progress.watching)}, hunting ${onOffText(progress.hunting)}`,
+    ];
+    if (progress.upgrade !== undefined) {
+      lines.push(`stopping for an upgrade to ${progress.upgrade.to}`);
+    }
+    if (progress.issues.length === 0) {
+      lines.push('no issue is running');
+    }
+    lines.push(...progress.issues.map(issueLine));
+    return `${lines.join('\n')}\n`;
+  });
+}
+
+function issueLine({ issue, step, round }: RunningIssue): string {
+  const roundText = round === undefined ? '' : ` (round ${round})`;
+  return `#${issue} ${step?.replaceAll('-', ' ') ?? 'starting'}${roundText}`;
 }

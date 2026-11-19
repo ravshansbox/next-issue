@@ -241,6 +241,77 @@ test('a user who runs stop with no worker or no run going sees that no run is go
   assert.equal(fake.calls.length, 0);
 });
 
+test('a user who runs status with a run going sees its status, the worker version, watching, hunting and each running issue with its step, exit code 0 and the run unchanged', async (t) => {
+  const root = await repository(ORIGIN);
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const other = await connect(t, workerPaths(root).socketPath);
+  other.send({ type: 'start', root, args: ['--hunt', 'on'] });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'running');
+  const controls = fake.controls();
+  controls.onEvent!({ kind: 'issue.start', issue: 624 });
+  controls.onEvent!({ kind: 'review.start', issue: 624, round: 2 });
+  controls.onEvent!({ kind: 'issue.start', issue: 625 });
+  controls.onEvent!({ kind: 'issue.start', issue: 626 });
+  controls.onEvent!({ kind: 'ci-checks.start', issue: 626 });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.issues.length === 3);
+  const status = cliCommand(t, root, ['status']);
+  assert.equal(await status.exited, 0, status.stderr());
+  assert.equal(
+    status.stdout(),
+    [
+      `next-issue: the run is running in worker ${await packageVersion()}`,
+      'watching on, hunting on',
+      '#624 reviewing (round 2)',
+      '#625 starting',
+      '#626 waiting for checks',
+      '',
+    ].join('\n'),
+  );
+  assert.equal(controls.interrupts.afterIssue(), false);
+  assert.equal(controls.hunting?.on(), true);
+  assert.equal(controls.watching?.on(), true);
+  fake.finish();
+});
+
+test('a user who runs status while the run stops for an upgrade sees the run stopping, the upgrade and that no issue is running', async (t) => {
+  const root = await repository(ORIGIN);
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo, '0.0.0-old');
+  const other = await connect(t, workerPaths(root).socketPath);
+  other.send({ type: 'start', root });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'running');
+  other.send({ type: 'hello', version: await packageVersion() });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.upgrade !== undefined);
+  const status = cliCommand(t, root, ['status']);
+  assert.equal(await status.exited, 0, status.stderr());
+  assert.equal(
+    status.stdout(),
+    [
+      'next-issue: the run is stopping in worker 0.0.0-old',
+      'watching on, hunting off',
+      `stopping for an upgrade to ${await packageVersion()}`,
+      'no issue is running',
+      '',
+    ].join('\n'),
+  );
+  fake.finish();
+});
+
+test('a user who runs status with no worker or no run going sees that no run is going, exit code 0 and no worker started', async (t) => {
+  const root = await repository(ORIGIN);
+  const alone = cliCommand(t, root, ['status']);
+  assert.equal(await alone.exited, 0);
+  assert.equal(alone.stdout(), 'next-issue: no run is going in this repository\n');
+  await assert.rejects(readFile(workerPaths(root).logPath, 'utf8'));
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const idle = cliCommand(t, root, ['status']);
+  assert.equal(await idle.exited, 0);
+  assert.equal(idle.stdout(), 'next-issue: no run is going in this repository\n');
+  assert.equal(fake.calls.length, 0);
+});
+
 test('a user who runs watch or hunt with no value or another value sees an error and exit code 1', async (t) => {
   const root = await repository(ORIGIN);
   for (const argv of [['watch'], ['hunt', 'yes']]) {

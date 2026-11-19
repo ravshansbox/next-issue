@@ -92,6 +92,7 @@ A field that is not in the file keeps its default. See [Configuration](https://g
 | `hunt on\|off`          | Switch hunting of the going run                                            |
 | `init`                  | Write the config file with the defaults                                    |
 | `stop`                  | Stop the going run after its current issues                                |
+| `status`                | Show the going run, its worker and its running issues                      |
 | `logs`                  | Show the latest run log and follow it                                      |
 | `update`                | Install the `create-issue` and `answer-hand-over` skills for Claude Code   |
 | `--force`               | With `init`: replace an existing config file                               |

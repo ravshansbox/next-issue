@@ -1,6 +1,15 @@
 import { CONFIG_FILE } from './config-fields.mts';
 
-type Command = 'start' | 'init' | 'serve' | 'stop' | 'logs' | 'watch' | 'hunt' | 'update';
+type Command =
+  | 'start'
+  | 'init'
+  | 'serve'
+  | 'stop'
+  | 'status'
+  | 'logs'
+  | 'watch'
+  | 'hunt'
+  | 'update';
 
 export type Scope = 'user' | 'project';
 
@@ -28,7 +37,17 @@ const RUN_FLAGS = new Map<string, RunFlag>([
   ['--hunt', 'hunt'],
 ]);
 
-const COMMANDS: Command[] = ['start', 'init', 'serve', 'stop', 'logs', 'watch', 'hunt', 'update'];
+const COMMANDS: Command[] = [
+  'start',
+  'init',
+  'serve',
+  'stop',
+  'status',
+  'logs',
+  'watch',
+  'hunt',
+  'update',
+];
 
 export const USAGE = `next-issue <command> [options]
 
@@ -39,6 +58,7 @@ export const USAGE = `next-issue <command> [options]
   hunt on|off       switch hunting of the going run; on also turns watching on
   init              write ${CONFIG_FILE} with the defaults and add .next-issue/ and .worktrees/ to info/exclude
   stop              stop the going run after its current issues
+  status            show the going run, its worker and its running issues
   logs              show the latest run log and follow it
   update            install the create-issue and answer-hand-over skills for Claude Code
     --scope user|project
