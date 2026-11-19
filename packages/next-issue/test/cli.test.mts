@@ -119,14 +119,17 @@ test('a user who runs init with a root next-issue.config.json sees it moved to .
   assert.match(stdout, /moved next-issue\.config\.json to .*\.next-issue\/config\.json/);
 });
 
-test('a user who runs another command with a root next-issue.config.json gets an error that the config moved', async () => {
+test('a user who runs another command with a root next-issue.config.json gets an error that the config moved and says to run npx -y next-issue@latest init', async () => {
   const root = await repository();
   await writeFile(join(root, 'next-issue.config.json'), '{}\n');
   await assert.rejects(
     promisify(execFile)(process.execPath, [CLI, 'stop'], { cwd: root }),
     (error: { code: number; stderr: string }) => {
       assert.notEqual(error.code, 0);
-      assert.match(error.stderr, /moved to \.next-issue\/config\.json/);
+      assert.match(
+        error.stderr,
+        /moved to \.next-issue\/config\.json\. Run npx -y next-issue@latest init to move it\./,
+      );
       return true;
     },
   );
@@ -627,12 +630,15 @@ test('a user who runs next-issue with no argument sees the usage on standard err
   assert.equal(await exists(called), false);
 });
 
-test('a user who runs next-issue --watch on sees an error that says to use next-issue start, exit code 1 and no issue read', async (t) => {
+test('a user who runs next-issue --watch on sees an error that says to use npx -y next-issue@latest start, exit code 1 and no issue read', async (t) => {
   const root = await repository();
   const { env, called } = await oldGit(t, '2.50.0');
   const error = await cliFails(['--watch', 'on'], { cwd: root, env });
   assert.equal(error?.code, 1);
-  assert.match(error?.stderr ?? '', /no command given: use next-issue start/);
+  assert.match(
+    error?.stderr ?? '',
+    /no command given: use npx -y next-issue@latest start to start a run, or see npx -y next-issue@latest --help/,
+  );
   assert.equal(await exists(called), false);
 });
 
@@ -680,9 +686,9 @@ test('a user who runs --help start sees the same usage as start --help and exit 
   assert.equal(helpStart.stdout, startHelp.stdout);
 });
 
-test('a user who runs --help sees start as a command with the on|off run flags under it, then the watch and hunt commands', async () => {
+test('a user who runs --help sees the npx usage line first, start as a command with the on|off run flags under it, then the watch and hunt commands', async () => {
   const { stdout } = await promisify(execFile)(process.execPath, [CLI, '--help']);
-  assert.match(stdout, /^next-issue <command> \[options\]$/m);
+  assert.match(stdout, /^npx -y next-issue@latest <command> \[options\]\n/);
   assert.match(
     stdout,
     /^ {2}start {13}.*\n {4}--watch on\|off {2}.*default on.*\n {4}--hunt on\|off {3}.*default off.*\n {2}watch on\|off {6}.*\n {2}hunt on\|off {7}.*\n {2}init /m,

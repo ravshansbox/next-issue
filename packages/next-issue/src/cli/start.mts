@@ -20,7 +20,7 @@ const REFUSED_GOING = [
 const SILENT = 'the next-issue worker did not answer';
 
 const STARTED =
-  'next-issue: the run started in the worker; follow it with next-issue logs and stop it with next-issue stop\n';
+  'next-issue: the run started in the worker; follow it with npx -y next-issue@latest logs and stop it with npx -y next-issue@latest stop\n';
 
 export async function startInWorker(root: string, argv: string[]): Promise<string> {
   const version = await packageVersion();

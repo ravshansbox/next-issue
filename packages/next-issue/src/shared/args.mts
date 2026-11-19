@@ -30,7 +30,7 @@ const RUN_FLAGS = new Map<string, RunFlag>([
 
 const COMMANDS: Command[] = ['start', 'init', 'serve', 'stop', 'status', 'logs', 'watch', 'hunt'];
 
-export const USAGE = `next-issue <command> [options]
+export const USAGE = `npx -y next-issue@latest <command> [options]
 
   start             start a run: claim issues, fix them and push them to the base branch
     --watch on|off  on: read the issues again after each pass; off: do one pass and end (default on)
@@ -55,7 +55,7 @@ export function parseArgs(argv: string[]): Args {
   }
   if (args.command === undefined && flag !== undefined) {
     throw new Error(
-      'no command given: use next-issue start to start a run, or see next-issue --help',
+      'no command given: use npx -y next-issue@latest start to start a run, or see npx -y next-issue@latest --help',
     );
   }
   if (args.command !== undefined && args.command !== 'start' && runFlag !== undefined) {

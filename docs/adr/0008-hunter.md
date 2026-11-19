@@ -27,7 +27,7 @@ An agent reads the repository for bugs and files issues that are ready to claim.
 
 Option A.
 
-- Hunting is off by default. `--hunt on` or `next-issue hunt on` turns it on, and it needs watching.
+- Hunting is off by default. `--hunt on` or `npx -y next-issue@latest hunt on` turns it on, and it needs watching.
 - The hunter hunts only while fewer than `huntCap` ready issues wait, and files at most enough to reach it.
 - It follows `next-issue.hunt.md` in the repository root, or a built-in prompt.
 - The built-in prompt files only high-severity bugs that a user hits in normal use, and proposes to remove or simplify code that an earlier fix added instead of adding another guard, so the hunter does not file rare edge cases or grow the code it hunts.

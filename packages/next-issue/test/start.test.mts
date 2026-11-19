@@ -92,7 +92,7 @@ function withoutExcludeNotes(text: string): string {
 }
 
 const STARTED =
-  'next-issue: the run started in the worker; follow it with next-issue logs and stop it with next-issue stop\n';
+  'next-issue: the run started in the worker; follow it with npx -y next-issue@latest logs and stop it with npx -y next-issue@latest stop\n';
 
 test('a user who runs start sees one line that the run started naming logs and stop, nothing on stdout, exit code 0 and the run keep going in the worker', async (t) => {
   const root = await repository(ORIGIN);

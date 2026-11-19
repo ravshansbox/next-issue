@@ -179,7 +179,9 @@ export async function moveOldConfig(root: string, force: boolean): Promise<strin
 
 export async function rejectOldConfig(root: string): Promise<void> {
   if ((await readTextIfPresent(join(root, OLD_CONFIG_FILE))) !== undefined) {
-    throw new Error(`${OLD_CONFIG_FILE} moved to ${CONFIG_FILE}. Run next-issue init to move it.`);
+    throw new Error(
+      `${OLD_CONFIG_FILE} moved to ${CONFIG_FILE}. Run npx -y next-issue@latest init to move it.`,
+    );
   }
 }
 

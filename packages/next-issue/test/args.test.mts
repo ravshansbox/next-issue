@@ -97,12 +97,12 @@ test('a user who passes no argument gets no command', () => {
   assert.equal(parseArgs([]).command, undefined);
 });
 
-test('a user who passes a run flag with no command gets an error that says to use next-issue start', () => {
+test('a user who passes a run flag with no command gets an error that says to use npx -y next-issue@latest start', () => {
   for (const argv of [
     ['--watch', 'on'],
     ['--hunt', 'on'],
   ]) {
-    assert.throws(() => parseArgs(argv), /no command given: use next-issue start/);
+    assert.throws(() => parseArgs(argv), /no command given: use npx -y next-issue@latest start/);
   }
 });
 
