@@ -4,8 +4,13 @@ export type Upgrade = { from: string; to: string; resumes?: boolean };
 
 export type Launch = { command: string; args: string[] };
 
+export type IssueStep = 'implementing' | 'reviewing' | 'fixing' | 'landing' | 'waiting-for-checks';
+
+export type RunningIssue = { issue: number; step?: IssueStep; round?: number };
+
 export type Progress = {
   status: RunStatus;
+  issues: RunningIssue[];
   hunting: boolean;
   watching?: boolean;
   upgrade?: Upgrade;
