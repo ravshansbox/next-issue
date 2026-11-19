@@ -53,12 +53,8 @@ async function main(): Promise<number> {
   if (args.command === 'serve') {
     return serve(root);
   }
-  return run(root, args, argv);
-}
-
-function run(root: string, args: Args, argv: string[]): Promise<number> {
-  process.stderr.on('error', () => {});
-  return startInWorker(root, args, argv.slice(1));
+  await write(process.stderr, await startInWorker(root, argv.slice(1)));
+  return 0;
 }
 
 async function logs(root: string): Promise<number> {

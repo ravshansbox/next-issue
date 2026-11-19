@@ -193,10 +193,10 @@ export async function reachWorker(root: string, version: string): Promise<Connec
   }
 }
 
-function startedRun(found: Connection, root: string): Promise<void> {
+export function startedRun(found: Connection, root: string, id?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(
-      () => reject(new Error('the newer worker did not start the run')),
+      () => reject(new Error('the worker did not start the run')),
       ANSWER_TIMEOUT_MS,
     );
     const settle = (error?: Error): void => {
@@ -210,7 +210,7 @@ function startedRun(found: Connection, root: string): Promise<void> {
     found.listen((message) => {
       if (message.type === 'runs' && going(message.runs[root])) {
         settle();
-      } else if (message.type === 'error' && message.root === root) {
+      } else if (message.type === 'error' && message.root === root && message.id === id) {
         settle(new Error(message.message));
       }
     });
@@ -229,21 +229,6 @@ export async function resumeOnSuccessor(root: string, how: Launch, args: string[
   } finally {
     found.close();
   }
-}
-
-export async function rejoinRun(root: string): Promise<Connection | undefined> {
-  const { socketPath } = workerPaths(root);
-  const deadline = Date.now() + START_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    const found = await tryOpen(socketPath);
-    if (found?.runs[root] !== undefined) {
-      found.send({ type: 'rejoin', root });
-      return found;
-    }
-    found?.close();
-    await delay(POLL_MS);
-  }
-  return undefined;
 }
 
 export function findWorker(root: string): Promise<Connection | undefined> {

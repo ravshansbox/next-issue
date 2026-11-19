@@ -36,7 +36,7 @@ Run the harness inside a git repository:
 npx -y next-issue@latest start
 ```
 
-Give an issue the `status:todo` label to have it picked up. See [Issue format](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#issue-format) for how to write one. Press `Ctrl-C` to stop the run, see [Stop a run](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#stop-a-run).
+Give an issue the `status:todo` label to have it picked up. See [Issue format](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#issue-format) for how to write one. `start` exits once the run has started in the worker. Follow the run with `npx -y next-issue@latest logs` and stop it with `npx -y next-issue@latest stop`, see [Stop a run](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#stop-a-run).
 
 ### Skills for Claude Code
 

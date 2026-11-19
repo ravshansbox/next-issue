@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import {
   access,
   appendFile,
@@ -128,32 +129,17 @@ test('a user who runs another command with a root next-issue.config.json gets an
   );
 });
 
-test('a user who runs --watch with no open issue sees one wait of 1 minute and no summary after Ctrl-C', async (t) => {
-  const root = await repository('https://github.com/acme/watch.git');
-  const child = spawn(process.execPath, [CLI, 'start', '--watch', 'on'], {
-    cwd: root,
-    env: await idleGh(t),
-  });
-  let stdout = '';
-  let stderr = '';
-  child.stdout.on('data', (chunk) => (stdout += chunk));
-  child.stderr.on('data', (chunk) => (stderr += chunk));
-  const exited = new Promise<number | null>((resolve) => child.on('exit', resolve));
-  while (!stderr.includes('watch.wait')) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  child.kill('SIGINT');
-  assert.equal(await exited, 0);
-  assert.deepEqual(
-    stderr
-      .split('\n')
-      .filter((line) => line.includes('watch.wait'))
-      .map((line) => line.replace(/^\S+ /, '')),
-    ['watch.wait minutes=1'],
-  );
-  assert.match(stderr, /Stopping now\./);
-  assert.equal(stdout, '');
+test('a user who starts a watch run with no open issue sees start exit with 0 and one wait of 1 minute in the worker log', async (t) => {
+  const root = await repository();
+  await watchingRun(t, root);
+  const waits = readFileSync(workerPaths(root).logPath, 'utf8')
+    .split('\n')
+    .filter((line) => line.includes('watch.wait'))
+    .map((line) => line.replace(/^\S+ /, ''));
+  assert.deepEqual(waits, ['watch.wait minutes=1']);
 });
+
+const STARTED = /next-issue: the run started in the worker/;
 
 const RUN_GOING = /next-issue failed: a run is going in this repository already/;
 
@@ -187,17 +173,14 @@ async function watchingRun(t: TestContext, root: string) {
   await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/watch.git'], {
     cwd: root,
   });
-  const child = spawn(process.execPath, [CLI, 'start', '--watch', 'on'], {
-    cwd: root,
-    env: await idleGh(t),
+  const env = await idleGh(t);
+  await promisify(execFile)(process.execPath, [CLI, 'start', '--watch', 'on'], { cwd: root, env });
+  t.after(async () => {
+    await promisify(execFile)(process.execPath, [CLI, 'stop'], { cwd: root });
+    assert.equal(await gone(workerPaths(root).lockPath), true);
   });
-  let stderr = '';
-  child.stderr.on('data', (chunk) => (stderr += chunk));
-  const exited = new Promise<number | null>((resolve) => child.on('exit', resolve));
-  while (!stderr.includes('watch.wait')) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  return { child, exited, stderr: () => stderr };
+  const log = workerPaths(root).logPath;
+  await until(() => readFileSync(log, 'utf8').includes('watch.wait'), 'the wait after the pass');
 }
 
 test('a user who runs refresh sees an unknown command error and exit code 1', async () => {
@@ -210,10 +193,7 @@ test('a user who runs refresh sees an unknown command error and exit code 1', as
 test('a user who starts a run without init gets .next-issue/ and .worktrees/ in info/exclude, out of .gitignore, and no config file', async (t) => {
   const root = await repository();
   await writeFile(join(root, '.gitignore'), 'node_modules/\n.next-issue/\n');
-  const { child, exited } = await watchingRun(t, root);
-  t.after(() => child.kill('SIGKILL'));
-  child.kill('SIGINT');
-  assert.equal(await exited, 0);
+  await watchingRun(t, root);
   const exclude = await readFile(join(root, '.git/info/exclude'), 'utf8');
   assert.match(exclude, /^\.next-issue\/$/m);
   assert.match(exclude, /^\.worktrees\/$/m);
@@ -231,29 +211,10 @@ test('a user who starts the worker without init gets .next-issue/ and .worktrees
   assert.equal(exclude.split('\n').filter((line) => line === '.worktrees/').length, 1);
 });
 
-test('a user whose stderr reader exits before Ctrl-C sees the run stop with exit code 0 and a run.end event in the run log', async (t) => {
-  const root = await repository();
-  const { child, exited } = await watchingRun(t, root);
-  t.after(() => child.kill('SIGKILL'));
-  child.stderr.destroy();
-  await new Promise((resolve) => setTimeout(resolve, 200));
-  child.kill('SIGINT');
-  assert.equal(await exited, 0);
-  const [log] = (await readdir(runsDir(root))).filter((name) => name.endsWith('.jsonl'));
-  const kinds = (await readFile(join(runsDir(root), log), 'utf8'))
-    .trim()
-    .split('\n')
-    .map((line) => JSON.parse(line).kind);
-  assert.equal(kinds.at(-1), 'run.end');
-});
-
 test('a user who runs next-issue while another run of start is going in the repository sees that a run is going, exit code 1 and no issue read', async (t) => {
   const root = await repository();
-  const { child, exited } = await watchingRun(t, root);
-  t.after(() => child.kill('SIGKILL'));
+  await watchingRun(t, root);
   assert.match(await refusedRun(t, root), RUN_GOING);
-  child.kill('SIGINT');
-  assert.equal(await exited, 0);
 });
 
 test('a user who runs next-issue while the worker has a run going sees that a run is going, exit code 1 and no issue read', async (t) => {
@@ -325,10 +286,8 @@ test('a user who serves the repository while another process holds worker.lock s
 });
 
 async function singleRun(root: string) {
-  return promisify(execFile)(process.execPath, [CLI, 'start'], { cwd: root }).then(
-    () => '',
-    (failure: { stderr: string }) => failure.stderr,
-  );
+  const { stderr } = await promisify(execFile)(process.execPath, [CLI, 'start'], { cwd: root });
+  return stderr;
 }
 
 async function gone(path: string): Promise<boolean> {
@@ -340,8 +299,18 @@ async function gone(path: string): Promise<boolean> {
 
 test('a user whose run ends finds no worker.lock left in the repository once the worker it started closes', async () => {
   const root = await repository();
-  assert.match(await singleRun(root), /No such remote 'origin'/);
+  assert.match(await singleRun(root), STARTED);
   assert.equal(await gone(workerPaths(root).lockPath), true);
+});
+
+test('a user who starts a run in a repository with no origin finds the error of the run in the worker log once the worker closes', async () => {
+  const root = await repository();
+  await singleRun(root);
+  assert.equal(await gone(workerPaths(root).lockPath), true);
+  assert.match(
+    await readFile(workerPaths(root).logPath, 'utf8'),
+    /next-issue failed: .*No such remote 'origin'/,
+  );
 });
 
 test('a user who runs next-issue over a worker.lock that a dead process left takes it over and leaves no worker.lock', async () => {
@@ -352,7 +321,7 @@ test('a user who runs next-issue over a worker.lock that a dead process left tak
   await writeFile(workerPaths(root).lockPath, `${dead.pid} gone\n`);
   const stderr = await singleRun(root);
   assert.doesNotMatch(stderr, /exited before it listened/);
-  assert.match(stderr, /No such remote 'origin'/);
+  assert.match(stderr, STARTED);
   assert.equal(await gone(workerPaths(root).lockPath), true);
 });
 
@@ -770,22 +739,6 @@ async function oldGit(
 }
 
 const OLD_GIT = /git 2\.39\.5 is too old: next-issue needs git 2\.40 or later/;
-
-test('a user who runs next-issue on git 2.39 sees an error that names the found and needed git versions, exit code 1 and no issue read', async (t) => {
-  const root = await repository();
-  await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/old.git'], { cwd: root });
-  const { env, called } = await oldGit(t, '2.39.5');
-  const error = await promisify(execFile)(process.execPath, [CLI, 'start'], {
-    cwd: root,
-    env,
-  }).then(
-    () => undefined,
-    (failure: { code: number; stderr: string }) => failure,
-  );
-  assert.equal(error?.code, 1);
-  assert.match(error?.stderr ?? '', OLD_GIT);
-  assert.equal(await exists(called), false);
-});
 
 test('a user who starts a run in the worker on git 2.39 sees the run end with an error that names the git versions and no issue read', async (t) => {
   const root = await realpath(await repository());

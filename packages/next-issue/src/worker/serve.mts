@@ -229,6 +229,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
           });
         },
         (error: unknown) => {
+          process.stderr.write(`next-issue failed: ${message(error)}\n`);
           update({ ...run.progress, status: 'failed', error: message(error) });
           return ended({ type: 'end', root, code: 1, error: message(error) });
         },
