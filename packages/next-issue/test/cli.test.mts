@@ -52,13 +52,13 @@ async function exists(path: string): Promise<boolean> {
   );
 }
 
-test('a user who runs init gets .next-issue/ and .worktrees/ once in info/exclude and no .gitignore', async () => {
+test('a user who runs init gets .next-issue/ and .claude/worktrees/ once in info/exclude and no .gitignore', async () => {
   const root = await repository();
   await initCommand(root);
   await initCommand(root).catch(() => undefined);
   const exclude = await readFile(join(root, '.git/info/exclude'), 'utf8');
   assert.equal(exclude.split('\n').filter((line) => line === '.next-issue/').length, 1);
-  assert.equal(exclude.split('\n').filter((line) => line === '.worktrees/').length, 1);
+  assert.equal(exclude.split('\n').filter((line) => line === '.claude/worktrees/').length, 1);
   assert.equal(await exists(join(root, '.gitignore')), false);
 });
 
@@ -68,21 +68,34 @@ test('a user who runs init in a linked worktree gets the entries in the shared i
   await initCommand(linked);
   const exclude = await readFile(join(root, '.git/info/exclude'), 'utf8');
   assert.match(exclude, /^\.next-issue\/$/m);
-  assert.match(exclude, /^\.worktrees\/$/m);
+  assert.match(exclude, /^\.claude\/worktrees\/$/m);
   assert.equal(await exists(join(root, '.next-issue/config.json')), true);
   assert.equal(await exists(join(linked, '.next-issue')), false);
 });
 
-test('a user who runs init sees .next-issue/ and .worktrees/ removed from .gitignore and other lines kept', async () => {
+test('a user who runs init sees .next-issue/ and .claude/worktrees/ removed from .gitignore and other lines kept', async () => {
   const root = await repository();
-  await writeFile(join(root, '.gitignore'), 'node_modules/\n.next-issue/\n  dist/\n.worktrees/\n');
+  await writeFile(
+    join(root, '.gitignore'),
+    'node_modules/\n.next-issue/\n  dist/\n.claude/worktrees/\n',
+  );
   await initCommand(root);
   assert.equal(await readFile(join(root, '.gitignore'), 'utf8'), 'node_modules/\n  dist/\n');
 });
 
+test('a user who runs init keeps an old .worktrees/ line in info/exclude and .gitignore and gets no new one', async () => {
+  const root = await repository();
+  await appendFile(join(root, '.git/info/exclude'), '.worktrees/\n');
+  await writeFile(join(root, '.gitignore'), '.worktrees/\n');
+  await initCommand(root);
+  const exclude = await readFile(join(root, '.git/info/exclude'), 'utf8');
+  assert.equal(exclude.split('\n').filter((line) => line === '.worktrees/').length, 1);
+  assert.equal(await readFile(join(root, '.gitignore'), 'utf8'), '.worktrees/\n');
+});
+
 test('a user who runs init sees a .gitignore deleted when only next-issue entries were in it', async () => {
   const root = await repository();
-  await writeFile(join(root, '.gitignore'), '.next-issue/\n.worktrees/\n');
+  await writeFile(join(root, '.gitignore'), '.next-issue/\n.claude/worktrees/\n');
   await initCommand(root);
   assert.equal(await exists(join(root, '.gitignore')), false);
 });
@@ -104,7 +117,7 @@ test('a user who runs init gets the config at .next-issue/config.json and output
   assert.equal(await exists(join(root, 'next-issue.config.json')), false);
   assert.match(stdout, /\.next-issue\/config\.json/);
   assert.match(stdout, /added \.next-issue\/ to .*info\/exclude/);
-  assert.match(stdout, /added \.worktrees\/ to .*info\/exclude/);
+  assert.match(stdout, /added \.claude\/worktrees\/ to .*info\/exclude/);
 });
 
 test('a user who runs init with a root next-issue.config.json sees it moved to .next-issue/config.json', async () => {
@@ -201,25 +214,25 @@ test('a user who runs refresh sees an unknown command error and exit code 1', as
   assert.match(error?.stderr ?? '', /Unknown command: refresh/);
 });
 
-test('a user who starts a run without init gets .next-issue/ and .worktrees/ in info/exclude, out of .gitignore, and no config file', async (t) => {
+test('a user who starts a run without init gets .next-issue/ and .claude/worktrees/ in info/exclude, out of .gitignore, and no config file', async (t) => {
   const root = await repository();
   await writeFile(join(root, '.gitignore'), 'node_modules/\n.next-issue/\n');
   await watchingRun(t, root);
   const exclude = await readFile(join(root, '.git/info/exclude'), 'utf8');
   assert.match(exclude, /^\.next-issue\/$/m);
-  assert.match(exclude, /^\.worktrees\/$/m);
+  assert.match(exclude, /^\.claude\/worktrees\/$/m);
   assert.equal(await readFile(join(root, '.gitignore'), 'utf8'), 'node_modules/\n');
   assert.equal(await exists(join(root, '.next-issue/config.json')), false);
 });
 
-test('a user who starts the worker without init gets .next-issue/ and .worktrees/ once in info/exclude', async (t) => {
+test('a user who starts the worker without init gets .next-issue/ and .claude/worktrees/ once in info/exclude', async (t) => {
   const root = await repository();
-  await appendFile(join(root, '.git/info/exclude'), '.worktrees/\n');
+  await appendFile(join(root, '.git/info/exclude'), '.claude/worktrees/\n');
   const { child } = await serveWorker(root);
   t.after(() => child.kill('SIGKILL'));
   const exclude = await readFile(join(root, '.git/info/exclude'), 'utf8');
   assert.equal(exclude.split('\n').filter((line) => line === '.next-issue/').length, 1);
-  assert.equal(exclude.split('\n').filter((line) => line === '.worktrees/').length, 1);
+  assert.equal(exclude.split('\n').filter((line) => line === '.claude/worktrees/').length, 1);
 });
 
 test('a user who runs next-issue start while another run of start is going in the repository sees the status of that run, exit code 0 and no issue read', async (t) => {

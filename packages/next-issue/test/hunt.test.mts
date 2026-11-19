@@ -256,7 +256,7 @@ test('a user who hunts gets a worktree at the remote base', async () => {
   const pushed = await commit(other, 'b.txt');
   await git(other, 'push', '-q', 'origin', 'main');
   const path = await huntWorktree(repo, 'main', 'origin');
-  assert.equal(path, join(repo.root, '.worktrees', 'hunt'));
+  assert.equal(path, join(repo.root, '.claude', 'worktrees', 'hunt'));
   assert.equal(await revision(path), pushed);
 });
 

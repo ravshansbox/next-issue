@@ -47,7 +47,7 @@ async function stoppedFixLanding(
   if (stop.hook === true) {
     await git(repo.root, 'config', '--unset', 'core.hooksPath');
   }
-  await git(join(repo.root, '.worktrees', '7'), 'rev-parse', '--verify', 'MERGE_HEAD');
+  await git(join(repo.root, '.claude', 'worktrees', '7'), 'rev-parse', '--verify', 'MERGE_HEAD');
   return { root: repo.root, other };
 }
 

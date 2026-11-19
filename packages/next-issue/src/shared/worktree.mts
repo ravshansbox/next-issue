@@ -21,7 +21,7 @@ type Worktree = {
   branchUpdated: boolean;
 };
 
-export const WORKTREE_DIR = '.worktrees';
+export const WORKTREE_DIR = '.claude/worktrees';
 
 export function huntPath(repo: Repo): string {
   return join(repo.root, WORKTREE_DIR, 'hunt');

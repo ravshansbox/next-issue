@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { branchName, isDirty, revision } from '../src/shared/git.mts';
@@ -117,11 +117,22 @@ test('a user who resumes issue 3 whose local branch has no work of its own gets 
   assert.equal(await git(path, 'branch', '--show-current'), '3');
 });
 
-test('a user who starts issue 3 gets branch 3 in .worktrees/3 under the repository root', async () => {
+test('a user who starts issue 3 gets branch 3 in .claude/worktrees/3 under the repository root', async () => {
   const { repo } = await clones();
   const { path } = await addWorktree(repo, 3, branchName(3), 'main', 'origin', true);
-  assert.equal(path, join(repo.root, '.worktrees', '3'));
+  assert.equal(path, join(repo.root, '.claude', 'worktrees', '3'));
   assert.equal(await git(path, 'branch', '--show-current'), '3');
+});
+
+test('a user who resumes issue 3 while its worktree is still in .worktrees/3 gets the work in that worktree', async () => {
+  const { repo } = await clones();
+  const old = join(repo.root, '.worktrees', '3');
+  await git(repo.root, 'worktree', 'add', '-q', '-b', '3', old, 'origin/main');
+  const kept = await commit(old, 'kept.txt');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  assert.equal(path, await realpath(old));
+  assert.equal(await revision(path), kept);
+  assert.equal(existsSync(join(repo.root, '.claude', 'worktrees', '3')), false);
 });
 
 test('a user who resumes issue 3 on a saved branch gets that branch in the worktree', async () => {
@@ -137,10 +148,10 @@ test('a user who resumes issue 3 while its old worktree holds the saved branch w
   const { path } = await addWorktree(repo, 3, 'issue-3', 'main', 'origin', false);
   assert.equal(path, await findWorktree(repo, 'issue-3'));
   assert.equal(await git(path, 'branch', '--show-current'), 'issue-3');
-  assert.equal(existsSync(join(repo.root, '.worktrees', '3')), false);
+  assert.equal(existsSync(join(repo.root, '.claude', 'worktrees', '3')), false);
 });
 
-test('a user who resumes issue 3 while .worktrees/3 is left detached gets branch 3 back in it', async () => {
+test('a user who resumes issue 3 while .claude/worktrees/3 is left detached gets branch 3 back in it', async () => {
   const { repo } = await clones();
   const { path: first } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   await git(first, 'config', 'user.name', 't');
@@ -154,14 +165,14 @@ test('a user who resumes issue 3 while .worktrees/3 is left detached gets branch
   assert.equal(await revision(path), kept);
 });
 
-test('a user who resumes issue 3 while the hunt worktree holds branch 3 gets the work in .worktrees/3', async () => {
+test('a user who resumes issue 3 while the hunt worktree holds branch 3 gets the work in .claude/worktrees/3', async () => {
   const { repo } = await clones();
   const hunt = await huntWorktree(repo, 'main', 'origin');
   await git(hunt, 'checkout', '-q', '-b', '3');
   const kept = await commit(hunt, 'kept.txt');
   assert.equal(await findWorktree(repo, '3'), undefined);
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
-  assert.equal(path, join(repo.root, '.worktrees', '3'));
+  assert.equal(path, join(repo.root, '.claude', 'worktrees', '3'));
   assert.equal(await git(path, 'branch', '--show-current'), '3');
   assert.equal(await revision(path), kept);
   assert.equal(await git(hunt, 'branch', '--show-current'), '');
@@ -178,7 +189,7 @@ test('a user whose main worktree holds branch 3 with changes keeps them when iss
   assert.equal(await revision(repo.root), head);
   assert.equal(await readFile(join(repo.root, 'mine.txt'), 'utf8'), 'edited\n');
   assert.equal(existsSync(join(repo.root, 'untracked.txt')), true);
-  assert.equal(existsSync(join(repo.root, '.worktrees', '3')), false);
+  assert.equal(existsSync(join(repo.root, '.claude', 'worktrees', '3')), false);
 });
 
 test('a user whose main worktree holds branch 3 never gets it as the worktree of a resumed issue 3', async () => {
