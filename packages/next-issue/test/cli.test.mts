@@ -614,6 +614,11 @@ test('a user who runs --help sees the logs command', async () => {
   assert.match(stdout, /^ {2}logs {14}show the latest run log and follow it$/m);
 });
 
+test('a user who runs --help does not see the internal serve command', async () => {
+  const { stdout } = await promisify(execFile)(process.execPath, [CLI, '--help']);
+  assert.doesNotMatch(stdout, /serve/);
+});
+
 function cliFails(args: string[], options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}) {
   return promisify(execFile)(process.execPath, [CLI, ...args], options).then(
     () => undefined,

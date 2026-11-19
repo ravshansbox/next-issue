@@ -312,7 +312,6 @@ Claude does not implement the issue in that session. The worker does the work. T
 | `watch on\|off`         | Switch watching of the going run, see [Watch for new issues](#watch-for-new-issues)                                                        |
 | `hunt on\|off`          | Switch hunting of the going run, see [Hunt for bugs](#hunt-for-bugs)                                                                       |
 | `init`                  | Write the config file with the defaults                                                                                                    |
-| `serve`                 | Run the worker of this repository that the clients talk to, see [Worker](#worker)                                                          |
 | `stop`                  | Stop the going run after its current issues, see [Worker](#worker)                                                                         |
 | `logs`                  | Show the latest run log and follow it, see [Observability](#observability)                                                                 |
 | `update`                | Install the `create-issue` and `answer-hand-over` skills for Claude Code, see [Skills](#skills)                                            |
@@ -369,7 +368,7 @@ In a run of the `serve` worker, a client can switch hunting and watching on or o
 
 ## Worker
 
-`next-issue serve` runs one worker for the repository it is run in. `next-issue start` starts it and talks to it. `serve` takes no flags apart from `--help` and refuses any other with an error, because runs start from a client, not from `serve`. Each repository has its own worker, so the runs, restarts and upgrades of one repository never affect another. The worker:
+`next-issue serve` is the internal command that runs the worker of the repository it is run in. `next-issue start` and worker upgrades launch it, and `start` talks to it, so people do not need to run it. `--help` and the README do not list it. `serve` takes no flags apart from `--help` and refuses any other with an error, because runs start from a client, not from `serve`. Each repository has its own worker, so the runs, restarts and upgrades of one repository never affect another. The worker:
 
 - listens with WebSocket on the socket file `.next-issue/worker.sock` in the repository. Only your user can open the file. It works on macOS and Linux. When the path of the socket file is too long for the system, about 103 bytes on macOS and 107 on Linux, it exits with an error that says so;
 - answers a plain HTTP request on the socket file with status 426 (`Upgrade Required`) and nothing else, since it talks WebSocket only;

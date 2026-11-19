@@ -91,7 +91,6 @@ A field that is not in the file keeps its default. See [Configuration](https://g
 | `watch on\|off`         | Switch watching of the going run                                           |
 | `hunt on\|off`          | Switch hunting of the going run                                            |
 | `init`                  | Write the config file with the defaults                                    |
-| `serve`                 | Run the worker of this repository that the clients talk to                 |
 | `stop`                  | Stop the going run after its current issues                                |
 | `logs`                  | Show the latest run log and follow it                                      |
 | `update`                | Install the `create-issue` and `answer-hand-over` skills for Claude Code   |
