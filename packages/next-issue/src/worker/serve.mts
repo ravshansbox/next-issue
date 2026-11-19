@@ -2,7 +2,7 @@ import { mkdir, rename, rm } from 'node:fs/promises';
 import { createServer, STATUS_CODES } from 'node:http';
 import { basename, dirname, join } from 'node:path';
 import { WebSocketServer } from 'ws';
-import { type Args, parseStartArgs } from '../shared/args.mts';
+import { type Args, givenStartFlags, parseStartArgs } from '../shared/args.mts';
 import { stopChildren, withRunChildren } from '../shared/children.mts';
 import { message } from '../shared/errors.mts';
 import { lock } from '../shared/lock.mts';
@@ -19,6 +19,7 @@ import {
   active,
   dropUpgrade,
   endStatus,
+  joinRun,
   newRun,
   requestStop,
   requestUpgrade,
@@ -145,8 +146,36 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     upgradeBetweenIssues(run, true);
   };
 
-  const start = (refuse: Refuse, root: string, argv: string[], resume: boolean): void => {
-    const refusal = startRefusal(runs.get(root), restart !== undefined);
+  const joinGoing = (socket: Peer, refuse: Refuse, run: Run, argv: string[], id?: string): void => {
+    let refusal: string | undefined;
+    try {
+      refusal = joinRun(run, givenStartFlags(argv));
+    } catch (error) {
+      refusal = message(error);
+    }
+    if (refusal !== undefined) {
+      refuse(refusal);
+      return;
+    }
+    broadcast(sockets, runs);
+    upgradeBetweenIssues(run);
+    send(socket, runsMessage(runs, id));
+  };
+
+  const start = (
+    socket: Peer,
+    refuse: Refuse,
+    root: string,
+    argv: string[],
+    resume: boolean,
+    id?: string,
+  ): void => {
+    const going = runs.get(root);
+    if (active(going) && !resume) {
+      joinGoing(socket, refuse, going!, argv, id);
+      return;
+    }
+    const refusal = startRefusal(going, restart !== undefined);
     if (refusal !== undefined) {
       if (!resume) {
         refuse(refusal);
@@ -256,7 +285,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     } else if (value.root !== options.root) {
       refuse(`the worker serves ${options.root} only`);
     } else if (value.type === 'start') {
-      start(refuse, value.root, value.args ?? [], value.resume === true);
+      start(socket, refuse, value.root, value.args ?? [], value.resume === true, value.id);
     } else if (value.type === 'stop') {
       stop(socket, refuse, value.root, value.after, value.id);
     } else if (value.type === 'hunt') {

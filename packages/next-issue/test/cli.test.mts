@@ -144,8 +144,6 @@ test('a user who starts a watch run with no open issue sees start exit with 0 an
 
 const STARTED = /next-issue: the run started in the worker/;
 
-const RUN_GOING = /next-issue failed: a run is going in this repository already/;
-
 const HELD =
   /next-issue failed: the next-issue worker exited before it listened: exit code 1 \(see \.next-issue\/worker\.log\)/;
 
@@ -214,31 +212,15 @@ test('a user who starts the worker without init gets .next-issue/ and .worktrees
   assert.equal(exclude.split('\n').filter((line) => line === '.worktrees/').length, 1);
 });
 
-test('a user who runs next-issue while another run of start is going in the repository sees that a run is going, exit code 1 and no issue read', async (t) => {
+test('a user who runs next-issue start while another run of start is going in the repository sees the status of that run, exit code 0 and no issue read', async (t) => {
   const root = await repository();
   await watchingRun(t, root);
-  assert.match(await refusedRun(t, root), RUN_GOING);
-});
-
-test('a user who runs next-issue while the worker has a run going sees that a run is going, exit code 1 and no issue read', async (t) => {
-  const root = await realpath(await repository());
-  await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/watch.git'], {
-    cwd: root,
-  });
-  const { child } = await serveWorker(root, await idleGh(t));
-  t.after(() => child.kill('SIGKILL'));
-  const client = await connect(t, workerPaths(root).socketPath);
-  client.send({ type: 'start', root, args: ['--watch', 'on'] });
-  await client.next(
-    (value) =>
-      value.type === 'runs' &&
-      value.runs[root]?.status === 'running' &&
-      value.runs[root].error === undefined,
-  );
-  assert.match(await refusedRun(t, root), RUN_GOING);
-  client.send({ type: 'start', root });
-  const refusal = await client.next((value) => value.type === 'error');
-  assert.equal(refusal.type === 'error' && refusal.root, root);
+  const bin = await tempDir();
+  const called = join(bin, 'called');
+  await installGh(t, bin, `#!/bin/sh\ntouch "${called}"\nexit 1\n`);
+  const { stderr } = await promisify(execFile)(process.execPath, [CLI, 'start'], { cwd: root });
+  assert.match(stderr, /^next-issue: the run is running in worker .*\nwatching on, hunting off\n/m);
+  assert.equal(await exists(called), false);
 });
 
 test('a user who runs next-issue in a linked worktree while a process that does not listen holds worker.lock of the main worktree sees that the worker it started exited, exit code 1 and no issue read', async (t) => {

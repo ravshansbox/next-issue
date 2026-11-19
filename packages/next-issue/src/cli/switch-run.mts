@@ -44,7 +44,7 @@ async function inWorker(
   }
 }
 
-function switched(
+export function switched(
   connection: Connection,
   root: string,
   name: SwitchName,
@@ -85,20 +85,22 @@ export function stopInWorker(root: string): Promise<string> {
 }
 
 export function statusInWorker(root: string): Promise<string> {
-  return inWorker(root, async (connection, progress) => {
-    const lines = [
-      `next-issue: the run is ${progress.status} in worker ${connection.version}`,
-      `watching ${onOffText(progress.watching)}, hunting ${onOffText(progress.hunting)}`,
-    ];
-    if (progress.upgrade !== undefined) {
-      lines.push(`stopping for an upgrade to ${progress.upgrade.to}`);
-    }
-    if (progress.issues.length === 0) {
-      lines.push('no issue is running');
-    }
-    lines.push(...progress.issues.map(issueLine));
-    return `${lines.join('\n')}\n`;
-  });
+  return inWorker(root, async (connection, progress) => statusText(connection.version, progress));
+}
+
+export function statusText(version: string, progress: Progress): string {
+  const lines = [
+    `next-issue: the run is ${progress.status} in worker ${version}`,
+    `watching ${onOffText(progress.watching)}, hunting ${onOffText(progress.hunting)}`,
+  ];
+  if (progress.upgrade !== undefined) {
+    lines.push(`stopping for an upgrade to ${progress.upgrade.to}`);
+  }
+  if (progress.issues.length === 0) {
+    lines.push('no issue is running');
+  }
+  lines.push(...progress.issues.map(issueLine));
+  return `${lines.join('\n')}\n`;
 }
 
 function issueLine({ issue, step, round }: RunningIssue): string {

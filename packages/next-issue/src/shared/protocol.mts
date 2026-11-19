@@ -63,7 +63,7 @@ export type ClientMessage =
 
 export type WorkerMessage =
   | { type: 'hello'; version: string }
-  | { type: 'runs'; runs: Record<string, Progress> }
+  | { type: 'runs'; runs: Record<string, Progress>; id?: string }
   | { type: 'output'; root: string; text: string }
   | { type: 'end'; root: string; code: number; summary?: RunSummary; error?: string }
   | { type: 'pass'; root: string; summary: RunSummary }

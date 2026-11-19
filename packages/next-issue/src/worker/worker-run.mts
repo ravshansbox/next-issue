@@ -53,11 +53,30 @@ export function startRefusal(run: Run | undefined, restart: boolean): string | u
   return undefined;
 }
 
-export function runsMessage(runs: Map<string, Run>): WorkerMessage {
+export function runsMessage(runs: Map<string, Run>, id?: string): WorkerMessage {
   return {
     type: 'runs',
     runs: Object.fromEntries([...runs].map(([root, run]) => [root, run.progress])),
+    ...(id === undefined ? {} : { id }),
   };
+}
+
+export function joinRun(run: Run, given: { watch?: boolean; hunt?: boolean }): string | undefined {
+  if (run.stoppedByPerson === true) {
+    if (run.stop !== 'issue') {
+      return 'the run is stopping';
+    }
+    run.stop = undefined;
+    run.stoppedByPerson = false;
+    run.progress = { ...run.progress, status: 'running' };
+  }
+  if (given.watch !== undefined) {
+    setWatching(run, given.watch);
+  }
+  if (given.hunt !== undefined) {
+    setHunting(run, given.hunt);
+  }
+  return undefined;
 }
 
 export function stopPoint(after: unknown): StopPoint | undefined {

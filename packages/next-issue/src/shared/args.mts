@@ -87,7 +87,14 @@ function scopeValue(value: string | undefined): Scope {
   return value;
 }
 
-function readArgs(passed: string[]): { args: Args; flag?: string; runFlag?: string } {
+type RunFlags = Partial<Record<RunFlag, boolean>>;
+
+function readArgs(passed: string[]): {
+  args: Args;
+  flag?: string;
+  runFlag?: string;
+  given: RunFlags;
+} {
   const argv = passed[0] === '--help' ? [...passed.slice(1), '--help'] : passed;
   const args: Args = {
     help: false,
@@ -95,7 +102,7 @@ function readArgs(passed: string[]): { args: Args; flag?: string; runFlag?: stri
     watch: true,
     hunt: false,
   };
-  const given: Partial<Record<RunFlag, boolean>> = {};
+  const given: RunFlags = {};
   let flag: string | undefined;
   let runFlag: string | undefined;
   for (let index = 0; index < argv.length; index += 1) {
@@ -129,7 +136,7 @@ function readArgs(passed: string[]): { args: Args; flag?: string; runFlag?: stri
   }
   args.watch = given.watch ?? true;
   args.hunt = given.hunt ?? false;
-  return { args, flag, runFlag };
+  return { args, flag, runFlag, given };
 }
 
 function command(arg: string): Command {
@@ -155,4 +162,9 @@ export function parseStartArgs(argv: string[]): Args {
     throw new Error(`start does not take --${refused}`);
   }
   return { ...args, command: 'start' };
+}
+
+export function givenStartFlags(argv: string[]): RunFlags {
+  parseStartArgs(argv);
+  return readArgs(argv).given;
 }

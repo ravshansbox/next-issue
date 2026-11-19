@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import { type ChildProcess, spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import { dirname } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { WebSocketServer } from 'ws';
 import { hasCode } from '../src/shared/errors.mts';
 import { lockHolder } from '../src/shared/lock.mts';
 import { type RunRepo, startWorker } from '../src/worker/serve.mts';
@@ -356,7 +359,7 @@ test('a user who runs start while an older idle worker is alive sees it close an
   assert.equal(fake.calls.length, 0);
 });
 
-test('a user who runs start while an older worker has a watch run going sees start refused with the coming update, and the run go on in the newer worker after its running issues', async (t) => {
+test('a user who runs start while an older worker has a watch run going sees the status with the coming update and exit code 0, and the run go on in the newer worker with the hunting start switched on', async (t) => {
   const root = await repository(ORIGIN);
   await idleGh(t);
   t.after(() => killWorker(root));
@@ -365,15 +368,20 @@ test('a user who runs start while an older worker has a watch run going sees sta
   const other = await connect(t, workerPaths(root).socketPath);
   other.send({ type: 'start', root, args: ['--watch', 'on'] });
   await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'running');
-  const started = startCommand(t, root, []);
-  assert.equal(await started.exited, 1);
+  const started = startCommand(t, root, ['--hunt', 'on']);
+  assert.equal(await started.exited, 0, started.stderr());
   const version = await packageVersion();
-  assert.match(
-    started.stderr(),
-    new RegExp(
-      `a run is going in this repository already; the worker updates to ${version.replaceAll('.', '\\.')} after the running issues`,
-    ),
+  assert.equal(
+    withoutExcludeNotes(started.stderr()),
+    [
+      'next-issue: the run is stopping in worker 0.0.0-old',
+      'watching on, hunting on',
+      `stopping for an upgrade to ${version}`,
+      'no issue is running',
+      '',
+    ].join('\n'),
   );
+  assert.equal(fake.calls.length, 1);
   fake.finish();
   await older.closed;
   let newer: Connection | undefined;
@@ -385,4 +393,148 @@ test('a user who runs start while an older worker has a watch run going sees sta
   t.after(() => newer.close());
   assert.equal(newer.version, version);
   assert.equal(newer.runs[root]?.watching, true);
+  assert.equal(newer.runs[root]?.hunting, true);
+});
+
+async function goingRun(t: TestContext, root: string, args: string[] = []) {
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const other = await connect(t, workerPaths(root).socketPath);
+  other.send({ type: 'start', root, args });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'running');
+  return { fake, other };
+}
+
+function statusLines(status: string, settings: string): string {
+  return [status, settings, 'no issue is running', ''].join('\n');
+}
+
+test('a user who runs start while a run is going sees the status of that run on stderr, exit code 0, and the run keep going with its settings and no second run', async (t) => {
+  const root = await repository(ORIGIN);
+  const { fake } = await goingRun(t, root, ['--hunt', 'on']);
+  const started = startCommand(t, root, []);
+  assert.equal(await started.exited, 0, started.stderr());
+  assert.equal(
+    withoutExcludeNotes(started.stderr()),
+    statusLines(
+      `next-issue: the run is running in worker ${await packageVersion()}`,
+      'watching on, hunting on',
+    ),
+  );
+  assert.equal(started.stdout(), '');
+  assert.equal(fake.calls.length, 1);
+  assert.equal(fake.controls().interrupts.afterIssue(), false);
+  assert.equal(fake.controls().hunting?.on(), true);
+  fake.finish();
+});
+
+test('a user who runs start with --watch or --hunt while a run is going sees the run switch to the given settings, the new settings in the status and exit code 0', async (t) => {
+  const root = await repository(ORIGIN);
+  const { fake } = await goingRun(t, root);
+  for (const [args, settings, watching, hunting] of [
+    [['--hunt', 'on'], 'watching on, hunting on', true, true],
+    [['--watch', 'off'], 'watching off, hunting off', false, false],
+    [['--watch', 'on', '--hunt', 'off'], 'watching on, hunting off', true, false],
+  ] as const) {
+    const started = startCommand(t, root, [...args]);
+    assert.equal(await started.exited, 0, started.stderr());
+    assert.equal(
+      withoutExcludeNotes(started.stderr()),
+      statusLines(`next-issue: the run is running in worker ${await packageVersion()}`, settings),
+    );
+    assert.equal(fake.controls().watching?.on(), watching);
+    assert.equal(fake.controls().hunting?.on(), hunting);
+  }
+  assert.equal(fake.calls.length, 1);
+  fake.finish();
+});
+
+test('a user who runs start after stop sees the stop cancelled, the run running in the status, exit code 0, and hunt on work after it', async (t) => {
+  const root = await repository(ORIGIN);
+  const { fake, other } = await goingRun(t, root);
+  other.send({ type: 'stop', root });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'stopping');
+  const started = startCommand(t, root, []);
+  assert.equal(await started.exited, 0, started.stderr());
+  assert.equal(
+    withoutExcludeNotes(started.stderr()),
+    statusLines(
+      `next-issue: the run is running in worker ${await packageVersion()}`,
+      'watching on, hunting off',
+    ),
+  );
+  assert.equal(fake.controls().interrupts.afterIssue(), false);
+  const hunted = cliCommand(t, root, ['hunt', 'on']);
+  assert.equal(await hunted.exited, 0, hunted.stderr());
+  assert.equal(fake.controls().hunting?.on(), true);
+  assert.equal(fake.calls.length, 1);
+  fake.finish();
+});
+
+test('a user who runs start after a stop after the round or now sees start fail with exit code 1 and the stop go on', async (t) => {
+  for (const after of ['round', 'now'] as const) {
+    const root = await repository(ORIGIN);
+    const { fake, other } = await goingRun(t, root);
+    other.send({ type: 'stop', root, after });
+    await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'stopping');
+    const started = startCommand(t, root, ['--hunt', 'on']);
+    assert.equal(await started.exited, 1);
+    assert.match(started.stderr(), /next-issue failed: the run is stopping/);
+    assert.equal(fake.controls().interrupts.afterRound(), true);
+    assert.equal(fake.controls().hunting?.on(), false);
+    assert.equal(fake.calls.length, 1);
+    fake.finish();
+  }
+});
+
+test('a user who runs a newer start with --watch off after a stop after the round in a worker that joins runs sees start fail with exit code 1 and the run keep watching', async (t) => {
+  const root = await repository(ORIGIN);
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo, '0.0.0-old');
+  const other = await connect(t, workerPaths(root).socketPath);
+  other.send({ type: 'start', root });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'running');
+  other.send({ type: 'stop', root, after: 'round' });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'stopping');
+  const started = startCommand(t, root, ['--watch', 'off']);
+  assert.equal(await started.exited, 1);
+  assert.match(started.stderr(), /next-issue failed: the run is stopping/);
+  assert.equal(fake.controls().watching?.on(), true);
+  assert.equal(fake.controls().interrupts.afterRound(), true);
+  fake.finish();
+});
+
+test('a user who runs start --hunt on while a worker older than request ids has a run going sees the run switch hunting on, the status and exit code 0', async (t) => {
+  const root = await repository(ORIGIN);
+  const { socketPath } = workerPaths(root);
+  await mkdir(dirname(socketPath), { recursive: true });
+  const progress = { status: 'running', watching: true, hunting: false, issues: [] };
+  const server = new WebSocketServer({ server: createServer().listen(socketPath) });
+  t.after(() => new Promise((resolve) => server.close(() => resolve(undefined))));
+  t.after(() => server.options.server?.close());
+  server.on('connection', (socket) => {
+    socket.send(JSON.stringify({ type: 'hello', version: '0.0.0-old' }));
+    socket.send(JSON.stringify({ type: 'runs', runs: { [root]: progress } }));
+    socket.on('message', (data) => {
+      const value = JSON.parse(String(data));
+      if (value.type === 'start') {
+        socket.send(
+          JSON.stringify({
+            type: 'error',
+            root,
+            message: 'a run is going in this repository already',
+          }),
+        );
+      } else if (value.type === 'hunt') {
+        Object.assign(progress, { hunting: value.on, watching: true });
+        socket.send(JSON.stringify({ type: 'runs', runs: { [root]: progress } }));
+      }
+    });
+  });
+  const started = startCommand(t, root, ['--hunt', 'on']);
+  assert.equal(await started.exited, 0, started.stderr());
+  assert.equal(
+    withoutExcludeNotes(started.stderr()),
+    statusLines('next-issue: the run is running in worker 0.0.0-old', 'watching on, hunting on'),
+  );
 });

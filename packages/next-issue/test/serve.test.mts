@@ -80,17 +80,14 @@ test('a client that starts a run sees the run going in every client', async (t) 
   );
 });
 
-test('a client that starts a second run in the same repository gets an error', async (t) => {
+test('a client that starts a second run in the same repository gets the going run with the id of its start and no second run', async (t) => {
   const fake = fakeRuns();
   const { socketPath } = await worker(t, fake);
   const client = await connect(t, socketPath);
   client.send({ type: 'start', root: '/repo' });
-  client.send({ type: 'start', root: '/repo' });
-  assert.deepEqual(await client.next((value) => value.type === 'error'), {
-    type: 'error',
-    root: '/repo',
-    message: 'a run is going in this repository already',
-  });
+  client.send({ type: 'start', root: '/repo', id: 'again' });
+  const answer = await client.next((value) => value.type === 'runs' && value.id === 'again');
+  assert.equal(answer.type === 'runs' && answer.runs['/repo']?.status, 'running');
   assert.equal(fake.calls.length, 1);
 });
 
@@ -984,13 +981,10 @@ test('a worker that meets a newer client closes once no run is going', async (t)
   client.send({ type: 'start', root: '/repo', args: ['--watch', 'off'] });
   await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
   client.send({ type: 'hello', version: '2.1.0' });
-  client.send({ type: 'start', root: '/repo' });
-  assert.deepEqual(await client.next((value) => value.type === 'error'), {
-    type: 'error',
-    root: '/repo',
-    message: 'the worker is restarting, try again soon',
-  });
+  client.send({ type: 'start', root: '/repo', id: 'again' });
+  await client.next((value) => value.type === 'runs' && value.id === 'again');
   assert.equal(fake.controls().interrupts.afterIssue(), false);
+  assert.equal(fake.calls.length, 1);
   fake.finish();
   await started.closed;
   await client.closed;
