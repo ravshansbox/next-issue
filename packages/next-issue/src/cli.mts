@@ -10,7 +10,7 @@ import { serve } from './worker/serve.mts';
 import { startInWorker } from './cli/start.mts';
 import { STATE_DIR } from './shared/state.mts';
 import { statusInWorker, stopInWorker, switchInWorker } from './cli/switch-run.mts';
-import { chooseScope, installSkills } from './cli/skills.mts';
+import { chooseScope, installSkills, refreshSkills } from './cli/skills.mts';
 import { WORKTREE_DIR } from './shared/worktree.mts';
 
 function write(stream: NodeJS.WriteStream, text: string): Promise<void> {
@@ -53,6 +53,9 @@ async function main(): Promise<number> {
   await excludeStateDirectories(root, process.stderr);
   if (args.command === 'serve') {
     return serve(root);
+  }
+  for (const note of await refreshSkills(root)) {
+    await write(process.stderr, `${note}\n`);
   }
   await write(process.stderr, await startInWorker(root, argv.slice(1)));
   return 0;

@@ -25,6 +25,8 @@ import { connect } from './worker-harness.mts';
 
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
 
+process.env.HOME = await tempDir();
+
 async function serveWorker(root: string, env: NodeJS.ProcessEnv = process.env) {
   const child = spawn(process.execPath, [CLI, 'serve'], { cwd: root, env });
   let stderr = '';

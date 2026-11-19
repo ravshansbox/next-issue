@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { type ChildProcess, spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { mkdir, readFile } from 'node:fs/promises';
+import { cp, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
@@ -16,11 +16,16 @@ import { type Connection, findWorker } from '../src/shared/worker-client.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
 import { idleGh } from './fake-gh.mts';
 import { repository, sleep, until } from './helpers.mts';
+import { tempDir } from './temp-dir.mts';
 import { type Client, connect, fakeRuns } from './worker-harness.mts';
 
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
 
 const ORIGIN = 'https://github.com/acme/start.git';
+
+const SKILLS = fileURLToPath(new URL('../skills/', import.meta.url));
+
+process.env.HOME = await tempDir();
 
 type Started = {
   child: ChildProcess;
@@ -87,8 +92,10 @@ async function fakeWorker(
   return worker;
 }
 
-function withoutExcludeNotes(text: string): string {
-  return text.replace(/^added .* to .*\/info\/exclude\n/gm, '');
+function withoutSetupNotes(text: string): string {
+  return text
+    .replace(/^added .* to .*\/info\/exclude\n/gm, '')
+    .replace(/^wrote .*\/\.claude\/skills\/.*\n/gm, '');
 }
 
 const STARTED =
@@ -101,13 +108,78 @@ test('a user who runs start sees one line that the run started naming logs and s
   const observer = await connect(t, workerPaths(root).socketPath);
   const started = startCommand(t, root, []);
   assert.equal(await started.exited, 0, started.stderr());
-  assert.equal(withoutExcludeNotes(started.stderr()), STARTED);
+  assert.equal(withoutSetupNotes(started.stderr()), STARTED);
   assert.equal(started.stdout(), '');
   fake.controls().output?.('after start\n');
   await observer.next((value) => value.type === 'output' && value.text === 'after start\n');
   assert.equal(fake.calls.length, 1);
   assert.equal(fake.controls().interrupts.afterIssue(), false);
   fake.finish();
+});
+
+async function assertShipped(folder: string, name: string): Promise<void> {
+  const files = await readdir(join(SKILLS, name));
+  assert.deepEqual((await readdir(folder)).sort(), files.sort());
+  for (const file of files) {
+    assert.equal(
+      await readFile(join(folder, file), 'utf8'),
+      await readFile(join(SKILLS, name, file), 'utf8'),
+    );
+  }
+}
+
+async function startWithSkills(t: TestContext, root: string, home: string): Promise<string> {
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const started = startCommand(t, root, [], { ...process.env, HOME: home });
+  assert.equal(await started.exited, 0, started.stderr());
+  fake.finish();
+  return started.stderr();
+}
+
+test('a user with outdated copies of the skills in ~/.claude/skills and .claude/skills who runs start gets each copy replaced with the shipped skill and sees updated with its folder', async (t) => {
+  const root = await repository(ORIGIN);
+  const home = await tempDir();
+  const user = join(home, '.claude', 'skills', 'create-issue');
+  const project = join(root, '.claude', 'skills', 'answer-hand-over');
+  await cp(join(SKILLS, 'create-issue'), user, { recursive: true });
+  await writeFile(join(user, 'old.md'), 'old');
+  await cp(join(SKILLS, 'answer-hand-over'), project, { recursive: true });
+  await writeFile(join(project, 'SKILL.md'), 'old');
+  const stderr = await startWithSkills(t, root, home);
+  await assertShipped(user, 'create-issue');
+  await assertShipped(project, 'answer-hand-over');
+  assert.match(stderr, new RegExp(`^updated ${user}$`, 'm'));
+  assert.match(stderr, new RegExp(`^updated ${project}$`, 'm'));
+  assert.doesNotMatch(stderr, /^wrote /m);
+  assert.deepEqual(await readdir(join(home, '.claude', 'skills')), ['create-issue']);
+  assert.deepEqual(await readdir(join(root, '.claude', 'skills')), ['answer-hand-over']);
+});
+
+test('a user with neither copy of a skill who runs start gets it installed in .claude/skills of the main worktree and sees wrote with its folder', async (t) => {
+  const root = await repository(ORIGIN);
+  const home = await tempDir();
+  const stderr = await startWithSkills(t, root, home);
+  for (const name of ['create-issue', 'answer-hand-over']) {
+    const folder = join(root, '.claude', 'skills', name);
+    await assertShipped(folder, name);
+    assert.match(stderr, new RegExp(`^wrote ${folder}$`, 'm'));
+  }
+  assert.deepEqual(await readdir(home), []);
+});
+
+test('a user whose copies of the skills match the shipped ones who runs start keeps them as they are and sees nothing about them', async (t) => {
+  const root = await repository(ORIGIN);
+  const home = await tempDir();
+  const user = join(home, '.claude', 'skills', 'create-issue');
+  const project = join(root, '.claude', 'skills', 'answer-hand-over');
+  await cp(join(SKILLS, 'create-issue'), user, { recursive: true });
+  await cp(join(SKILLS, 'answer-hand-over'), project, { recursive: true });
+  const before = [(await stat(user)).ino, (await stat(project)).ino];
+  const stderr = await startWithSkills(t, root, home);
+  assert.deepEqual([(await stat(user)).ino, (await stat(project)).ino], before);
+  assert.doesNotMatch(stderr, /\.claude\/skills/);
+  assert.equal(await readdir(join(root, '.claude', 'skills')).then((names) => names.length), 1);
 });
 
 test('a user who runs start with no flags sees start exit with 0 and the run wait for new issues in the worker after a pass instead of ending', async (t) => {
@@ -449,7 +521,7 @@ test('a user who runs start with no worker sees a worker start in the background
   const root = await repository();
   const started = startCommand(t, root, []);
   assert.equal(await started.exited, 0, started.stderr());
-  assert.equal(withoutExcludeNotes(started.stderr()), STARTED);
+  assert.equal(withoutSetupNotes(started.stderr()), STARTED);
   const log = await readFile(workerPaths(root).logPath, 'utf8');
   assert.match(log, /^worker listening on .*worker\.sock$/m);
 });
@@ -465,7 +537,7 @@ test('a user who runs start while an idle worker is alive sees the run go in tha
   const started = startCommand(t, root, ['--watch', 'off'], env);
   assert.equal(await started.exited, 0);
   await until(() => / run\.start /.test(workerOutput), 'the run to start in the worker');
-  assert.equal(withoutExcludeNotes(started.stderr()), STARTED);
+  assert.equal(withoutSetupNotes(started.stderr()), STARTED);
   assert.equal(started.stdout(), '');
 });
 
@@ -476,7 +548,7 @@ test('a user who runs start while an older idle worker is alive sees it close an
   const started = startCommand(t, root, []);
   await older.closed;
   assert.equal(await started.exited, 0, started.stderr());
-  assert.equal(withoutExcludeNotes(started.stderr()), STARTED);
+  assert.equal(withoutSetupNotes(started.stderr()), STARTED);
   assert.equal(fake.calls.length, 0);
 });
 
@@ -493,7 +565,7 @@ test('a user who runs start while an older worker has a watch run going sees the
   assert.equal(await started.exited, 0, started.stderr());
   const version = await packageVersion();
   assert.equal(
-    withoutExcludeNotes(started.stderr()),
+    withoutSetupNotes(started.stderr()),
     [
       'a run is going already',
       'stopping in worker 0.0.0-old',
@@ -537,7 +609,7 @@ test('a user who runs start while a run is going sees the status of that run on 
   const started = startCommand(t, root, []);
   assert.equal(await started.exited, 0, started.stderr());
   assert.equal(
-    withoutExcludeNotes(started.stderr()),
+    withoutSetupNotes(started.stderr()),
     statusLines(`running in worker ${await packageVersion()}`, 'watching on, hunting on'),
   );
   assert.equal(started.stdout(), '');
@@ -558,7 +630,7 @@ test('a user who runs start with --watch or --hunt while a run is going sees the
     const started = startCommand(t, root, [...args]);
     assert.equal(await started.exited, 0, started.stderr());
     assert.equal(
-      withoutExcludeNotes(started.stderr()),
+      withoutSetupNotes(started.stderr()),
       statusLines(`running in worker ${await packageVersion()}`, settings),
     );
     assert.equal(fake.controls().watching?.on(), watching);
@@ -576,7 +648,7 @@ test('a user who runs start after stop sees the stop cancelled, the run running 
   const started = startCommand(t, root, []);
   assert.equal(await started.exited, 0, started.stderr());
   assert.equal(
-    withoutExcludeNotes(started.stderr()),
+    withoutSetupNotes(started.stderr()),
     statusLines(`running in worker ${await packageVersion()}`, 'watching on, hunting off'),
   );
   assert.equal(fake.controls().interrupts.afterIssue(), false);
@@ -650,7 +722,7 @@ test('a user who runs start --hunt on while a worker older than request ids has 
   const started = startCommand(t, root, ['--hunt', 'on']);
   assert.equal(await started.exited, 0, started.stderr());
   assert.equal(
-    withoutExcludeNotes(started.stderr()),
+    withoutSetupNotes(started.stderr()),
     statusLines('running in worker 0.0.0-old', 'watching on, hunting on', 'no issue is running'),
   );
 });
