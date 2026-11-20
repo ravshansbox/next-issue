@@ -14,6 +14,7 @@ export type Watch = Loop & {
   // `woken` aborts when watching is switched or `lookNow` aborts; the wait then ends early.
   wait: (minutes: number, woken?: AbortSignal) => Promise<boolean>;
   passEnd: (reports: IssueReport[]) => Promise<void>;
+  unreadable: (error: unknown) => void;
   hunter?: Hunter;
   hunting?: Switch;
   // Off ends the watch after the current pass, or at once during a wait.
@@ -124,8 +125,14 @@ async function watchPasses(failed: Set<number>, watch: Watch): Promise<LoopResul
       await watch.passEnd(pass.reports);
       step = 0;
     }
-    if (pass.error !== undefined || pass.stoppedAt !== undefined) {
-      return { ...pass, reports };
+    if (pass.error !== undefined) {
+      if (!watching()) {
+        return { ...pass, reports };
+      }
+      watch.unreadable(pass.error);
+    }
+    if (pass.stoppedAt !== undefined) {
+      return { reports, stoppedAt: pass.stoppedAt };
     }
     if (watch.stop() || !watching()) {
       return { reports };

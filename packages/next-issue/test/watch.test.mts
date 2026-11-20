@@ -45,6 +45,7 @@ function watcher(lists: Outcome[][], wakes: boolean[] = []): FakeWatch {
     passEnd: async (reports) => {
       fake.passes.push(reports.map((entry) => entry.issue));
     },
+    unreadable: () => undefined,
   };
   return fake;
 }

@@ -125,6 +125,7 @@ export function watchRun(
       return slept;
     },
     passEnd: (issues) => print({ ...recorder.summary(passStart), issues }),
+    unreadable: (error) => recorder.event('issues.unreadable', { error: message(error) }),
     hunter: hunt,
     hunting: controls.hunting ?? onOff(args.hunt),
     watching: controls.watching,
