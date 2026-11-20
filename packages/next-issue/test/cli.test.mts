@@ -75,29 +75,32 @@ test('a user who runs init in a linked worktree gets the entries in the shared i
   assert.equal(await exists(join(linked, '.next-issue')), false);
 });
 
-test('a user who runs init sees .next-issue/ and .claude/worktrees/ removed from .gitignore and other lines kept', async () => {
+test('a user who runs init sees .next-issue/ and .worktrees/ removed from .gitignore and other lines, .claude/worktrees/ included, kept', async () => {
   const root = await repository();
   await writeFile(
     join(root, '.gitignore'),
-    'node_modules/\n.next-issue/\n  dist/\n.claude/worktrees/\n',
+    'node_modules/\n.next-issue/\n  dist/\n.worktrees/\n.claude/worktrees/\n',
   );
   await initCommand(root);
-  assert.equal(await readFile(join(root, '.gitignore'), 'utf8'), 'node_modules/\n  dist/\n');
+  assert.equal(
+    await readFile(join(root, '.gitignore'), 'utf8'),
+    'node_modules/\n  dist/\n.claude/worktrees/\n',
+  );
 });
 
-test('a user who runs init keeps an old .worktrees/ line in info/exclude and .gitignore and gets no new one', async () => {
+test('a user who runs init keeps one old .worktrees/ line in info/exclude and sees it removed from .gitignore', async () => {
   const root = await repository();
   await appendFile(join(root, '.git/info/exclude'), '.worktrees/\n');
-  await writeFile(join(root, '.gitignore'), '.worktrees/\n');
+  await writeFile(join(root, '.gitignore'), 'node_modules/\n.worktrees/\n');
   await initCommand(root);
   const exclude = await readFile(join(root, '.git/info/exclude'), 'utf8');
   assert.equal(exclude.split('\n').filter((line) => line === '.worktrees/').length, 1);
-  assert.equal(await readFile(join(root, '.gitignore'), 'utf8'), '.worktrees/\n');
+  assert.equal(await readFile(join(root, '.gitignore'), 'utf8'), 'node_modules/\n');
 });
 
 test('a user who runs init sees a .gitignore deleted when only next-issue entries were in it', async () => {
   const root = await repository();
-  await writeFile(join(root, '.gitignore'), '.next-issue/\n.claude/worktrees/\n');
+  await writeFile(join(root, '.gitignore'), '.next-issue/\n.worktrees/\n');
   await initCommand(root);
   assert.equal(await exists(join(root, '.gitignore')), false);
 });
@@ -215,13 +218,17 @@ async function watchingRun(t: TestContext, root: string) {
     cwd: root,
   });
   const env = await idleGh(t);
-  await promisify(execFile)(process.execPath, [CLI, 'start', '--watch', 'on'], { cwd: root, env });
+  const { stderr } = await promisify(execFile)(process.execPath, [CLI, 'start', '--watch', 'on'], {
+    cwd: root,
+    env,
+  });
   t.after(async () => {
     await promisify(execFile)(process.execPath, [CLI, 'stop'], { cwd: root });
     assert.equal(await gone(workerPaths(root).lockPath), true);
   });
   const log = workerPaths(root).logPath;
   await until(() => readFileSync(log, 'utf8').includes('watch.wait'), 'the wait after the pass');
+  return stderr;
 }
 
 test('a user who runs refresh sees an unknown command error and exit code 1', async () => {
@@ -231,7 +238,7 @@ test('a user who runs refresh sees an unknown command error and exit code 1', as
   assert.match(error?.stderr ?? '', /Unknown command: `refresh`/);
 });
 
-test('a user who starts a run without init gets .next-issue/ and .claude/worktrees/ in info/exclude, out of .gitignore, and no config file', async (t) => {
+test('a user who starts a run without init gets .next-issue/ and .claude/worktrees/ in info/exclude, .next-issue/ out of .gitignore, and no config file', async (t) => {
   const root = await repository();
   await writeFile(join(root, '.gitignore'), 'node_modules/\n.next-issue/\n');
   await watchingRun(t, root);
@@ -240,6 +247,14 @@ test('a user who starts a run without init gets .next-issue/ and .claude/worktre
   assert.match(exclude, /^\.claude\/worktrees\/$/m);
   assert.equal(await readFile(join(root, '.gitignore'), 'utf8'), 'node_modules/\n');
   assert.equal(await exists(join(root, '.next-issue/config.json')), false);
+});
+
+test('a user whose .gitignore holds only .claude/worktrees/ starts a run and sees .gitignore unchanged and no removal note', async (t) => {
+  const root = await repository();
+  await writeFile(join(root, '.gitignore'), '.claude/worktrees/\n');
+  const stderr = await watchingRun(t, root);
+  assert.equal(await readFile(join(root, '.gitignore'), 'utf8'), '.claude/worktrees/\n');
+  assert.doesNotMatch(stderr, /removed .* from \.gitignore/);
 });
 
 test('a user who starts the worker without init gets .next-issue/ and .claude/worktrees/ once in info/exclude', async (t) => {

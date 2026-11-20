@@ -95,7 +95,7 @@ async function excludeStateDirectories(root: string, stream: NodeJS.WriteStream)
       await write(stream, `added ${entry} to ${exclude}\n`);
     }
   }
-  for (const entry of await removeIgnored(root, entries)) {
+  for (const entry of await removeIgnored(root, [`${STATE_DIR}/`, '.worktrees/'])) {
     await write(stream, `removed ${entry} from .gitignore\n`);
   }
 }
