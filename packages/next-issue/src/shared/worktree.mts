@@ -49,6 +49,9 @@ export async function addWorktree(
   const existing = await findWorktree(repo, branch);
   const path = existing ?? worktreePath(repo, issue);
   const target = pushed ? upstream : remoteBase;
+  if (start) {
+    await keepUnmergedCommits(repo, branch, target);
+  }
   if (existing === undefined) {
     await keepDetachedEdits(path, branch);
     await succeeds(repo.root, ['worktree', 'remove', '--force', path]);
@@ -73,6 +76,14 @@ async function keepDetachedEdits(path: string, branch: string): Promise<void> {
     return;
   }
   await git(path, ['branch', `${branch}-detached-${(await revision(path)).slice(0, 7)}`]);
+}
+
+async function keepUnmergedCommits(repo: Repo, branch: string, target: string): Promise<void> {
+  if (!(await hasBranch(repo, branch)) || (await isAncestor(repo.root, branch, target))) {
+    return;
+  }
+  const head = await git(repo.root, ['rev-parse', branch]);
+  await git(repo.root, ['branch', '--force', `${branch}-kept-${head.slice(0, 7)}`, branch]);
 }
 
 async function hasWork(

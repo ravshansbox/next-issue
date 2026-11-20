@@ -77,3 +77,39 @@ test('a person whose worktree holds branch 7 keeps it and the branch when a run 
   assert.equal(await git(mine, 'branch', '--show-current'), '7');
   assert.equal(await git(mine, 'rev-parse', 'HEAD'), head);
 });
+
+async function keptBranches(root: string): Promise<string[]> {
+  const list = await git(root, 'for-each-ref', '--format=%(refname:short)', 'refs/heads/7-kept-*');
+  return list === '' ? [] : list.split('\n');
+}
+
+test('a person who moves their worktree off branch 7 and answers the hand-over keeps their unpushed commit on a 7-kept branch while issue 7 starts from the remote base', async (t) => {
+  const { root, mine, head } = await personWorktree();
+  await claim(t, root, ['status:todo']);
+  await git(mine, 'checkout', '-q', '--detach');
+  await claim(t, root, []);
+  assert.deepEqual(await keptBranches(root), [`7-kept-${head.slice(0, 7)}`]);
+  assert.equal(await git(root, 'rev-parse', `7-kept-${head.slice(0, 7)}`), head);
+  assert.equal(await git(root, 'rev-parse', '7'), await git(root, 'rev-parse', 'origin/main'));
+});
+
+test('a person who pushed branch 7, moves their worktree off it and answers the hand-over keeps their unpushed commit on a 7-kept branch while issue 7 starts from the remote branch', async (t) => {
+  const { root, mine } = await personWorktree();
+  await git(mine, 'push', '-q', 'origin', '7');
+  const head = await commit(mine, 'unpushed.txt');
+  await claim(t, root, ['status:todo']);
+  await git(mine, 'checkout', '-q', '--detach');
+  await claim(t, root, []);
+  assert.deepEqual(await keptBranches(root), [`7-kept-${head.slice(0, 7)}`]);
+  assert.equal(await git(root, 'rev-parse', `7-kept-${head.slice(0, 7)}`), head);
+  const files = (await git(root, 'ls-tree', '--name-only', '7')).split('\n');
+  assert.equal(files.includes('mine.txt'), true);
+  assert.equal(files.includes('unpushed.txt'), false);
+});
+
+test('a run that claims issue 7 with a local branch 7 that has no commits beyond the remote base makes no 7-kept branch', async (t) => {
+  const { repo } = await clones();
+  await git(repo.root, 'branch', '7', 'origin/main');
+  await claim(t, repo.root, ['status:todo']);
+  assert.deepEqual(await keptBranches(repo.root), []);
+});
