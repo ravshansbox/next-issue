@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { realpath } from 'node:fs/promises';
+import { readFile, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
 import { clones, commit, git } from './clones.mts';
 import { harness, ISSUE } from './harness.mts';
-import { useGit } from './real-git.mts';
+import { landedFiles, useGit } from './real-git.mts';
+import { newState } from '../src/shared/state.mts';
 import { pendingIssues } from '../src/worker/pending.mts';
 import { processIssue } from '../src/worker/pipeline.mts';
 
@@ -112,4 +113,48 @@ test('a run that claims issue 7 with a local branch 7 that has no commits beyond
   await git(repo.root, 'branch', '7', 'origin/main');
   await claim(t, repo.root, ['status:todo']);
   assert.deepEqual(await keptBranches(repo.root), []);
+});
+
+async function resumeWithPersonWorktree(t: TestContext) {
+  const { repo, other } = await clones();
+  const mine = join(repo.root, '..', 'fix-7');
+  await git(repo.root, 'worktree', 'add', '-q', '-b', '7', mine, 'origin/main');
+  const head = await commit(mine, 'mine.txt');
+  await writeFile(join(mine, 'mine.txt'), 'edited\n');
+  await writeFile(join(mine, 'scratch.txt'), 'scratch\n');
+  const resume = async () => {
+    const target = await harness(t, {
+      root: repo.root,
+      issue: { ...ISSUE, labels: [] },
+      saved: { ...newState(ISSUE.number, '7'), handedOver: true },
+    });
+    useGit(target, async () => undefined);
+    return { target, report: await target.run() };
+  };
+  return { other, mine: await realpath(mine), head, resume };
+}
+
+test('a person whose worktree at ../fix-7 holds branch 7 with a commit and uncommitted files keeps it all when a run resumes issue 7 and hands it over', async (t) => {
+  const { mine, head, resume } = await resumeWithPersonWorktree(t);
+  const { target, report } = await resume();
+  assert.equal(report.outcome, 'error');
+  assert.match(report.reason ?? '', new RegExp(`worktree at ${mine} has branch 7 checked out`));
+  assert.deepEqual(target.prompts, []);
+  assert.deepEqual(target.deleted, []);
+  assert.equal(await git(mine, 'branch', '--show-current'), '7');
+  assert.equal(await git(mine, 'rev-parse', 'HEAD'), head);
+  assert.equal(await readFile(join(mine, 'mine.txt'), 'utf8'), 'edited\n');
+  assert.equal(await readFile(join(mine, 'scratch.txt'), 'utf8'), 'scratch\n');
+});
+
+test('a person who moves their worktree at ../fix-7 off branch 7 gets issue 7 resumed and their commit landed without their uncommitted files', async (t) => {
+  const { other, mine, resume } = await resumeWithPersonWorktree(t);
+  await resume();
+  await git(mine, 'checkout', '-q', '--detach');
+  const { report } = await resume();
+  assert.equal(report.outcome, 'done');
+  const landed = await landedFiles(other);
+  assert.equal(landed['mine.txt'], 'mine.txt');
+  assert.equal(landed['scratch.txt'], undefined);
+  assert.equal(await readFile(join(mine, 'scratch.txt'), 'utf8'), 'scratch\n');
 });

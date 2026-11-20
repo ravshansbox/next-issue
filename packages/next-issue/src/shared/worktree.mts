@@ -119,10 +119,17 @@ async function updateBase(repo: Repo, base: string, remote: string): Promise<boo
 
 export async function findWorktree(repo: Repo, branch: string): Promise<string | undefined> {
   const found = await holder(repo, branch);
-  if (found === undefined || found.main || (await isHunt(repo, found.path))) {
+  if (found === undefined || found.main || !(await isOwn(repo, branch, found.path))) {
     return undefined;
   }
   return found.path;
+}
+
+async function isOwn(repo: Repo, branch: string, path: string): Promise<boolean> {
+  return (
+    (await samePath(path, join(repo.root, WORKTREE_DIR, `next-issue-${branch}`))) ||
+    (await samePath(path, join(repo.root, '.worktrees', branch)))
+  );
 }
 
 async function refuseOwnWorktree(
@@ -137,7 +144,12 @@ async function refuseOwnWorktree(
       `the main worktree at ${found.path} has branch ${branch} checked out, so the issue cannot have its own worktree; check out another branch there and try again`,
     );
   }
-  if (start && found !== undefined && !(await samePath(found.path, worktreePath(repo, issue)))) {
+  if (
+    found !== undefined &&
+    !(await (start
+      ? samePath(found.path, worktreePath(repo, issue))
+      : isOwn(repo, branch, found.path)))
+  ) {
     throw new Error(
       `the worktree at ${found.path} has branch ${branch} checked out, so the issue cannot have its own worktree; check out another branch there and try again`,
     );
