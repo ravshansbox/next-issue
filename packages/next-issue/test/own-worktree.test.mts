@@ -117,6 +117,8 @@ test('a run that claims issue 7 with a local branch 7 that has no commits beyond
 
 async function resumeWithPersonWorktree(t: TestContext) {
   const { repo, other } = await clones();
+  await git(repo.root, 'config', 'user.name', 't');
+  await git(repo.root, 'config', 'user.email', 't@t');
   const mine = join(repo.root, '..', 'fix-7');
   await git(repo.root, 'worktree', 'add', '-q', '-b', '7', mine, 'origin/main');
   const head = await commit(mine, 'mine.txt');
