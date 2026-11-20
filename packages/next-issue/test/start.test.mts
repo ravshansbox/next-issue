@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { type ChildProcess, spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { cp, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { dirname, join } from 'node:path';
 import { type TestContext, test } from 'node:test';
@@ -16,7 +16,7 @@ import { packageVersion } from '../src/shared/version.mts';
 import { type Connection, findWorker } from '../src/shared/worker-client.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
 import { idleGh } from './fake-gh.mts';
-import { repository, sleep, until } from './helpers.mts';
+import { repository, sleep, until, writeScripts } from './helpers.mts';
 import { tempDir } from './temp-dir.mts';
 import { type Client, connect, fakeRuns } from './worker-harness.mts';
 
@@ -116,6 +116,45 @@ test('a user who runs start sees one line that the run started naming logs and s
   assert.equal(fake.calls.length, 1);
   assert.equal(fake.controls().interrupts.afterIssue(), false);
   fake.finish();
+});
+
+test('a user who runs start in a repository whose package.json lacks typecheck gets the run refused before it starts, with typecheck named and why it is needed', async (t) => {
+  const root = await repository(ORIGIN);
+  await writeScripts(root, ['format', 'lint', 'test']);
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const started = startCommand(t, root, []);
+  assert.equal(await started.exited, 1);
+  assert.match(started.stderr(), /lacks the script `typecheck`/);
+  assert.match(started.stderr(), /the humanless flow relies on these checks instead of a person/);
+  assert.match(started.stderr(), /`format` must check the formatting, not write files/);
+  assert.equal(fake.calls.length, 0);
+});
+
+test('a user who runs start in a repository with no package.json gets the run refused before it starts, with all four scripts named', async (t) => {
+  const root = await repository(ORIGIN);
+  await rm(join(root, 'package.json'));
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const started = startCommand(t, root, []);
+  assert.equal(await started.exited, 1);
+  assert.match(
+    started.stderr(),
+    /no package\.json at the root.*`format`, `lint`, `typecheck` and `test`/,
+  );
+  assert.match(started.stderr(), /instead of a person/);
+  assert.equal(fake.calls.length, 0);
+});
+
+test('a user who runs start in a repository whose package.json is not valid JSON gets the run refused before it starts, with the parse error named', async (t) => {
+  const root = await repository(ORIGIN);
+  await writeFile(join(root, 'package.json'), '{ "scripts": ');
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const started = startCommand(t, root, []);
+  assert.equal(await started.exited, 1);
+  assert.match(started.stderr(), /package\.json is not valid JSON: /);
+  assert.equal(fake.calls.length, 0);
 });
 
 async function assertShipped(folder: string, name: string): Promise<void> {

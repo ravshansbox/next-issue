@@ -4,6 +4,7 @@ import { moveOldConfig, rejectOldConfig, writeDefaultConfig } from './shared/con
 import { OLD_CONFIG_FILE } from './shared/config-fields.mts';
 import { message } from './shared/errors.mts';
 import { repoRoot } from './shared/git.mts';
+import { requireScripts } from './shared/setup.mts';
 import { ensureExcluded, excludeFile, removeIgnored } from './cli/ignore.mts';
 import { followLog, newestRunLog } from './cli/logs.mts';
 import { serve } from './worker/serve.mts';
@@ -50,6 +51,9 @@ async function main(): Promise<number> {
   if (args.command === 'logs') {
     return logs(root);
   }
+  if (args.command === 'start') {
+    await requireScripts(root);
+  }
   await excludeStateDirectories(root, process.stderr);
   if (args.command === 'serve') {
     return serve(root);
@@ -84,6 +88,7 @@ async function init(root: string, args: Args): Promise<number> {
   for (const folder of await installSkills(scope)) {
     await write(process.stdout, `wrote ${folder}\n`);
   }
+  await requireScripts(root);
   return 0;
 }
 

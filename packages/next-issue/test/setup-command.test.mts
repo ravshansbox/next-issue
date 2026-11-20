@@ -2,10 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { harness, ISSUE, roles, SAVED } from './harness.mts';
 
-test('the worker runs the setup command of the lock file when the config holds none', async (t) => {
+test('the worker runs the setup command of the lock file when the config holds none, in the worktree and again before the local checks', async (t) => {
   const target = await harness(t, { detected: 'pnpm install --frozen-lockfile' });
   assert.equal((await target.run()).outcome, 'done');
-  assert.deepEqual(target.setups, ['pnpm install --frozen-lockfile']);
+  assert.deepEqual(target.setups, [
+    'pnpm install --frozen-lockfile',
+    'pnpm install --frozen-lockfile',
+  ]);
 });
 
 test('the worker runs the setup command of the config over that of the lock file', async (t) => {
@@ -14,7 +17,7 @@ test('the worker runs the setup command of the config over that of the lock file
     detected: 'pnpm install --frozen-lockfile',
   });
   await target.run();
-  assert.deepEqual(target.setups, ['make deps']);
+  assert.deepEqual(target.setups, ['make deps', 'make deps']);
 });
 
 test('the worker runs no setup for a project without a lock file', async (t) => {

@@ -47,26 +47,19 @@ test('a user who starts a run with an unsorted config file finds its keys sorted
   const written = {
     remote: 'origin',
     labels: { skip: 'blocked', ready: 'todo' },
-    checks: ['npm test', 'npm run lint'],
     ignoredChecks: ['release', 'deploy'],
     models: { reviewer: 'r', fixer: null },
   };
   const root = await repoWithConfig(t, JSON.stringify(written));
   assert.equal(await start(root), 0);
   const text = await readFile(join(root, CONFIG_FILE), 'utf8');
-  assert.deepEqual(Object.keys(JSON.parse(text)), [
-    'checks',
-    'ignoredChecks',
-    'labels',
-    'models',
-    'remote',
-  ]);
+  assert.deepEqual(Object.keys(JSON.parse(text)), ['ignoredChecks', 'labels', 'models', 'remote']);
   assert.ok(keysSorted(JSON.parse(text)));
   assert.deepEqual(JSON.parse(text), {
     ...written,
     ignoredChecks: ['deploy', 'release'],
   });
-  assert.match(text, /\n {2}"checks": \[\n {4}"npm test",\n {4}"npm run lint"\n {2}\],\n/);
+  assert.match(text, /\n {2}"ignoredChecks": \[\n {4}"deploy",\n {4}"release"\n {2}\],\n/);
 });
 
 test('a user who starts a run with a sorted config file finds the file untouched', async (t) => {

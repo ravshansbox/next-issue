@@ -1,4 +1,4 @@
-import { realpath } from 'node:fs/promises';
+import { realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { must } from '../src/shared/exec.mts';
 import { tempDir } from './temp-dir.mts';
@@ -6,10 +6,20 @@ import { tempDir } from './temp-dir.mts';
 export async function repository(origin?: string): Promise<string> {
   const root = await realpath(await tempDir());
   await must('git', ['init', '-q'], { cwd: root });
+  await writeScripts(root, ['format', 'lint', 'typecheck', 'test']);
   if (origin !== undefined) {
     await must('git', ['remote', 'add', 'origin', origin], { cwd: root });
   }
   return root;
+}
+
+/** Writes a root `package.json` with only the given scripts. */
+export function writeScripts(root: string, scripts: string[]): Promise<void> {
+  const entries = scripts.map((script) => [script, 'true']);
+  return writeFile(
+    join(root, 'package.json'),
+    `${JSON.stringify({ scripts: Object.fromEntries(entries) })}\n`,
+  );
 }
 
 export async function linkedWorktree(root: string): Promise<string> {

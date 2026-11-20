@@ -427,7 +427,7 @@ test('a commit that the reviewer makes does not stay on the branch', async (t) =
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  assert.equal(target.discards, 4);
+  assert.equal(target.discards, 9);
   assert.equal(await target.context.ports.revision('worktree'), '3');
 });
 

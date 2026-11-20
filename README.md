@@ -16,7 +16,7 @@ Each repository has one worker, the `serve` command of next-issue, and any numbe
 npm install
 npm run typecheck
 npm run lint
-npm run format:check
+npm run format
 npm test
 npm run build
 ```

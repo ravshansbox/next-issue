@@ -6,6 +6,14 @@ import { clones, git } from './clones.mts';
 import { harness, ISSUE, roles } from './harness.mts';
 import { pushBase, remoteMain, useGit } from './real-git.mts';
 
+function scripts(command: string): string {
+  const names = ['format', 'lint', 'typecheck', 'test'];
+  return JSON.stringify({ scripts: Object.fromEntries(names.map((name) => [name, command])) });
+}
+
+const GREP_SCRIPTS = scripts('grep -q left-pad sums.txt');
+const TRUE_SCRIPTS = scripts('true');
+
 test('a user whose setup before the local checks writes a file that git does not ignore gets every check run on that file and the change landed without it', async (t) => {
   const { repo, other } = await clones();
   await git(repo.root, 'config', 'user.name', 't');
@@ -14,7 +22,6 @@ test('a user whose setup before the local checks writes a file that git does not
     root: repo.root,
     config: {
       setupCommand: 'if [ -f deps.txt ]; then cat deps.txt > sums.txt; fi',
-      checks: ['grep -q left-pad sums.txt', 'grep -q left-pad sums.txt'],
     },
   });
   useGit(target, async () => {});
@@ -24,7 +31,7 @@ test('a user whose setup before the local checks writes a file that git does not
     const result = await PORTS.runSetup(command, cwd, timeoutMs);
     setups += 1;
     if (setups === 1) {
-      await pushBase(other, { 'deps.txt': 'left-pad\n' });
+      await pushBase(other, { 'deps.txt': 'left-pad\n', 'package.json': GREP_SCRIPTS });
     }
     return result;
   };
@@ -37,6 +44,7 @@ test('a user whose setup before the local checks writes a file that git does not
     'a.txt',
     'deps.txt',
     'implementer.txt',
+    'package.json',
   ]);
 });
 
@@ -46,7 +54,6 @@ test('a user whose run dies during a local check after the setup wrote a file th
   await git(repo.root, 'config', 'user.email', 't@t');
   const config = {
     setupCommand: 'if [ -f deps.txt ]; then cat deps.txt > sums.txt; fi',
-    checks: ['grep -q left-pad sums.txt'],
   };
   const first = await harness(t, { root: repo.root, config });
   useGit(first, async () => {});
@@ -55,7 +62,7 @@ test('a user whose run dies during a local check after the setup wrote a file th
     const result = await PORTS.runSetup(command, cwd, timeoutMs);
     setups += 1;
     if (setups === 1) {
-      await pushBase(other, { 'deps.txt': 'left-pad\n' });
+      await pushBase(other, { 'deps.txt': 'left-pad\n', 'package.json': GREP_SCRIPTS });
     }
     return result;
   };
@@ -86,6 +93,7 @@ test('a user whose run dies during a local check after the setup wrote a file th
     'a.txt',
     'deps.txt',
     'implementer.txt',
+    'package.json',
   ]);
 });
 
@@ -95,7 +103,7 @@ test('a user whose base already holds the change and whose setup writes a tracke
   await git(repo.root, 'config', 'user.email', 't@t');
   const target = await harness(t, {
     root: repo.root,
-    config: { setupCommand: 'if [ -f implementer.txt ]; then date >> a.txt; fi', checks: ['true'] },
+    config: { setupCommand: 'if [ -f implementer.txt ]; then date >> a.txt; fi' },
   });
   useGit(target, async () => {});
   const { ports } = target.context;
@@ -105,7 +113,7 @@ test('a user whose base already holds the change and whose setup writes a tracke
     const result = await PORTS.runSetup(command, cwd, timeoutMs);
     setups += 1;
     if (setups === 1) {
-      await pushBase(other, { 'implementer.txt': 'implementer\n' });
+      await pushBase(other, { 'implementer.txt': 'implementer\n', 'package.json': TRUE_SCRIPTS });
       before = await remoteMain(other);
     }
     return result;
@@ -123,7 +131,7 @@ for (const [timedOut, reason, note] of [
 ] as const) {
   test(`a user whose setup before the local checks ends in ${reason} gets the issue handed over and nothing pushed`, async (t) => {
     const target = await harness(t, {
-      config: { setupCommand: 'npm ci', checks: ['npm test'] },
+      config: { setupCommand: 'npm ci' },
     });
     let setups = 0;
     target.context.ports.runSetup = async () => {

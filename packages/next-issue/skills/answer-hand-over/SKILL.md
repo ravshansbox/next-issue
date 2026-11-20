@@ -61,7 +61,7 @@ Run any next-issue command as `npx -y next-issue@latest <command>`. Never run it
    gh run view --repo <repo> <run> --log-failed
    ```
 
-   For `local checks failed: <command>`, the command comes from `checks` in `.next-issue/config.json`. Ask the user before you run it in `.claude/worktrees/next-issue-<number>`.
+   For `local checks failed: <command>`, the command runs the failed script of the root `package.json` (`format`, `lint`, `typecheck` or `test`), such as `npm run lint`. Ask the user before you run it in `.claude/worktrees/next-issue-<number>`.
 
 7. Explain the blocker to the user in plain words: what the worker tried, what stopped it and what it needs from a person. Quote the reason and the questions of the hand-over where that helps.
 8. Ask numbered questions, with the answers of the questions of the hand-over among them. Label options with letters and recommend one. Ask again until you know whether to retry, retry with guidance or give up, and, for guidance, its text.

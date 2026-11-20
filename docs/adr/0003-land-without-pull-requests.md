@@ -37,5 +37,5 @@ Option C.
 
 ## Consequences
 
-- The `checks` field in the config adds an optional local gate before the push.
+- The local gate (ADR 9) always runs before the push.
 - A direct push rules out GitHub branch protection with required reviews or required status checks.

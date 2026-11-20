@@ -28,7 +28,7 @@ flowchart TD
 
 ## Install and quick start
 
-You need Node 24 or later, git 2.40 or later, `gh` logged in with write access to the repository, a `remote` on GitHub and Claude Code, logged in. See [Requirements](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#requirements).
+You need Node 24 or later, git 2.40 or later, `gh` logged in with write access to the repository, a `remote` on GitHub and Claude Code, logged in. The repository needs a root `package.json` with the scripts `format`, `lint`, `typecheck` and `test`, each of which fails on a problem; `format` checks the formatting and does not write files. The harness runs them before each push, since no person checks the change, see [Local checks](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#local-checks). See [Requirements](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#requirements).
 
 Run the harness inside a git repository:
 
@@ -58,8 +58,7 @@ It writes `.next-issue/config.json` with the defaults, or keeps the file when it
 | `checkGraceSeconds`     | `60`               | The time to wait for checks to show on the base branch              |
 | `checkIntervalSeconds`  | `15`               | The time between two reads of the checks                            |
 | `checkTimeoutMinutes`   | `60`               | The limit for one wait for the checks                               |
-| `checks`                | `[]`               | Shell commands that must pass before an approved change is pushed   |
-| `checksTimeoutMinutes`  | `30`               | The limit for one command in `checks`                               |
+| `checksTimeoutMinutes`  | `30`               | The limit for one script of the local gate                          |
 | `commandTimeoutMinutes` | `10`               | The limit for one `git` or `gh` command                             |
 | `concurrency`           | `1`                | The most issues that an agent works on at the same time             |
 | `diffMaxChars`          | `60000`            | The maximum length of the diff that the reviewer reads              |

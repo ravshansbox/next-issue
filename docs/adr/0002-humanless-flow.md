@@ -34,14 +34,14 @@ Option A.
 
 ### Recommended setup
 
-These safeguards replace the human checks. The harness does not enforce them.
+These safeguards replace the human checks. The harness enforces the first one.
 
-- A non-empty `checks` gate in `.next-issue/config.json`.
+- The local gate: the `format`, `lint`, `typecheck` and `test` scripts of the root `package.json`, which the harness requires and runs before each push (ADR 9).
 - A different model for the reviewer than for the implementer and the fixer, in `models`.
 - The whole harness in a container (ADR 7).
 
 ## Consequences
 
-- With `checks` empty, the default, CI runs only after a change is on the base branch (ADR 3).
+- Every change passes the local gate before it reaches the base branch; CI runs only after that (ADR 3).
 - By default every agent role uses the same model.
 - The reviewer prompt names correctness, scope, conventions and test cover, not security.

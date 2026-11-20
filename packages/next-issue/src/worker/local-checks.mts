@@ -6,20 +6,18 @@ import { escalateCheckFix, fixRound } from './fix.mts';
 import type { Finished, Run } from '../shared/job.mts';
 import type { CheckResult } from '../shared/ports.mts';
 import { writeState } from '../shared/state.mts';
+import { SCRIPTS, scriptRunner } from '../shared/setup.mts';
 import { outputBlock } from '../shared/text.mts';
 import { setUpBeforeChecks } from './worktree-setup.mts';
 
 /**
- * Runs the configured check commands in the worktree before a push.
+ * Runs the `format`, `lint`, `typecheck` and `test` scripts in the worktree before a push.
  * Gives `true` when every command passed, `false` when the fixer committed a fix (merge and check again),
  * or the finished hand-over.
  */
 export async function localChecks(job: Run): Promise<Finished | boolean> {
   const { context, state, worktree } = job;
-  const { config, ports, repo } = context;
-  if (config.checks.length === 0) {
-    return true;
-  }
+  const { ports, repo } = context;
   const change = await ports.revision(worktree);
   const setup = await setUpBeforeChecks(job);
   if (setup !== undefined) {
@@ -48,7 +46,8 @@ async function runChecks(job: Run): Promise<Failed | undefined> {
   const { context, log, worktree } = job;
   const { config, ports } = context;
   const head = await ports.revision(worktree);
-  for (const command of config.checks) {
+  const runner = await scriptRunner(worktree);
+  for (const command of SCRIPTS.map((script) => `${runner} ${script}`)) {
     const result = await log.step('check', { cmd: command }, () =>
       ports.runCheck(
         command,

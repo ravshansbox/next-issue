@@ -45,16 +45,6 @@ export function text(value: unknown, field: string, allowEmpty: boolean): string
   return value;
 }
 
-export function commands(value: unknown, field: string): string[] {
-  if (
-    !Array.isArray(value) ||
-    !value.every((entry) => typeof entry === 'string' && entry.trim().length > 0)
-  ) {
-    throw new Error(`${CONFIG_FILE}: ${field} must be a list of commands that are not empty.`);
-  }
-  return [...(value as string[])];
-}
-
 export function checkNames(value: unknown, field: string): string[] {
   if (!Array.isArray(value) || !value.every((entry) => typeof entry === 'string' && entry !== '')) {
     throw new Error(`${CONFIG_FILE}: ${field} must be a list of check names that are not empty.`);

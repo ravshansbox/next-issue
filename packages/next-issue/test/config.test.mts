@@ -36,7 +36,6 @@ test('a user with no config file gets the defaults', async () => {
   assert.equal(config.setupTimeoutMinutes, 15);
   assert.equal(config.commandTimeoutMinutes, 10);
   assert.equal(config.diffMaxChars, 60000);
-  assert.deepEqual(config.checks, []);
   assert.equal(config.checksTimeoutMinutes, 30);
   assert.deepEqual(config.ignoredChecks, []);
   assert.deepEqual(config.models, {});
@@ -142,16 +141,12 @@ test('a user whose config file holds a field of the wrong type gets the run stop
   );
 });
 
-test('a user who sets checks gets the commands in order', async () => {
-  const config = await parse({ checks: ['npm run lint', 'npm test'], checksTimeoutMinutes: 5 });
-  assert.deepEqual(config.checks, ['npm run lint', 'npm test']);
-  assert.equal(config.checksTimeoutMinutes, 5);
+test('a user who sets checks gets an unknown field error', async () => {
+  await assert.rejects(parse({ checks: ['npm test'] }), /unknown field: checks/);
 });
 
-test('a user who sets checks to something other than a list of commands gets an error that names the field', async () => {
-  for (const checks of ['npm test', [''], [3], null]) {
-    await assert.rejects(parse({ checks }), /checks must be a list of commands that are not empty/);
-  }
+test('a user who sets checksTimeoutMinutes gets it, and an error that names the field when it is out of range', async () => {
+  assert.equal((await parse({ checksTimeoutMinutes: 5 })).checksTimeoutMinutes, 5);
   await assert.rejects(
     parse({ checksTimeoutMinutes: 0 }),
     /checksTimeoutMinutes must be a whole number from 1 to 35791/,
@@ -245,7 +240,7 @@ test('a user who runs init gets a config file that gives the defaults', async ()
   assert.deepEqual(await loadConfig(dir), await loadConfig(await root()));
   assert.match(await readFile(path, 'utf8'), /\n$/);
   assert.equal(JSON.parse(await readFile(path, 'utf8')).agent, undefined);
-  assert.deepEqual(JSON.parse(await readFile(path, 'utf8')).checks, []);
+  assert.equal(JSON.parse(await readFile(path, 'utf8')).checks, undefined);
   assert.deepEqual(JSON.parse(await readFile(path, 'utf8')).models, {
     default: null,
     implementer: null,

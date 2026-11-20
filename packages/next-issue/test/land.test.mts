@@ -162,13 +162,12 @@ test('a user whose push to the base branch keeps failing gets the issue handed o
 
 test('a user whose push to the base branch is refused while the base stays put gets the issue handed over at once with the error of git and the checks run once', async (t) => {
   const target = await harness(t, {
-    config: { checks: ['npm test'] },
     pushRefused: 'remote: Permission to acme/tool.git denied to bot.',
   });
   const report = await target.run();
   assert.equal(report.outcome, 'needs-human');
   assert.equal(report.reason, 'push failed');
-  assert.equal(target.checks.length, 1);
+  assert.equal(target.checks.length, 4);
   assert.equal(target.baseMerges, 1);
   assert.deepEqual(target.landed, []);
   assert.match(

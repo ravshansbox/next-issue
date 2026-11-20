@@ -15,6 +15,10 @@ import {
 
 const CHECK = 'echo generated > generated.txt; echo changed >> a.txt; test -f fixed.txt';
 
+function scripts(test: string): string {
+  return JSON.stringify({ scripts: { format: 'true', lint: 'true', typecheck: 'true', test } });
+}
+
 async function checked(
   t: TestContext,
   check: string,
@@ -23,7 +27,8 @@ async function checked(
   const { repo, other } = await clones();
   await git(repo.root, 'config', 'user.name', 't');
   await git(repo.root, 'config', 'user.email', 't@t');
-  const target = await harness(t, { root: repo.root, config: { checks: [check] } });
+  await pushBase(other, { 'package.json': scripts(check) });
+  const target = await harness(t, { root: repo.root });
   useGit(target, (worktree) => writeFiles(worktree, fix));
   target.context.ports.runCheck = PORTS.runCheck;
   return { target, other };
@@ -34,7 +39,12 @@ test('a user whose check writes files and then passes after a fix gets only the 
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.equal(report.ciFixes, 1);
-  assert.deepEqual(await landedFiles(other), ['a.txt', 'fixed.txt', 'implementer.txt']);
+  assert.deepEqual(await landedFiles(other), [
+    'a.txt',
+    'fixed.txt',
+    'implementer.txt',
+    'package.json',
+  ]);
   assert.equal(await git(other, 'show', 'origin/main:a.txt'), 'a.txt');
 });
 
@@ -65,6 +75,11 @@ test('a user whose checks pass after writing files, and whose push the base refu
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.equal(pushes, 2);
-  assert.deepEqual(await landedFiles(other), ['a.txt', 'implementer.txt', 'moved.txt']);
+  assert.deepEqual(await landedFiles(other), [
+    'a.txt',
+    'implementer.txt',
+    'moved.txt',
+    'package.json',
+  ]);
   assert.equal(await git(other, 'show', 'origin/main:a.txt'), 'a.txt');
 });

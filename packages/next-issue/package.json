@@ -37,8 +37,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint --deny-warnings",
     "lint:fix": "oxlint --fix",
-    "format": "oxfmt",
-    "format:check": "oxfmt --check",
+    "format": "oxfmt --check",
+    "format:fix": "oxfmt",
     "prepack": "npm run build"
   },
   "devDependencies": {

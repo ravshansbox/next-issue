@@ -11,7 +11,6 @@ async function stoppedChecks(t: TestContext): Promise<{ root: string; other: str
   await git(repo.root, 'config', 'user.email', 't@t');
   const first = await harness(t, {
     root: repo.root,
-    config: { checks: ['npm test'] },
     stopNowDuringCheck: true,
   });
   useGit(first, async () => undefined);

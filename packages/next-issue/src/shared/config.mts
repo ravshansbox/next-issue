@@ -3,7 +3,6 @@ import { dirname, join } from 'node:path';
 import {
   CONFIG_FILE,
   checkNames,
-  commands,
   OLD_CONFIG_FILE,
   record,
   rejectUnknown,
@@ -32,8 +31,6 @@ export type Config = {
   diffMaxChars: number;
   keepRunDays: number;
   setupCommand?: string;
-  /** Commands that must pass in the worktree before a change is pushed to the base. */
-  checks: string[];
   checksTimeoutMinutes: number;
   /** Names of GitHub Actions jobs, check runs and commit statuses that the checks of a landed commit leave out. */
   ignoredChecks: string[];
@@ -72,7 +69,6 @@ const DEFAULTS: Config = {
   logMaxChars: 20000,
   diffMaxChars: 60000,
   keepRunDays: 7,
-  checks: [],
   checksTimeoutMinutes: 30,
   ignoredChecks: [],
   models: {},
@@ -90,7 +86,6 @@ const DEFAULTS: Config = {
 function defaults(): Config {
   return {
     ...DEFAULTS,
-    checks: [...DEFAULTS.checks],
     ignoredChecks: [...DEFAULTS.ignoredChecks],
     models: { ...DEFAULTS.models },
     labels: { ...DEFAULTS.labels },
@@ -235,9 +230,6 @@ function parseConfig(value: unknown): Config {
   }
   if (file.setupCommand !== undefined) {
     config.setupCommand = text(file.setupCommand, 'setupCommand', false);
-  }
-  if (file.checks !== undefined) {
-    config.checks = commands(file.checks, 'checks');
   }
   if (file.ignoredChecks !== undefined) {
     config.ignoredChecks = checkNames(file.ignoredChecks, 'ignoredChecks');
