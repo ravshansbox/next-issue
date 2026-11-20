@@ -143,6 +143,9 @@ export function statusText(version: string, progress: Progress): string {
     lines.push(idleLine(progress));
   }
   lines.push(...progress.issues.map(issueLine));
+  if (progress.hunt === true) {
+    lines.push('hunting for bugs');
+  }
   return `${lines.join('\n')}\n`;
 }
 

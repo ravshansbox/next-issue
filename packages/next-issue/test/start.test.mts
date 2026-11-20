@@ -508,6 +508,35 @@ test('a user who runs status while the worker looks for an issue or waits to loo
   fake.finish();
 });
 
+test('a user who runs status while a hunt runs sees "hunting for bugs" after the idle line or the issue lines, and no such line once the hunt ends', async (t) => {
+  const root = await repository(ORIGIN);
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const other = await connect(t, workerPaths(root).socketPath);
+  other.send({ type: 'start', root, args: ['--hunt', 'on'] });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.status === 'running');
+  const controls = fake.controls();
+  const statusLines = async (): Promise<string> => {
+    const status = cliCommand(t, root, ['status']);
+    assert.equal(await status.exited, 0, status.stderr());
+    return status.stdout().split('\n').slice(1).join('\n');
+  };
+  assert.equal(await statusLines(), 'watching on, hunting on\nlooking for an issue\n');
+  controls.onEvent!({ kind: 'hunt.start' });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.hunt === true);
+  assert.equal(
+    await statusLines(),
+    'watching on, hunting on\nlooking for an issue\nhunting for bugs\n',
+  );
+  controls.onEvent!({ kind: 'issue.start', issue: 654 });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.issues.length === 1);
+  assert.equal(await statusLines(), 'watching on, hunting on\n#654 starting\nhunting for bugs\n');
+  controls.onEvent!({ kind: 'hunt.end' });
+  await other.next((value) => value.type === 'runs' && value.runs[root]?.hunt === undefined);
+  assert.equal(await statusLines(), 'watching on, hunting on\n#654 starting\n');
+  fake.finish();
+});
+
 test('a user who runs status while the run stops for an upgrade sees the run stopping, the upgrade and that no issue is running', async (t) => {
   const root = await repository(ORIGIN);
   const fake = fakeRuns();

@@ -29,6 +29,13 @@ export function applyEvent(progress: Progress, record: Fields): Progress {
     const { nextLook: _nextLook, ...rest } = progress;
     return { ...rest, looking: true };
   }
+  if (kind === 'hunt.start') {
+    return { ...progress, hunt: true };
+  }
+  if (kind === 'hunt.end') {
+    const { hunt: _hunt, ...rest } = progress;
+    return rest;
+  }
   const issue = record['issue'];
   if (typeof kind !== 'string' || typeof issue !== 'number') {
     return progress;

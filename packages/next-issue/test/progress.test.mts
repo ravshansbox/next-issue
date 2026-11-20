@@ -54,3 +54,12 @@ test('a watcher sees an empty issue list for a run with no running issue, and no
   );
   assert.deepEqual(progress.issues, []);
 });
+
+test('a watcher sees hunt true while a hunt runs, and no hunt field before it starts or after it ends', () => {
+  const before = startProgress(true);
+  const during = applyEvent(before, { kind: 'hunt.start' });
+  const after = applyEvent(during, { kind: 'hunt.end', ms: 5 });
+  assert.equal('hunt' in before, false);
+  assert.equal(during.hunt, true);
+  assert.equal('hunt' in after, false);
+});

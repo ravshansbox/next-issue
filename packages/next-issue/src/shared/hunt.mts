@@ -109,6 +109,7 @@ export function hunter(context: Context): Hunter & { busy: () => boolean } {
       try {
         return await hunt(context, count);
       } catch {
+        recorder.record('hunt.end', {});
         return false;
       } finally {
         hunting = false;

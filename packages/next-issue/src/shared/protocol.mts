@@ -12,6 +12,7 @@ export type Progress = {
   status: RunStatus;
   issues: RunningIssue[];
   hunting: boolean;
+  hunt?: boolean;
   watching?: boolean;
   upgrade?: Upgrade;
   error?: string;

@@ -276,6 +276,26 @@ test('a user whose hunter fails sees a hunt.error event', async (t) => {
   assert.ok(target.events.some((record) => record.kind === 'hunt.error'));
 });
 
+test('a user whose hunt files nothing sees hunt.start and then hunt.end in the run log', async (t) => {
+  const target = await harness(t);
+  assert.equal(await hunter(target.context).hunt(1), false);
+  const kinds = target.events
+    .map((record) => record.kind)
+    .filter((kind) => kind === 'hunt.start' || kind === 'hunt.end');
+  assert.deepEqual(kinds, ['hunt.start', 'hunt.end']);
+});
+
+test('a user whose hunter fails sees hunt.start, hunt.error and then hunt.end in the run log', async (t) => {
+  const target = await harness(t, { fail: 'runAgent' });
+  assert.equal(await hunter(target.context).hunt(1), false);
+  const kinds = target.events
+    .map((record) => record.kind)
+    .filter(
+      (kind) => typeof kind === 'string' && kind.startsWith('hunt.') && kind !== 'hunt.issue',
+    );
+  assert.deepEqual(kinds, ['hunt.start', 'hunt.error', 'hunt.end']);
+});
+
 test('a user who hunts gets a worktree at the remote base', async () => {
   const { repo, other } = await clones();
   const pushed = await commit(other, 'b.txt');
