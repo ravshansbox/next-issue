@@ -11,7 +11,13 @@ import { serve } from './worker/serve.mts';
 import { startInWorker } from './cli/start.mts';
 import { STATE_DIR } from './shared/state.mts';
 import { statusInWorker, stopInWorker, switchInWorker } from './cli/switch-run.mts';
-import { chooseScope, installSkills, refreshSkills } from './cli/skills.mts';
+import {
+  chooseScope,
+  installSkills,
+  PROJECT_SKILL_FOLDERS,
+  refreshSkills,
+  untrackSkills,
+} from './cli/skills.mts';
 import { WORKTREE_DIR } from './shared/worktree.mts';
 
 function write(stream: NodeJS.WriteStream, text: string): Promise<void> {
@@ -58,7 +64,7 @@ async function main(): Promise<number> {
   if (args.command === 'serve') {
     return serve(root);
   }
-  for (const note of await refreshSkills(root)) {
+  for (const note of [...(await untrackSkills(root)), ...(await refreshSkills(root))]) {
     await write(process.stderr, `${note}\n`);
   }
   await write(process.stderr, await startInWorker(root, argv.slice(1)));
@@ -94,7 +100,10 @@ async function init(root: string, args: Args): Promise<number> {
 
 async function excludeStateDirectories(root: string, stream: NodeJS.WriteStream): Promise<void> {
   const exclude = await excludeFile(root);
-  const entries = [STATE_DIR, WORKTREE_DIR].map((directory) => `${directory}/`);
+  const entries = [
+    ...[STATE_DIR, WORKTREE_DIR].map((directory) => `${directory}/`),
+    ...PROJECT_SKILL_FOLDERS,
+  ];
   for (const entry of entries) {
     if (await ensureExcluded(exclude, entry)) {
       await write(stream, `added ${entry} to ${exclude}\n`);

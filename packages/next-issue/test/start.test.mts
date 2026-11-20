@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { type ChildProcess, spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { dirname, join } from 'node:path';
 import { type TestContext, test } from 'node:test';
@@ -49,8 +49,9 @@ function cliCommand(
   root: string,
   argv: string[],
   env: NodeJS.ProcessEnv = process.env,
+  prefix: string[] = [CLI],
 ): Started {
-  const child = spawn(process.execPath, [CLI, ...argv], { cwd: root, env });
+  const child = spawn(process.execPath, [...prefix, ...argv], { cwd: root, env });
   let stdout = '';
   let stderr = '';
   child.stdout.on('data', (chunk) => (stdout += chunk));
@@ -209,6 +210,10 @@ test('a user with neither copy of a skill who runs start gets it installed in .c
     assert.match(stderr, new RegExp(`^wrote ${folder}$`, 'm'));
   }
   assert.deepEqual(await readdir(home), []);
+  const status = await must('git', ['status', '--porcelain', '--untracked-files=all'], {
+    cwd: root,
+  });
+  assert.doesNotMatch(status, /\.claude\/skills/);
 });
 
 test('a user with their own create-issue skill in ~/.claude/skills who runs start keeps it unchanged, sees kept with its folder and gets no project copy of it', async (t) => {
@@ -226,23 +231,194 @@ test('a user with their own create-issue skill in ~/.claude/skills who runs star
   assert.deepEqual(await readdir(join(root, '.claude', 'skills')), ['answer-hand-over']);
 });
 
-test('a user whose repository tracks an outdated .claude/skills/create-issue with uncommitted edits who runs start keeps every file of it as it is, sees kept with its folder and gets no other copy of it', async (t) => {
+const UNTRACK_SUBJECT = 'chore: stop tracking the next-issue skills';
+
+const TERMINAL_STDIN = '--import=data:text/javascript,process.stdin.isTTY=true';
+
+async function trackingSkills(): Promise<{ root: string; origin: string; project: string }> {
+  const origin = await tempDir();
+  await must('git', ['init', '-q', '--bare'], { cwd: origin });
+  const root = await repository(origin);
+  for (const [key, value] of [
+    ['user.name', 't'],
+    ['user.email', 't@t'],
+  ]) {
+    await must('git', ['config', key, value], { cwd: root });
+  }
+  const project = join(root, '.claude', 'skills', 'answer-hand-over');
+  await cp(join(SKILLS, 'answer-hand-over'), project, { recursive: true });
+  await writeFile(
+    join(project, 'SKILL.md'),
+    '---\nname: answer-hand-over\ndescription: Answer a next-issue hand-over.\n---\n\nold\n',
+  );
+  await writeFile(join(root, 'notes.md'), 'first\n');
+  await must('git', ['add', '.'], { cwd: root });
+  await must('git', ['commit', '-q', '-m', 'first'], { cwd: root });
+  await must('git', ['push', '-q', 'origin', 'HEAD'], { cwd: root });
+  await writeFile(join(root, 'notes.md'), 'staged\n');
+  await must('git', ['add', 'notes.md'], { cwd: root });
+  return { root, origin, project };
+}
+
+function startInTerminal(t: TestContext, root: string, answer: string, home: string): Started {
+  const started = cliCommand(
+    t,
+    root,
+    [TERMINAL_STDIN, CLI, 'start'],
+    { ...process.env, HOME: home },
+    [],
+  );
+  started.child.stdin?.end(answer);
+  return started;
+}
+
+async function gitState(root: string): Promise<string[]> {
+  return Promise.all(
+    [
+      ['rev-parse', 'HEAD'],
+      ['diff', '--cached', '--name-status'],
+      ['ls-files', '--', '.claude/skills'],
+      ['status', '--porcelain', '--untracked-files=all'],
+    ].map((args) => must('git', args, { cwd: root })),
+  );
+}
+
+test('a user who runs start in a terminal in a repository that tracks a next-issue skill and answers yes gets one pushed commit that untracks only the skill folders, keeps the other staged file staged, the skill on disk with the shipped content and the run started', async (t) => {
+  const { root, origin, project } = await trackingSkills();
+  const home = await tempDir();
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const started = startInTerminal(t, root, 'y\n', home);
+  assert.equal(await started.exited, 0, started.stderr());
+  fake.finish();
+  assert.match(started.stderr(), /untrack/);
+  assert.equal(fake.calls.length, 1);
+  assert.equal(
+    await must('git', ['log', '-1', '--format=%s', 'main'], { cwd: origin }),
+    UNTRACK_SUBJECT,
+  );
+  assert.equal(
+    await must('git', ['rev-parse', 'HEAD'], { cwd: root }),
+    await must('git', ['rev-parse', 'main'], { cwd: origin }),
+  );
+  assert.equal(await must('git', ['rev-list', '--count', 'main'], { cwd: origin }), '2');
+  const changed = await must('git', ['show', '--name-status', '--format=', 'HEAD'], { cwd: root });
+  assert.deepEqual(
+    changed.split('\n').sort(),
+    (await readdir(join(SKILLS, 'answer-hand-over')))
+      .map((file) => `D\t.claude/skills/answer-hand-over/${file}`)
+      .sort(),
+  );
+  assert.equal(
+    await must('git', ['diff', '--cached', '--name-status'], { cwd: root }),
+    'M\tnotes.md',
+  );
+  assert.equal(await must('git', ['ls-files', '--', '.claude/skills'], { cwd: root }), '');
+  await assertShipped(project, 'answer-hand-over');
+  assert.equal(
+    await must('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: root }),
+    'M  notes.md',
+  );
+});
+
+test('a user who runs start in a terminal in a repository that tracks a next-issue skill and answers no sees exit code 1, no commit, and the index and the skill folder as they were', async (t) => {
+  const { root, project } = await trackingSkills();
+  const home = await tempDir();
+  const before = await gitState(root);
+  const skill = await readFile(join(project, 'SKILL.md'), 'utf8');
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const started = startInTerminal(t, root, 'n\n', home);
+  assert.equal(await started.exited, 1, started.stderr());
+  assert.equal(fake.calls.length, 0);
+  assert.deepEqual(await gitState(root), before);
+  assert.equal(await readFile(join(project, 'SKILL.md'), 'utf8'), skill);
+});
+
+test('a user who runs start with no terminal in a repository that tracks a next-issue skill sees exit code 1, the commands to untrack and commit the skill folders, and nothing changed', async (t) => {
+  const { root, project } = await trackingSkills();
+  const home = await tempDir();
+  const before = await gitState(root);
+  const skill = await readFile(join(project, 'SKILL.md'), 'utf8');
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const started = startCommand(t, root, [], { ...process.env, HOME: home });
+  assert.equal(await started.exited, 1, started.stderr());
+  assert.equal(fake.calls.length, 0);
+  assert.match(started.stderr(), /`git rm -r --cached -- \.claude\/skills\/answer-hand-over\/`/);
+  assert.match(started.stderr(), new RegExp(`\`git commit -m "${UNTRACK_SUBJECT}"\``));
+  assert.match(started.stderr(), /`git push origin HEAD`/);
+  assert.deepEqual(await gitState(root), before);
+  assert.equal(await readFile(join(project, 'SKILL.md'), 'utf8'), skill);
+});
+
+test('a user whose pre-commit hook fails who runs start in a terminal and answers yes still gets the skill folders untracked in a pushed commit and the run started', async (t) => {
+  const { root, origin } = await trackingSkills();
+  const hook = join(root, '.git', 'hooks', 'pre-commit');
+  await writeFile(hook, '#!/bin/sh\nexit 1\n');
+  await chmod(hook, 0o755);
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const started = startInTerminal(t, root, 'y\n', await tempDir());
+  assert.equal(await started.exited, 0, started.stderr());
+  fake.finish();
+  assert.equal(
+    await must('git', ['log', '-1', '--format=%s', 'main'], { cwd: origin }),
+    UNTRACK_SUBJECT,
+  );
+  assert.equal(await must('git', ['ls-files', '--', '.claude/skills'], { cwd: root }), '');
+});
+
+test('a user whose push the remote refuses who runs start in a terminal and answers yes sees exit code 1 with the git error, no commit, and the index and the skill folder as they were', async (t) => {
+  const { root, origin, project } = await trackingSkills();
+  const hook = join(origin, 'hooks', 'pre-receive');
+  await writeFile(hook, '#!/bin/sh\necho refused by the remote >&2\nexit 1\n');
+  await chmod(hook, 0o755);
+  const before = await gitState(root);
+  const skill = await readFile(join(project, 'SKILL.md'), 'utf8');
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const started = startInTerminal(t, root, 'y\n', await tempDir());
+  assert.equal(await started.exited, 1, started.stderr());
+  assert.equal(fake.calls.length, 0);
+  assert.match(started.stderr(), /refused by the remote/);
+  assert.deepEqual(await gitState(root), before);
+  assert.equal(await readFile(join(project, 'SKILL.md'), 'utf8'), skill);
+});
+
+test('a user who staged a next-issue skill that no commit holds who runs start in a terminal and answers yes gets the skill unstaged, no new commit, the other staged file still staged and the run started', async (t) => {
+  const { root, origin } = await trackingSkills();
+  await must('git', ['rm', '-r', '-q', '--cached', '--', '.claude/skills'], { cwd: root });
+  await must('git', ['commit', '-q', '-m', 'second'], { cwd: root });
+  await must('git', ['push', '-q', 'origin', 'HEAD'], { cwd: root });
+  await writeFile(join(root, 'notes.md'), 'staged again\n');
+  await must('git', ['add', '.claude/skills', 'notes.md'], { cwd: root });
+  const head = await must('git', ['rev-parse', 'HEAD'], { cwd: root });
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const started = startInTerminal(t, root, 'y\n', await tempDir());
+  assert.equal(await started.exited, 0, started.stderr());
+  fake.finish();
+  assert.equal(fake.calls.length, 1);
+  assert.equal(await must('git', ['rev-parse', 'HEAD'], { cwd: root }), head);
+  assert.equal(await must('git', ['rev-parse', 'main'], { cwd: origin }), head);
+  assert.equal(await must('git', ['ls-files', '--', '.claude/skills'], { cwd: root }), '');
+  assert.equal(
+    await must('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: root }),
+    'M  notes.md',
+  );
+});
+
+test('a user who runs start in a terminal in a repository that tracks no next-issue skill sees no question and the run started', async (t) => {
   const root = await repository(ORIGIN);
   const home = await tempDir();
-  const project = join(root, '.claude', 'skills', 'create-issue');
-  await cp(join(SKILLS, 'create-issue'), project, { recursive: true });
-  await writeFile(join(project, 'old.md'), 'old');
-  await must('git', ['add', '.claude/skills/create-issue'], { cwd: root });
-  const edited = '---\nname: create-issue\ndescription: File a next-issue issue.\n---\n\nedited\n';
-  await writeFile(join(project, 'SKILL.md'), edited);
-  const before = await readdir(project, { recursive: true });
-  const stderr = await startWithSkills(t, root, home);
-  assert.deepEqual(await readdir(project, { recursive: true }), before);
-  assert.equal(await readFile(join(project, 'SKILL.md'), 'utf8'), edited);
-  assert.equal(await readFile(join(project, 'old.md'), 'utf8'), 'old');
-  assert.match(stderr, new RegExp(`^kept ${project}: tracked by git$`, 'm'));
-  assert.doesNotMatch(stderr, /create-issue$/m);
-  assert.deepEqual(await readdir(home), []);
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const started = startInTerminal(t, root, '', home);
+  assert.equal(await started.exited, 0, started.stderr());
+  fake.finish();
+  assert.doesNotMatch(started.stderr(), /untrack/);
+  assert.equal(fake.calls.length, 1);
 });
 
 test('a user whose copies of the skills match the shipped ones who runs start keeps them as they are and sees nothing about them', async (t) => {
@@ -255,7 +431,7 @@ test('a user whose copies of the skills match the shipped ones who runs start ke
   const before = [(await stat(user)).ino, (await stat(project)).ino];
   const stderr = await startWithSkills(t, root, home);
   assert.deepEqual([(await stat(user)).ino, (await stat(project)).ino], before);
-  assert.doesNotMatch(stderr, /\.claude\/skills/);
+  assert.doesNotMatch(withoutSetupNotes(stderr), /\.claude\/skills/);
   assert.equal(await readdir(join(root, '.claude', 'skills')).then((names) => names.length), 1);
 });
 

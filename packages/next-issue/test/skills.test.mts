@@ -1,14 +1,11 @@
 import assert from 'node:assert/strict';
-import { readdir, readFile } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { ISSUE_SECTIONS } from '../src/shared/issue-format.mts';
 
 const skills = new URL('../skills/', import.meta.url);
 const createIssue = new URL('create-issue/SKILL.md', skills);
 const answerHandOver = new URL('answer-hand-over/SKILL.md', skills);
-const projectSkills = new URL('../../../.claude/skills/', import.meta.url);
 const readmeFile = new URL('../README.md', import.meta.url);
 const behaviourFile = new URL('../docs/behaviour.md', import.meta.url);
 
@@ -335,26 +332,4 @@ test('a person who reads the next-issue README learns that next-issue init insta
   assert.match(readme, /`init`[^\n]*installs the `create-issue` skill/);
   assert.doesNotMatch(readme, /`update`|next-issue@latest update/);
   assert.doesNotMatch(readme, /refresh/);
-});
-
-test('a person who uses Claude Code in this repository gets the same skills as the packaged ones', async () => {
-  const names = async (folder: URL) =>
-    (await readdir(folder, { recursive: true, withFileTypes: true }))
-      .filter((entry) => entry.isFile())
-      .map((entry) => relative(fileURLToPath(folder), join(entry.parentPath, entry.name)))
-      .sort();
-  const packaged = await names(skills);
-  const project = await names(projectSkills);
-  assert.deepEqual(
-    project,
-    packaged,
-    'files in .claude/skills differ from packages/next-issue/skills',
-  );
-  for (const name of packaged) {
-    assert.equal(
-      await readFile(new URL(name, projectSkills), 'utf8'),
-      await readFile(new URL(name, skills), 'utf8'),
-      `.claude/skills/${name} differs from packages/next-issue/skills/${name}`,
-    );
-  }
 });

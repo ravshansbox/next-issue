@@ -1,14 +1,20 @@
 import { createHash } from 'node:crypto';
-import { cp, readdir, readFile, rename, rm } from 'node:fs/promises';
-import { homedir } from 'node:os';
+import { cp, mkdtemp, readdir, readFile, rename, rm } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import type { Scope } from '../shared/args.mts';
 import { OWN_SKILLS } from '../shared/agents.mts';
+import { loadConfig } from '../shared/config.mts';
 import { hasCode } from '../shared/errors.mts';
+import { must } from '../shared/exec.mts';
 import { git, repoRoot } from '../shared/git.mts';
 
 const SKILLS = join(import.meta.dirname, '..', '..', 'skills');
+
+export const PROJECT_SKILL_FOLDERS = OWN_SKILLS.map((name) => `.claude/skills/${name}/`);
+
+const UNTRACK_SUBJECT = 'chore: stop tracking the next-issue skills';
 
 const QUESTION =
   'Install the skills for the user, in ~/.claude/skills, or for the project, in .claude/skills of the main worktree? (user/project) ';
@@ -20,21 +26,22 @@ const ANSWERS = new Map<string, Scope>([
   ['p', 'project'],
 ]);
 
-async function askScope(
-  input: NodeJS.ReadableStream,
-  output: NodeJS.WritableStream,
-): Promise<Scope> {
-  const prompt = createInterface({ input, output });
+async function ask(question: string, output: NodeJS.WritableStream): Promise<string> {
+  const prompt = createInterface({ input: process.stdin, output });
   try {
-    const answer = (await prompt.question(QUESTION)).trim().toLowerCase();
-    const scope = ANSWERS.get(answer);
-    if (scope === undefined) {
-      throw new Error(`answer user or project, not ${JSON.stringify(answer)}`);
-    }
-    return scope;
+    return (await prompt.question(question)).trim().toLowerCase();
   } finally {
     prompt.close();
   }
+}
+
+async function askScope(): Promise<Scope> {
+  const answer = await ask(QUESTION, process.stdout);
+  const scope = ANSWERS.get(answer);
+  if (scope === undefined) {
+    throw new Error(`answer user or project, not ${JSON.stringify(answer)}`);
+  }
+  return scope;
 }
 
 export async function chooseScope(scope: Scope | undefined): Promise<Scope> {
@@ -46,7 +53,7 @@ export async function chooseScope(scope: Scope | undefined): Promise<Scope> {
       '`init` needs `--scope user|project` when there is no terminal to ask where to install the skills',
     );
   }
-  return askScope(process.stdin, process.stdout);
+  return askScope();
 }
 
 async function skillsFolder(scope: Scope): Promise<string> {
@@ -137,9 +144,7 @@ export async function refreshSkills(root: string): Promise<string[]> {
       if (hash === shipped) {
         continue;
       }
-      if (folder === project && (await isTracked(root, join(folder, name)))) {
-        notes.push(`kept ${join(folder, name)}: tracked by git`);
-      } else if (await isOwnSkill(join(folder, name))) {
+      if (await isOwnSkill(join(folder, name))) {
         notes.push(`updated ${await replaceSkill(folder, name)}`);
       } else {
         notes.push(`kept ${join(folder, name)}: not a next-issue skill`);
@@ -150,4 +155,68 @@ export async function refreshSkills(root: string): Promise<string[]> {
     }
   }
   return notes;
+}
+
+export async function untrackSkills(root: string): Promise<string[]> {
+  const folders: string[] = [];
+  for (const folder of PROJECT_SKILL_FOLDERS) {
+    if (await isTracked(root, folder)) {
+      folders.push(folder);
+    }
+  }
+  if (folders.length === 0) {
+    return [];
+  }
+  const { remote } = await loadConfig(root);
+  const tracked = `git tracks the next-issue skills in ${folders.join(', ')}`;
+  if (process.stdin.isTTY !== true) {
+    const commands = [
+      `git rm -r --cached -- ${folders.join(' ')}`,
+      `git commit -m "${UNTRACK_SUBJECT}"`,
+      `git push ${remote} HEAD`,
+    ];
+    throw new Error(
+      `${tracked}; untrack them in ${root} with ${commands.map((command) => `\`${command}\``).join(', then ')}, and run \`npx -y next-issue@latest start\` again`,
+    );
+  }
+  const answer = await ask(
+    `${tracked}. Untrack them, commit the removal and push it to ${remote}? (y/n) `,
+    process.stderr,
+  );
+  if (answer !== 'y' && answer !== 'yes') {
+    throw new Error(`${tracked}; \`npx -y next-issue@latest start\` needs them untracked`);
+  }
+  const committed =
+    (await git(root, ['ls-tree', '-r', '--name-only', 'HEAD', '--', ...folders])) !== '';
+  if (committed) {
+    await commitUntracked(root, folders);
+    try {
+      await git(root, ['push', '-q', remote, 'HEAD']);
+    } catch (error) {
+      await git(root, ['reset', '-q', '--soft', 'HEAD~1']);
+      throw error;
+    }
+  }
+  await git(root, ['rm', '-r', '-q', '--cached', '-f', '--ignore-unmatch', '--', ...folders]);
+  return [
+    committed
+      ? `untracked ${folders.join(', ')} and pushed the commit to ${remote}`
+      : `untracked ${folders.join(', ')}`,
+  ];
+}
+
+async function commitUntracked(root: string, folders: string[]): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), 'next-issue-'));
+  const options = { cwd: root, env: { GIT_INDEX_FILE: join(directory, 'index') } };
+  try {
+    await must('git', ['read-tree', 'HEAD'], options);
+    await must(
+      'git',
+      ['rm', '-r', '-q', '--cached', '--ignore-unmatch', '--', ...folders],
+      options,
+    );
+    await must('git', ['commit', '-q', '--no-verify', '-m', UNTRACK_SUBJECT], options);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 }

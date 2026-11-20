@@ -25,6 +25,13 @@ import { connect } from './worker-harness.mts';
 
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
 
+const EXCLUDED = [
+  '.next-issue/',
+  '.claude/worktrees/',
+  '.claude/skills/create-issue/',
+  '.claude/skills/answer-hand-over/',
+];
+
 process.env.HOME = await tempDir();
 
 async function serveWorker(root: string, env: NodeJS.ProcessEnv = process.env) {
@@ -54,13 +61,14 @@ async function exists(path: string): Promise<boolean> {
   );
 }
 
-test('a user who runs init gets .next-issue/ and .claude/worktrees/ once in info/exclude and no .gitignore', async () => {
+test('a user who runs init gets .next-issue/, .claude/worktrees/ and the next-issue skill folders once in info/exclude and no .gitignore', async () => {
   const root = await repository();
   await initCommand(root);
   await initCommand(root).catch(() => undefined);
   const exclude = await readFile(join(root, '.git/info/exclude'), 'utf8');
-  assert.equal(exclude.split('\n').filter((line) => line === '.next-issue/').length, 1);
-  assert.equal(exclude.split('\n').filter((line) => line === '.claude/worktrees/').length, 1);
+  for (const entry of EXCLUDED) {
+    assert.equal(exclude.split('\n').filter((line) => line === entry).length, 1, entry);
+  }
   assert.equal(await exists(join(root, '.gitignore')), false);
 });
 
@@ -238,13 +246,14 @@ test('a user who runs refresh sees an unknown command error and exit code 1', as
   assert.match(error?.stderr ?? '', /Unknown command: `refresh`/);
 });
 
-test('a user who starts a run without init gets .next-issue/ and .claude/worktrees/ in info/exclude, .next-issue/ out of .gitignore, and no config file', async (t) => {
+test('a user who starts a run without init gets .next-issue/, .claude/worktrees/ and the next-issue skill folders in info/exclude, .next-issue/ out of .gitignore, and no config file', async (t) => {
   const root = await repository();
   await writeFile(join(root, '.gitignore'), 'node_modules/\n.next-issue/\n');
   await watchingRun(t, root);
   const exclude = await readFile(join(root, '.git/info/exclude'), 'utf8');
-  assert.match(exclude, /^\.next-issue\/$/m);
-  assert.match(exclude, /^\.claude\/worktrees\/$/m);
+  for (const entry of EXCLUDED) {
+    assert.ok(exclude.split('\n').includes(entry), entry);
+  }
   assert.equal(await readFile(join(root, '.gitignore'), 'utf8'), 'node_modules/\n');
   assert.equal(await exists(join(root, '.next-issue/config.json')), false);
 });
