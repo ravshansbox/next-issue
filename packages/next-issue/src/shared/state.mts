@@ -35,6 +35,8 @@ export type IssueState = {
   closing?: boolean;
   /** The run halted while a commit of this issue was, or may be, on the base with checks nobody awaited. */
   halted?: boolean;
+  /** No worktree of the issue opened yet, so a worktree that holds its branch is a person's. */
+  fresh?: boolean;
 };
 
 export type ReviewRound = {
@@ -134,7 +136,8 @@ function isState(value: unknown): value is IssueState {
     isOptional(value.handedOver, 'boolean') &&
     (value.pendingHandOver === undefined || isPending(value.pendingHandOver)) &&
     isOptional(value.closing, 'boolean') &&
-    isOptional(value.halted, 'boolean')
+    isOptional(value.halted, 'boolean') &&
+    isOptional(value.fresh, 'boolean')
   );
 }
 

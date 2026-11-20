@@ -282,7 +282,9 @@ export async function claimedError(
     log.event('hand-over.error', { error: message(failure) });
   }
   logIssueError(log, error, started);
-  await cleanUp(context, log, state.branch);
+  if (state.fresh !== true) {
+    await cleanUp(context, log, state.branch);
+  }
   const report = {
     ...issueReport(issue.number, 'error', state, started, reason),
     ...(handedOver ? { handedOver } : {}),

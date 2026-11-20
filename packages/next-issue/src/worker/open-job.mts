@@ -31,6 +31,10 @@ export async function openJob(
     ? await log.step('reply', {}, () => handOverReply(context, issue.number, pending))
     : [];
   const worktree = await openWorktree(context, issue, log, branch, start);
+  if (state.fresh === true) {
+    delete state.fresh;
+    await writeState(repo, state);
+  }
   return {
     context,
     issue,

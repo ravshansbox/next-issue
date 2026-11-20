@@ -44,7 +44,7 @@ export async function addWorktree(
   const baseUpdated = await fastForwardBase(repo, base, remote);
   await git(repo.root, ['worktree', 'prune']);
   await releaseFromHunt(repo, branch);
-  await refuseMainWorktree(repo, branch);
+  await refuseOwnWorktree(repo, issue, branch, start);
   const pushed = await hasBranch(repo, upstream, '--remotes');
   const existing = await findWorktree(repo, branch);
   const path = existing ?? worktreePath(repo, issue);
@@ -114,11 +114,21 @@ export async function findWorktree(repo: Repo, branch: string): Promise<string |
   return found.path;
 }
 
-async function refuseMainWorktree(repo: Repo, branch: string): Promise<void> {
+async function refuseOwnWorktree(
+  repo: Repo,
+  issue: number,
+  branch: string,
+  start: boolean,
+): Promise<void> {
   const found = await holder(repo, branch);
   if (found?.main) {
     throw new Error(
       `the main worktree at ${found.path} has branch ${branch} checked out, so the issue cannot have its own worktree; check out another branch there and try again`,
+    );
+  }
+  if (start && found !== undefined && !(await samePath(found.path, worktreePath(repo, issue)))) {
+    throw new Error(
+      `the worktree at ${found.path} has branch ${branch} checked out, so the issue cannot have its own worktree; check out another branch there and try again`,
     );
   }
 }
@@ -131,8 +141,12 @@ async function releaseFromHunt(repo: Repo, branch: string): Promise<void> {
 }
 
 async function isHunt(repo: Repo, path: string): Promise<boolean> {
+  return samePath(path, huntPath(repo));
+}
+
+async function samePath(first: string, second: string): Promise<boolean> {
   const real = (target: string) => realpath(target).catch(() => target);
-  return (await real(path)) === (await real(huntPath(repo)));
+  return (await real(first)) === (await real(second));
 }
 
 async function holder(

@@ -62,7 +62,7 @@ export async function processIssue(
           issue,
           log,
           state,
-          saved === undefined,
+          state.fresh === true,
           handedOver,
           saved?.pendingHandOver,
           slot,
@@ -94,7 +94,7 @@ function wasHandedOver(context: Context, issue: Issue, saved: IssueState | undef
 
 function startState(issue: Issue, saved: IssueState | undefined, handedOver: boolean): IssueState {
   if (saved === undefined) {
-    return newState(issue.number, branchName(issue.number));
+    return { ...newState(issue.number, branchName(issue.number)), fresh: true };
   }
   const { pendingHandOver: _pending, ...rest } = saved;
   return handedOver ? resetState(saved) : rest;

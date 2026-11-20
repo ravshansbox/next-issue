@@ -87,13 +87,32 @@ test('a user who starts issue 3 afresh gets the remote branch 3 instead of a sta
   assert.equal(await revision(path), pushed);
 });
 
-test('a user who starts issue 3 afresh while a stale worktree holds branch 3 gets the base branch in it', async () => {
+test('a user whose own worktree at .claude/worktrees/3 holds branch 3 keeps it, its edits and the branch when issue 3 starts afresh', async () => {
   const { repo } = await clones();
-  const old = join(repo.root, '..', 'tool-issue-3');
+  const mine = join(repo.root, '.claude', 'worktrees', '3');
+  await git(repo.root, 'worktree', 'add', '-q', '-b', '3', mine, 'origin/main');
+  const head = await commit(mine, 'mine.txt');
+  await writeFile(join(mine, 'mine.txt'), 'edited\n');
+  await writeFile(join(mine, 'untracked.txt'), 'untracked\n');
+  await assert.rejects(
+    addWorktree(repo, 3, '3', 'main', 'origin', true),
+    new RegExp(`worktree at ${await realpath(mine)} has branch 3 checked out`),
+  );
+  assert.equal(await git(mine, 'branch', '--show-current'), '3');
+  assert.equal(await revision(mine), head);
+  assert.equal(await readFile(join(mine, 'mine.txt'), 'utf8'), 'edited\n');
+  assert.equal(await readFile(join(mine, 'untracked.txt'), 'utf8'), 'untracked\n');
+  assert.equal(existsSync(join(repo.root, '.claude', 'worktrees', 'next-issue-3')), false);
+});
+
+test('a user who starts issue 3 afresh while .claude/worktrees/next-issue-3 holds a stale branch 3 gets the base branch in it', async () => {
+  const { repo } = await clones();
+  const old = join(repo.root, '.claude', 'worktrees', 'next-issue-3');
   await git(repo.root, 'worktree', 'add', '-q', '-b', '3', old, 'origin/main');
   await commit(old, 'stale.txt');
   await writeFile(join(old, 'scratch.txt'), 'scratch\n');
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', true);
+  assert.equal(await realpath(path), await realpath(old));
   assert.equal(await revision(path), await git(repo.root, 'rev-parse', 'origin/main'));
   assert.equal(await isDirty(path), false);
 });
