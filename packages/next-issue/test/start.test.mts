@@ -294,14 +294,14 @@ test('a user who runs start in a terminal in a repository that tracks a next-iss
   assert.match(started.stderr(), /untrack/);
   assert.equal(fake.calls.length, 1);
   assert.equal(
-    await must('git', ['log', '-1', '--format=%s', 'main'], { cwd: origin }),
+    await must('git', ['log', '-1', '--format=%s', 'HEAD'], { cwd: origin }),
     UNTRACK_SUBJECT,
   );
   assert.equal(
     await must('git', ['rev-parse', 'HEAD'], { cwd: root }),
-    await must('git', ['rev-parse', 'main'], { cwd: origin }),
+    await must('git', ['rev-parse', 'HEAD'], { cwd: origin }),
   );
-  assert.equal(await must('git', ['rev-list', '--count', 'main'], { cwd: origin }), '2');
+  assert.equal(await must('git', ['rev-list', '--count', 'HEAD'], { cwd: origin }), '2');
   const changed = await must('git', ['show', '--name-status', '--format=', 'HEAD'], { cwd: root });
   assert.deepEqual(
     changed.split('\n').sort(),
@@ -363,7 +363,7 @@ test('a user whose pre-commit hook fails who runs start in a terminal and answer
   assert.equal(await started.exited, 0, started.stderr());
   fake.finish();
   assert.equal(
-    await must('git', ['log', '-1', '--format=%s', 'main'], { cwd: origin }),
+    await must('git', ['log', '-1', '--format=%s', 'HEAD'], { cwd: origin }),
     UNTRACK_SUBJECT,
   );
   assert.equal(await must('git', ['ls-files', '--', '.claude/skills'], { cwd: root }), '');
@@ -401,7 +401,7 @@ test('a user who staged a next-issue skill that no commit holds who runs start i
   fake.finish();
   assert.equal(fake.calls.length, 1);
   assert.equal(await must('git', ['rev-parse', 'HEAD'], { cwd: root }), head);
-  assert.equal(await must('git', ['rev-parse', 'main'], { cwd: origin }), head);
+  assert.equal(await must('git', ['rev-parse', 'HEAD'], { cwd: origin }), head);
   assert.equal(await must('git', ['ls-files', '--', '.claude/skills'], { cwd: root }), '');
   assert.equal(
     await must('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: root }),
