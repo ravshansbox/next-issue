@@ -8,6 +8,7 @@ import { pruneRuns } from '../src/worker/prune-runs.mts';
 import { runRepo } from '../src/worker/run.mts';
 import { runsDir } from '../src/shared/state.mts';
 import { tempDir } from './temp-dir.mts';
+import { writeScripts } from './helpers.mts';
 
 const DAY = 24 * 60 * 60_000;
 
@@ -68,6 +69,7 @@ test('the worker says nothing about a run directory that is not there', async ()
 test('a user whose event listener fails on the pruned runs event is left with no open run log', async () => {
   const root = await withRuns({ 'old.jsonl': 30 });
   await must('git', ['init', '-q'], { cwd: root });
+  await writeScripts(root, ['format', 'lint', 'typecheck', 'test']);
   await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/prune.git'], {
     cwd: root,
   });

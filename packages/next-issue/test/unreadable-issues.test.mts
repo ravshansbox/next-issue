@@ -11,6 +11,7 @@ import { applyEvent, startProgress } from '../src/worker/progress.mts';
 import { runRepo } from '../src/worker/run.mts';
 import { installGh } from './fake-gh.mts';
 import { tempDir } from './temp-dir.mts';
+import { writeScripts } from './helpers.mts';
 
 const listed = JSON.stringify([
   {
@@ -28,6 +29,7 @@ async function runWithFailedRead(
 ): Promise<{ code: number; waits: number; records: Fields[]; events: Fields[] }> {
   const root = await tempDir();
   await must('git', ['init', '-q'], { cwd: root });
+  await writeScripts(root, ['format', 'lint', 'typecheck', 'test']);
   await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/unreadable.git'], {
     cwd: root,
   });

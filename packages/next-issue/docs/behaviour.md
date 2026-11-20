@@ -153,6 +153,8 @@ Before each push to the base, the harness runs the setup command again, then `fo
 
 When the root `package.json` is missing or lacks any of the four scripts, `npx -y next-issue@latest start` stops before the run starts, and `npx -y next-issue@latest init` writes the config and installs the skills, then exits with 1. Both print an error that names each missing script (all four when there is no `package.json`), says that the humanless flow relies on these checks instead of a person, and says that `format` must check the formatting, not write files.
 
+The worker checks the scripts too, each time a run starts, also when it resumes a run on a newer worker after an upgrade. A run without them claims no issue and fails with the same error, which the status shows and `.next-issue/worker.log` keeps.
+
 ## Configuration
 
 To set up a repository, run the `init` command in it:

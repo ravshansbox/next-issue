@@ -13,7 +13,7 @@ import { hunter as repoHunter } from '../src/shared/hunt.mts';
 import { type Watch, watchIssues } from '../src/shared/watch.mts';
 import { installGh } from './fake-gh.mts';
 import { harness, ISSUE } from './harness.mts';
-import { sleep } from './helpers.mts';
+import { sleep, writeScripts } from './helpers.mts';
 import { issue, report } from './loop-harness.mts';
 import { tempDir } from './temp-dir.mts';
 
@@ -71,6 +71,7 @@ test('a user who watches sees the wait go back to 1 minute after a pass that han
 test('a user who watches an issue that is skipped in every pass finds one report for it in the summary file and a skipped count of 1 in run.end', async (t) => {
   const root = await tempDir();
   await must('git', ['init', '-q'], { cwd: root });
+  await writeScripts(root, ['format', 'lint', 'typecheck', 'test']);
   await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/watch-summary.git'], {
     cwd: root,
   });

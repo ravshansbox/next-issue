@@ -8,10 +8,12 @@ import type { Fields } from '../src/shared/observe.mts';
 import { runRepo } from '../src/worker/run.mts';
 import { installGh } from './fake-gh.mts';
 import { tempDir } from './temp-dir.mts';
+import { writeScripts } from './helpers.mts';
 
 async function startRun(t: TestContext, ready: string): Promise<Fields[]> {
   const root = await tempDir();
   await must('git', ['init', '-q'], { cwd: root });
+  await writeScripts(root, ['format', 'lint', 'typecheck', 'test']);
   await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/ready.git'], {
     cwd: root,
   });
