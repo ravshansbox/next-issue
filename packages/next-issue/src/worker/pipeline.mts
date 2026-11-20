@@ -40,7 +40,7 @@ export async function processIssue(
   // A hand-over takes a closing issue back: its resume may revert or add to the change.
   const closing = saved?.closing === true && !handedOver;
   if (issue.closed === true && !closing) {
-    return dropClosed(context, log, issue, saved?.branch ?? branchName(issue.number));
+    return dropClosed(context, log, issue, saved);
   }
   const skip = closing
     ? undefined

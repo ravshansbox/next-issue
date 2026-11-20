@@ -95,12 +95,14 @@ export async function dropClosed(
   context: Context,
   log: Recorder,
   issue: Issue,
-  branch: string,
+  saved: IssueState | undefined,
 ): Promise<IssueReport> {
   log.event('issue.drop', { title: issue.title, reason: 'closed' });
   try {
-    await cleanUp(context, log, branch);
-    await deleteBranches(context, log, branch);
+    if (openedOwnWorktree(saved)) {
+      await cleanUp(context, log, saved.branch);
+      await deleteBranches(context, log, saved.branch);
+    }
     await dropState(context.repo, issue.number);
   } catch (error) {
     log.event('drop.error', { error: message(error) });
@@ -188,6 +190,10 @@ async function removeOrKeep(
   if (!(await oneAtATime(context.repo.root, remove))) {
     log.event(kind, fields);
   }
+}
+
+function openedOwnWorktree(state: IssueState | undefined): state is IssueState {
+  return state !== undefined && state.fresh !== true;
 }
 
 async function cleanUp(context: Context, log: Recorder, branch: string): Promise<void> {
@@ -282,7 +288,7 @@ export async function claimedError(
     log.event('hand-over.error', { error: message(failure) });
   }
   logIssueError(log, error, started);
-  if (state.fresh !== true) {
+  if (openedOwnWorktree(state)) {
     await cleanUp(context, log, state.branch);
   }
   const report = {

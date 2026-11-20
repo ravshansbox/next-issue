@@ -2,7 +2,7 @@ import type { Config } from './config.mts';
 import { runStopped } from './children.mts';
 import { elapsedMs } from './durations.mts';
 import { message } from './errors.mts';
-import { branchName, type Repo } from './git.mts';
+import type { Repo } from './git.mts';
 import type { Issue } from './github.mts';
 import { handOverReply } from './hand-over-comments.mts';
 import { dropClosed, stopNow } from './handover.mts';
@@ -130,9 +130,7 @@ export async function closedReport(
   } catch (error) {
     return readError(log, issue, saved, error, started);
   }
-  return open
-    ? undefined
-    : dropClosed(context, log, issue, saved?.branch ?? branchName(issue.number));
+  return open ? undefined : dropClosed(context, log, issue, saved);
 }
 
 /**

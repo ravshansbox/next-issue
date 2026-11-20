@@ -6,6 +6,8 @@ import { type TestContext, test } from 'node:test';
 import { clones, commit, git } from './clones.mts';
 import { harness, ISSUE } from './harness.mts';
 import { useGit } from './real-git.mts';
+import { pendingIssues } from '../src/worker/pending.mts';
+import { processIssue } from '../src/worker/pipeline.mts';
 
 async function personWorktree(): Promise<{ root: string; mine: string; head: string }> {
   const { repo } = await clones();
@@ -40,5 +42,38 @@ test('a person who answers the hand-over of issue 7 without moving their worktre
   assert.match(report.reason ?? '', new RegExp(`worktree at ${mine} has branch 7 checked out`));
   assert.deepEqual(target.prompts, []);
   assert.equal(existsSync(mine), true);
+  assert.equal(await git(mine, 'rev-parse', 'HEAD'), head);
+});
+
+test('a person who closes issue 7 after it was refused for their worktree on branch 7 keeps the worktree and branch while the next run removes the state file', async (t) => {
+  const { root, mine, head } = await personWorktree();
+  await claim(t, root, ['status:todo']);
+  const target = await harness(t, { root, open: [], closed: [ISSUE], disputes: ['7-dispute-1'] });
+  useGit(target, async () => undefined);
+  const reports = [];
+  for (const issue of await pendingIssues(target.context)) {
+    reports.push(await processIssue(target.context, issue));
+  }
+  assert.deepEqual(
+    reports.map((report) => report.outcome),
+    ['skipped'],
+  );
+  assert.equal(await target.state(), undefined);
+  assert.deepEqual(target.deleted, []);
+  assert.equal(existsSync(mine), true);
+  assert.equal(await git(mine, 'branch', '--show-current'), '7');
+  assert.equal(await git(mine, 'rev-parse', 'HEAD'), head);
+});
+
+test('a person whose worktree holds branch 7 keeps it and the branch when a run finds issue 7 closed right before the claim with no saved state', async (t) => {
+  const { root, mine, head } = await personWorktree();
+  const target = await harness(t, { root, closed: [ISSUE], disputes: ['7-dispute-1'] });
+  useGit(target, async () => undefined);
+  const report = await target.run();
+  assert.equal(report.outcome, 'skipped');
+  assert.equal(await target.state(), undefined);
+  assert.deepEqual(target.deleted, []);
+  assert.equal(existsSync(mine), true);
+  assert.equal(await git(mine, 'branch', '--show-current'), '7');
   assert.equal(await git(mine, 'rev-parse', 'HEAD'), head);
 });
