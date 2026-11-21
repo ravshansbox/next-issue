@@ -83,3 +83,12 @@ test('a user whose checks pass after writing files, and whose push the base refu
   ]);
   assert.equal(await git(other, 'show', 'origin/main:a.txt'), 'a.txt');
 });
+
+test('a user whose project has a package.json and no lock file gets the change pushed to the base with no package-lock.json', async (t) => {
+  const { target, other } = await checked(t, 'true', {});
+  target.context.ports.detectSetupCommand = PORTS.detectSetupCommand;
+  target.context.ports.runSetup = PORTS.runSetup;
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(await landedFiles(other), ['a.txt', 'implementer.txt', 'package.json']);
+});

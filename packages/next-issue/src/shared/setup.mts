@@ -33,6 +33,9 @@ export async function detectSetupCommand(root: string): Promise<string | undefin
     }
     return command;
   }
+  if (await exists(join(root, 'package.json'))) {
+    return 'npm install --no-package-lock';
+  }
   return undefined;
 }
 

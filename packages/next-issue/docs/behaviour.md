@@ -248,19 +248,20 @@ A role set to `null`, or with no entry in `models`, uses `models.default`. When 
 
 Without a `setupCommand`, the harness looks for a lock file in the new worktree, and in the worktree after each merge of the base before the local checks, and runs the install command that goes with it:
 
-| Lock file               | Command                                                                              |
-| ----------------------- | ------------------------------------------------------------------------------------ |
-| `pnpm-lock.yaml`        | `pnpm install --frozen-lockfile`                                                     |
-| `package-lock.json`     | `npm ci`                                                                             |
-| `yarn.lock`             | `yarn install --frozen-lockfile`, or `yarn install --immutable` with a `.yarnrc.yml` |
-| `bun.lock`, `bun.lockb` | `bun install --frozen-lockfile`                                                      |
-| `Cargo.lock`            | `cargo fetch --locked`                                                               |
-| `go.sum`                | `go mod download`                                                                    |
-| `uv.lock`               | `uv sync --locked`                                                                   |
-| `poetry.lock`           | `poetry install`                                                                     |
-| `Gemfile.lock`          | `BUNDLE_FROZEN=true bundle install`                                                  |
+| Lock file                   | Command                                                                              |
+| --------------------------- | ------------------------------------------------------------------------------------ |
+| `pnpm-lock.yaml`            | `pnpm install --frozen-lockfile`                                                     |
+| `package-lock.json`         | `npm ci`                                                                             |
+| `yarn.lock`                 | `yarn install --frozen-lockfile`, or `yarn install --immutable` with a `.yarnrc.yml` |
+| `bun.lock`, `bun.lockb`     | `bun install --frozen-lockfile`                                                      |
+| `Cargo.lock`                | `cargo fetch --locked`                                                               |
+| `go.sum`                    | `go mod download`                                                                    |
+| `uv.lock`                   | `uv sync --locked`                                                                   |
+| `poetry.lock`               | `poetry install`                                                                     |
+| `Gemfile.lock`              | `BUNDLE_FROZEN=true bundle install`                                                  |
+| none, with a `package.json` | `npm install --no-package-lock`                                                      |
 
-The first match in that order wins. A project with no lock file in the list runs no setup, and a `setupCommand` in the config file always wins. Thus the agents find a worktree with its dependencies in place, and the reviewer can run the tests. Each command holds to the lock file, so a lock file that does not match the manifest stops the issue rather than changing the lock file. The exception is `go mod download`, which can add missing sums to `go.sum`.
+The first match in that order wins. A project with a `package.json` and no lock file in the list runs `npm install --no-package-lock`, so npm writes no `package-lock.json` that could land. A project with neither runs no setup, and a `setupCommand` in the config file always wins. Thus the agents find a worktree with its dependencies in place, and the reviewer can run the tests. Each command holds to the lock file, so a lock file that does not match the manifest stops the issue rather than changing the lock file. The exception is `go mod download`, which can add missing sums to `go.sum`.
 
 A `setupCommand` that fails, or that does not finish in `setupTimeoutMinutes`, hands the issue to a person. The wait for the checks has its own limit, so `commandTimeoutMinutes` holds for every other `git` and `gh` command. State per issue goes to `.next-issue/<issue>.json`, so a new run continues where the last run stopped. The harness writes a state file to a temporary file in the same folder and renames it over the old one, so a state file is replaced in one step: a run killed or a disk that fills up during a write leaves the earlier state. A state file that is not valid JSON, or that does not hold a valid state, gives the issue an `error` outcome that names the file, rather than a silent skip.
 

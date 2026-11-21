@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { PORTS } from '../src/shared/ports.mts';
 import { detectSetupCommand } from '../src/shared/setup.mts';
 import { tempDir } from './temp-dir.mts';
 
@@ -57,8 +59,35 @@ test('the worker picks pnpm when more than one lock file is present', async () =
   );
 });
 
-test('the worker picks no command for a project without a lock file', async () => {
-  assert.equal(await detectSetupCommand(await project('package.json')), undefined);
+test('the worker picks npm install without a lock file for a project with a package.json and no lock file', async () => {
+  assert.equal(
+    await detectSetupCommand(await project('package.json')),
+    'npm install --no-package-lock',
+  );
+});
+
+test('the worker picks the lock file command for a project with a package.json and a lock file', async () => {
+  assert.equal(
+    await detectSetupCommand(await project('package.json', 'yarn.lock')),
+    'yarn install --frozen-lockfile',
+  );
+});
+
+test('the worker picks no command for a project with neither a lock file nor a package.json', async () => {
+  assert.equal(await detectSetupCommand(await project('README.md')), undefined);
+});
+
+test('the worker installs a project with no lock file and leaves no package-lock.json in it', async () => {
+  const path = await tempDir();
+  await writeFile(
+    join(path, 'package.json'),
+    JSON.stringify({ name: 'library', version: '1.0.0' }),
+  );
+  const command = await detectSetupCommand(path);
+  assert.ok(command !== undefined);
+  const result = await PORTS.runSetup(command, path, 60_000);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(existsSync(join(path, 'package-lock.json')), false);
 });
 
 test('the worker picks no command for a folder that is not there', async () => {
