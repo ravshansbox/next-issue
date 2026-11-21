@@ -156,7 +156,7 @@ export async function refreshSkills(root: string): Promise<string[]> {
 export async function untrackSkills(root: string): Promise<string[]> {
   const folders: string[] = [];
   for (const folder of PROJECT_SKILL_FOLDERS) {
-    if (await isTracked(root, folder)) {
+    if ((await isTracked(root, folder)) && (await isOwnSkill(join(root, folder)))) {
       folders.push(folder);
     }
   }

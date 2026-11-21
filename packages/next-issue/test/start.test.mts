@@ -365,6 +365,42 @@ test('a user who staged a next-issue skill that no commit holds who runs start i
   );
 });
 
+async function trackingOwnSkill(): Promise<{ root: string; folder: string; own: string }> {
+  const { root } = await trackingSkills();
+  await must('git', ['rm', '-r', '-q', '--', '.claude/skills'], { cwd: root });
+  const folder = join(root, '.claude', 'skills', 'create-issue');
+  const own = '---\nname: create-issue\ndescription: File a Jira issue.\n---\n\nmine\n';
+  await mkdir(folder, { recursive: true });
+  await writeFile(join(folder, 'SKILL.md'), own);
+  await must('git', ['add', '-f', '.claude/skills'], { cwd: root });
+  await must('git', ['commit', '-q', '-m', 'own skill'], { cwd: root });
+  return { root, folder, own };
+}
+
+for (const terminal of [true, false]) {
+  test(`a user whose repository tracks their own create-issue skill who runs start ${terminal ? 'in a terminal' : 'with no terminal'} sees no question, kept with its folder, the skill still tracked and unchanged, no commit and the run started`, async (t) => {
+    const { root, folder, own } = await trackingOwnSkill();
+    const head = await must('git', ['rev-parse', 'HEAD'], { cwd: root });
+    const home = await tempDir();
+    const fake = fakeRuns();
+    await fakeWorker(t, root, fake.runRepo);
+    const started = terminal
+      ? startInTerminal(t, root, 'y\n', home)
+      : startCommand(t, root, [], { ...process.env, HOME: home });
+    assert.equal(await started.exited, 0, started.stderr());
+    fake.finish();
+    assert.equal(fake.calls.length, 1);
+    assert.doesNotMatch(started.stderr(), /untrack/);
+    assert.match(started.stderr(), new RegExp(`^kept ${folder}: not a next-issue skill$`, 'm'));
+    assert.equal(await must('git', ['rev-parse', 'HEAD'], { cwd: root }), head);
+    assert.equal(
+      await must('git', ['ls-files', '--', '.claude/skills'], { cwd: root }),
+      '.claude/skills/create-issue/SKILL.md',
+    );
+    assert.equal(await readFile(join(folder, 'SKILL.md'), 'utf8'), own);
+  });
+}
+
 test('a user who runs start in a terminal in a repository that tracks no next-issue skill sees no question and the run started', async (t) => {
   const root = await repository(ORIGIN);
   const home = await tempDir();
