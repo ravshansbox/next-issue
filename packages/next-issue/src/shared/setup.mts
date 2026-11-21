@@ -3,12 +3,15 @@ import { join } from 'node:path';
 import { message, parseJson } from './errors.mts';
 import { readTextIfPresent } from './files.mts';
 
-const MARKERS: Array<[string, string]> = [
+const JS_MARKERS: Array<[string, string]> = [
   ['pnpm-lock.yaml', 'pnpm install --frozen-lockfile'],
   ['package-lock.json', 'npm ci'],
   ['yarn.lock', 'yarn install --frozen-lockfile'],
   ['bun.lock', 'bun install --frozen-lockfile'],
   ['bun.lockb', 'bun install --frozen-lockfile'],
+];
+
+const OTHER_MARKERS: Array<[string, string]> = [
   ['Cargo.lock', 'cargo fetch --locked'],
   ['go.sum', 'go mod download'],
   ['uv.lock', 'uv sync --locked'],
@@ -23,20 +26,41 @@ function exists(path: string): Promise<boolean> {
   );
 }
 
-export async function detectSetupCommand(root: string): Promise<string | undefined> {
-  for (const [file, command] of MARKERS) {
-    if (!(await exists(join(root, file)))) {
-      continue;
+async function firstMatch(
+  root: string,
+  markers: Array<[string, string]>,
+): Promise<[string, string] | undefined> {
+  for (const marker of markers) {
+    if (await exists(join(root, marker[0]))) {
+      return marker;
     }
-    if (file === 'yarn.lock' && (await exists(join(root, '.yarnrc.yml')))) {
-      return 'yarn install --immutable';
-    }
-    return command;
-  }
-  if (await exists(join(root, 'package.json'))) {
-    return 'npm install --no-package-lock';
   }
   return undefined;
+}
+
+async function jsLockCommand(root: string): Promise<string | undefined> {
+  const match = await firstMatch(root, JS_MARKERS);
+  if (match === undefined) {
+    return undefined;
+  }
+  const [file, command] = match;
+  if (file === 'yarn.lock' && (await exists(join(root, '.yarnrc.yml')))) {
+    return 'yarn install --immutable';
+  }
+  return command;
+}
+
+export async function detectSetupCommand(root: string): Promise<string | undefined> {
+  const jsCommand = await jsLockCommand(root);
+  const otherCommand = (await firstMatch(root, OTHER_MARKERS))?.[1];
+  const fallback =
+    jsCommand === undefined && (await exists(join(root, 'package.json')))
+      ? 'npm install --no-package-lock'
+      : undefined;
+  const commands = [jsCommand, otherCommand, fallback].filter(
+    (command): command is string => command !== undefined,
+  );
+  return commands.length === 0 ? undefined : commands.join(' && ');
 }
 
 export const SCRIPTS = ['format', 'lint', 'typecheck', 'test'];

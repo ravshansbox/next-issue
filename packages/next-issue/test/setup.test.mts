@@ -73,6 +73,27 @@ test('the worker picks the lock file command for a project with a package.json a
   );
 });
 
+test('the worker joins the non-JS install and npm install for a Cargo project with a package.json and no JS lock file', async () => {
+  assert.equal(
+    await detectSetupCommand(await project('Cargo.lock', 'package.json')),
+    'cargo fetch --locked && npm install --no-package-lock',
+  );
+});
+
+test('the worker joins the JS and the non-JS install for a project with package-lock.json and poetry.lock', async () => {
+  assert.equal(
+    await detectSetupCommand(await project('package.json', 'package-lock.json', 'poetry.lock')),
+    'npm ci && poetry install',
+  );
+});
+
+test('the worker picks only the first non-JS lock file command when several are present', async () => {
+  assert.equal(
+    await detectSetupCommand(await project('go.sum', 'Gemfile.lock')),
+    'go mod download',
+  );
+});
+
 test('the worker picks no command for a project with neither a lock file nor a package.json', async () => {
   assert.equal(await detectSetupCommand(await project('README.md')), undefined);
 });
