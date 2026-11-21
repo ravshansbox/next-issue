@@ -40,7 +40,7 @@ Give an issue the `status:todo` label to have it picked up. See [Issue format](h
 
 ### Skills for Claude Code
 
-`init` (see [Configuration](#configuration)) installs the `create-issue` skill, which writes an issue that the harness can claim, and the `answer-hand-over` skill, which helps you answer a hand-over. It asks whether to install them for your user or for the project; `--scope user|project` answers in advance. `start` updates an outdated copy and installs a missing skill for the project. next-issue keeps its project skill folders in `info/exclude`; when git tracks them, `start` asks to untrack them and commit and push the removal. See [Skills](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#skills).
+`init` (see [Configuration](#configuration)) installs the `create-issue` skill, which writes an issue that the harness can claim, and the `answer-hand-over` skill, which helps you answer a hand-over. It asks whether to install them for your user or for the project; `--scope user|project` answers in advance. `start` updates an outdated copy and installs a missing skill for the project. next-issue keeps its project skill folders in `info/exclude`; when git tracks them, `start` asks to untrack them and stages the removal for you to commit and push. See [Skills](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#skills).
 
 ## Configuration
 

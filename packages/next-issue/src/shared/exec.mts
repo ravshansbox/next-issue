@@ -14,7 +14,6 @@ export type RunResult = {
 export type RunOptions = {
   cwd?: string;
   input?: string;
-  env?: NodeJS.ProcessEnv;
   show?: boolean;
   timeoutMs?: number;
   tailChars?: number;
@@ -62,7 +61,6 @@ export function withDefaultTimeout<T>(ms: number, body: () => Promise<T>): Promi
 function spawnChild(command: string, args: string[], options: RunOptions): ChildProcess {
   return spawn(command, args, {
     cwd: options.cwd,
-    env: options.env === undefined ? undefined : { ...process.env, ...options.env },
     detached: true,
     stdio: [
       options.input === undefined ? 'ignore' : 'pipe',
