@@ -300,6 +300,15 @@ test('a person who answers questions that reached only the hand-over comment get
   );
 });
 
+test('a person who answers questions that reached only the hand-over comment sees the next implementer get the questions inside an untrusted fence and the answer outside it', async (t) => {
+  const prompt = await resumedImplementer(t, 'editIssueBody');
+  assert.ok(
+    prompt.includes(
+      `The implementer of the last run asked these questions:\n\n\`\`\`untrusted\n${ASKED}\n\`\`\`\n\n@owner: 1. b, 2. a`,
+    ),
+  );
+});
+
 test('a person who answers questions that reached the issue body gets the answer into the prompt of the next implementer without the questions repeated', async (t) => {
   const prompt = await resumedImplementer(t, undefined);
   assert.match(prompt, /@owner: 1\. b, 2\. a/);

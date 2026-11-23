@@ -69,7 +69,7 @@ function replyBlock(reply: string[], questions: string[] = []): string {
       ? 'The last run handed the issue to a person. A person with write access to the repository answered as below. Follow this guidance.'
       : 'The last run handed the issue to a person. No person with write access to the repository answered in a comment.',
     questions.length > 0
-      ? `The implementer of the last run asked these questions:\n\n${numbered(questions)}`
+      ? `The implementer of the last run asked these questions:\n\n${untrusted(numbered(questions))}`
       : '',
     reply.join('\n\n'),
   ]);
