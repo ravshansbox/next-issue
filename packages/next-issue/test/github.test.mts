@@ -9,7 +9,6 @@ import {
   commentOnIssue,
   defaultBranch,
   canWrite,
-  issueComments,
   issueEditors,
   labeler,
   openBlockers,
@@ -297,7 +296,7 @@ async function fakeAnyGh(t: TestContext): Promise<string> {
   const script = `#!/bin/sh
 case "$1 $2" in
   "repo view") echo '{"defaultBranchRef":{"name":"main"}}' ;;
-  "issue view") echo '{"number":7,"title":"t","body":"","createdAt":"2026-01-01T00:00:00Z","labels":[],"comments":[],"state":"OPEN"}' ;;
+  "issue view") echo '{"number":7,"title":"t","body":"","createdAt":"2026-01-01T00:00:00Z","labels":[],"state":"OPEN"}' ;;
   "issue reopen") ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
@@ -314,7 +313,6 @@ test('the worker passes gh the repository and the issue number it acts on', asyn
   const repo = { owner: 'acme', name: 'tool', root: dir };
   await defaultBranch(repo);
   await viewIssue(repo, 7);
-  await issueComments(repo, 7);
   await reopenIssue(repo, 7);
   assert.deepEqual(seen, [
     ['repo', 'view', 'acme/tool', '--json', 'defaultBranchRef'],
@@ -327,7 +325,6 @@ test('the worker passes gh the repository and the issue number it acts on', asyn
       '--repo',
       'acme/tool',
     ],
-    ['issue', 'view', '7', '--json', 'comments', '--repo', 'acme/tool'],
     ['issue', 'reopen', '7', '--repo', 'acme/tool'],
   ]);
 });

@@ -12,7 +12,7 @@ const RENAME = [changes('Rename it.'), APPROVE];
 
 test('a comment on the issue by a user without write access stays out of every agent prompt', async (t) => {
   const target = await harness(t, {
-    issueComments: ISSUE_COMMENTS,
+    thread: ISSUE_COMMENTS,
     writers: ['owner', 'admin'],
     verdicts: RENAME,
   });
@@ -24,7 +24,7 @@ test('a comment on the issue by a user without write access stays out of every a
 });
 
 test('the implementer and the reviewer get the comments on the issue by users with write access in their order', async (t) => {
-  const target = await harness(t, { issueComments: ISSUE_COMMENTS, writers: ['owner', 'admin'] });
+  const target = await harness(t, { thread: ISSUE_COMMENTS, writers: ['owner', 'admin'] });
   await target.run();
   assert.deepEqual(roles(target), ['implementer', 'reviewer']);
   for (const entry of target.prompts) {
@@ -37,7 +37,7 @@ test('the implementer and the reviewer get the comments on the issue by users wi
 
 test('the fixer gets the comments on the issue by users with write access with the issue body', async (t) => {
   const target = await harness(t, {
-    issueComments: ISSUE_COMMENTS,
+    thread: ISSUE_COMMENTS,
     writers: ['owner', 'admin'],
     verdicts: RENAME,
   });
@@ -50,7 +50,7 @@ test('the fixer gets the comments on the issue by users with write access with t
 
 test('a comment of the harness on the issue, in the current or an older heading format, stays out of every agent prompt', async (t) => {
   const target = await harness(t, {
-    issueComments: [
+    thread: [
       { author: 'owner', body: '### next-issue · Review: changes requested\n\nRename it.' },
       { author: 'owner', body: '### next-issue · Fixer: no change\n\nThe name is right.' },
       { author: 'owner', body: '### next-issue · Hand-over: needs help\n\nThe limit was reached.' },
@@ -74,7 +74,7 @@ test('a comment of the harness on the issue, in the current or an older heading 
 });
 
 test('the worker writes the author of a comment it leaves out to the run log', async (t) => {
-  const target = await harness(t, { issueComments: ISSUE_COMMENTS, writers: ['owner', 'admin'] });
+  const target = await harness(t, { thread: ISSUE_COMMENTS, writers: ['owner', 'admin'] });
   await target.run();
   const skips = target.events.filter((record) => record.kind === 'comment.skip');
   assert.deepEqual(
@@ -84,7 +84,7 @@ test('the worker writes the author of a comment it leaves out to the run log', a
 });
 
 test('the worker stops the issue with an error when the access check on a comment author fails', async (t) => {
-  const target = await harness(t, { issueComments: ISSUE_COMMENTS, accessFails: true });
+  const target = await harness(t, { thread: ISSUE_COMMENTS, accessFails: true });
   const report = await target.run();
   assert.equal(report.outcome, 'error');
   assert.match(report.reason!, /HTTP 500/);
@@ -115,13 +115,15 @@ test('a person with write access who answers a hand-over gets the answer into th
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  assert.deepEqual(target.threads, [ISSUE.number]);
+  assert.deepEqual([...new Set(target.threads)], [ISSUE.number]);
   const fixer = target.prompts.find((entry) => entry.role === 'fixer')!.prompt;
   assert.match(
     fixer,
     /## Answer of a person to the hand-over[\s\S]*@owner: Use the fixture in test\/data\./,
   );
-  assert.doesNotMatch(fixer, /Delete every test|Before the hand-over/);
+  assert.doesNotMatch(fixer, /Delete every test/);
+  const answer = fixer.split('## Answer of a person to the hand-over')[1]!;
+  assert.doesNotMatch(answer, /Before the hand-over/);
 });
 
 test('a person with write access who answers a hand-over posted in the older one-line format gets the answer into the prompt of the next fixer', async (t) => {
@@ -138,8 +140,9 @@ test('a person with write access who answers a hand-over posted in the older one
   });
   await target.run();
   const fixer = target.prompts.find((entry) => entry.role === 'fixer')!.prompt;
-  assert.match(fixer, /@owner: Use the fixture in test\/data\./);
-  assert.doesNotMatch(fixer, /Before the hand-over/);
+  const answer = fixer.split('## Answer of a person to the hand-over')[1]!;
+  assert.match(answer, /@owner: Use the fixture in test\/data\./);
+  assert.doesNotMatch(answer, /Before the hand-over/);
 });
 
 test('a person who answers a hand-over before the implementation gets the answer into the prompt of the implementer', async (t) => {
@@ -150,7 +153,7 @@ test('a person who answers a hand-over before the implementation gets the answer
     writers: ['owner', 'bot'],
   });
   await target.run();
-  assert.deepEqual(target.threads, [ISSUE.number]);
+  assert.deepEqual([...new Set(target.threads)], [ISSUE.number]);
   const implementer = target.prompts.find((entry) => entry.role === 'implementer')!.prompt;
   assert.match(implementer, /## Answer of a person to the hand-over/);
   assert.match(implementer, /@owner: Use the fixture in test\/data\./);

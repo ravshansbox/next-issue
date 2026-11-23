@@ -102,13 +102,6 @@ export async function viewIssue(repo: Repo, issue: number): Promise<Issue & { op
 
 export type Comment = { author: string; body: string; url?: string; createdAt?: string };
 
-export async function issueComments(repo: Repo, issue: number): Promise<Comment[]> {
-  const parsed = await viewJson<{
-    comments: Array<{ author: { login: string }; body: string }>;
-  }>(repo, 'issue', issue, 'comments');
-  return parsed.comments.map((comment) => ({ author: comment.author.login, body: comment.body }));
-}
-
 export async function threadComments(repo: Repo, number: number): Promise<Comment[]> {
   const raw = await ghApi(
     repo,

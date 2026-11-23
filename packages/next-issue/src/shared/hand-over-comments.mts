@@ -115,7 +115,7 @@ export async function writerComments(
   issue: number,
 ): Promise<string[]> {
   const { repo, ports } = context;
-  const comments = (await ports.issueComments(repo, issue)).filter(
+  const comments = (await ports.threadComments(repo, issue)).filter(
     (comment) => !fromHarness(comment),
   );
   return writerQuotes(comments, writers(repo, ports), (comment) =>

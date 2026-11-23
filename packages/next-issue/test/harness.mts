@@ -139,7 +139,6 @@ export type Plan = {
   editors?: { body: string; title: string };
   /** The title and body GitHub holds when the worker checks the editors; by default the listed ones. */
   current?: { title: string; body: string };
-  issueComments?: Array<{ author: string; body: string }>;
   accessFails?: boolean;
   hunterText?: string;
   root?: string;
@@ -352,7 +351,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     },
     isDirty: async () => plan.fixerWrites === true,
     latestSubject: async () => plan.earlier,
-    issueComments: async () => plan.issueComments ?? [],
     openBlockers: async () => plan.blockers ?? [],
     repositorySlug: async (repo) => plan.canonicalSlug ?? `${repo.owner}/${repo.name}`,
     openIssues: async () => [...(plan.open ?? [])],

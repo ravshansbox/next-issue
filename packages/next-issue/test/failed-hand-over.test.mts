@@ -179,7 +179,8 @@ test('a writer who answers after a hand-over whose comment failed gets the next 
   assert.doesNotMatch(reviewer, /- old/);
   const fixer = next.prompts.find((entry) => entry.role === 'fixer')!.prompt;
   assert.match(fixer, /## Answer of a person to the hand-over\n\n[^]*Try the other fixture\./);
-  assert.doesNotMatch(fixer, /Use the fixture in test\/data\./);
+  const answer = fixer.split('## Answer of a person to the hand-over')[1]!;
+  assert.doesNotMatch(answer, /Use the fixture in test\/data\./);
   assert.equal((await next.state())?.ciFixes ?? 0, 0);
 });
 
@@ -189,8 +190,14 @@ test('a user whose hand-over cannot read the issue thread still gets the needs-h
     saved: BEFORE,
     config: { maxReviewRounds: 1 },
   });
-  target.context.ports.threadComments = async () => {
-    throw new Error('gh: HTTP 502');
+  const { threadComments } = target.context.ports;
+  let reads = 0;
+  target.context.ports.threadComments = async (...args) => {
+    reads += 1;
+    if (reads > 1) {
+      throw new Error('gh: HTTP 502');
+    }
+    return threadComments(...args);
   };
   assert.equal((await target.run()).outcome, 'needs-human');
   assert.ok(target.labels.some((entry) => entry.label === 'status:needs-human'));
@@ -232,7 +239,8 @@ test('a writer who answers a hand-over whose comment failed and then takes the l
   await next.run();
   const fixer = next.prompts.find((entry) => entry.role === 'fixer')!.prompt;
   assert.match(fixer, /## Answer of a person to the hand-over\n\n[^]*Try the other fixture\./);
-  assert.doesNotMatch(fixer, /Use the fixture in test\/data\./);
+  const answer = fixer.split('## Answer of a person to the hand-over')[1]!;
+  assert.doesNotMatch(answer, /Use the fixture in test\/data\./);
 });
 
 async function labelledThenRetryFails(t: test.TestContext, threadFails: boolean) {
@@ -306,6 +314,7 @@ test('a writer who answers a hand-over whose comment, retried label edit and ret
   assert.doesNotMatch(reviewer, /- old/);
   const fixer = next.prompts.find((entry) => entry.role === 'fixer')!.prompt;
   assert.match(fixer, /## Answer of a person to the hand-over\n\n[^]*Try the other fixture\./);
-  assert.doesNotMatch(fixer, /Use the fixture in test\/data\./);
+  const answer = fixer.split('## Answer of a person to the hand-over')[1]!;
+  assert.doesNotMatch(answer, /Use the fixture in test\/data\./);
   assert.equal((await next.state())?.ciFixes ?? 0, 0);
 });
