@@ -337,6 +337,7 @@ Claude does not implement the issue in that session. The worker does the work. T
 | `hunt on\|off`          | Switch hunting of the going run, see [Hunt for bugs](#hunt-for-bugs)                                                                       |
 | `init`                  | Write the config file with the defaults and install the skills, see [Configuration](#configuration) and [Skills](#skills)                  |
 | `stop`                  | Stop the going run after its current issues, see [Worker](#worker)                                                                         |
+| `status`                | Show the going run, its worker and its running issues, see [Worker](#worker)                                                               |
 | `logs`                  | Show the latest run log and follow it, see [Observability](#observability)                                                                 |
 | `--scope user\|project` | With `init`: install the skills in `~/.claude/skills/` (`user`) or in `.claude/skills/` of the main worktree (`project`)                   |
 | `--force`               | Replace an existing config file, with `init`                                                                                               |
