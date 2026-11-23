@@ -18,8 +18,8 @@ import { must } from '../src/shared/exec.mts';
 import { processStart } from '../src/shared/lock.mts';
 import { runsDir, stateDir } from '../src/shared/state.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
-import { idleGh, installGh } from './fake-gh.mts';
-import { linkedWorktree, repository, until } from './helpers.mts';
+import { baseGh, idleGh, installGh } from './fake-gh.mts';
+import { linkedWorktree, repository, until, serveBase } from './helpers.mts';
 import { tempDir } from './temp-dir.mts';
 import { connect } from './worker-harness.mts';
 
@@ -33,6 +33,9 @@ const EXCLUDED = [
 ];
 
 process.env.HOME = await tempDir();
+await baseGh();
+
+const ORIGIN = 'git@github.com:acme/cli.git';
 
 async function serveWorker(root: string, env: NodeJS.ProcessEnv = process.env) {
   const child = spawn(process.execPath, [CLI, 'serve'], { cwd: root, env });
@@ -205,12 +208,26 @@ async function holdLock(root: string, pid: number): Promise<string> {
   return lock;
 }
 
+async function markingGh(t: TestContext): Promise<string> {
+  const bin = await tempDir();
+  const called = join(bin, 'called');
+  await installGh(
+    t,
+    bin,
+    `#!/bin/sh
+case "$1 $2" in
+  "repo view") echo '{"defaultBranchRef":{"name":"main"}}' ;;
+  *) touch "${called}"; exit 1 ;;
+esac
+`,
+  );
+  return called;
+}
+
 async function refusedRun(t: TestContext, root: string, cwd = root) {
   const lockPath = workerPaths(root).lockPath;
   const lock = await readFile(lockPath, 'utf8');
-  const bin = await tempDir();
-  const called = join(bin, 'called');
-  await installGh(t, bin, `#!/bin/sh\ntouch "${called}"\nexit 1\n`);
+  const called = await markingGh(t);
   const error = await promisify(execFile)(process.execPath, [CLI, 'start'], { cwd }).then(
     () => undefined,
     (failure: { code: number; stderr: string }) => failure,
@@ -222,9 +239,10 @@ async function refusedRun(t: TestContext, root: string, cwd = root) {
 }
 
 async function watchingRun(t: TestContext, root: string) {
-  await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/watch.git'], {
+  await must('git', ['remote', 'add', 'origin', 'git@github.com:acme/watch.git'], {
     cwd: root,
   });
+  await serveBase(root);
   const env = await idleGh(t);
   const { stderr } = await promisify(execFile)(process.execPath, [CLI, 'start', '--watch', 'on'], {
     cwd: root,
@@ -279,9 +297,7 @@ test('a user who starts the worker without init gets .next-issue/ and .claude/wo
 test('a user who runs next-issue start while another run of start is going in the repository sees the status of that run, exit code 0 and no issue read', async (t) => {
   const root = await repository();
   await watchingRun(t, root);
-  const bin = await tempDir();
-  const called = join(bin, 'called');
-  await installGh(t, bin, `#!/bin/sh\ntouch "${called}"\nexit 1\n`);
+  const called = await markingGh(t);
   const { stderr } = await promisify(execFile)(process.execPath, [CLI, 'start'], { cwd: root });
   assert.match(
     stderr,
@@ -291,7 +307,7 @@ test('a user who runs next-issue start while another run of start is going in th
 });
 
 test('a user who runs next-issue in a linked worktree while a process that does not listen holds worker.lock of the main worktree sees that the worker it started exited, exit code 1 and no issue read', async (t) => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   const linked = await linkedWorktree(root);
   const other = spawn('sleep', ['30']);
   t.after(() => other.kill('SIGKILL'));
@@ -301,7 +317,7 @@ test('a user who runs next-issue in a linked worktree while a process that does 
 });
 
 test('a user who runs next-issue while worker.lock holds only the process id of a live process sees that the worker it started exited, exit code 1 and no issue read', async (t) => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   const other = spawn('sleep', ['30']);
   t.after(() => other.kill('SIGKILL'));
   await mkdir(stateDir(root), { recursive: true });
@@ -338,7 +354,9 @@ test('a user who serves the repository while another process holds worker.lock s
 });
 
 async function singleRun(root: string) {
-  const { stderr } = await promisify(execFile)(process.execPath, [CLI, 'start'], { cwd: root });
+  const { stderr } = await promisify(execFile)(process.execPath, [CLI, 'start', '--watch', 'off'], {
+    cwd: root,
+  });
   return stderr;
 }
 
@@ -350,22 +368,22 @@ async function gone(path: string): Promise<boolean> {
 }
 
 test('a user whose run ends finds no worker.lock left in the repository once the worker it started closes', async () => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   assert.match(await singleRun(root), STARTED);
   assert.equal(await gone(workerPaths(root).lockPath), true);
 });
 
-test('a user who starts a run in a repository with no origin finds the error of the run in the worker log once the worker closes', async () => {
+test('a user who starts a run in a repository with no origin sees the error, exit code 1 and no worker started', async () => {
   const root = await repository();
-  await singleRun(root);
-  assert.equal(await gone(workerPaths(root).lockPath), true);
-  const log = await readFile(workerPaths(root).logPath, 'utf8');
-  assert.match(log, /No such remote 'origin'/);
-  assert.doesNotMatch(log, /^next-issue/m);
+  const error = await cliFails(['start'], { cwd: root });
+  assert.equal(error?.code, 1);
+  assert.match(error?.stderr ?? '', /No such remote 'origin'/);
+  assert.doesNotMatch(error?.stderr ?? '', /^next-issue/m);
+  assert.equal(await exists(workerPaths(root).logPath), false);
 });
 
 test('a user who runs next-issue over a worker.lock that a dead process left takes it over and leaves no worker.lock', async () => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   const dead = spawn('true');
   await new Promise((resolve) => dead.on('exit', resolve));
   await mkdir(stateDir(root), { recursive: true });
@@ -806,7 +824,10 @@ const OLD_GIT = /git 2\.39\.5 is too old: next-issue needs git 2\.40 or later/;
 
 test('a user who starts a run in the worker on git 2.39 sees the run end with an error that names the git versions and no issue read', async (t) => {
   const root = await realpath(await repository());
-  await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/old.git'], { cwd: root });
+  await must('git', ['remote', 'add', 'origin', 'git@github.com:acme/old.git'], {
+    cwd: root,
+  });
+  await serveBase(root);
   const { env, called } = await oldGit(t, '2.39.5');
   const { child } = await serveWorker(root, env);
   t.after(() => child.kill('SIGKILL'));

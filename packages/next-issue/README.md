@@ -28,7 +28,7 @@ flowchart TD
 
 ## Install and quick start
 
-You need Node 24 or later, git 2.40 or later, `gh` logged in with write access to the repository, a `remote` on GitHub and Claude Code, logged in. The repository needs a root `package.json` with the scripts `format`, `lint`, `typecheck` and `test`, each of which fails on a problem; `format` checks the formatting and does not write files. The harness runs them before each push, since no person checks the change, see [Local checks](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#local-checks). See [Requirements](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#requirements).
+You need Node 24 or later, git 2.40 or later, `gh` logged in with write access to the repository, a `remote` on GitHub and Claude Code, logged in. The base branch on the remote needs a root `package.json` with the scripts `format`, `lint`, `typecheck` and `test` (commit and push them before you start), each of which fails on a problem; `format` checks the formatting and does not write files. The harness runs them before each push, since no person checks the change, see [Local checks](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#local-checks). See [Requirements](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#requirements).
 
 Run the harness inside a git repository:
 

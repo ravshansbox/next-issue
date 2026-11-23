@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { type ChildProcess, spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { dirname, join } from 'node:path';
 import { type TestContext, test } from 'node:test';
@@ -15,18 +15,27 @@ import { type RunRepo, startWorker } from '../src/worker/serve.mts';
 import { packageVersion } from '../src/shared/version.mts';
 import { type Connection, findWorker } from '../src/shared/worker-client.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
-import { idleGh } from './fake-gh.mts';
-import { repository, sleep, until, writeScripts } from './helpers.mts';
+import { baseGh, idleGh } from './fake-gh.mts';
+import {
+  pushPackage,
+  pushScripts,
+  repository,
+  serveBase,
+  sleep,
+  until,
+  writeScripts,
+} from './helpers.mts';
 import { tempDir } from './temp-dir.mts';
 import { type Client, connect, fakeRuns } from './worker-harness.mts';
 
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
 
-const ORIGIN = 'https://github.com/acme/start.git';
+const ORIGIN = 'git@github.com:acme/start.git';
 
 const SKILLS = fileURLToPath(new URL('../skills/', import.meta.url));
 
 process.env.HOME = await tempDir();
+await baseGh();
 
 type Started = {
   child: ChildProcess;
@@ -119,42 +128,80 @@ test('a user who runs start sees one line that the run started naming logs and s
   fake.finish();
 });
 
-test('a user who runs start in a repository whose package.json lacks typecheck gets the run refused before it starts, with typecheck named and why it is needed', async (t) => {
+test('a user whose package.json in the main worktree has all four scripts but whose base on origin lacks typecheck runs start and gets the run refused before it starts, with origin/main, typecheck and why it is needed named', async (t) => {
   const root = await repository(ORIGIN);
-  await writeScripts(root, ['format', 'lint', 'test']);
-  const fake = fakeRuns();
-  await fakeWorker(t, root, fake.runRepo);
-  const started = startCommand(t, root, []);
-  assert.equal(await started.exited, 1);
-  assert.match(started.stderr(), /lacks the script `typecheck`/);
-  assert.match(started.stderr(), /the humanless flow relies on these checks instead of a person/);
-  assert.match(started.stderr(), /`format` must check the formatting, not write files/);
-  assert.equal(fake.calls.length, 0);
-});
-
-test('a user who runs start in a repository with no package.json gets the run refused before it starts, with all four scripts named', async (t) => {
-  const root = await repository(ORIGIN);
-  await rm(join(root, 'package.json'));
+  await pushScripts(root, ['format', 'lint', 'test']);
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo);
   const started = startCommand(t, root, []);
   assert.equal(await started.exited, 1);
   assert.match(
     started.stderr(),
-    /no package\.json at the root.*`format`, `lint`, `typecheck` and `test`/,
+    /the package\.json on `origin\/main` lacks the script `typecheck`/,
+  );
+  assert.match(started.stderr(), /Commit it and push it to `origin\/main`\./);
+  assert.match(started.stderr(), /the humanless flow relies on these checks instead of a person/);
+  assert.match(started.stderr(), /`format` must check the formatting, not write files/);
+  assert.equal(fake.calls.length, 0);
+});
+
+test('a user whose base on origin has all four scripts but whose checked-out package.json lacks typecheck runs start and sees the run start', async (t) => {
+  const root = await repository(ORIGIN);
+  await writeScripts(root, ['format', 'lint', 'test']);
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const started = startCommand(t, root, []);
+  assert.equal(await started.exited, 0, started.stderr());
+  assert.equal(withoutSetupNotes(started.stderr()), STARTED);
+  assert.equal(fake.calls.length, 1);
+  fake.finish();
+});
+
+test('a user who runs start while the worker may fetch the base sees the run start and the remote-tracking branches of the repository left as they were, so the fetch of start cannot clash with a fetch or push of the worker', async (t) => {
+  const root = await repository(ORIGIN);
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const started = startCommand(t, root, []);
+  assert.equal(await started.exited, 0, started.stderr());
+  const refs = await must('git', ['for-each-ref', 'refs/remotes'], { cwd: root });
+  assert.equal(refs, '');
+  fake.finish();
+});
+
+test('a user whose base on origin has no package.json runs start and gets the run refused before it starts, with all four scripts named', async (t) => {
+  const root = await repository(ORIGIN);
+  await pushPackage(root, null);
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const started = startCommand(t, root, []);
+  assert.equal(await started.exited, 1);
+  assert.match(
+    started.stderr(),
+    /no package\.json at the root of `origin\/main`.*`format`, `lint`, `typecheck` and `test`/,
   );
   assert.match(started.stderr(), /instead of a person/);
   assert.equal(fake.calls.length, 0);
 });
 
-test('a user who runs start in a repository whose package.json is not valid JSON gets the run refused before it starts, with the parse error named', async (t) => {
+test('a user whose package.json on the base on origin is not valid JSON runs start and gets the run refused before it starts, with the parse error named', async (t) => {
   const root = await repository(ORIGIN);
-  await writeFile(join(root, 'package.json'), '{ "scripts": ');
+  await pushPackage(root, '{ "scripts": ');
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo);
   const started = startCommand(t, root, []);
   assert.equal(await started.exited, 1);
-  assert.match(started.stderr(), /package\.json is not valid JSON: /);
+  assert.match(started.stderr(), /the package\.json on `origin\/main` is not valid JSON: /);
+  assert.equal(fake.calls.length, 0);
+});
+
+test('a user who runs start when the base cannot be fetched from origin gets the run refused before it starts, with the fetch error', async (t) => {
+  const root = await repository(ORIGIN);
+  await serveBase(root, await tempDir());
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const started = startCommand(t, root, []);
+  assert.equal(await started.exited, 1);
+  assert.match(started.stderr(), /git fetch .*origin \+refs\/heads\/main:/);
   assert.equal(fake.calls.length, 0);
 });
 
@@ -235,8 +282,9 @@ const TERMINAL_STDIN = '--import=data:text/javascript,process.stdin.isTTY=true';
 
 async function trackingSkills(): Promise<{ root: string; origin: string; project: string }> {
   const origin = await tempDir();
-  await must('git', ['init', '-q', '--bare'], { cwd: origin });
-  const root = await repository(origin);
+  await must('git', ['init', '-q', '--bare', '--initial-branch', 'main'], { cwd: origin });
+  const root = await repository(ORIGIN);
+  await serveBase(root, origin);
   for (const [key, value] of [
     ['user.name', 't'],
     ['user.email', 't@t'],
@@ -252,7 +300,7 @@ async function trackingSkills(): Promise<{ root: string; origin: string; project
   await writeFile(join(root, 'notes.md'), 'first\n');
   await must('git', ['add', '.'], { cwd: root });
   await must('git', ['commit', '-q', '-m', 'first'], { cwd: root });
-  await must('git', ['push', '-q', 'origin', 'HEAD'], { cwd: root });
+  await must('git', ['push', '-q', 'origin', 'HEAD:main'], { cwd: root });
   await writeFile(join(root, 'notes.md'), 'staged\n');
   await must('git', ['add', 'notes.md'], { cwd: root });
   return { root, origin, project };
@@ -346,7 +394,7 @@ test('a user who staged a next-issue skill that no commit holds who runs start i
   const { root, origin } = await trackingSkills();
   await must('git', ['rm', '-r', '-q', '--cached', '--', '.claude/skills'], { cwd: root });
   await must('git', ['commit', '-q', '-m', 'second'], { cwd: root });
-  await must('git', ['push', '-q', 'origin', 'HEAD'], { cwd: root });
+  await must('git', ['push', '-q', 'origin', 'HEAD:main'], { cwd: root });
   await writeFile(join(root, 'notes.md'), 'staged again\n');
   await must('git', ['add', '.claude/skills', 'notes.md'], { cwd: root });
   const head = await must('git', ['rev-parse', 'HEAD'], { cwd: root });
@@ -792,7 +840,7 @@ test('a user who runs watch or hunt with no value or another value sees an error
 });
 
 test('a user who runs start with no worker sees a worker start in the background with its output in .next-issue/worker.log, the started line and exit code 0', async (t) => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   const started = startCommand(t, root, []);
   assert.equal(await started.exited, 0, started.stderr());
   assert.equal(withoutSetupNotes(started.stderr()), STARTED);
@@ -816,7 +864,7 @@ test('a user who runs start while an idle worker is alive sees the run go in tha
 });
 
 test('a user who runs start while an older idle worker is alive sees it close and the run go in a new worker', async (t) => {
-  const root = await repository();
+  const root = await repository(ORIGIN);
   const fake = fakeRuns();
   const older = await fakeWorker(t, root, fake.runRepo, '0.0.0-old');
   const started = startCommand(t, root, []);

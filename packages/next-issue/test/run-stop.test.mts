@@ -40,7 +40,7 @@ async function runLog(
     createdAt: `2026-01-0${number}T00:00:00Z`,
     labels: [],
   }));
-  const root = await repository('https://github.com/acme/stop.git');
+  const root = await repository('git@github.com:acme/stop.git');
   await mkdir(join(root, '.next-issue'), { recursive: true });
   await writeFile(
     join(root, '.next-issue', 'config.json'),

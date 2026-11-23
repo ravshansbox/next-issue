@@ -9,7 +9,7 @@ import { runRepo } from '../src/worker/run.mts';
 import type { RunSummary } from '../src/shared/summary.mts';
 import { installGh } from './fake-gh.mts';
 import { tempDir } from './temp-dir.mts';
-import { writeScripts } from './helpers.mts';
+import { writeScripts, serveBase } from './helpers.mts';
 
 const runs = [
   { argv: ['start', '--watch', 'off'], description: 'a user whose run crashes on one issue' },
@@ -24,9 +24,10 @@ for (const { argv, description } of runs) {
     const root = await tempDir();
     await must('git', ['init', '-q'], { cwd: root });
     await writeScripts(root, ['format', 'lint', 'typecheck', 'test']);
-    await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/crash.git'], {
+    await must('git', ['remote', 'add', 'origin', 'git@github.com:acme/crash.git'], {
       cwd: root,
     });
+    await serveBase(root);
     await mkdir(join(root, '.next-issue'), { recursive: true });
     await writeFile(
       join(root, '.next-issue', 'config.json'),

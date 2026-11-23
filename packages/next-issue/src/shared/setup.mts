@@ -1,7 +1,9 @@
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { message, parseJson } from './errors.mts';
-import { readTextIfPresent } from './files.mts';
+import { run, succeeded } from './exec.mts';
+import { gitFetch, remoteRef, type Repo } from './git.mts';
+import { defaultBranch } from './github.mts';
 
 const JS_MARKERS: Array<[string, string]> = [
   ['pnpm-lock.yaml', 'pnpm install --frozen-lockfile'],
@@ -92,19 +94,40 @@ function listed(names: string[]): string {
 
 const WHY = `next-issue runs ${listed(SCRIPTS)} before each push, since the humanless flow relies on these checks instead of a person. Each script must fail on a problem, and \`format\` must check the formatting, not write files.`;
 
-/** Fails when the root `package.json` is missing or lacks any of the scripts of the local gate. */
-export async function requireScripts(root: string): Promise<void> {
-  const text = await readTextIfPresent(join(root, 'package.json'));
+const BASE_CHECK_REF = 'refs/next-issue/base';
+
+export type BasePackage = { base: string; text: string | undefined };
+
+/** Fetches the base branch from the remote into a ref of its own, so a fetch or push of the worker never clashes with it, and reads the `package.json` at its root. */
+export async function basePackage(repo: Repo, remote: string): Promise<BasePackage> {
+  const branch = await defaultBranch(repo);
+  await gitFetch(repo.root, [
+    '--no-write-fetch-head',
+    '--refmap=',
+    remote,
+    `+refs/heads/${branch}:${BASE_CHECK_REF}`,
+  ]);
+  const result = await run('git', ['show', `${BASE_CHECK_REF}:package.json`], { cwd: repo.root });
+  return { base: remoteRef(remote, branch), text: succeeded(result) ? result.stdout : undefined };
+}
+
+/** Fails when the `package.json` of the base is missing or lacks any of the scripts of the local gate. */
+export function requireScripts({ base, text }: BasePackage): void {
   if (text === undefined) {
     throw new Error(
-      `there is no package.json at the root of the repository, so it lacks the scripts ${listed(SCRIPTS)}. ${WHY}`,
+      `there is no package.json at the root of \`${base}\`, so it lacks the scripts ${listed(SCRIPTS)}. Commit them and push them to \`${base}\`. ${WHY}`,
     );
   }
-  const file = parseJson(text, (error) => `package.json is not valid JSON: ${message(error)}`);
+  const file = parseJson(
+    text,
+    (error) => `the package.json on \`${base}\` is not valid JSON: ${message(error)}`,
+  );
   const scripts = (file as { scripts?: Record<string, unknown> } | null)?.scripts ?? {};
   const missing = SCRIPTS.filter((name) => typeof scripts[name] !== 'string');
   if (missing.length > 0) {
-    const noun = missing.length === 1 ? 'script' : 'scripts';
-    throw new Error(`the root package.json lacks the ${noun} ${listed(missing)}. ${WHY}`);
+    const [noun, pronoun] = missing.length === 1 ? ['script', 'it'] : ['scripts', 'them'];
+    throw new Error(
+      `the package.json on \`${base}\` lacks the ${noun} ${listed(missing)}. Commit ${pronoun} and push ${pronoun} to \`${base}\`. ${WHY}`,
+    );
   }
 }

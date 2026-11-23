@@ -41,3 +41,18 @@ esac
   );
   return { ...process.env };
 }
+
+/** Puts a fake `gh` that names `main` as the default branch on the `PATH` of the whole test file. */
+export async function baseGh(): Promise<void> {
+  const dir = await tempDir();
+  await writeFile(join(dir, 'gh-raw'), BASE_GH);
+  await writeFile(join(dir, 'gh'), JQ_WRAPPER, { mode: 0o755 });
+  process.env.PATH = `${dir}:${process.env.PATH}`;
+}
+
+const BASE_GH = `#!/bin/sh
+case "$1 $2" in
+  "repo view") echo '{"defaultBranchRef":{"name":"main"}}' ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+`;

@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 import { type Args, parseArgs, USAGE } from './shared/args.mts';
-import { moveOldConfig, rejectOldConfig, writeDefaultConfig } from './shared/config.mts';
+import {
+  loadConfig,
+  moveOldConfig,
+  rejectOldConfig,
+  writeDefaultConfig,
+} from './shared/config.mts';
 import { OLD_CONFIG_FILE } from './shared/config-fields.mts';
 import { message } from './shared/errors.mts';
-import { repoRoot } from './shared/git.mts';
-import { requireScripts } from './shared/setup.mts';
+import { detectRepo, repoRoot } from './shared/git.mts';
+import { type BasePackage, basePackage, requireScripts } from './shared/setup.mts';
 import { ensureExcluded, excludeFile, removeIgnored } from './cli/ignore.mts';
 import { followLog, newestRunLog } from './cli/logs.mts';
 import { serve } from './worker/serve.mts';
@@ -58,7 +63,7 @@ async function main(): Promise<number> {
     return logs(root);
   }
   if (args.command === 'start') {
-    await requireScripts(root);
+    requireScripts(await rootBasePackage(root));
   }
   await excludeStateDirectories(root, process.stderr);
   if (args.command === 'serve') {
@@ -94,8 +99,19 @@ async function init(root: string, args: Args): Promise<number> {
   for (const folder of await installSkills(scope)) {
     await write(process.stdout, `wrote ${folder}\n`);
   }
-  await requireScripts(root);
+  const base = await rootBasePackage(root).catch((error: unknown) => {
+    const reason = message(error);
+    return write(process.stderr, `could not check the scripts on the base branch: ${reason}\n`);
+  });
+  if (base !== undefined) {
+    requireScripts(base);
+  }
   return 0;
+}
+
+async function rootBasePackage(root: string): Promise<BasePackage> {
+  const { remote } = await loadConfig(root);
+  return basePackage(await detectRepo(root, remote), remote);
 }
 
 async function excludeStateDirectories(root: string, stream: NodeJS.WriteStream): Promise<void> {

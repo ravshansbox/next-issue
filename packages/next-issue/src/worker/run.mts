@@ -19,7 +19,7 @@ import { pendingIssues } from './pending.mts';
 import { processIssue } from './pipeline.mts';
 import { PORTS } from '../shared/ports.mts';
 import { pruneRuns } from './prune-runs.mts';
-import { requireScripts } from '../shared/setup.mts';
+import { basePackage, requireScripts } from '../shared/setup.mts';
 import { count, type RunSummary } from '../shared/summary.mts';
 import { packageVersion } from '../shared/version.mts';
 import { watchIssues } from '../shared/watch.mts';
@@ -56,7 +56,7 @@ async function runWithConfig(
   const repo = await detectRepo(root, config.remote);
   const recorder = await Recorder.create(repo.root, controls.onEvent, undefined, controls.output);
   try {
-    await requireScripts(repo.root);
+    requireScripts(await basePackage(repo, config.remote));
     const pruned = await pruneRuns(repo.root, config.keepRunDays);
     if (pruned > 0) {
       recorder.record('runs.pruned', { files: pruned, keepDays: config.keepRunDays });

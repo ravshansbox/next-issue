@@ -7,15 +7,13 @@ import type { RunSummary, WorkerMessage } from '../src/shared/protocol.mts';
 import { runRepo } from '../src/worker/run.mts';
 import { startWorker } from '../src/worker/serve.mts';
 import { installGh } from './fake-gh.mts';
-import { writeScripts } from './helpers.mts';
+import { ALL_SCRIPTS, pushPackage, pushScripts, serveBase, writeScripts } from './helpers.mts';
 import { tempDir } from './temp-dir.mts';
 import { connect, fakeRegistry, fakeRuns, worker } from './worker-harness.mts';
 
 const issues = [
   { number: 1, title: 'issue 1', body: '', createdAt: '2026-01-01T00:00:00Z', labels: [] },
 ];
-
-const ALL_SCRIPTS = ['format', 'lint', 'typecheck', 'test'];
 
 async function repoWorker(
   t: TestContext,
@@ -26,16 +24,20 @@ async function repoWorker(
   t.mock.method(process.stderr, 'write', () => true);
   const root = await tempDir();
   await must('git', ['init', '-q'], { cwd: root });
-  await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/output.git'], {
+  await must('git', ['remote', 'add', 'origin', 'git@github.com:acme/output.git'], {
     cwd: root,
   });
+  await serveBase(root);
   await mkdir(join(root, '.next-issue'), { recursive: true });
   await writeFile(
     join(root, '.next-issue', 'config.json'),
     JSON.stringify({ labels: { ready: 'status:todo' } }),
   );
-  if (scripts !== null) {
-    await writeScripts(root, scripts);
+  await writeScripts(root, ALL_SCRIPTS);
+  if (scripts === null) {
+    await pushPackage(root, null);
+  } else {
+    await pushScripts(root, scripts);
   }
   await installGh(t, await tempDir(), gh);
   const dir = await tempDir();
@@ -116,12 +118,16 @@ exit 1
 for (const [scripts, what, missing] of [
   [
     ['format', 'lint', 'test'],
-    'a root package.json without `typecheck`',
-    /lacks the script `typecheck`/,
+    'a base on origin whose package.json lacks `typecheck`',
+    /the package\.json on `origin\/main` lacks the script `typecheck`/,
   ],
-  [null, 'no root package.json', /`format`, `lint`, `typecheck` and `test`/],
+  [
+    null,
+    'a base on origin with no package.json',
+    /no package\.json at the root of `origin\/main`.*`format`, `lint`, `typecheck` and `test`/,
+  ],
 ] as const) {
-  test(`a client that resumes a run in a repository with ${what} sees the run fail with an error naming the missing scripts, before it claims any issue`, async (t) => {
+  test(`a client that resumes a run in a repository with all four scripts in its main worktree but ${what} sees the run fail with an error naming the missing scripts, before it claims any issue`, async (t) => {
     const { root, client } = await repoWorker(
       t,
       WORKING_GH,

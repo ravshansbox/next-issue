@@ -10,15 +10,16 @@ import { runsDir } from '../src/shared/state.mts';
 import { installGh } from './fake-gh.mts';
 import { keysSorted } from './sorted-keys.mts';
 import { tempDir } from './temp-dir.mts';
-import { writeScripts } from './helpers.mts';
+import { writeScripts, serveBase } from './helpers.mts';
 
 async function repoWithConfig(t: TestContext, config: string): Promise<string> {
   const root = await tempDir();
   await must('git', ['init', '-q'], { cwd: root });
   await writeScripts(root, ['format', 'lint', 'typecheck', 'test']);
-  await must('git', ['remote', 'add', 'origin', 'https://github.com/acme/sorted.git'], {
+  await must('git', ['remote', 'add', 'origin', 'git@github.com:acme/sorted.git'], {
     cwd: root,
   });
+  await serveBase(root);
   await mkdir(join(root, '.next-issue'), { recursive: true });
   await writeFile(join(root, CONFIG_FILE), config);
   await installGh(

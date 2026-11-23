@@ -5,8 +5,13 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { linkedWorktree, repository, writeScripts } from './helpers.mts';
+import { baseGh } from './fake-gh.mts';
+import { linkedWorktree, pushPackage, pushScripts, repository, writeScripts } from './helpers.mts';
 import { tempDir } from './temp-dir.mts';
+
+const ORIGIN = 'git@github.com:acme/init.git';
+
+await baseGh();
 
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
 const SKILLS = fileURLToPath(new URL('../skills/', import.meta.url));
@@ -70,16 +75,19 @@ test('a user who runs init --scope user gets the config file, the exclude lines 
   assert.match(stdout, new RegExp(`wrote ${join(folder, 'answer-hand-over')}\n`));
 });
 
-test('a user who runs init in a repository whose package.json lacks scripts gets the config file and the skills, then exit code 1 and an error that names each missing script and why', async () => {
+test('a user whose base on origin lacks scripts that the main worktree has runs init and gets the config file and the skills, then exit code 1 and an error that names the base, each missing script and why', async () => {
   const home = await tempDir();
-  const root = await repository();
-  await writeScripts(root, ['format', 'test']);
+  const root = await repository(ORIGIN);
+  await pushScripts(root, ['format', 'test']);
   await assert.rejects(
     init(root, home, ['--scope', 'user']),
     (error: { code: number; stdout: string; stderr: string }) => {
       assert.equal(error.code, 1);
       assert.match(error.stdout, /wrote .*\.next-issue\/config\.json\n/);
-      assert.match(error.stderr, /lacks the scripts `lint` and `typecheck`\./);
+      assert.match(
+        error.stderr,
+        /the package\.json on `origin\/main` lacks the scripts `lint` and `typecheck`\./,
+      );
       assert.match(error.stderr, /instead of a person/);
       assert.match(error.stderr, /`format` must check the formatting, not write files/);
       return true;
@@ -88,19 +96,36 @@ test('a user who runs init in a repository whose package.json lacks scripts gets
   await assertInstalled(join(home, '.claude', 'skills'));
 });
 
-test('a user who runs init in a repository whose package.json is not valid JSON gets the config file and the skills, then exit code 1 and an error that names the parse error', async () => {
+test('a user whose package.json on the base on origin is not valid JSON runs init and gets the config file and the skills, then exit code 1 and an error that names the parse error', async () => {
   const home = await tempDir();
-  const root = await repository();
-  await writeFile(join(root, 'package.json'), '{ "scripts": ');
+  const root = await repository(ORIGIN);
+  await pushPackage(root, '{ "scripts": ');
   await assert.rejects(
     init(root, home, ['--scope', 'user']),
     (error: { code: number; stdout: string; stderr: string }) => {
       assert.equal(error.code, 1);
       assert.match(error.stdout, /wrote .*\.next-issue\/config\.json\n/);
-      assert.match(error.stderr, /package\.json is not valid JSON: /);
+      assert.match(error.stderr, /the package\.json on `origin\/main` is not valid JSON: /);
       return true;
     },
   );
+  await assertInstalled(join(home, '.claude', 'skills'));
+});
+
+test('a user whose base on origin has all four scripts but whose main worktree lacks some runs init and sees exit code 0 and no error', async () => {
+  const home = await tempDir();
+  const root = await repository(ORIGIN);
+  await writeScripts(root, ['format']);
+  const { stderr } = await init(root, home, ['--scope', 'user']);
+  assert.equal(stderr, '');
+});
+
+test('a user who runs init in a repository with no remote gets the config file and the skills, a note that the scripts on the base could not be checked and exit code 0', async () => {
+  const home = await tempDir();
+  const root = await repository();
+  const { stdout, stderr } = await init(root, home, ['--scope', 'user']);
+  assert.match(stdout, /wrote .*\.next-issue\/config\.json\n/);
+  assert.match(stderr, /^could not check the scripts on the base branch: .*origin/);
   await assertInstalled(join(home, '.claude', 'skills'));
 });
 
