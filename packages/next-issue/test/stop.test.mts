@@ -248,6 +248,53 @@ test('a user who stops a run now during the reviewer of the last review round ge
   assert.deepEqual(target.closed, [7]);
 });
 
+function stopNowDuringVerdictComment(target: Harness): void {
+  const commentOnIssue = target.context.ports.commentOnIssue;
+  target.context.ports.commentOnIssue = async (repo, issue, body) => {
+    if (body.includes('### next-issue · Review:')) {
+      target.stopNow();
+      throw new Error('gh was killed');
+    }
+    return commentOnIssue(repo, issue, body);
+  };
+}
+
+test('a user who stops a run now while the verdict of a review round goes on the issue gets the round given back, and the next run reviews that round again and fixes its findings', async (t) => {
+  const first = await harness(t, { verdicts: [changes('Rename it.')] });
+  stopNowDuringVerdictComment(first);
+  assert.equal((await first.run()).outcome, 'stopped');
+  const saved = (await first.state())!;
+  assert.equal(saved.reviewRounds, 0);
+  assert.deepEqual(saved.reviewLog, []);
+  const target = await harness(t, {
+    saved,
+    issue: { ...ISSUE, labels: ['status:in-review'] },
+    verdicts: [changes('Rename it.'), APPROVE],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.equal(report.reviewRounds, 2);
+  assert.deepEqual(roles(target), ['reviewer', 'fixer', 'reviewer']);
+});
+
+test('a user who stops a run now while the verdict of the last review round goes on the issue gets no review budget hand-over from the next run, which reviews the change in that round', async (t) => {
+  const config = { maxReviewRounds: 1 };
+  const first = await harness(t, { config, verdicts: [changes('Rename it.')] });
+  stopNowDuringVerdictComment(first);
+  assert.equal((await first.run()).outcome, 'stopped');
+  const target = await harness(t, {
+    saved: (await first.state())!,
+    issue: { ...ISSUE, labels: ['status:in-review'] },
+    config,
+    verdicts: [minor('The name is long.')],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.notEqual(report.reason, 'review budget');
+  assert.deepEqual(roles(target), ['reviewer']);
+  assert.deepEqual(target.closed, [7]);
+});
+
 test('a user who stops a run now while the review fixer of the round before the last runs gets the round given back, and the next run reviews the fixed change in the last round', async (t) => {
   const config = { maxReviewRounds: 2 };
   const first = await harness(t, {

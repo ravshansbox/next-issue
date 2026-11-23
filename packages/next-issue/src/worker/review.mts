@@ -33,22 +33,25 @@ export async function reviewRound(job: Run): Promise<Round> {
   }
 
   const earlier = history(state.reviewLog);
-  const text = await refundIfCut(job, 'reviewRounds', async () => {
+  const open = await refundIfCut(job, 'reviewRounds', async () => {
     await setStatus(context, issue.number, config.labels.inReview);
-    return runReviewer(job, earlier);
+    const verdict = parseVerdict(await runReviewer(job, earlier));
+    if (verdict === undefined) {
+      return undefined;
+    }
+    const { round, limit } = budgetUse(job, 'reviewRounds');
+    const findings = openFindings(verdict, round >= limit);
+    recordVerdict(job, verdict, findings);
+    await ports.commentOnIssue(
+      repo,
+      issue.number,
+      fitComment(formatVerdict(verdict, findings), COMMENT_CUT),
+    );
+    return findings;
   });
-  const verdict = parseVerdict(text);
-  if (verdict === undefined) {
+  if (open === undefined) {
     return escalateAndFinish(job, 'The reviewer gave no verdict.', 'no verdict');
   }
-  const { round, limit } = budgetUse(job, 'reviewRounds');
-  const open = openFindings(verdict, round >= limit);
-  recordVerdict(job, verdict, open);
-  await ports.commentOnIssue(
-    repo,
-    issue.number,
-    fitComment(formatVerdict(verdict, open), COMMENT_CUT),
-  );
 
   if (open.length === 0) {
     state.phase = 'approved';
