@@ -14,7 +14,6 @@ import {
   latestSubject,
   parseRemote,
   revision,
-  saveEdits,
   setAside,
 } from '../src/shared/git.mts';
 import { addWorktree } from '../src/shared/worktree.mts';
@@ -184,12 +183,12 @@ test('the worker commits the tracked and untracked edits the fixer left, so a la
   const head = await revision(path);
   await writeFile(join(path, 'a.txt'), 'the fixer left this\n');
   await writeFile(join(path, 'new.txt'), 'a new file\n');
-  assert.equal(await saveEdits(path, 'the edits of the fixer'), true);
+  assert.equal(await commitAll(path, 'the edits of the fixer', { hooks: false }), true);
   assert.equal(await isDirty(path), false);
   assert.equal(await git(path, 'rev-parse', 'HEAD~1'), head);
   assert.equal(await git(path, 'show', 'HEAD:new.txt'), 'a new file');
   assert.equal(await git(path, 'show', 'HEAD:a.txt'), 'the fixer left this');
-  assert.equal(await saveEdits(path, 'nothing left'), false);
+  assert.equal(await commitAll(path, 'nothing left', { hooks: false }), false);
 });
 
 test('a user whose git config hides untracked files still gets a new file of the reviewer thrown away', async () => {
@@ -220,7 +219,7 @@ test('a user whose git config hides untracked files still gets a new file of a d
   await git(path, 'config', 'user.name', 't');
   await git(path, 'config', 'user.email', 't@t');
   await writeFile(join(path, 'new.txt'), 'a new file\n');
-  assert.equal(await saveEdits(path, 'the edits of the fixer'), true);
+  assert.equal(await commitAll(path, 'the edits of the fixer', { hooks: false }), true);
   assert.equal(await git(path, 'show', 'HEAD:new.txt'), 'a new file');
 });
 

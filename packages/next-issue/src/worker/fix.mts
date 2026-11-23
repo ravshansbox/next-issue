@@ -122,9 +122,10 @@ async function disputedFix(
   const { context, issue, log, worktree, branch } = job;
   const { ports } = context;
   // A retry or the revert after a failed check cleans this worktree, so edits left there would be lost.
-  const saved = await ports.saveEdits(
+  const saved = await ports.commitAll(
     worktree,
     commitMessage(`fix: edits left by the ${kind === 'review' ? 'review' : 'check'} fixer`, issue),
+    { hooks: false },
   );
   const disputed = await ports.revision(worktree);
   if (disputed === before) {

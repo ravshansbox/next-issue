@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AgentRequest } from '../src/shared/agents.mts';
-import { commitAll } from '../src/shared/git-commit.mts';
+import { commitAll, saveSetupOutput } from '../src/shared/git-commit.mts';
 import { pushToBase, revertOnBase, squashOnto } from '../src/shared/git-land.mts';
 import { abortMerge, commitMerge, startMerge } from '../src/shared/git-merge.mts';
 import {
@@ -11,8 +11,6 @@ import {
   isLanded,
   latestSubject,
   revision,
-  saveEdits,
-  saveSetupOutput,
   setAside,
 } from '../src/shared/git.mts';
 import type { Recorder } from '../src/shared/observe.mts';
@@ -35,7 +33,6 @@ const REAL_GIT = {
   removeWorktree,
   revertOnBase,
   revision,
-  saveEdits,
   saveSetupOutput,
   setAside,
   squashOnto,

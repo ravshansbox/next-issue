@@ -1,7 +1,7 @@
 import { runAgent } from './agents.mts';
 import { failedCiLogs, rerunFailedCi, waitForCiChecks } from './ci-checks.mts';
 import { run } from './exec.mts';
-import { commitAll } from './git-commit.mts';
+import { commitAll, saveSetupOutput } from './git-commit.mts';
 import { baseMoved, pushToBase, reapplyRevert, revertOnBase, squashOnto } from './git-land.mts';
 import { abortMerge, commitMerge, startMerge } from './git-merge.mts';
 import {
@@ -15,8 +15,6 @@ import {
   isOnBase,
   latestSubject,
   revision,
-  saveEdits,
-  saveSetupOutput,
   setAside,
 } from './git.mts';
 import {
@@ -99,7 +97,6 @@ export const PORTS = {
   runAgent,
   runCheck,
   runSetup,
-  saveEdits,
   saveSetupOutput,
   setAside,
   setLabel,

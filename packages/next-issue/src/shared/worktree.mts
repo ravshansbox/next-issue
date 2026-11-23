@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { realpath } from 'node:fs/promises';
 import { join } from 'node:path';
+import { commitAll } from './git-commit.mts';
 import {
   currentBranch,
   discardChanges,
@@ -11,7 +12,6 @@ import {
   remoteRef,
   type Repo,
   revision,
-  saveEdits,
   succeeds,
 } from './git.mts';
 
@@ -71,7 +71,7 @@ async function keepDetachedEdits(path: string, branch: string): Promise<void> {
   if (
     !existsSync(join(path, '.git')) ||
     (await currentBranch(path)) !== undefined ||
-    !(await saveEdits(path, 'chore: edits left on a detached HEAD'))
+    !(await commitAll(path, 'chore: edits left on a detached HEAD', { hooks: false }))
   ) {
     return;
   }

@@ -14,7 +14,6 @@ import {
   latestSubject,
   type Repo,
   revision,
-  saveEdits,
   setAside,
 } from '../src/shared/git.mts';
 import type { Recorder } from '../src/shared/observe.mts';
@@ -44,7 +43,6 @@ function withGit(target: Harness, reviewer: (worktree: string) => Promise<unknow
     latestSubject,
     removeWorktree,
     revision,
-    saveEdits,
     setAside,
     runAgent: async (recorder: Recorder, request: AgentRequest) => {
       if (request.name === 'reviewer') {

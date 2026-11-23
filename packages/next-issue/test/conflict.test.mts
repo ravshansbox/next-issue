@@ -13,7 +13,6 @@ import {
   isDirty,
   latestSubject,
   revision,
-  saveEdits,
   setAside,
 } from '../src/shared/git.mts';
 import type { Recorder } from '../src/shared/observe.mts';
@@ -138,7 +137,6 @@ const REAL_GIT = {
   pushToBase,
   removeWorktree,
   revision,
-  saveEdits,
   setAside,
   squashOnto,
   startMerge,

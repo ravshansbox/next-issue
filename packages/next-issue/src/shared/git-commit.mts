@@ -6,16 +6,35 @@ import { git, isDirty } from './git.mts';
 
 export class HookError extends Error {}
 
-export async function commitAll(cwd: string, commitMessage: string): Promise<boolean> {
+type CommitOptions = { hooks?: boolean };
+
+export async function commitAll(
+  cwd: string,
+  commitMessage: string,
+  options: CommitOptions = {},
+): Promise<boolean> {
   if (!(await isDirty(cwd))) {
     return false;
   }
-  await commitEverything(cwd, commitMessage);
+  await commitEverything(cwd, commitMessage, options);
   return true;
 }
 
-export async function commitEverything(cwd: string, commitMessage: string): Promise<void> {
+/** Commits what the setup wrote on top of the change, with no hooks, so every check sees it. */
+export async function saveSetupOutput(cwd: string): Promise<void> {
+  await commitAll(cwd, 'chore: setup output', { hooks: false });
+}
+
+export async function commitEverything(
+  cwd: string,
+  commitMessage: string,
+  { hooks = true }: CommitOptions = {},
+): Promise<void> {
   await git(cwd, ['add', '-A']);
+  if (!hooks) {
+    await git(cwd, ['commit', '--no-verify', '-m', commitMessage]);
+    return;
+  }
   const folder = await mkdtemp(join(tmpdir(), 'next-issue-message-'));
   const file = join(folder, 'COMMIT_EDITMSG');
   try {

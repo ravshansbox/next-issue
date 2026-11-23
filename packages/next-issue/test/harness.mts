@@ -177,7 +177,7 @@ export type Harness = {
   branches: string[];
   starts: boolean[];
   asides: Array<{ target: string; branch: string }>;
-  /** Edits of a fixer committed by `saveEdits`. */
+  /** Edits of a fixer committed with no hooks. */
   saves: number;
   threads: number[];
   events: Array<Record<string, unknown>>;
@@ -301,7 +301,15 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       state.issueNotes.push({ number, body });
       state.comments.push(body);
     },
-    commitAll: async (_worktree, commitMessage) => {
+    commitAll: async (_worktree, commitMessage, options) => {
+      if (options?.hooks === false) {
+        if (plan.fixerWrites !== true) {
+          return false;
+        }
+        state.saves += 1;
+        head += state.saves;
+        return true;
+      }
       state.messages.push(commitMessage);
       const committed = commits.shift() ?? true;
       if (typeof committed === 'string') {
@@ -501,14 +509,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
         return { code: 143, output: `${command} hung`, timedOut: true };
       }
       return { code, output: code === 0 ? 'ok' : `${command} broke`, timedOut: false };
-    },
-    saveEdits: async () => {
-      if (plan.fixerWrites !== true) {
-        return false;
-      }
-      state.saves += 1;
-      head += state.saves;
-      return true;
     },
     saveSetupOutput: async () => {},
     setAside: async (_worktree, target, branch) => {

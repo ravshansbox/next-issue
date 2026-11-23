@@ -101,6 +101,10 @@ async function commitReapply(
   branch: string,
 ): Promise<void> {
   await git(cwd, ['revert', '--no-commit', reverted]);
+  await commitOnBranch(cwd, message, branch);
+}
+
+async function commitOnBranch(cwd: string, message: string, branch: string): Promise<void> {
   await git(cwd, ['commit', '--no-verify', '-m', message]);
   await git(cwd, ['checkout', '-B', branch]);
 }
@@ -117,8 +121,7 @@ async function pushRevert(cwd: string, revert: Revert): Promise<Reverted> {
     if (await succeeds(cwd, ['diff', '--cached', '--quiet', 'HEAD'])) {
       await git(cwd, ['revert', '--abort']);
       await git(cwd, ['cherry-pick', '--no-commit', ...shas]);
-      await git(cwd, ['commit', '--no-verify', '-m', reapply]);
-      await git(cwd, ['checkout', '-B', branch]);
+      await commitOnBranch(cwd, reapply, branch);
       return 'already reverted';
     }
     await git(cwd, ['commit', '--no-verify', '-m', message]);
