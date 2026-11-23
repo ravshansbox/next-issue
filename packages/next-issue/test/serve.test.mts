@@ -15,7 +15,9 @@ import { Recorder } from '../src/shared/observe.mts';
 import type { WorkerMessage } from '../src/shared/protocol.mts';
 import { lock, processStart } from '../src/shared/lock.mts';
 import { startWorker } from '../src/worker/serve.mts';
+import type { RunSummary } from '../src/shared/summary.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
+import { WebSocket } from 'ws';
 import { fullDisk } from './full-disk.mts';
 import { issue, report } from './loop-harness.mts';
 import { tempDir } from './temp-dir.mts';
@@ -1327,6 +1329,52 @@ test('a worker whose run ends while a client is connected sends the client the e
   await started.closed;
   await client.closed;
   assert.deepEqual(await readdir(dir), []);
+});
+
+test('a client whose start arrives after a run ended and before the worker closes gets the shutting down refusal and no second run starts', async (t) => {
+  const fake = fakeRuns();
+  const { socketPath, worker: started } = await worker(t, fake);
+  const raw = createConnection(socketPath);
+  const slow = new WebSocket('ws://localhost/', { createConnection: () => raw });
+  await new Promise((resolve) => slow.once('open', resolve));
+  t.after(() => slow.terminate());
+  raw.pause();
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo', args: ['--watch', 'off'] });
+  await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
+  const summary: RunSummary = {
+    runId: 'run',
+    logFile: 'run.jsonl',
+    roles: {},
+    counts: {},
+    total: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    issues: Array.from({ length: 8000 }, (_, index) => ({
+      issue: index + 1,
+      outcome: 'needs-human' as const,
+      reason: 'x'.repeat(1000),
+      ciFixes: 0,
+      reviewRounds: 0,
+      ms: 0,
+    })),
+  };
+  fake.controls().ended?.(summary);
+  fake.finish();
+  await client.next((value) => value.type === 'runs' && value.runs['/repo']?.status === 'finished');
+  client.send({ type: 'start', root: '/repo', id: 'late' });
+  const answer = await client.next(
+    (value) =>
+      value.type === 'error' ||
+      (value.type === 'runs' && value.runs['/repo']?.status === 'running'),
+  );
+  raw.resume();
+  await started.closed;
+  assert.deepEqual(answer, {
+    type: 'error',
+    root: '/repo',
+    message: 'the worker is shutting down, try again soon',
+    id: 'late',
+  });
+  assert.equal(fake.calls.length, 1);
 });
 
 test('a client starts a run in one repository while the worker of another repository waits to restart', async (t) => {

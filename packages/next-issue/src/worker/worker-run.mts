@@ -45,9 +45,16 @@ export function endStatus(run: Run): Progress['status'] {
   return run.stop === undefined ? 'finished' : 'stopped';
 }
 
-export function startRefusal(run: Run | undefined, restart: boolean): string | undefined {
+export function startRefusal(
+  run: Run | undefined,
+  restart: boolean,
+  closing: boolean,
+): string | undefined {
   if (restart) {
     return 'the worker is restarting, try again soon';
+  }
+  if (closing) {
+    return 'the worker is shutting down, try again soon';
   }
   if (active(run)) {
     return 'a run is going in this repository already';

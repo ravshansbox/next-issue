@@ -84,6 +84,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   const runs = new Map<string, Run>();
   let restart: string | undefined;
   let successor: Launch | undefined;
+  let closing = false;
 
   const server = createServer();
   const sockets = new WebSocketServer({ server });
@@ -106,6 +107,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   };
 
   const { closed, close } = closer(async () => {
+    closing = true;
     clearTimeout(idleTimer);
     const run = runs.get(options.root);
     if (successor !== undefined && run !== undefined && upgradedRun(run)) {
@@ -175,7 +177,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       joinGoing(socket, refuse, going!, argv, id);
       return;
     }
-    const refusal = startRefusal(going, restart !== undefined);
+    const refusal = startRefusal(going, restart !== undefined, closing);
     if (refusal !== undefined) {
       if (!resume) {
         refuse(refusal);
@@ -213,6 +215,9 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
         },
       }),
     )
+      .finally(() => {
+        closing = true;
+      })
       .then(
         (code) => {
           update({ ...run.progress, status: endStatus(run) });
