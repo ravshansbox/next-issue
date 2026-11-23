@@ -4,8 +4,8 @@ import type { Issue } from '../src/shared/github.mts';
 import type { IssueReport } from '../src/shared/job.mts';
 import { pendingIssues } from '../src/worker/pending.mts';
 import { processIssue } from '../src/worker/pipeline.mts';
-import type { IssueState } from '../src/shared/state.mts';
-import { type Harness, harness, ISSUE, roles } from './harness.mts';
+import { type IssueState, newState } from '../src/shared/state.mts';
+import { APPROVE, type Harness, harness, ISSUE, roles } from './harness.mts';
 
 async function closedRun(
   t: Parameters<typeof harness>[0],
@@ -130,4 +130,39 @@ test('a user who closes a stopped issue just after a run lists it as open gets t
   assert.equal(report.reason, 'closed');
   assert.equal(await target.state(), undefined);
   assert.equal(await target.context.ports.findWorktree(target.context.repo, '7'), undefined);
+});
+
+test('a person who closes an issue halted on a checks error gets the next run to log land.released with the reason closed and land another issue', async (t) => {
+  const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
+  first.context.ports.waitForCiChecks = async () => {
+    throw new Error('gh: API rate limit exceeded');
+  };
+  assert.equal((await first.run()).reason, 'checks error');
+  const { target } = await closedRun(t, await first.state());
+  assert.ok(
+    target.events.some(
+      (record) =>
+        record['kind'] === 'land.released' &&
+        record['issue'] === 7 &&
+        record['reason'] === 'closed',
+    ),
+  );
+  const other = await harness(t, {
+    root: target.context.repo.root,
+    issue: { ...ISSUE, number: 8 },
+  });
+  assert.equal((await other.run()).outcome, 'done');
+  assert.equal(other.landed.length, 1);
+});
+
+test('a person who closes an issue that is not halted gets the next run to log no land.released', async (t) => {
+  const first = await harness(t, { commits: [false] });
+  await first.run();
+  const { target } = await closedRun(t, await first.state());
+  assert.ok(!target.events.some((record) => record['kind'] === 'land.released'));
+});
+
+test('a person who closes a halted issue with nothing on the base gets the next run to log no land.released', async (t) => {
+  const { target } = await closedRun(t, { ...newState(7, '7'), halted: true });
+  assert.ok(!target.events.some((record) => record['kind'] === 'land.released'));
 });

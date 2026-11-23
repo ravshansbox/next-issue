@@ -17,7 +17,7 @@ import { revertFailedFix } from './revert.mts';
 import { logIssueError } from './skip.mts';
 import { dropState, type IssueState, type PendingHandOver, writeState } from './state.mts';
 import { COMMENT_CUT, fitComment } from './text.mts';
-import { UnsettledBase } from './unsettled.mts';
+import { blocksLanding, heldOnBase, UnsettledBase } from './unsettled.mts';
 
 export async function escalateAndFinish(job: Run, note: string, reason: string): Promise<Finished> {
   const reverted = await revertFailedFix(job);
@@ -98,6 +98,9 @@ export async function dropClosed(
   saved: IssueState | undefined,
 ): Promise<IssueReport> {
   log.event('issue.drop', { title: issue.title, reason: 'closed' });
+  if (saved !== undefined && blocksLanding(saved, context.base)) {
+    log.event('land.released', { held: heldOnBase(saved, context.base), reason: 'closed' });
+  }
   try {
     if (openedOwnWorktree(saved)) {
       await cleanUp(context, log, saved.branch);
