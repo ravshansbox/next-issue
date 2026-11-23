@@ -11,6 +11,7 @@ import {
   canWrite,
   issueComments,
   issueEditors,
+  labeler,
   openBlockers,
   repositorySlug,
   openIssues,
@@ -423,4 +424,27 @@ esac`,
     body: 'B',
     editors: { body: 'ghost', title: 'ghost' },
   });
+});
+
+test('the worker names the person who last added a label, ghost for a deleted account and nobody when it was never added', async (t) => {
+  const dir = await tempDir();
+  const events = [
+    { event: 'labeled', label: { name: 'status:blocked' }, actor: { login: 'maintainer' } },
+    { event: 'unlabeled', label: { name: 'status:blocked' }, actor: { login: 'maintainer' } },
+    { event: 'labeled', label: { name: 'status:blocked' }, actor: { login: 'triager' } },
+    { event: 'labeled', label: { name: 'bug' }, actor: { login: 'maintainer' } },
+    { event: 'labeled', label: { name: 'gone' }, actor: null },
+  ];
+  await writeFile(join(dir, 'events.json'), JSON.stringify(events));
+  const script = `#!/bin/sh
+case "$*" in
+  "api --paginate repos/acme/tool/issues/7/events "*) cat "${join(dir, 'events.json')}" ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+`;
+  await installGh(t, dir, script);
+  const repo = { owner: 'acme', name: 'tool', root: dir };
+  assert.equal(await labeler(repo, 7, 'status:blocked'), 'triager');
+  assert.equal(await labeler(repo, 7, 'gone'), 'ghost');
+  assert.equal(await labeler(repo, 7, 'status:todo'), undefined);
 });

@@ -207,6 +207,31 @@ export async function issueEditors(repo: Repo, issue: number): Promise<IssueText
   };
 }
 
+/** The person who last added the label to the issue, `ghost` for a deleted account, or undefined when nobody added it. */
+export async function labeler(
+  repo: Repo,
+  issue: number,
+  label: string,
+): Promise<string | undefined> {
+  const raw = await ghApi(
+    repo,
+    `issues/${issue}/events`,
+    '.[] | select(.event == "labeled") | [.label.name, .actor.login] | @json',
+    { paginate: true },
+  );
+  const added = lines(raw)
+    .map(
+      (line) =>
+        parseJson(
+          line,
+          () => `gh gave a label event of #${issue} that is not valid JSON: ${line}`,
+        ) as [string, string | null],
+    )
+    .filter(([name]) => name === label);
+  const last = added.at(-1);
+  return last === undefined ? undefined : (last[1] ?? GHOST);
+}
+
 const REPOSITORY_SLUG = '(.repository_url | split("/") | .[-2:] | join("/"))';
 
 export async function openBlockers(repo: Repo, issue: number): Promise<string[]> {

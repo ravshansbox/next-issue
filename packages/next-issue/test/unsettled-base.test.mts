@@ -117,13 +117,16 @@ test('a user whose run halted on a checks error gets no other issue landed by th
   assert.equal(third.landed.length, 1);
 });
 
-test('a user who gives up on an issue halted on a checks error gets the next run to release its block and land another issue', async (t) => {
+test('a person with write access who gives up on an issue halted on a checks error with the skip label gets the next run to release its block and land another issue', async (t) => {
   const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
   first.context.ports.waitForCiChecks = async () => {
     throw new Error('gh: API rate limit exceeded');
   };
   assert.equal((await first.run()).reason, 'checks error');
-  assert.match(first.comments.at(-1) ?? '', /or a person gives it up with the skip label/);
+  assert.match(
+    first.comments.at(-1) ?? '',
+    /or a person with write access gives it up with the skip label/,
+  );
   const root = first.context.repo.root;
   const given = await harness(t, { root, issue: { ...ISSUE, labels: ['status:blocked'] } });
   assert.equal((await given.run()).outcome, 'skipped');
@@ -134,6 +137,21 @@ test('a user who gives up on an issue halted on a checks error gets the next run
   const other = await harness(t, { root, issue: OTHER });
   assert.equal((await other.run()).outcome, 'done');
   assert.equal(other.landed.length, 1);
+});
+
+test('a person without write access who adds the skip label to a halted issue gets the issue skipped with the block kept and no other issue landed', async (t) => {
+  const root = await haltOnChecksError(t);
+  const given = await harness(t, {
+    root,
+    issue: { ...ISSUE, labels: ['status:blocked'] },
+    skipLabeler: 'triager',
+  });
+  assert.equal((await given.run()).outcome, 'skipped');
+  assert.ok(!given.events.some((record) => record['kind'] === 'land.released'));
+  assert.equal((await given.state())?.halted, true);
+  const other = await harness(t, { root, issue: OTHER });
+  assert.equal((await other.run()).reason, 'base unchecked');
+  assert.deepEqual(other.landed, []);
 });
 
 async function haltOnChecksError(t: Parameters<typeof harness>[0]): Promise<string> {

@@ -133,6 +133,8 @@ export type Plan = {
   earlier?: string;
   thread?: Array<{ author: string; body: string; url?: string; createdAt?: string }>;
   writers?: string[];
+  /** The person who last added the skip label; by default a person with write access. */
+  skipLabeler?: string;
   /** The last people to change the issue body and title; by default a person with write access. */
   editors?: { body: string; title: string };
   /** The title and body GitHub holds when the worker checks the editors; by default the listed ones. */
@@ -522,6 +524,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
         refuseWhenStopped();
       }
     },
+    labeler: async () => plan.skipLabeler ?? MAINTAINER,
     issueEditors: async () => {
       editorReads += 1;
       const checked = plan.current ?? { title: issue.title, body: issue.body };

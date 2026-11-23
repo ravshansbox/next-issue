@@ -94,7 +94,9 @@ export async function skipReport(
     log.event('issue.skip', { title: issue.title, reason: skip });
     if (saved?.halted === true && hasLabel(issue.labels, context.config.labels.skip)) {
       try {
-        await release(context, log, saved);
+        if (await skippedByWriter(context, issue)) {
+          await release(context, log, saved);
+        }
       } catch (error) {
         return readError(log, issue, saved, error, started);
       }
@@ -141,6 +143,12 @@ async function release(context: Context, log: Recorder, saved: IssueState): Prom
   delete saved.halted;
   await writeState(context.repo, saved);
   log.event('land.released', { held: heldOnBase(saved, context.base) });
+}
+
+async function skippedByWriter(context: Context, issue: Issue): Promise<boolean> {
+  const { ports, repo, config } = context;
+  const login = await ports.labeler(repo, issue.number, config.labels.skip);
+  return login !== undefined && (await ports.canWrite(repo, login));
 }
 
 async function hasAnswer(
