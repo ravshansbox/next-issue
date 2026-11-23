@@ -15,6 +15,8 @@ const FIELDS = { watch: 'watching', hunt: 'hunting' } as const;
 
 const NO_RUN = 'no run is going in this repository\n';
 
+export const SILENT = 'the next-issue worker did not answer';
+
 function onOffText(on: boolean | undefined): string {
   return on === true ? 'on' : 'off';
 }
@@ -59,18 +61,24 @@ export function switched(
   const id = randomUUID();
   let sent = false;
   return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(SILENT)), ANSWER_TIMEOUT_MS);
     connection.listen((message) => {
       if (!sent) {
         return;
       }
       const progress = message.type === 'runs' ? message.runs[root] : undefined;
       if (progress !== undefined && progress[FIELDS[name]] === on) {
+        clearTimeout(timer);
         resolve(progress);
       } else if (message.type === 'error' && message.id === id) {
+        clearTimeout(timer);
         reject(new Error(message.message));
       }
     });
-    void connection.closed.then(() => reject(new Error(CLOSED)));
+    void connection.closed.then(() => {
+      clearTimeout(timer);
+      reject(new Error(CLOSED));
+    });
     connection.send({ type: name, root, on, id });
     sent = true;
   });

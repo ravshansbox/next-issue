@@ -1031,6 +1031,37 @@ test('a user who runs start --hunt on while a worker older than request ids has 
   );
 });
 
+test('a user who runs start --watch off while an older worker refuses the start as going and never answers the watch switch sees the worker did not answer and exit code 1 within about 5 seconds', async (t) => {
+  const root = await repository(ORIGIN);
+  const { socketPath } = workerPaths(root);
+  await mkdir(dirname(socketPath), { recursive: true });
+  const progress = { status: 'running', watching: true, hunting: false, issues: [] };
+  const server = new WebSocketServer({ server: createServer().listen(socketPath) });
+  t.after(() => new Promise((resolve) => server.close(() => resolve(undefined))));
+  t.after(() => server.options.server?.close());
+  server.on('connection', (socket) => {
+    socket.send(JSON.stringify({ type: 'hello', version: '0.0.0-old' }));
+    socket.send(JSON.stringify({ type: 'runs', runs: { [root]: progress } }));
+    socket.on('message', (data) => {
+      const value = JSON.parse(String(data));
+      if (value.type === 'start') {
+        socket.send(
+          JSON.stringify({
+            type: 'error',
+            root,
+            message: 'a run is going in this repository already',
+          }),
+        );
+      }
+    });
+  });
+  const startedAt = Date.now();
+  const started = startCommand(t, root, ['--watch', 'off']);
+  assert.equal(await started.exited, 1);
+  assert.match(started.stderr(), /^the next-issue worker did not answer$/m);
+  assert.ok(Date.now() - startedAt < 15_000);
+});
+
 test('a user who runs stop while the run stops for an upgrade with no issue held and no hunt going sees that it is stopping and will not start again', async (t) => {
   const root = await repository(ORIGIN);
   const fake = fakeRuns();

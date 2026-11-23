@@ -10,14 +10,12 @@ import {
   reachWorker,
   startedRun,
 } from '../shared/worker-client.mts';
-import { statusText, switched } from './switch-run.mts';
+import { SILENT, statusText, switched } from './switch-run.mts';
 
 const REFUSED_GOING = [
   'a run is going in this repository already',
   'the worker is restarting, try again soon',
 ];
-
-const SILENT = 'the next-issue worker did not answer';
 
 const STARTED =
   'the run started in the worker; follow it with `npx -y next-issue@latest logs` and stop it with `npx -y next-issue@latest stop`\n';
