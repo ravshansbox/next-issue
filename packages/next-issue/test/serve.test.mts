@@ -956,6 +956,83 @@ for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) {
   });
 }
 
+const EXEC = new URL('../src/shared/exec.mts', import.meta.url).href;
+
+const CHILDREN = new URL('../src/shared/children.mts', import.meta.url).href;
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function signalWithStubbornCommand(t: TestContext, signal: NodeJS.Signals) {
+  const root = await tempDir();
+  const pidFile = join(root, 'command.pid');
+  const laterFile = join(root, 'later.pid');
+  const command = `trap '' INT TERM HUP; echo $$ > ${pidFile}; while :; do sleep 0.2; done`;
+  const later = `echo $$ > ${laterFile}; sleep 600`;
+  const agent = `void withRunChildren(runChildren(), async () => { void run('bash', ['-c', ${JSON.stringify(command)}], { timeoutMs: 120000 }); await new Promise((resolve) => onStop(resolve)); await run('bash', ['-c', ${JSON.stringify(later)}]); }).catch(() => undefined);`;
+  const child = spawn(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `import { serve } from ${JSON.stringify(SERVE)}; import { run } from ${JSON.stringify(EXEC)}; import { onStop, runChildren, withRunChildren } from ${JSON.stringify(CHILDREN)}; ${agent} await serve(${JSON.stringify(root)});`,
+    ],
+    { stdio: ['ignore', 'ignore', 'pipe'] },
+  );
+  t.after(() => child.kill('SIGKILL'));
+  const exited = new Promise((resolve) => child.once('exit', resolve));
+  await new Promise<void>((resolve) => {
+    let output = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk: string) => {
+      output += chunk;
+      if (output.includes('listening')) {
+        resolve();
+      }
+    });
+  });
+  let pid = 0;
+  while (pid === 0) {
+    pid = Number(await readFile(pidFile, 'utf8').catch(() => '0'));
+  }
+  t.after(() => {
+    try {
+      process.kill(-pid, 'SIGKILL');
+    } catch {}
+  });
+  const started = Date.now();
+  child.kill(signal);
+  await exited;
+  const laterPid = Number(await readFile(laterFile, 'utf8').catch(() => '0'));
+  if (laterPid !== 0) {
+    process.kill(-laterPid, 'SIGKILL');
+  }
+  return { elapsed: Date.now() - started, commandAlive: alive(pid), laterStarted: laterPid !== 0 };
+}
+
+test(
+  'a worker that gets SIGTERM, SIGINT or SIGHUP while a command ignores them kills the command with SIGKILL about 20 seconds later, before it exits, and starts no command after the signal',
+  { timeout: 40_000 },
+  async (t) => {
+    const results = await Promise.all(
+      (['SIGTERM', 'SIGINT', 'SIGHUP'] as const).map((signal) =>
+        signalWithStubbornCommand(t, signal),
+      ),
+    );
+    for (const { elapsed, commandAlive, laterStarted } of results) {
+      assert.equal(commandAlive, false);
+      assert.equal(laterStarted, false);
+      assert.ok(elapsed > 19_000 && elapsed < 25_000, `took ${elapsed} ms`);
+    }
+  },
+);
+
 test('a worker removes the draft files that a dead worker left', async () => {
   const dir = await tempDir();
   const draft = join(dir, `w.lock.999999999.${randomUUID()}`);

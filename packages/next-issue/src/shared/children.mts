@@ -11,6 +11,8 @@ const undos = new Set<() => void>();
 
 const current = new AsyncLocalStorage<RunChildren>();
 
+const runs = new Set<RunChildren>();
+
 const STOP_GRACE_MS = 10_000;
 
 export function runChildren(): RunChildren {
@@ -18,7 +20,14 @@ export function runChildren(): RunChildren {
 }
 
 export function withRunChildren<T>(children: RunChildren, body: () => Promise<T>): Promise<T> {
-  return current.run(children, body);
+  return current.run(children, async () => {
+    runs.add(children);
+    try {
+      return await body();
+    } finally {
+      runs.delete(children);
+    }
+  });
 }
 
 function stopAll(children: Pick<RunChildren, 'groups' | 'stoppers'>, signal: NodeJS.Signals): void {
@@ -41,9 +50,10 @@ export function stopRunChildren(children: RunChildren): void {
   escalate(running, ['SIGTERM', 'SIGKILL']);
 }
 
-function escalate(running: number[], signals: NodeJS.Signals[]): void {
+function escalate(running: number[], signals: NodeJS.Signals[], ended?: () => void): void {
   const [signal, ...later] = signals;
   if (signal === undefined || running.length === 0) {
+    ended?.();
     return;
   }
   setTimeout(() => {
@@ -53,7 +63,7 @@ function escalate(running: number[], signals: NodeJS.Signals[]): void {
         process.kill(-pid, signal);
       } catch {}
     }
-    escalate(left, later);
+    escalate(left, later, ended);
   }, STOP_GRACE_MS).unref();
 }
 
@@ -91,8 +101,14 @@ export function onKill(undo: () => void): () => void {
   };
 }
 
+let ending: (() => void) | undefined;
+
 export function stopChildren(signal: NodeJS.Signals): void {
-  stopAll({ groups, stoppers }, signal);
+  for (const children of runs) {
+    children.stopped = true;
+  }
+  const running = [...groups];
+  stopAll({ groups: new Set(running), stoppers }, signal);
   for (const undo of undos) {
     try {
       undo();
@@ -101,7 +117,19 @@ export function stopChildren(signal: NodeJS.Signals): void {
   undos.clear();
   process.off('SIGTERM', onTerminate);
   process.off('SIGHUP', onHangUp);
-  process.kill(process.pid, signal);
+  const exit = (): void => {
+    if (ending === exitOnceEnded) {
+      ending = undefined;
+      process.kill(process.pid, signal);
+    }
+  };
+  const exitOnceEnded = (): void => {
+    if (running.every((pid) => !groups.has(pid))) {
+      exit();
+    }
+  };
+  ending = exitOnceEnded;
+  escalate(running, ['SIGTERM', 'SIGKILL'], exit);
 }
 
 const onTerminate = (): void => stopChildren('SIGTERM');
@@ -143,6 +171,7 @@ export function watch(pid: number | undefined): () => void {
 function unwatch(pid: number): void {
   groups.delete(pid);
   unguard();
+  ending?.();
 }
 
 export function killTree(child: ChildProcess): void {
