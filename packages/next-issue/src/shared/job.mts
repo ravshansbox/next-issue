@@ -67,13 +67,6 @@ export const GATE_PASSED: Gate = { done: false, fixed: false };
 
 export const GATE_FIXED: Gate = { done: false, fixed: true };
 
-export function gateRound(gate: Gate): Round | undefined {
-  if (gate.done) {
-    return gate;
-  }
-  return gate.fixed ? ROUND_CONTINUE : undefined;
-}
-
 export async function withNotes(root: string, prompt: string, writable: boolean): Promise<string> {
   const path = notesPath(root);
   const notes = await readTextIfPresent(path);
