@@ -44,4 +44,3 @@ Option A.
 
 - New features need work only in the worker and the CLI.
 - `next-issue` is the only package that the release job publishes.
-- A known gap: a second `npx -y next-issue@latest start` while a run is going exits with `a run is going in this repository already` instead of joining the run.

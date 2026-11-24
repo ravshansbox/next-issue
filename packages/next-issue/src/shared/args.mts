@@ -37,7 +37,7 @@ export const USAGE = `npx -y next-issue@latest <command> [options]
     --hunt on|off   hunt the repository for bugs and file issues alongside the issues, needs watching (default off)
   watch on|off      switch watching of the going run; off also turns hunting off
   hunt on|off       switch hunting of the going run; on also turns watching on
-  init              set up the repository: write ${CONFIG_FILE}, add .next-issue/ and .claude/worktrees/ to info/exclude and install the skills; run it again after an upgrade
+  init              set up the repository: write ${CONFIG_FILE}, add .next-issue/, .claude/worktrees/ and the next-issue skill folders to info/exclude and install the skills; run it again after an upgrade
     --scope user|project
                     user: in ~/.claude/skills; project: in .claude/skills of the main worktree (asks when not given)
   stop              stop the going run after its current issues
