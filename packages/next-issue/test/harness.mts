@@ -190,6 +190,8 @@ export type Harness = {
   stopNow: () => void;
   /** Settles when the step named by `hangDuring` starts. */
   hung: Promise<void>;
+  /** Makes the step named by `hangDuring` fail, as when its process is killed. */
+  failHung: () => void;
   run: () => Promise<IssueReport>;
   state: () => Promise<IssueState | undefined>;
 };
@@ -224,10 +226,15 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
   const hung = new Promise<void>((resolve) => {
     hang = resolve;
   });
+  let failHung = (): void => undefined;
+  const stuck = new Promise<never>((_resolve, reject) => {
+    failHung = () => reject(new Error('killed'));
+  });
+  stuck.catch(() => undefined);
   const hangIf = async (name: string): Promise<void> => {
     if (name === plan.hangDuring) {
       hang();
-      await new Promise(() => undefined);
+      await stuck;
     }
   };
   const state: Harness = {
@@ -266,6 +273,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     head: () => String(head),
     stopNow: () => stopRunChildren(children),
     hung,
+    failHung,
     run: () => withRunChildren(children, () => processIssue(state.context, issue)),
     state: () => readState(repo, issue.number),
   };

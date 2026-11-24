@@ -45,7 +45,9 @@ export async function refundIfCut<T>(
   undo?: () => void,
 ): Promise<T> {
   const { context, state } = job;
+  let refunded = false;
   const forget = onKill(() => {
+    refunded = true;
     undo?.();
     state[budget] = Math.max(0, state[budget] - 1);
     writeStateNow(context.repo, state);
@@ -57,7 +59,7 @@ export async function refundIfCut<T>(
       forget();
     }
   } catch (error) {
-    if (runStopped()) {
+    if (runStopped() && !refunded) {
       undo?.();
       await refundBudget(job, budget);
     }

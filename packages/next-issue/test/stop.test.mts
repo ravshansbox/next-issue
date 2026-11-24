@@ -15,6 +15,7 @@ import {
   minor,
   type Plan,
   roles,
+  SAVED,
 } from './harness.mts';
 
 test('a user who asks to stop during the implementation gets the run stopped before the push, with the state kept', async (t) => {
@@ -764,6 +765,50 @@ test('a user who interrupts the worker while the merge conflict fixer runs finds
   const first = await harness(t, { merges: [['src/a.ts']], hangDuring: 'fixer' });
   await interruptWorker(t, first);
   assert.equal((await first.state())?.ciFixes, 0);
+});
+
+async function killWorkerWithAnotherGroup(t: TestContext, target: Harness): Promise<void> {
+  const kills = t.mock.method(process, 'kill', () => true);
+  const run = target.run();
+  await target.hung;
+  const unwatch = watch(999_999);
+  stopChildren('SIGTERM');
+  target.failHung();
+  await run.catch(() => undefined);
+  unwatch();
+  kills.mock.restore();
+}
+
+const SECOND_ROUND = { saved: SAVED, issue: { ...ISSUE, labels: ['status:in-review'] } };
+
+test('a user who kills the worker while the review fixer of round 2 runs and another process group still runs finds only round 2 given back in the state file', async (t) => {
+  const first = await harness(t, {
+    ...SECOND_ROUND,
+    verdicts: [changes('Rename it.')],
+    hangDuring: 'fixer',
+  });
+  await killWorkerWithAnotherGroup(t, first);
+  const saved = (await first.state())!;
+  assert.equal(saved.reviewRounds, 1);
+  assert.deepEqual(saved.reviewLog, SAVED.reviewLog);
+});
+
+test('a user who kills the worker while the merge conflict fixer runs and another process group still runs finds one check fix given back in the state file', async (t) => {
+  const first = await harness(t, { ...SECOND_ROUND, merges: [['src/a.ts']], hangDuring: 'fixer' });
+  await killWorkerWithAnotherGroup(t, first);
+  assert.equal((await first.state())?.ciFixes, SAVED.ciFixes);
+});
+
+test('a user who stops a run now while the review fixer of round 2 runs finds only round 2 given back in the state file', async (t) => {
+  const first = await harness(t, {
+    ...SECOND_ROUND,
+    verdicts: [changes('Rename it.')],
+    stopNowDuring: 'fixer',
+  });
+  assert.equal((await first.run()).outcome, 'stopped');
+  const saved = (await first.state())!;
+  assert.equal(saved.reviewRounds, 1);
+  assert.deepEqual(saved.reviewLog, SAVED.reviewLog);
 });
 
 test('a user who interrupts the worker while the failed jobs on main are rerun gets a next run that reruns them before any fixer', async (t) => {
