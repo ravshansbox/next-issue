@@ -5,6 +5,8 @@ import { oneAtATime } from '../shared/lock.mts';
 import type { Recorder } from '../shared/observe.mts';
 import { type IssueState, type PendingHandOver, writeState } from '../shared/state.mts';
 
+type OpenedWorktree = { path: string; branchUpdated: boolean; remoteHead: string };
+
 export async function openJob(
   context: Context,
   issue: Issue,
@@ -31,8 +33,10 @@ export async function openJob(
     ? await log.step('reply', {}, () => handOverReply(context, issue.number, pending))
     : [];
   const worktree = await openWorktree(context, issue, log, branch, start);
-  if (state.fresh === true) {
+  const branchHead = leaseHead(state, worktree);
+  if (state.fresh === true || state.branchHead !== branchHead) {
     delete state.fresh;
+    state.branchHead = branchHead;
     await writeState(repo, state);
   }
   return {
@@ -41,7 +45,7 @@ export async function openJob(
     log,
     state,
     branch,
-    worktree,
+    worktree: worktree.path,
     comments,
     reply,
     started,
@@ -49,6 +53,12 @@ export async function openJob(
     repairing: false,
     asides: [],
   };
+}
+
+function leaseHead(state: IssueState, worktree: OpenedWorktree): string {
+  const resets = state.reviewing ?? state.squashing ?? state.reverting;
+  const holdsRemote = worktree.branchUpdated && worktree.remoteHead !== '' && resets === undefined;
+  return holdsRemote ? worktree.remoteHead : (state.branchHead ?? worktree.remoteHead);
 }
 
 function handOverMark(pending: PendingHandOver | undefined): Partial<IssueState> {
@@ -61,7 +71,7 @@ async function openWorktree(
   log: Recorder,
   branch: string,
   start: boolean,
-): Promise<string> {
+): Promise<OpenedWorktree> {
   const { repo, config, ports } = context;
   const added = await log.step('worktree', { branch }, () =>
     oneAtATime(repo.root, () =>
@@ -74,5 +84,5 @@ async function openWorktree(
   if (!added.branchUpdated) {
     log.event('branch.behind', { branch });
   }
-  return added.path;
+  return added;
 }

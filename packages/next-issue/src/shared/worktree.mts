@@ -20,6 +20,8 @@ type Worktree = {
   path: string;
   baseUpdated: boolean;
   branchUpdated: boolean;
+  /** The commit of the remote branch after the fetch, or `''` when there is none. */
+  remoteHead: string;
 };
 
 export const WORKTREE_DIR = '.claude/worktrees';
@@ -65,7 +67,8 @@ export async function addWorktree(
     await discardChanges(path, target);
   }
   const branchUpdated = !pushed || (await succeeds(path, ['merge', '--ff-only', upstream]));
-  return { path, baseUpdated, branchUpdated };
+  const remoteHead = pushed ? await git(repo.root, ['rev-parse', upstream]) : '';
+  return { path, baseUpdated, branchUpdated, remoteHead };
 }
 
 async function keepDetachedEdits(path: string, branch: string): Promise<void> {

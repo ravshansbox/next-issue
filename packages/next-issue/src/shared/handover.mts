@@ -104,7 +104,7 @@ export async function dropClosed(
   try {
     if (openedOwnWorktree(saved)) {
       await cleanUp(context, log, saved.branch);
-      await deleteBranches(context, log, saved.branch);
+      await deleteBranches(context, log, saved);
     }
     await dropState(context.repo, issue.number);
   } catch (error) {
@@ -161,7 +161,7 @@ export async function finish(job: Run, outcome: Outcome, reason?: string): Promi
   const { repo } = context;
   await cleanUp(context, log, branch);
   if (outcome === 'done') {
-    await deleteBranches(context, log, branch);
+    await deleteBranches(context, log, job.state);
     await dropState(repo, issue.number);
   }
   const halt = job.mainBroken && outcome !== 'done';
@@ -174,10 +174,11 @@ export async function finish(job: Run, outcome: Outcome, reason?: string): Promi
   };
 }
 
-async function deleteBranches(context: Context, log: Recorder, branch: string): Promise<void> {
+async function deleteBranches(context: Context, log: Recorder, state: IssueState): Promise<void> {
   const { repo, ports, config } = context;
+  const { branch } = state;
   await removeOrKeep(context, log, 'branch.remote-kept', { branch }, () =>
-    ports.deleteRemoteBranch(repo, config.remote, branch),
+    ports.deleteRemoteBranch(repo, config.remote, branch, state.branchHead ?? ''),
   );
   for (const name of [branch, ...(await ports.disputeBranches(repo, branch))]) {
     await removeOrKeep(context, log, 'branch.kept', { branch: name }, () =>

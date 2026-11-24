@@ -47,14 +47,18 @@ test('the worker squashes the change into one commit on top of the base and land
 
 test('the worker pushes the issue branch, pushes it again after a squash rewrote it, and deletes it from the remote', async () => {
   const { path, other, repo } = await branch();
-  assert.equal((await pushBranch(path, 'origin', '3')).pushed, true);
+  assert.equal((await pushBranch(path, 'origin', '3', '')).pushed, true);
+  const first = await git(path, 'rev-parse', 'HEAD');
   await git(other, 'fetch', '-q', 'origin');
-  assert.equal(await git(other, 'rev-parse', 'origin/3'), await git(path, 'rev-parse', 'HEAD'));
+  assert.equal(await git(other, 'rev-parse', 'origin/3'), first);
   assert.equal(await squashOnto(path, 'origin/main', 'feat: add b and c'), true);
-  assert.equal((await pushBranch(path, 'origin', '3')).pushed, true);
+  assert.equal((await pushBranch(path, 'origin', '3', first)).pushed, true);
   await git(other, 'fetch', '-q', 'origin');
   assert.equal(await git(other, 'rev-parse', 'origin/3'), await git(path, 'rev-parse', 'HEAD'));
-  assert.equal(await deleteRemoteBranch(repo, 'origin', '3'), true);
+  assert.equal(
+    await deleteRemoteBranch(repo, 'origin', '3', await git(path, 'rev-parse', 'HEAD')),
+    true,
+  );
   await git(other, 'fetch', '-q', '--prune', 'origin');
   await assert.rejects(git(other, 'rev-parse', '--verify', 'origin/3'));
 });
@@ -66,7 +70,7 @@ test('the worker pushes the issue branch even when a pre-push hook of the projec
   await writeFile(join(hooks, 'pre-push'), '#!/bin/sh\necho work in progress >&2\nexit 1\n');
   await chmod(join(hooks, 'pre-push'), 0o755);
   await git(path, 'config', 'core.hooksPath', hooks);
-  assert.equal((await pushBranch(path, 'origin', '3')).pushed, true);
+  assert.equal((await pushBranch(path, 'origin', '3', '')).pushed, true);
   await git(other, 'fetch', '-q', 'origin');
   assert.equal(await git(other, 'rev-parse', 'origin/3'), await git(path, 'rev-parse', 'HEAD'));
 });

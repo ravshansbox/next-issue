@@ -167,8 +167,8 @@ export type Harness = {
   baseMerges: number;
   mergeAborts: string[];
   deleted: string[];
-  /** Each push of an issue branch, with the head it pushed. */
-  pushed: Array<{ branch: string; head: string }>;
+  /** Each push of an issue branch, with the head it pushed and the remote commit it expected. */
+  pushed: Array<{ branch: string; head: string; expected: string }>;
   remoteDeleted: string[];
   landed: string[];
   localBase: string | undefined;
@@ -293,6 +293,7 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
         path: join(root, 'worktree'),
         baseUpdated: plan.baseUpdated ?? true,
         branchUpdated: plan.branchUpdated ?? true,
+        remoteHead: '',
       };
     },
     fastForwardBase: async () => {
@@ -400,11 +401,11 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
         ? { pushed: false, error: PUSH_REJECTED }
         : { pushed: true };
     },
-    pushBranch: async (_worktree, _remote, branch) => {
+    pushBranch: async (_worktree, _remote, branch, expected) => {
       if (plan.branchPushFails !== undefined) {
         return { pushed: false, error: plan.branchPushFails };
       }
-      state.pushed.push({ branch, head: String(head) });
+      state.pushed.push({ branch, head: String(head), expected });
       return { pushed: true };
     },
     baseMoved: async () => plan.pushRefused === undefined,

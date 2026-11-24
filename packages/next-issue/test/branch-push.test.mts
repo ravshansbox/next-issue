@@ -8,11 +8,27 @@ import { APPROVE, changes, harness, ISSUE } from './harness.mts';
 test('the worker pushes the issue branch after the implementer commit and after the squash, then deletes the remote branch once the issue lands', async (t) => {
   const target = await harness(t);
   assert.equal((await target.run()).outcome, 'done');
-  assert.deepEqual(target.pushed, [
-    { branch: '7', head: '1' },
-    { branch: '7', head: '2' },
-  ]);
+  assert.deepEqual(
+    target.pushed.map(({ branch, head }) => ({ branch, head })),
+    [
+      { branch: '7', head: '1' },
+      { branch: '7', head: '2' },
+    ],
+  );
   assert.deepEqual(target.remoteDeleted, ['7']);
+});
+
+test('the worker leases each branch push against the commit it last pushed, saved in the state file across a resume', async (t) => {
+  const first = await harness(t, { stopNowDuring: 'reviewer' });
+  assert.equal((await first.run()).outcome, 'stopped');
+  assert.deepEqual(first.pushed, [{ branch: '7', head: '1', expected: '' }]);
+  assert.equal((await first.state())?.branchHead, '1');
+  const resumed = await harness(t, { saved: await first.state() });
+  assert.equal((await resumed.run()).outcome, 'done');
+  assert.deepEqual(
+    resumed.pushed.map((push) => push.expected),
+    ['1'],
+  );
 });
 
 test('the worker pushes the issue branch after the commit of a review fixer', async (t) => {

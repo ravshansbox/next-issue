@@ -180,11 +180,20 @@ export async function commitWork(
 }
 
 async function pushBranch(job: Run): Promise<void> {
-  const { context, log, branch, worktree } = job;
-  const push = await context.ports.pushBranch(worktree, context.config.remote, branch);
+  const { context, log, branch, state, worktree } = job;
+  const { ports } = context;
+  const push = await ports.pushBranch(
+    worktree,
+    context.config.remote,
+    branch,
+    state.branchHead ?? '',
+  );
   if (!push.pushed) {
     log.event('branch.push-fail', { branch, error: push.error.trim() });
+    return;
   }
+  state.branchHead = await ports.revision(worktree);
+  await writeState(context.repo, state);
 }
 
 async function hookFix(

@@ -28,6 +28,8 @@ export type IssueState = {
   reverting?: string;
   squashing?: string;
   reviewing?: string;
+  /** The commit the worker last pushed to branch `<n>`, or `''` for no branch: the lease of its next push. */
+  branchHead?: string;
   reviewRounds: number;
   reviewLog: ReviewRound[];
   handedOver?: boolean;
@@ -130,6 +132,7 @@ function isState(value: unknown): value is IssueState {
     isOptional(value.reverting, 'string') &&
     isOptional(value.squashing, 'string') &&
     isOptional(value.reviewing, 'string') &&
+    isOptional(value.branchHead, 'string') &&
     typeof value.reviewRounds === 'number' &&
     Array.isArray(value.reviewLog) &&
     value.reviewLog.every(isReviewRound) &&

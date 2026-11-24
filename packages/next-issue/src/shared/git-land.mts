@@ -41,22 +41,32 @@ export async function pushToBase(cwd: string, remote: string, base: string): Pro
   return succeeded(result) ? { pushed: true } : { pushed: false, error: result.stderr };
 }
 
-export async function pushBranch(cwd: string, remote: string, branch: string): Promise<Push> {
+/** Pushes `HEAD` to branch `<branch>` only while the remote branch is still at `expected` (`''`: no branch). */
+export async function pushBranch(
+  cwd: string,
+  remote: string,
+  branch: string,
+  expected: string,
+): Promise<Push> {
+  const ref = `refs/heads/${branch}`;
+  const lease = `--force-with-lease=${ref}:${expected}`;
   const result = await oneFetchAtATime(() =>
-    run('git', ['push', '--no-verify', '--force-with-lease', remote, `HEAD:refs/heads/${branch}`], {
-      cwd,
-    }),
+    run('git', ['push', '--no-verify', lease, remote, `HEAD:${ref}`], { cwd }),
   );
   return succeeded(result) ? { pushed: true } : { pushed: false, error: result.stderr };
 }
 
+/** Deletes branch `<branch>` on the remote only while it is still at `expected`. */
 export async function deleteRemoteBranch(
   repo: Repo,
   remote: string,
   branch: string,
+  expected: string,
 ): Promise<boolean> {
+  const ref = `refs/heads/${branch}`;
+  const lease = `--force-with-lease=${ref}:${expected}`;
   const result = await oneFetchAtATime(() =>
-    run('git', ['push', remote, '--delete', `refs/heads/${branch}`], { cwd: repo.root }),
+    run('git', ['push', lease, remote, '--delete', ref], { cwd: repo.root }),
   );
   return succeeded(result);
 }
