@@ -278,6 +278,39 @@ test('a user who runs init with a locked old worktree in .worktrees sees it name
   assert.equal(existsSync(hunt), false);
 });
 
+test('a user who runs init with their own worktree .worktrees/feature-x beside an old .worktrees/7 keeps feature-x, its ignored .env and the folder, and sees only .worktrees/7 removed', async () => {
+  const home = await tempDir();
+  const root = await repository();
+  const { hunt, issue } = await oldWorktrees(root);
+  const feature = join(root, '.worktrees', 'feature-x');
+  await git(root, 'worktree', 'add', '-q', '-b', 'feature-x', feature);
+  await writeFile(join(feature, '.gitignore'), '.env\n');
+  await writeFile(join(feature, '.env'), 'SECRET=1\n');
+  const { stdout } = await init(root, home, ['--scope', 'user']);
+  assert.ok(stdout.includes(`removed old worktree ${issue}\n`));
+  assert.ok(stdout.includes(`removed old worktree ${hunt}\n`));
+  assert.ok(!stdout.includes(feature));
+  assert.equal(existsSync(issue), false);
+  assert.equal(await readFile(join(feature, '.env'), 'utf8'), 'SECRET=1\n');
+  assert.match(await git(root, 'worktree', 'list'), /feature-x/);
+  assert.equal(await git(root, 'branch', '--list', 'feature-x-detached-*'), '');
+});
+
+test('a user who runs init with a plain file .worktrees/notes.txt and a clone .worktrees/otherclone keeps both', async () => {
+  const home = await tempDir();
+  const root = await repository();
+  const notes = join(root, '.worktrees', 'notes.txt');
+  const clone = join(root, '.worktrees', 'otherclone');
+  await mkdir(clone, { recursive: true });
+  await writeFile(notes, 'todo\n');
+  await git(clone, 'init', '-q');
+  await writeFile(join(clone, 'work.txt'), 'work\n');
+  await init(root, home, ['--scope', 'user']);
+  assert.equal(await readFile(notes, 'utf8'), 'todo\n');
+  assert.equal(await readFile(join(clone, 'work.txt'), 'utf8'), 'work\n');
+  assert.equal(existsSync(join(clone, '.git')), true);
+});
+
 test('a user who runs init with no .worktrees folder sees no old worktree named', async () => {
   const home = await tempDir();
   const root = await repository();

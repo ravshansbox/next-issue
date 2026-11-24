@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
-import { realpath, rm } from 'node:fs/promises';
-import { basename, join, sep } from 'node:path';
+import { readdir, realpath, rmdir } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 import { message } from './errors.mts';
 import { commitAll } from './git-commit.mts';
 import {
@@ -79,28 +79,31 @@ async function keepDetachedEdits(path: string, branch: string): Promise<void> {
   await git(path, ['branch', `${branch}-detached-${(await revision(path)).slice(0, 7)}`]);
 }
 
+const OLD_WORKTREE = /^(hunt|\d+)$/;
+
 export interface OldWorktree {
   path: string;
   error?: string;
 }
 
-/** Removes the worktrees an older next-issue left in `.worktrees/`, keeping their uncommitted files on a `<name>-detached-<sha>` branch, then the folder when every one is gone. */
+/** Removes the worktrees `.worktrees/hunt` and `.worktrees/<n>` an older next-issue left, keeping their uncommitted files on a `<name>-detached-<sha>` branch, then the folder when it is empty. */
 export async function removeOldWorktrees(root: string): Promise<OldWorktree[]> {
   const folder = join(root, '.worktrees');
   if (!existsSync(folder)) {
     return [];
   }
   await git(root, ['worktree', 'prune']);
-  const inside = `${await realpath(folder)}${sep}`;
+  const real = await realpath(folder);
   const results: OldWorktree[] = [];
   for (const path of await linkedWorktrees(root)) {
-    if (!(await realpath(path).catch(() => path)).startsWith(inside)) {
+    const resolved = await realpath(path).catch(() => path);
+    if (dirname(resolved) !== real || !OLD_WORKTREE.test(basename(resolved))) {
       continue;
     }
     results.push(await removeOldWorktree(root, path));
   }
-  if (results.every((result) => result.error === undefined)) {
-    await rm(folder, { recursive: true, force: true });
+  if ((await readdir(folder)).length === 0) {
+    await rmdir(folder);
   }
   return results;
 }
