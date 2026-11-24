@@ -373,8 +373,7 @@ export async function serve(root: string, logCheckMs = LOG_CHECK_MS): Promise<nu
     process.off('SIGTERM', onTerminate);
     process.off('SIGINT', onInterrupt);
     process.off('SIGHUP', onHangUp);
-    worker.release();
-    stopChildren(signal);
+    stopChildren(signal, worker.release);
   };
   const onTerminate = (): void => end('SIGTERM');
   const onInterrupt = (): void => end('SIGINT');

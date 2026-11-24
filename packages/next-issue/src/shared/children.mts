@@ -107,7 +107,13 @@ export function onKill(undo: () => void): () => void {
 
 let ending: (() => void) | undefined;
 
-export function stopChildren(signal: NodeJS.Signals): void {
+let beforeExiting: (() => void) | undefined;
+
+export function stopChildren(signal: NodeJS.Signals, beforeExit?: () => void): void {
+  beforeExiting ??= beforeExit;
+  if (ending !== undefined) {
+    return;
+  }
   for (const children of runs) {
     children.stopped = true;
   }
@@ -124,6 +130,11 @@ export function stopChildren(signal: NodeJS.Signals): void {
   const exit = (): void => {
     if (ending === exitOnceEnded) {
       ending = undefined;
+      const release = beforeExiting;
+      beforeExiting = undefined;
+      try {
+        release?.();
+      } catch {}
       process.kill(process.pid, signal);
     }
   };

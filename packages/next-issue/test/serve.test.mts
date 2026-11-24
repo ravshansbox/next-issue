@@ -969,7 +969,7 @@ function alive(pid: number): boolean {
   }
 }
 
-async function signalWithStubbornCommand(t: TestContext, signal: NodeJS.Signals) {
+async function stubbornWorker(t: TestContext) {
   const root = await tempDir();
   const pidFile = join(root, 'command.pid');
   const laterFile = join(root, 'later.pid');
@@ -981,7 +981,7 @@ async function signalWithStubbornCommand(t: TestContext, signal: NodeJS.Signals)
     [
       '--input-type=module',
       '-e',
-      `import { serve } from ${JSON.stringify(SERVE)}; import { run } from ${JSON.stringify(EXEC)}; import { onStop, runChildren, withRunChildren } from ${JSON.stringify(CHILDREN)}; ${agent} await serve(${JSON.stringify(root)});`,
+      `import { serve } from ${JSON.stringify(SERVE)}; import { run } from ${JSON.stringify(EXEC)}; import { onStop, runChildren, withRunChildren } from ${JSON.stringify(CHILDREN)}; const serving = serve(${JSON.stringify(root)}); while (process.listenerCount('SIGTERM') === 0) { await new Promise((resolve) => setTimeout(resolve, 10)); } ${agent} await serving;`,
     ],
     { stdio: ['ignore', 'ignore', 'pipe'] },
   );
@@ -1006,6 +1006,11 @@ async function signalWithStubbornCommand(t: TestContext, signal: NodeJS.Signals)
       process.kill(-pid, 'SIGKILL');
     } catch {}
   });
+  return { root, child, exited, pid, laterFile };
+}
+
+async function signalWithStubbornCommand(t: TestContext, signal: NodeJS.Signals) {
+  const { child, exited, pid, laterFile } = await stubbornWorker(t);
   const started = Date.now();
   child.kill(signal);
   await exited;
@@ -1032,6 +1037,28 @@ test(
     }
   },
 );
+
+test('a worker that gets SIGTERM while a command ignores it keeps its lock from a second worker until the command ends, then exits and leaves no socket or lock file', async (t) => {
+  const { root, child, exited, pid } = await stubbornWorker(t);
+  const { socketPath, lockPath } = workerPaths(root);
+  child.kill('SIGTERM');
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  const second = await startWorker({
+    root,
+    socketPath,
+    lockPath,
+    version: '2.0.0',
+    runRepo: fakeRuns().runRepo,
+    lockWaitMs: 0,
+  });
+  t.after(() => second?.close());
+  assert.equal(second, undefined);
+  process.kill(-pid, 'SIGKILL');
+  await exited;
+  const left = await readdir(dirname(lockPath));
+  assert.equal(left.includes('worker.lock'), false);
+  assert.equal(left.includes('worker.sock'), false);
+});
 
 test('a worker removes the draft files that a dead worker left', async () => {
   const dir = await tempDir();
