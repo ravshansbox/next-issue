@@ -4,9 +4,10 @@ import {
   loadConfig,
   moveOldConfig,
   rejectOldConfig,
+  removeUnknownFields,
   writeDefaultConfig,
 } from './shared/config.mts';
-import { OLD_CONFIG_FILE } from './shared/config-fields.mts';
+import { CONFIG_FILE, OLD_CONFIG_FILE } from './shared/config-fields.mts';
 import { message } from './shared/errors.mts';
 import { detectRepo, repoRoot } from './shared/git.mts';
 import { type BasePackage, basePackage, requireScripts } from './shared/setup.mts';
@@ -62,6 +63,7 @@ async function main(): Promise<number> {
   if (args.command === 'logs') {
     return logs(root);
   }
+  await removeUnknownConfig(root, process.stderr);
   if (args.command === 'start') {
     requireScripts(await rootBasePackage(root));
   }
@@ -95,6 +97,7 @@ async function init(root: string, args: Args): Promise<number> {
   } else {
     await write(process.stdout, `moved ${OLD_CONFIG_FILE} to ${moved}\n`);
   }
+  await removeUnknownConfig(root, process.stdout);
   await excludeStateDirectories(root, process.stdout);
   for (const folder of await installSkills(scope)) {
     await write(process.stdout, `wrote ${folder}\n`);
@@ -112,6 +115,12 @@ async function init(root: string, args: Args): Promise<number> {
 async function rootBasePackage(root: string): Promise<BasePackage> {
   const { remote } = await loadConfig(root);
   return basePackage(await detectRepo(root, remote), remote);
+}
+
+async function removeUnknownConfig(root: string, stream: NodeJS.WriteStream): Promise<void> {
+  for (const entry of await removeUnknownFields(root)) {
+    await write(stream, `removed ${entry} from ${CONFIG_FILE}\n`);
+  }
 }
 
 async function excludeStateDirectories(root: string, stream: NodeJS.WriteStream): Promise<void> {

@@ -163,6 +163,52 @@ test('a user who runs init with a root next-issue.config.json and a .next-issue/
   });
 });
 
+const OLD_CONFIG = {
+  checks: ['npm test'],
+  draftPullRequest: true,
+  labels: { blocked: 'x', done: 'shipped' },
+  maxCiFixes: 3,
+  models: { implementor: 'm', fixer: 'f' },
+};
+
+const CLEAN_CONFIG = {
+  labels: { done: 'shipped' },
+  maxCiFixes: 3,
+  models: { fixer: 'f' },
+};
+
+const REMOVED = ['checks', 'draftPullRequest', 'labels.blocked', 'models.implementor'];
+
+async function writeConfig(root: string, value: unknown): Promise<string> {
+  const path = join(root, '.next-issue/config.json');
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, JSON.stringify(value));
+  return path;
+}
+
+function assertRemoved(output: string): void {
+  for (const entry of REMOVED) {
+    assert.match(output, new RegExp(`^removed ${entry} from \\.next-issue/config\\.json$`, 'm'));
+  }
+}
+
+test('a user who runs init with unknown fields in the config file sees each removed from the file and named in the output', async () => {
+  const root = await repository();
+  const path = await writeConfig(root, OLD_CONFIG);
+  const { stdout } = await initCommand(root);
+  assert.deepEqual(JSON.parse(await readFile(path, 'utf8')), CLEAN_CONFIG);
+  assertRemoved(stdout);
+});
+
+test('a user who runs init with only known fields in the config file sees the file unchanged and no removal named', async () => {
+  const root = await repository();
+  const path = await writeConfig(root, CLEAN_CONFIG);
+  const before = await readFile(path, 'utf8');
+  const { stdout } = await initCommand(root);
+  assert.equal(await readFile(path, 'utf8'), before);
+  assert.doesNotMatch(stdout, /from \.next-issue\/config\.json/);
+});
+
 test('a user who runs another command with a root next-issue.config.json gets an error that the config moved and says to run npx -y next-issue@latest init', async () => {
   const root = await repository();
   await writeFile(join(root, 'next-issue.config.json'), '{}\n');
@@ -292,6 +338,23 @@ test('a user who starts the worker without init gets .next-issue/ and .claude/wo
   const exclude = await readFile(join(root, '.git/info/exclude'), 'utf8');
   assert.equal(exclude.split('\n').filter((line) => line === '.next-issue/').length, 1);
   assert.equal(exclude.split('\n').filter((line) => line === '.claude/worktrees/').length, 1);
+});
+
+test('a user who starts a run with unknown fields in the config file sees each removed from the file and named, and the run going', async (t) => {
+  const root = await repository();
+  const path = await writeConfig(root, OLD_CONFIG);
+  const stderr = await watchingRun(t, root);
+  assert.deepEqual(JSON.parse(await readFile(path, 'utf8')), CLEAN_CONFIG);
+  assertRemoved(stderr);
+});
+
+test('a user who serves the repository with unknown fields in the config file sees each removed from the file and named', async (t) => {
+  const root = await repository();
+  const path = await writeConfig(root, OLD_CONFIG);
+  const { child, stderr } = await serveWorker(root);
+  t.after(() => child.kill('SIGKILL'));
+  assert.deepEqual(JSON.parse(await readFile(path, 'utf8')), CLEAN_CONFIG);
+  assertRemoved(stderr());
 });
 
 test('a user who runs next-issue start while another run of start is going in the repository sees the status of that run, exit code 0 and no issue read', async (t) => {

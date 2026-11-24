@@ -12,6 +12,7 @@ import {
 import { MAX_TIMER_MS } from './durations.mts';
 import { hasCode, message, parseJson } from './errors.mts';
 import { readTextIfPresent, replaceJson, sortKeys, unlessMissing, writeJson } from './files.mts';
+import { isRecord } from './records.mts';
 
 export type Config = {
   remote: string;
@@ -201,6 +202,47 @@ export async function loadConfig(
   return config;
 }
 
+export async function removeUnknownFields(root: string): Promise<string[]> {
+  const path = configFile(root);
+  const raw = await readTextIfPresent(path);
+  const file = raw === undefined ? undefined : parsedOrUndefined(raw);
+  if (!isObject(file)) {
+    return [];
+  }
+  const removed = [
+    ...removeUnknown(file, FIELDS, ''),
+    ...removeUnknown(file.models, MODEL_ROLES, 'models.'),
+    ...removeUnknown(file.labels, LABEL_NAMES, 'labels.'),
+  ];
+  if (removed.length > 0) {
+    await replaceJson(path, file);
+  }
+  return removed;
+}
+
+function parsedOrUndefined(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return isRecord(value) && !Array.isArray(value);
+}
+
+function removeUnknown(value: unknown, known: readonly string[], prefix: string): string[] {
+  if (!isObject(value)) {
+    return [];
+  }
+  const unknown = Object.keys(value).filter((key) => !known.includes(key));
+  for (const key of unknown) {
+    delete value[key];
+  }
+  return unknown.map((key) => `${prefix}${key}`);
+}
+
 async function sortConfigFile(root: string, file: Record<string, unknown>): Promise<void> {
   const sorted = sortKeys({
     ...file,
@@ -213,11 +255,6 @@ async function sortConfigFile(root: string, file: Record<string, unknown>): Prom
 
 function parseConfig(value: unknown): Config {
   const file = record(value, 'the file');
-  if (file.draftPullRequest !== undefined) {
-    throw new Error(
-      `${CONFIG_FILE}: draftPullRequest is no longer used, because changes land on the base branch with no pull request. Remove the field.`,
-    );
-  }
   rejectUnknown(file, FIELDS, 'field');
   const config: Config = defaults();
   if (file.remote !== undefined) {

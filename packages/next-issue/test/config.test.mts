@@ -171,13 +171,6 @@ test('a user who sets agent in the file gets an unknown field error', async () =
   await assert.rejects(parse({ agent: 'claude' }), /unknown field: agent/);
 });
 
-test('a user whose config still sets draftPullRequest gets an error that says to remove it', async () => {
-  await assert.rejects(
-    parse({ draftPullRequest: true }),
-    /draftPullRequest is no longer used, because changes land on the base branch with no pull request\. Remove the field\./,
-  );
-});
-
 test('a user whose config file holds an unknown field gets the run stopped', async () => {
   await assert.rejects(parse({ maxCiFixed: 3 }), /unknown field: maxCiFixed/);
   await assert.rejects(parse({ models: { implementor: 'm' } }), /unknown model role: implementor/);
