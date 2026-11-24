@@ -168,7 +168,7 @@ test('the worker moves a commit of the fixer to another branch and leaves nothin
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   const head = await revision(path);
   const disputed = await commit(path, 'fixer.txt');
-  await setAside(path, head, '3-dispute-1');
+  await setAside(path, head, '3-dispute-1', '3');
   assert.equal(await revision(path), head);
   assert.equal(await git(path, 'rev-parse', '3-dispute-1'), disputed);
   assert.equal(existsSync(join(path, 'fixer.txt')), false);

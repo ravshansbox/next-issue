@@ -180,7 +180,7 @@ export type Harness = {
   reopened: number[];
   branches: string[];
   starts: boolean[];
-  asides: Array<{ target: string; branch: string }>;
+  asides: Array<{ target: string; aside: string }>;
   /** Edits of a fixer committed with no hooks. */
   saves: number;
   threads: number[];
@@ -535,8 +535,8 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       return { code, output: code === 0 ? 'ok' : `${command} broke`, timedOut: false };
     },
     saveSetupOutput: async () => {},
-    setAside: async (_worktree, target, branch) => {
-      state.asides.push({ target, branch });
+    setAside: async (_worktree, target, aside) => {
+      state.asides.push({ target, aside });
       head = Number(target);
     },
     setLabel: async (_repo, kind, number, label, remove) => {

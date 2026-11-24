@@ -129,9 +129,14 @@ export async function resetHard(cwd: string, target: string): Promise<void> {
   await git(cwd, ['clean', '-fd']);
 }
 
-export async function setAside(cwd: string, target: string, branch: string): Promise<void> {
-  await git(cwd, ['branch', branch]);
-  await discardChanges(cwd, target);
+export async function setAside(
+  cwd: string,
+  target: string,
+  aside: string,
+  branch: string,
+): Promise<void> {
+  await git(cwd, ['branch', aside]);
+  await discardChanges(cwd, target, branch);
 }
 
 export async function disputeBranches(repo: Repo, branch: string): Promise<string[]> {

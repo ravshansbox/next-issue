@@ -132,7 +132,7 @@ async function disputedFix(
     return disputedNote(job, reason, note, { stray: false });
   }
   const aside = `${branch}-dispute-${disputed.slice(0, 7)}`;
-  await ports.setAside(worktree, before, aside);
+  await ports.setAside(worktree, before, aside, branch);
   job.asides.push(aside);
   log.event('fix.aside', { branch: aside, saved });
   return disputedNote(job, reason, note, { stray: true, aside });

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { clones, git } from './clones.mts';
 import { APPROVE, changes, harness, roles } from './harness.mts';
+import { useGit, writeFiles } from './real-git.mts';
 
 const DISPUTE = 'unrelated: the count follows the convention in CONTRIBUTING.md';
 const DISPUTED = { verdicts: [changes('The count is wrong.'), APPROVE], fixerText: [DISPUTE] };
@@ -66,7 +68,7 @@ test('a fixer that disputes after its own commit gets the commit moved off the b
     ...DISPUTED,
   });
   await target.run();
-  assert.deepEqual(target.asides, [{ target: '2', branch: '7-dispute-3' }]);
+  assert.deepEqual(target.asides, [{ target: '2', aside: '7-dispute-3' }]);
   assert.equal(target.head(), '2');
 });
 
@@ -78,7 +80,7 @@ test('a fixer that reports an unrelated failure on main after its own commit get
   });
   const report = await target.run();
   assert.equal(report.reason, 'unrelated failure');
-  assert.deepEqual(target.asides, [{ target: '3', branch: '7-dispute-4' }]);
+  assert.deepEqual(target.asides, [{ target: '3', aside: '7-dispute-4' }]);
 });
 
 test('a fixer that fixes the finding and writes a placeholder unrelated line keeps its fix', async (t) => {
@@ -120,7 +122,7 @@ test('a review fixer that disputes and leaves edits gets them saved in a dispute
   const report = await target.run();
   assert.equal(report.reason, 'dispute with changes');
   assert.equal(target.saves, 1);
-  assert.deepEqual(target.asides, [{ target: '1', branch: '7-dispute-2' }]);
+  assert.deepEqual(target.asides, [{ target: '1', aside: '7-dispute-2' }]);
   assert.equal(target.head(), '1');
   assert.match(
     target.comments.at(-1)!,
@@ -171,7 +173,7 @@ test('a check fixer that reports an unrelated failure on main and leaves edits g
   const report = await target.run();
   assert.equal(report.reason, 'unrelated failure');
   assert.equal(target.saves, 1);
-  assert.deepEqual(target.asides, [{ target: '2', branch: '7-dispute-3' }]);
+  assert.deepEqual(target.asides, [{ target: '2', aside: '7-dispute-3' }]);
   assert.match(
     target.comments.at(-1)!,
     /The fixer left a change behind; it is saved in the branch `7-dispute-3`\./,
@@ -211,7 +213,7 @@ test('a check fixer whose unrelated claim is refused after it leaves edits gets 
   const target = await harness(t, { ...REFUSED, config: { maxCiFixes: 1 } });
   const report = await target.run();
   assert.equal(report.reason, 'check budget');
-  assert.deepEqual(target.asides, [{ target: '2', branch: '7-dispute-3' }]);
+  assert.deepEqual(target.asides, [{ target: '2', aside: '7-dispute-3' }]);
   assert.match(
     target.comments.at(-1)!,
     /The fixer left a change behind; it is saved in the branch `7-dispute-3`\./,
@@ -222,7 +224,7 @@ test('a check fixer whose unrelated claims are refused in two rounds gets a hand
   const target = await harness(t, { ...REFUSED, config: { maxCiFixes: 2 } });
   await target.run();
   assert.deepEqual(
-    target.asides.map((aside) => aside.branch),
+    target.asides.map((entry) => entry.aside),
     ['7-dispute-3', '7-dispute-4'],
   );
   assert.match(
@@ -259,4 +261,40 @@ test('a check fixer whose unrelated claim is refused after it leaves edits gets 
     target.comments.at(-1)!,
     /The fixer left a change behind; it is saved in the branch `7-dispute-3`\./,
   );
+});
+
+test('a check fixer whose unrelated claim is refused after it switches to another branch and commits leaves the next check fixer on branch 7 at the commit from before the fix, with its commit kept in the dispute branch', async (t) => {
+  const { repo } = await clones();
+  await git(repo.root, 'config', 'user.name', 't');
+  await git(repo.root, 'config', 'user.email', 't@t');
+  const target = await harness(t, {
+    ...REFUSED,
+    fixerWrites: false,
+    root: repo.root,
+    baseChecks: ['fail', 'pass'],
+    fixerText: [REFUSED.fixerText, 'commit: fix: repair the test'],
+    config: { maxCiFixes: 2 },
+  });
+  let before = '';
+  let disputed = '';
+  let nextBranch = '';
+  let nextHead = '';
+  useGit(target, async (worktree, call) => {
+    if (call === 1) {
+      before = await git(worktree, 'rev-parse', 'HEAD');
+      await git(worktree, 'checkout', '-q', '-b', 'other');
+      await writeFiles(worktree, { 'fixer.txt': 'fixer\n' });
+      await git(worktree, 'add', '-A');
+      await git(worktree, 'commit', '-q', '-m', 'fixer');
+      disputed = await git(worktree, 'rev-parse', 'HEAD');
+      return;
+    }
+    nextBranch = await git(worktree, 'branch', '--show-current');
+    nextHead = await git(worktree, 'rev-parse', 'HEAD');
+    await writeFiles(worktree, { 'repair.txt': 'repair\n' });
+  });
+  await target.run();
+  assert.equal(nextBranch, '7');
+  assert.equal(nextHead, before);
+  assert.equal(await git(repo.root, 'rev-parse', `7-dispute-${disputed.slice(0, 7)}`), disputed);
 });

@@ -41,7 +41,7 @@ test('a review fixer that settles the findings and leaves edits gets them saved 
   const target = await harness(t, { fixerWrites: true, ...SETTLED });
   await target.run();
   assert.equal(target.saves, 1);
-  assert.deepEqual(target.asides, [{ target: '1', branch: '7-dispute-2' }]);
+  assert.deepEqual(target.asides, [{ target: '1', aside: '7-dispute-2' }]);
   assert.match(target.comments.at(-1)!, /saved in the branch `7-dispute-2`\./);
 });
 
@@ -49,7 +49,7 @@ test('a fixer that settles the findings after its own commit gets the commit mov
   const target = await harness(t, { selfCommit: true, ...SETTLED });
   const report = await target.run();
   assert.equal(report.reason, 'dispute with changes');
-  assert.deepEqual(target.asides, [{ target: '2', branch: '7-dispute-3' }]);
+  assert.deepEqual(target.asides, [{ target: '2', aside: '7-dispute-3' }]);
   assert.deepEqual(target.landed, []);
 });
 
