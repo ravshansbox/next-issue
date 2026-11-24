@@ -75,9 +75,22 @@ export async function linkedWorktree(root: string): Promise<string> {
     ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'first'],
     { cwd: root },
   );
-  const linked = join(root, '.worktrees', '42');
+  const linked = join(root, '.claude', 'worktrees', '42');
   await must('git', ['worktree', 'add', '-q', '-b', '42', linked], { cwd: root });
   return linked;
+}
+
+/** Makes the worktrees an older next-issue left: `.worktrees/hunt` on a detached HEAD and `.worktrees/7` on branch 7 with an uncommitted file. */
+export async function oldWorktrees(root: string): Promise<{ hunt: string; issue: string }> {
+  await must('git', ['config', 'user.name', 't'], { cwd: root });
+  await must('git', ['config', 'user.email', 't@t'], { cwd: root });
+  await must('git', ['commit', '-q', '--allow-empty', '-m', 'first'], { cwd: root });
+  const hunt = join(root, '.worktrees', 'hunt');
+  await must('git', ['worktree', 'add', '-q', '--detach', hunt], { cwd: root });
+  const issue = join(root, '.worktrees', '7');
+  await must('git', ['worktree', 'add', '-q', '-b', '7', issue], { cwd: root });
+  await writeFile(join(issue, 'work.txt'), 'work\n');
+  return { hunt, issue };
 }
 
 export function sleep(ms: number): Promise<void> {

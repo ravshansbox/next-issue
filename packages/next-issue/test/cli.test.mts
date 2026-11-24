@@ -19,7 +19,7 @@ import { processStart } from '../src/shared/lock.mts';
 import { runsDir, stateDir } from '../src/shared/state.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
 import { baseGh, idleGh, installGh } from './fake-gh.mts';
-import { linkedWorktree, repository, until, serveBase } from './helpers.mts';
+import { linkedWorktree, oldWorktrees, repository, until, serveBase } from './helpers.mts';
 import { tempDir } from './temp-dir.mts';
 import { connect } from './worker-harness.mts';
 
@@ -86,7 +86,7 @@ test('a user who runs init in a linked worktree gets the entries in the shared i
   assert.equal(await exists(join(linked, '.next-issue')), false);
 });
 
-test('a user who runs init sees .next-issue/ and .worktrees/ removed from .gitignore and other lines, .claude/worktrees/ included, kept', async () => {
+test('a user who runs init sees .next-issue/ removed from .gitignore and other lines, .worktrees/ and .claude/worktrees/ included, kept', async () => {
   const root = await repository();
   await writeFile(
     join(root, '.gitignore'),
@@ -95,23 +95,13 @@ test('a user who runs init sees .next-issue/ and .worktrees/ removed from .gitig
   await initCommand(root);
   assert.equal(
     await readFile(join(root, '.gitignore'), 'utf8'),
-    'node_modules/\n  dist/\n.claude/worktrees/\n',
+    'node_modules/\n  dist/\n.worktrees/\n.claude/worktrees/\n',
   );
-});
-
-test('a user who runs init keeps one old .worktrees/ line in info/exclude and sees it removed from .gitignore', async () => {
-  const root = await repository();
-  await appendFile(join(root, '.git/info/exclude'), '.worktrees/\n');
-  await writeFile(join(root, '.gitignore'), 'node_modules/\n.worktrees/\n');
-  await initCommand(root);
-  const exclude = await readFile(join(root, '.git/info/exclude'), 'utf8');
-  assert.equal(exclude.split('\n').filter((line) => line === '.worktrees/').length, 1);
-  assert.equal(await readFile(join(root, '.gitignore'), 'utf8'), 'node_modules/\n');
 });
 
 test('a user who runs init sees a .gitignore deleted when only next-issue entries were in it', async () => {
   const root = await repository();
-  await writeFile(join(root, '.gitignore'), '.next-issue/\n.worktrees/\n');
+  await writeFile(join(root, '.gitignore'), '.next-issue/\n');
   await initCommand(root);
   assert.equal(await exists(join(root, '.gitignore')), false);
 });
@@ -338,6 +328,25 @@ test('a user who starts the worker without init gets .next-issue/ and .claude/wo
   const exclude = await readFile(join(root, '.git/info/exclude'), 'utf8');
   assert.equal(exclude.split('\n').filter((line) => line === '.next-issue/').length, 1);
   assert.equal(exclude.split('\n').filter((line) => line === '.claude/worktrees/').length, 1);
+});
+
+test('a user who starts a run with worktrees an older next-issue left in .worktrees sees each removed and named and the folder gone', async (t) => {
+  const root = await repository();
+  const { hunt, issue } = await oldWorktrees(root);
+  const stderr = await watchingRun(t, root);
+  assert.ok(stderr.includes(`removed old worktree ${hunt}\n`));
+  assert.ok(stderr.includes(`removed old worktree ${issue}\n`));
+  assert.equal(await exists(join(root, '.worktrees')), false);
+});
+
+test('a user who serves the repository with worktrees an older next-issue left in .worktrees sees each removed and named and the folder gone', async (t) => {
+  const root = await repository();
+  const { hunt, issue } = await oldWorktrees(root);
+  const { child, stderr } = await serveWorker(root);
+  t.after(() => child.kill('SIGKILL'));
+  assert.ok(stderr().includes(`removed old worktree ${hunt}\n`));
+  assert.ok(stderr().includes(`removed old worktree ${issue}\n`));
+  assert.equal(await exists(join(root, '.worktrees')), false);
 });
 
 test('a user who starts a run with unknown fields in the config file sees each removed from the file and named, and the run going', async (t) => {

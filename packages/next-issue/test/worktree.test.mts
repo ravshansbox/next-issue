@@ -9,6 +9,7 @@ import {
   addWorktree,
   fastForwardBase,
   findWorktree,
+  removeOldWorktrees,
   removeWorktree,
 } from '../src/shared/worktree.mts';
 import { clones, commit, git } from './clones.mts';
@@ -170,15 +171,16 @@ test('a user whose Claude Code worktree at .claude/worktrees/3 holds branch 3 ke
   assert.equal(existsSync(join(repo.root, '.claude', 'worktrees', 'next-issue-3')), false);
 });
 
-test('a user who resumes issue 3 while its worktree is still in .worktrees/3 gets the work in that worktree', async () => {
+test('a user whose issue 3 branch was in .worktrees/3 resumes after the old worktrees are removed and gets the commits of branch 3 in .claude/worktrees/next-issue-3', async () => {
   const { repo } = await clones();
   const old = join(repo.root, '.worktrees', '3');
   await git(repo.root, 'worktree', 'add', '-q', '-b', '3', old, 'origin/main');
   const kept = await commit(old, 'kept.txt');
+  await removeOldWorktrees(repo.root);
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
-  assert.equal(path, await realpath(old));
+  assert.equal(path, join(repo.root, '.claude', 'worktrees', 'next-issue-3'));
   assert.equal(await revision(path), kept);
-  assert.equal(existsSync(join(repo.root, '.claude', 'worktrees', 'next-issue-3')), false);
+  assert.equal(existsSync(old), false);
 });
 
 test('a user who resumes issue 3 on a saved branch gets that branch in the worktree', async () => {
@@ -271,7 +273,7 @@ test('a user whose issue ends while the main worktree holds its branch keeps the
 
 test('a user whose issue ends gets the worktree that holds its branch removed', async () => {
   const { repo } = await clones();
-  const old = join(repo.root, '.worktrees', '3');
+  const old = join(repo.root, '.claude', 'worktrees', 'next-issue-3');
   await git(repo.root, 'worktree', 'add', '-q', '-b', '3', old, 'origin/main');
   const path = await findWorktree(repo, '3');
   assert.notEqual(path, undefined);

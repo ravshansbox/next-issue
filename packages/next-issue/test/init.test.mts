@@ -1,12 +1,21 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import { git } from './clones.mts';
 import { baseGh } from './fake-gh.mts';
-import { linkedWorktree, pushPackage, pushScripts, repository, writeScripts } from './helpers.mts';
+import {
+  linkedWorktree,
+  oldWorktrees,
+  pushPackage,
+  pushScripts,
+  repository,
+  writeScripts,
+} from './helpers.mts';
 import { tempDir } from './temp-dir.mts';
 
 const ORIGIN = 'git@github.com:acme/init.git';
@@ -59,7 +68,7 @@ async function assertInstalled(folder: string): Promise<void> {
 
 async function untouched(root: string, home: string): Promise<void> {
   assert.deepEqual(await readdir(home), []);
-  assert.deepEqual((await readdir(root)).sort(), ['.git', '.worktrees', 'package.json']);
+  assert.deepEqual((await readdir(root)).sort(), ['.claude', '.git', 'package.json']);
   assert.doesNotMatch(await readFile(join(root, '.git/info/exclude'), 'utf8'), /\.next-issue\//);
 }
 
@@ -240,4 +249,38 @@ test('a user who runs init in a terminal and gives another answer than user or p
     },
   );
   await untouched(root, home);
+});
+
+test('a user who runs init with worktrees an older next-issue left in .worktrees sees each removed and named, the folder gone, branch 7 kept and its uncommitted file on a 7-detached branch', async () => {
+  const home = await tempDir();
+  const root = await repository();
+  const { hunt, issue } = await oldWorktrees(root);
+  const branch = await git(root, 'rev-parse', '7');
+  const { stdout } = await init(root, home, ['--scope', 'user']);
+  assert.ok(stdout.includes(`removed old worktree ${hunt}\n`));
+  assert.ok(stdout.includes(`removed old worktree ${issue}\n`));
+  assert.equal(existsSync(join(root, '.worktrees')), false);
+  assert.equal(await git(root, 'rev-parse', '7'), branch);
+  const kept = await git(root, 'branch', '--list', '7-detached-*', '--format=%(refname:short)');
+  assert.match(kept, /^7-detached-[0-9a-f]{7}$/);
+  assert.equal(await git(root, 'show', `${kept}:work.txt`), 'work');
+});
+
+test('a user who runs init with a locked old worktree in .worktrees sees it named as not removed, the other one removed and the folder kept', async () => {
+  const home = await tempDir();
+  const root = await repository();
+  const { hunt, issue } = await oldWorktrees(root);
+  await git(root, 'worktree', 'lock', issue);
+  const { stdout } = await init(root, home, ['--scope', 'user']);
+  assert.ok(stdout.includes(`could not remove ${issue}: `));
+  assert.ok(stdout.includes(`removed old worktree ${hunt}\n`));
+  assert.equal(existsSync(issue), true);
+  assert.equal(existsSync(hunt), false);
+});
+
+test('a user who runs init with no .worktrees folder sees no old worktree named', async () => {
+  const home = await tempDir();
+  const root = await repository();
+  const { stdout } = await init(root, home, ['--scope', 'user']);
+  assert.doesNotMatch(stdout, /old worktree/);
 });

@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
-import { realpath } from 'node:fs/promises';
-import { join } from 'node:path';
+import { realpath, rm } from 'node:fs/promises';
+import { basename, join, sep } from 'node:path';
+import { message } from './errors.mts';
 import { commitAll } from './git-commit.mts';
 import {
   currentBranch,
@@ -78,6 +79,52 @@ async function keepDetachedEdits(path: string, branch: string): Promise<void> {
   await git(path, ['branch', `${branch}-detached-${(await revision(path)).slice(0, 7)}`]);
 }
 
+export interface OldWorktree {
+  path: string;
+  error?: string;
+}
+
+/** Removes the worktrees an older next-issue left in `.worktrees/`, keeping their uncommitted files on a `<name>-detached-<sha>` branch, then the folder when every one is gone. */
+export async function removeOldWorktrees(root: string): Promise<OldWorktree[]> {
+  const folder = join(root, '.worktrees');
+  if (!existsSync(folder)) {
+    return [];
+  }
+  await git(root, ['worktree', 'prune']);
+  const inside = `${await realpath(folder)}${sep}`;
+  const results: OldWorktree[] = [];
+  for (const path of await linkedWorktrees(root)) {
+    if (!(await realpath(path).catch(() => path)).startsWith(inside)) {
+      continue;
+    }
+    results.push(await removeOldWorktree(root, path));
+  }
+  if (results.every((result) => result.error === undefined)) {
+    await rm(folder, { recursive: true, force: true });
+  }
+  return results;
+}
+
+async function removeOldWorktree(root: string, path: string): Promise<OldWorktree> {
+  try {
+    await git(path, ['checkout', '--detach']);
+    await keepDetachedEdits(path, basename(path));
+    await git(root, ['worktree', 'remove', '--force', path]);
+    return { path };
+  } catch (error) {
+    return { path, error: message(error) };
+  }
+}
+
+async function linkedWorktrees(root: string): Promise<string[]> {
+  const list = await git(root, ['worktree', 'list', '--porcelain']);
+  return list
+    .split('\n')
+    .filter((line) => line.startsWith('worktree '))
+    .slice(1)
+    .map((line) => line.slice('worktree '.length));
+}
+
 async function keepUnmergedCommits(repo: Repo, branch: string, target: string): Promise<void> {
   if (!(await hasBranch(repo, branch)) || (await isAncestor(repo.root, branch, target))) {
     return;
@@ -126,10 +173,7 @@ export async function findWorktree(repo: Repo, branch: string): Promise<string |
 }
 
 async function isOwn(repo: Repo, branch: string, path: string): Promise<boolean> {
-  return (
-    (await samePath(path, join(repo.root, WORKTREE_DIR, `next-issue-${branch}`))) ||
-    (await samePath(path, join(repo.root, '.worktrees', branch)))
-  );
+  return samePath(path, join(repo.root, WORKTREE_DIR, `next-issue-${branch}`));
 }
 
 async function refuseOwnWorktree(
