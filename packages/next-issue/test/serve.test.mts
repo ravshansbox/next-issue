@@ -1583,6 +1583,31 @@ test('a worker that runs a long time keeps only the newest whole lines of worker
   assert.ok(second.endsWith(`new ${line}`));
 });
 
+test('a second worker that starts while another holds the lock only appends its own lines to an oversized worker.log', async (t) => {
+  const root = await tempDir();
+  const { lockPath, logPath } = workerPaths(root);
+  await mkdir(dirname(logPath), { recursive: true });
+  assert.ok(await lock(lockPath, 0));
+  const old = `old ${'x'.repeat(99)}\n`.repeat(110_000);
+  await writeFile(logPath, old);
+  const log = openSync(logPath, 'a');
+  const child = spawn(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `import { serve } from ${JSON.stringify(SERVE)}; process.exitCode = await serve(${JSON.stringify(root)}, 50);`,
+    ],
+    { stdio: ['ignore', log, log] },
+  );
+  closeSync(log);
+  t.after(() => child.kill('SIGKILL'));
+  const code = await new Promise((resolve) => child.on('exit', resolve));
+  assert.equal(code, 1);
+  const text = await readFile(logPath, 'utf8');
+  assert.ok(text === `${old}another worker is running\n`, `worker.log holds ${text.length} bytes`);
+});
+
 test('a client of a run whose log cannot be written still sees its progress and the worker keeps answering', async (t) => {
   t.mock.method(process.stderr, 'write', () => true);
   const fake = fakeRuns();

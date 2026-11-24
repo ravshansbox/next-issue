@@ -372,7 +372,6 @@ function refuser(socket: Peer, value: ClientMessage, served: string): Refuse {
 
 export async function serve(root: string, logCheckMs = LOG_CHECK_MS): Promise<number> {
   const { logPath, ...paths } = workerPaths(root);
-  const stopTrimming = keepLogTrimmed(logPath, logCheckMs);
   const worker = await startWorker({
     root,
     ...paths,
@@ -380,10 +379,10 @@ export async function serve(root: string, logCheckMs = LOG_CHECK_MS): Promise<nu
     runRepo,
   });
   if (worker === undefined) {
-    stopTrimming();
     process.stderr.write('another worker is running\n');
     return 1;
   }
+  const stopTrimming = keepLogTrimmed(logPath, logCheckMs);
   const end = (signal: NodeJS.Signals): void => {
     process.off('SIGTERM', onTerminate);
     process.off('SIGINT', onInterrupt);
