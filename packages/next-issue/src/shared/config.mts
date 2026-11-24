@@ -298,11 +298,19 @@ function parseLabels(value: unknown, defaultLabels: Config['labels']): Config['l
   const parsed = { ...defaultLabels };
   for (const name of LABEL_NAMES) {
     if (labels[name] !== undefined) {
-      parsed[name] = text(labels[name], `labels.${name}`, name === 'ready');
+      parsed[name] = labelName(labels[name], `labels.${name}`, name === 'ready');
     }
   }
   rejectSameLabels(parsed);
   return parsed;
+}
+
+function labelName(value: unknown, field: string, allowEmpty: boolean): string {
+  const name = text(value, field, allowEmpty);
+  if (/[,"]/.test(name)) {
+    throw new Error(`${CONFIG_FILE}: ${field} must not contain a comma or a double quote.`);
+  }
+  return name;
 }
 
 // Label checks ignore case, so two status labels that match without case would

@@ -52,29 +52,29 @@ npx -y next-issue@latest init
 
 It writes `.next-issue/config.json` with the defaults, or keeps the file when it is there already, and installs the skills. A field that is not in the file keeps its default. See [Configuration](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#configuration) for the details.
 
-| Field                   | Default                              | Effect                                                              |
-| ----------------------- | ------------------------------------ | ------------------------------------------------------------------- |
-| `agentTimeoutMinutes`   | `30`                                 | The limit for one agent call                                        |
-| `checkGraceSeconds`     | `60`                                 | The time to wait for checks to show on the base branch              |
-| `checkIntervalSeconds`  | `15`                                 | The time between two reads of the checks                            |
-| `checkTimeoutMinutes`   | `60`                                 | The limit for one wait for the checks                               |
-| `checksTimeoutMinutes`  | `30`                                 | The limit for one script of the local gate                          |
-| `commandTimeoutMinutes` | `10`                                 | The limit for one `git` or `gh` command                             |
-| `concurrency`           | `1`                                  | The most issues that an agent works on at the same time             |
-| `diffMaxChars`          | `60000`                              | The maximum length of the diff that the reviewer reads              |
-| `huntCap`               | `1`                                  | The number of waiting ready issues below which the hunter hunts     |
-| `ignoredChecks`         | `[]`                                 | Names of checks on the base branch that do not count                |
-| `issueLimit`            | `100`                                | The most open issues to read, oldest first                          |
-| `keepRunDays`           | `7`                                  | The number of days to keep the run files; `0` keeps them all        |
-| `labels`                | see the details                      | The names of the labels that the harness reads and sets             |
-| `logMaxChars`           | `20000`                              | The maximum length of the failed check logs for the fixer           |
-| `maxCiFixes`            | `5`                                  | The budget for check fixes per issue                                |
-| `maxCommitFixes`        | `10`                                 | The budget for fixes of a commit that a git hook stopped, per issue |
-| `maxReviewRounds`       | `5`                                  | The budget for review rounds per issue                              |
-| `models`                | `null` per role                      | The Claude model ID per agent role                                  |
-| `remote`                | `origin`                             | The git remote for the repository and the branches                  |
-| `setupCommand`          | from the lock file or `package.json` | A shell command that installs the dependencies in a worktree        |
-| `setupTimeoutMinutes`   | `15`                                 | The limit for the setup command                                     |
+| Field                   | Default                              | Effect                                                                      |
+| ----------------------- | ------------------------------------ | --------------------------------------------------------------------------- |
+| `agentTimeoutMinutes`   | `30`                                 | The limit for one agent call                                                |
+| `checkGraceSeconds`     | `60`                                 | The time to wait for checks to show on the base branch                      |
+| `checkIntervalSeconds`  | `15`                                 | The time between two reads of the checks                                    |
+| `checkTimeoutMinutes`   | `60`                                 | The limit for one wait for the checks                                       |
+| `checksTimeoutMinutes`  | `30`                                 | The limit for one script of the local gate                                  |
+| `commandTimeoutMinutes` | `10`                                 | The limit for one `git` or `gh` command                                     |
+| `concurrency`           | `1`                                  | The most issues that an agent works on at the same time                     |
+| `diffMaxChars`          | `60000`                              | The maximum length of the diff that the reviewer reads                      |
+| `huntCap`               | `1`                                  | The number of waiting ready issues below which the hunter hunts             |
+| `ignoredChecks`         | `[]`                                 | Names of checks on the base branch that do not count                        |
+| `issueLimit`            | `100`                                | The most open issues to read, oldest first                                  |
+| `keepRunDays`           | `7`                                  | The number of days to keep the run files; `0` keeps them all                |
+| `labels`                | see the details                      | The names of the labels that the harness reads and sets, with no `,` or `"` |
+| `logMaxChars`           | `20000`                              | The maximum length of the failed check logs for the fixer                   |
+| `maxCiFixes`            | `5`                                  | The budget for check fixes per issue                                        |
+| `maxCommitFixes`        | `10`                                 | The budget for fixes of a commit that a git hook stopped, per issue         |
+| `maxReviewRounds`       | `5`                                  | The budget for review rounds per issue                                      |
+| `models`                | `null` per role                      | The Claude model ID per agent role                                          |
+| `remote`                | `origin`                             | The git remote for the repository and the branches                          |
+| `setupCommand`          | from the lock file or `package.json` | A shell command that installs the dependencies in a worktree                |
+| `setupTimeoutMinutes`   | `15`                                 | The limit for the setup command                                             |
 
 ## Commands and options
 

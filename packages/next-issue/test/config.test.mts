@@ -198,6 +198,20 @@ test('a user who gives labels.hunt the name of the done label gets an error that
   );
 });
 
+test('a user who gives labels.ready a name with a comma gets an error that names the field', async () => {
+  await assert.rejects(
+    parse({ labels: { ready: 'todo,urgent' } }),
+    /labels\.ready must not contain a comma or a double quote/,
+  );
+});
+
+test('a user who gives labels.skip a name with a double quote gets an error that names the field', async () => {
+  await assert.rejects(
+    parse({ labels: { skip: 'say "no"' } }),
+    /labels\.skip must not contain a comma or a double quote/,
+  );
+});
+
 test('a user who sets a budget of zero and an empty ready label gets them accepted', async () => {
   const config = await parse({ maxCiFixes: 0, checkGraceSeconds: 0, labels: { ready: '' } });
   assert.equal(config.maxCiFixes, 0);

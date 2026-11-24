@@ -238,7 +238,7 @@ With no file, every field keeps its default. A field that is not in the file kee
 
 The hunter adds `labels.hunt` to each issue it files, so you can tell those issues apart from your own and filter them.
 
-The names in `labels.ready`, `inProgress`, `inReview`, `done`, `needsHuman`, `skip` and `hunt` must be distinct, also when case is ignored; two equal names stop the run with an error that names both fields.
+The names in `labels.ready`, `inProgress`, `inReview`, `done`, `needsHuman`, `skip` and `hunt` must be distinct, also when case is ignored; two equal names stop the run with an error that names both fields. A label name may not contain a comma (`,`) or a double quote (`"`), since `gh issue edit --add-label` and `--remove-label` read their values as comma-separated lists; such a name stops the run with an error that names the field.
 
 An empty `labels.ready` turns the ready requirement off. The harness then claims every open issue that no other label holds back. A run then writes a `labels.ready.empty` warning to the log at start.
 
