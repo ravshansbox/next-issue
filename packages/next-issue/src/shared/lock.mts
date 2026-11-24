@@ -21,17 +21,14 @@ export function oneAtATime<T>(root: string, work: () => Promise<T>): Promise<T> 
   return result;
 }
 
-export async function processStart(
-  pid: number,
-  zone: { TZ?: string } = { TZ: 'UTC' },
-): Promise<string | undefined> {
+export async function processStart(pid: number): Promise<string | undefined> {
   const stat = await readTextOrEmpty(`/proc/${pid}/stat`);
   if (stat !== '') {
     return stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19];
   }
   try {
     const { stdout } = await promisify(execFile)('ps', ['-o', 'lstart=', '-p', String(pid)], {
-      env: { ...process.env, LC_ALL: 'C', ...zone },
+      env: { ...process.env, LC_ALL: 'C', TZ: 'UTC' },
     });
     return stdout.trim() || undefined;
   } catch {
@@ -43,17 +40,14 @@ async function holderOf(text: string): Promise<number | undefined> {
   const [first = '', ...rest] = text.trim().split(' ');
   const pid = Number(first);
   const started = rest.join(' ');
-  if (!(pid > 0)) {
+  if (!(pid > 0) || started === '') {
     return undefined;
-  }
-  if (started === '') {
-    return isAlive(pid) ? pid : undefined;
   }
   const now = await processStart(pid);
   if (now === undefined) {
     return isAlive(pid) ? pid : undefined;
   }
-  return now === started || (await processStart(pid, {})) === started ? pid : undefined;
+  return now === started ? pid : undefined;
 }
 
 export async function lockHolder(lockPath: string): Promise<number | undefined> {

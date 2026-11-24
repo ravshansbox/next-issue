@@ -379,15 +379,6 @@ test('a user who runs next-issue in a linked worktree while a process that does 
   assert.equal(await exists(join(linked, '.next-issue')), false);
 });
 
-test('a user who runs next-issue while worker.lock holds only the process id of a live process sees that the worker it started exited, exit code 1 and no issue read', async (t) => {
-  const root = await repository(ORIGIN);
-  const other = spawn('sleep', ['30']);
-  t.after(() => other.kill('SIGKILL'));
-  await mkdir(stateDir(root), { recursive: true });
-  await writeFile(workerPaths(root).lockPath, `${other.pid}\n`);
-  assert.match(await refusedRun(t, root), HELD);
-});
-
 test('a user who serves a linked worktree while the worker of the main worktree is going sees that another worker is running', async (t) => {
   const root = await repository();
   const linked = await linkedWorktree(root);

@@ -36,7 +36,7 @@ async function withFailingPs(t: TestContext): Promise<void> {
 }
 
 test(
-  'a client that reads a lock with the local start time written by an older worker in another time zone sees that worker hold it',
+  'a client that reads a lock with the local start time written by an older worker in another time zone sees no holder',
   { skip: process.platform === 'linux' && 'Linux reads the start time from /proc' },
   async (t) => {
     const pid = liveProcess(t);
@@ -52,7 +52,7 @@ test(
     const { stdout } = await promisify(execFile)('ps', ['-o', 'lstart=', '-p', String(pid)], {
       env: { ...process.env, LC_ALL: 'C' },
     });
-    assert.equal(await lockHolder(await lockFile(`${pid} ${stdout.trim()}\n`)), pid);
+    assert.equal(await lockHolder(await lockFile(`${pid} ${stdout.trim()}\n`)), undefined);
   },
 );
 

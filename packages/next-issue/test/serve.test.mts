@@ -511,24 +511,24 @@ test('a second worker does not start while the first one holds the lock', async 
   );
 });
 
-test('a worker does not start while the lock holds only the process id of a live process', async (t) => {
+test('a worker takes over a lock that holds only the process id of a live process', async (t) => {
   const dir = await tempDir();
+  const socketPath = join(dir, 'w.sock');
   const lockPath = join(dir, 'w.lock');
   const other = spawn('sleep', ['30']);
   t.after(() => other.kill('SIGKILL'));
   await writeFile(lockPath, `${other.pid}\n`);
-  assert.equal(
-    await startWorker({
-      root: '/repo',
-      socketPath: join(dir, 'w.sock'),
-      lockPath,
-      version: '2.0.0',
-      runRepo: fakeRuns().runRepo,
-      lockWaitMs: 0,
-    }),
-    undefined,
-  );
-  assert.equal(await readFile(lockPath, 'utf8'), `${other.pid}\n`);
+  const started = await startWorker({
+    root: '/repo',
+    socketPath,
+    lockPath,
+    version: '2.0.0',
+    runRepo: fakeRuns().runRepo,
+    lockWaitMs: 0,
+  });
+  assert.ok(started);
+  t.after(() => started.close());
+  await connect(t, socketPath);
 });
 
 test('a worker started while the last one closes takes the lock once it is released', async (t) => {
