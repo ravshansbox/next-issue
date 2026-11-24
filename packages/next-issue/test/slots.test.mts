@@ -66,6 +66,27 @@ function holdChecks(target: Watched, until: () => Promise<void>): void {
   };
 }
 
+function holdIssueUntilLanded(target: Watched, issue: number): void {
+  const { ports } = target.context;
+  const pushToBase = ports.pushToBase;
+  let landed = (): void => undefined;
+  const firstLanding = new Promise<void>((resolve) => {
+    landed = resolve;
+  });
+  ports.pushToBase = async (...args) => {
+    const pushed = await pushToBase(...args);
+    landed();
+    return pushed;
+  };
+  const runAgent = ports.runAgent;
+  ports.runAgent = async (recorder, request) => {
+    if (request.prompt.includes(`# Issue #${issue}`)) {
+      await firstLanding;
+    }
+    return runAgent(recorder, request);
+  };
+}
+
 function assertBefore(order: string[], first: string, then: string): void {
   assert.ok(
     order.includes(first) && order.includes(then),
@@ -133,6 +154,7 @@ test('a user with concurrency 1 whose landed issue halts the run gets the issue 
     revertFails: true,
   });
   holdChecks(target, () => target.started('reviewer', 8));
+  holdIssueUntilLanded(target, 8);
   const reports = await runLoop(target);
   const seven = reports.find((report) => report.issue === 7);
   const eight = reports.find((report) => report.issue === 8);

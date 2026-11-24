@@ -52,12 +52,16 @@ export function stopRunChildren(children: RunChildren): void {
 
 function escalate(running: number[], signals: NodeJS.Signals[], ended?: () => void): void {
   const [signal, ...later] = signals;
-  if (signal === undefined || running.length === 0) {
+  if (running.length === 0) {
     ended?.();
     return;
   }
   setTimeout(() => {
     const left = running.filter((pid) => groups.has(pid));
+    if (signal === undefined) {
+      ended?.();
+      return;
+    }
     for (const pid of left) {
       try {
         process.kill(-pid, signal);
