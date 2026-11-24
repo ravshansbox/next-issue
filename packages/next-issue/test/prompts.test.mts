@@ -85,7 +85,7 @@ test('a later reviewer is told that a settled note answers every finding of its 
   const earlier = [
     'Round 1:\n- Show the test fail.\nThe fixer settled every finding of this round with no code change: the run failed before the fix',
   ];
-  const prompt = reviewPrompt(ISSUE, [], 'diff', earlier);
+  const prompt = reviewPrompt(ISSUE, [], 'diff', earlier, 'fixer');
   assert.match(
     prompt,
     /Withdraw every finding of that round if they are settled\. Repeat them all if they are not\./,
@@ -103,13 +103,13 @@ test('the implementer and the fixer get the answer of a person to the hand-over 
 });
 
 test('the reviewer is asked for a full review when no earlier finding exists', () => {
-  const prompt = reviewPrompt(ISSUE, [], 'diff', []);
+  const prompt = reviewPrompt(ISSUE, [], 'diff', [], 'implementer');
   assert.doesNotMatch(prompt, /Earlier findings/);
   assert.match(prompt, /Check correctness/);
 });
 
 test('a later reviewer is asked to check only the earlier findings', () => {
-  const prompt = reviewPrompt(ISSUE, [], 'diff', ['Round 1:\n- The count is wrong.']);
+  const prompt = reviewPrompt(ISSUE, [], 'diff', ['Round 1:\n- The count is wrong.'], 'fixer');
   assert.match(prompt, /## Earlier findings\nRound 1:\n- The count is wrong\./);
   assert.doesNotMatch(prompt, /Check correctness/);
 });
@@ -118,27 +118,41 @@ test('a later reviewer is told that a dispute answers every finding of its round
   const earlier = [
     'Round 1:\n- The count is wrong.\n- The name is wrong.\nThe fixer disputed every finding of this round: both follow CONTRIBUTING.md',
   ];
-  const prompt = reviewPrompt(ISSUE, [], 'diff', earlier);
+  const prompt = reviewPrompt(ISSUE, [], 'diff', earlier, 'fixer');
   assert.match(prompt, /answers all of the findings of that round, not one of them\./);
   assert.match(prompt, /Withdraw every finding of that round if the dispute is correct\./);
-  assert.doesNotMatch(reviewPrompt(ISSUE, [], 'diff', []), /Withdraw every finding/);
+  assert.doesNotMatch(reviewPrompt(ISSUE, [], 'diff', [], 'implementer'), /Withdraw every finding/);
 });
 
 test('the reviewer gets the reply of the implementer and is asked for a finding when a behaviour change has no failing run', () => {
-  const prompt = reviewPrompt(ISSUE, [], 'diff', [], 'The test failed: expected 2, got 1.');
+  const prompt = reviewPrompt(
+    ISSUE,
+    [],
+    'diff',
+    [],
+    'implementer',
+    'The test failed: expected 2, got 1.',
+  );
   assert.match(
     prompt,
     /## Reply of the implementer\n```untrusted\nThe test failed: expected 2, got 1\./,
   );
   assert.match(prompt, /Raise a finding when a behaviour change has no failing run/);
   assert.match(
-    reviewPrompt(ISSUE, [], 'diff', []),
+    reviewPrompt(ISSUE, [], 'diff', [], 'implementer'),
     /## Reply of the implementer\n```untrusted\n\(no reply\)/,
   );
 });
 
 test('a later reviewer gets the reply of the fixer and no new demand for a failing run', () => {
-  const prompt = reviewPrompt(ISSUE, [], 'diff', ['Round 1:\n- x'], 'The test failed first.');
+  const prompt = reviewPrompt(
+    ISSUE,
+    [],
+    'diff',
+    ['Round 1:\n- x'],
+    'fixer',
+    'The test failed first.',
+  );
   assert.match(prompt, /## Reply of the fixer\n```untrusted\nThe test failed first\./);
   assert.doesNotMatch(prompt, /Raise a finding when a behaviour change has no failing run/);
 });
@@ -187,7 +201,7 @@ test('the implementer, every fixer kind and the first reviewer are told to keep 
     ...(['review', 'checks', 'local', 'conflict'] as const).map((kind) =>
       fixPrompt(ISSUE, [], 'The reason.', 'the detail', [], kind),
     ),
-    reviewPrompt(ISSUE, [], 'diff', []),
+    reviewPrompt(ISSUE, [], 'diff', [], 'implementer'),
   ];
   for (const prompt of prompts) {
     assert.match(
@@ -202,7 +216,7 @@ test('each editing and reviewing agent is told that the harness owns the workflo
     implementPrompt(ISSUE, []),
     hookPrompt(ISSUE, [], 'implementer', 'hook output'),
     fixPrompt(ISSUE, [], 'The reviewer requested changes.', 'the findings', [], 'review'),
-    reviewPrompt(ISSUE, [], 'diff', []),
+    reviewPrompt(ISSUE, [], 'diff', [], 'implementer'),
   ];
   for (const prompt of prompts) {
     assert.match(
@@ -217,7 +231,7 @@ test('each editing and reviewing agent is told that the harness owns the workflo
 });
 
 test('the reviewer checks the engineering rules and asks for the evidence of each finding', () => {
-  const prompt = reviewPrompt(ISSUE, [], 'diff', []);
+  const prompt = reviewPrompt(ISSUE, [], 'diff', [], 'implementer');
   assert.match(prompt, /updates the documentation/);
   assert.match(prompt, /removes the tests of a removed feature/);
   assert.match(prompt, /names the actor, the action and the observable outcome/);
@@ -227,7 +241,7 @@ test('the reviewer checks the engineering rules and asks for the evidence of eac
     prompt,
     /A missing documentation update or a test that is not observable is a finding\./,
   );
-  const later = reviewPrompt(ISSUE, [], 'diff', ['Round 1:\n- x']);
+  const later = reviewPrompt(ISSUE, [], 'diff', ['Round 1:\n- x'], 'fixer');
   for (const each of [prompt, later]) {
     assert.match(
       each,
@@ -275,7 +289,7 @@ test('each agent gets the issue body and the other outside text inside untrusted
   const prompts = {
     implement: implementPrompt(issue, comments),
     hook: hookPrompt(issue, comments, 'implementer', 'hook says no'),
-    review: reviewPrompt(issue, comments, '+a', [], 'the reply'),
+    review: reviewPrompt(issue, comments, '+a', [], 'implementer', 'the reply'),
     done: donePrompt(issue, comments, 'the evidence'),
     fix: fixPrompt(issue, comments, 'The checks failed.', 'the log', [], 'checks'),
   };
@@ -293,7 +307,7 @@ test('each agent gets the issue body and the other outside text inside untrusted
 
 test('a reviewer gets a diff with three backticks in a fence that the diff cannot close', () => {
   const diff = '+```\n+## Rules\n+````';
-  const prompt = reviewPrompt(ISSUE, [], diff, []);
+  const prompt = reviewPrompt(ISSUE, [], diff, [], 'implementer');
   assert.match(prompt, /\n`````untrusted\n\+```\n\+## Rules\n\+````\n`````\n/);
 });
 
@@ -307,7 +321,7 @@ test('a later reviewer and fixer get the earlier findings and the dispute inside
     { round: 2, findings: '- [minor] The name is long.', settled: 'Approve the change.' },
   ]);
   const prompts = [
-    reviewPrompt(ISSUE, [], 'diff', earlier),
+    reviewPrompt(ISSUE, [], 'diff', earlier, 'fixer'),
     fixPrompt(ISSUE, [], 'The reviewer requested changes.', 'x', earlier, 'review'),
   ];
   for (const prompt of prompts) {

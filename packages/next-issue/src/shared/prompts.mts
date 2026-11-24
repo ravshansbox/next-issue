@@ -156,9 +156,9 @@ export function reviewPrompt(
   comments: string[],
   diff: string,
   earlier: string[],
+  role: 'implementer' | 'fixer',
   reply?: string,
 ): string {
-  const role = earlier.length === 0 ? 'implementer' : 'fixer';
   return [
     'You are the reviewer. Judge whether the diff solves the issue correctly.',
     issueBlock(issue, comments),

@@ -472,6 +472,32 @@ test('a later reviewer gets the reply of the fixer in its prompt', async (t) => 
   );
 });
 
+test('a user who resumes a handed-over issue gets the saved reply of the last fixer to the first reviewer', async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: [] },
+    saved: {
+      ...SAVED,
+      reviewRounds: 2,
+      handedOver: true,
+      implementerReply: 'IMPL-REPLY',
+      fixerReply: 'FIX-REPLY',
+    },
+  });
+  assert.equal((await target.run()).outcome, 'done');
+  const reviewer = target.prompts.find((entry) => entry.role === 'reviewer')!;
+  assert.match(reviewer.prompt, /## Reply of the fixer\n```untrusted\nFIX-REPLY/);
+});
+
+test('a user who resumes a handed-over issue with no fixer reply gets the saved reply of the implementer to the first reviewer', async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: [] },
+    saved: { ...SAVED, handedOver: true, implementerReply: 'IMPL-REPLY' },
+  });
+  assert.equal((await target.run()).outcome, 'done');
+  const reviewer = target.prompts.find((entry) => entry.role === 'reviewer')!;
+  assert.match(reviewer.prompt, /## Reply of the implementer\n```untrusted\nIMPL-REPLY/);
+});
+
 async function reviewerCommit(worktree: string, checkout: string[]): Promise<void> {
   if (checkout.length > 0) {
     await git(worktree, 'checkout', '-q', ...checkout);
