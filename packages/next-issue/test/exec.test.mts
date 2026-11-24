@@ -5,7 +5,12 @@ import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { runChildren, stopRunChildren, withRunChildren } from '../src/shared/children.mts';
+import {
+  type RunChildren,
+  runChildren,
+  stopRunChildren,
+  withRunChildren,
+} from '../src/shared/children.mts';
 import {
   type CommandRecord,
   must,
@@ -45,6 +50,32 @@ async function written(file: string): Promise<number> {
     await sleep(50);
   }
   throw new Error('The child wrote no id.');
+}
+
+async function ready(file: string): Promise<void> {
+  for (let left = 100; left > 0; left -= 1) {
+    if ((await readFile(file, 'utf8').catch(() => '')) === 'ready\n') {
+      return;
+    }
+    await sleep(50);
+  }
+  throw new Error('The child never got ready.');
+}
+
+async function readyOrKill(
+  file: string,
+  children: RunChildren,
+  running: Promise<unknown>,
+): Promise<void> {
+  try {
+    await ready(file);
+  } catch (error) {
+    for (const group of children.groups) {
+      process.kill(-group, 'SIGKILL');
+    }
+    await running;
+    throw error;
+  }
 }
 
 test('a command that the worker runs gives its code, its output and its error output', async () => {
@@ -136,24 +167,33 @@ test(
   'a user who stops a run now while a command traps SIGINT and SIGTERM sees SIGTERM after 10 seconds, then SIGKILL, and the step end within about 20 seconds',
   { timeout: 30_000 },
   async () => {
+    const dir = await tempDir();
+    const file = join(dir, 'ready');
     const children = runChildren();
-    const started = Date.now();
     const running = withRunChildren(children, () =>
       run(
         'bash',
-        ['-c', "trap 'echo INT' INT; trap 'echo TERM' TERM; while :; do sleep 0.2; done"],
+        [
+          '-c',
+          `trap 'echo INT' INT; trap 'echo TERM' TERM; echo ready > ${file}; while :; do sleep 0.2; done`,
+        ],
         {
           timeoutMs: 60_000,
         },
       ),
     );
-    await sleep(200);
-    stopRunChildren(children);
-    const result = await running;
-    const elapsed = Date.now() - started;
-    assert.equal(result.stdout, 'INT\nTERM\n');
-    assert.equal(result.timedOut, false);
-    assert.ok(elapsed > 19_000 && elapsed < 23_000, `took ${elapsed} ms`);
+    try {
+      await readyOrKill(file, children, running);
+      const started = Date.now();
+      stopRunChildren(children);
+      const result = await running;
+      const elapsed = Date.now() - started;
+      assert.equal(result.stdout, 'INT\nTERM\n');
+      assert.equal(result.timedOut, false);
+      assert.ok(elapsed > 19_000 && elapsed < 23_000, `took ${elapsed} ms`);
+    } finally {
+      await rm(dir, { force: true, recursive: true });
+    }
   },
 );
 
@@ -163,21 +203,22 @@ test(
   async () => {
     const dir = await tempDir();
     const file = join(dir, 'term');
+    const readyFile = join(dir, 'ready');
     const children = runChildren();
     const running = withRunChildren(children, () =>
       run(
         'bash',
         [
           '-c',
-          `(trap '' INT; trap 'echo TERM > ${file}' TERM; sleep 12) >/dev/null 2>&1 & while :; do sleep 0.2; done`,
+          `(trap '' INT; trap 'echo TERM > ${file}' TERM; echo ready > ${readyFile}; sleep 12) >/dev/null 2>&1 & while :; do sleep 0.2; done`,
         ],
         { timeoutMs: 60_000 },
       ),
     );
-    await sleep(200);
-    stopRunChildren(children);
-    await running;
     try {
+      await readyOrKill(readyFile, children, running);
+      stopRunChildren(children);
+      await running;
       await sleep(13_000);
       assert.equal(await readFile(file, 'utf8').catch(() => 'none'), 'none');
     } finally {
