@@ -969,7 +969,7 @@ function alive(pid: number): boolean {
   }
 }
 
-async function stubbornWorker(t: TestContext) {
+async function stubbornWorker(t: TestContext, onUser = '') {
   const root = await tempDir();
   const pidFile = join(root, 'command.pid');
   const laterFile = join(root, 'later.pid');
@@ -981,14 +981,14 @@ async function stubbornWorker(t: TestContext) {
     [
       '--input-type=module',
       '-e',
-      `import { serve } from ${JSON.stringify(SERVE)}; import { run } from ${JSON.stringify(EXEC)}; import { onStop, runChildren, withRunChildren } from ${JSON.stringify(CHILDREN)}; const serving = serve(${JSON.stringify(root)}); while (process.listenerCount('SIGTERM') === 0) { await new Promise((resolve) => setTimeout(resolve, 10)); } ${agent} await serving;`,
+      `import { serve } from ${JSON.stringify(SERVE)}; import { run } from ${JSON.stringify(EXEC)}; import { onStop, runChildren, withRunChildren } from ${JSON.stringify(CHILDREN)}; const serving = serve(${JSON.stringify(root)}); process.on('SIGUSR2', () => { ${onUser} }); while (process.listenerCount('SIGTERM') === 0) { await new Promise((resolve) => setTimeout(resolve, 10)); } ${agent} await serving;`,
     ],
     { stdio: ['ignore', 'ignore', 'pipe'] },
   );
   t.after(() => child.kill('SIGKILL'));
-  const exited = new Promise((resolve) => child.once('exit', resolve));
+  const exited = new Promise<number | null>((resolve) => child.once('exit', resolve));
+  let output = '';
   await new Promise<void>((resolve) => {
-    let output = '';
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', (chunk: string) => {
       output += chunk;
@@ -1006,8 +1006,48 @@ async function stubbornWorker(t: TestContext) {
       process.kill(-pid, 'SIGKILL');
     } catch {}
   });
-  return { root, child, exited, pid, laterFile };
+  return { root, child, exited, pid, laterFile, output: () => output };
 }
+
+async function crashWithStubbornCommand(t: TestContext, crash: string) {
+  const { root, child, exited, pid, output } = await stubbornWorker(t, crash);
+  const { lockPath } = workerPaths(root);
+  child.kill('SIGUSR2');
+  const code = await exited;
+  const deadline = Date.now() + 2000;
+  while (alive(pid) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  const left = await readdir(dirname(lockPath));
+  return {
+    code,
+    commandAlive: alive(pid),
+    lockLeft: left.includes('worker.lock'),
+    socketLeft: left.includes('worker.sock'),
+    output: output(),
+  };
+}
+
+test('a worker that throws an uncaught error while a command runs kills the command, prints the error, removes its lock and socket files and exits with code 1', async (t) => {
+  const result = await crashWithStubbornCommand(t, "throw new Error('worker boom');");
+  assert.equal(result.code, 1);
+  assert.equal(result.commandAlive, false);
+  assert.equal(result.lockLeft, false);
+  assert.equal(result.socketLeft, false);
+  assert.match(result.output, /worker boom/);
+});
+
+test('a worker that leaves a promise rejection unhandled while a command runs kills the command, prints the error, removes its lock and socket files and exits with code 1', async (t) => {
+  const result = await crashWithStubbornCommand(
+    t,
+    "void Promise.reject(new Error('worker boom'));",
+  );
+  assert.equal(result.code, 1);
+  assert.equal(result.commandAlive, false);
+  assert.equal(result.lockLeft, false);
+  assert.equal(result.socketLeft, false);
+  assert.match(result.output, /worker boom/);
+});
 
 async function signalWithStubbornCommand(t: TestContext, signal: NodeJS.Signals) {
   const { child, exited, pid, laterFile } = await stubbornWorker(t);

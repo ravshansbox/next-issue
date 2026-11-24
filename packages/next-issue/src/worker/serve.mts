@@ -3,7 +3,7 @@ import { createServer, STATUS_CODES } from 'node:http';
 import { basename, dirname, join } from 'node:path';
 import { WebSocketServer } from 'ws';
 import { type Args, givenStartFlags, parseStartArgs } from '../shared/args.mts';
-import { stopChildren, withRunChildren } from '../shared/children.mts';
+import { killChildren, stopChildren, withRunChildren } from '../shared/children.mts';
 import { message } from '../shared/errors.mts';
 import { lock } from '../shared/lock.mts';
 import { startProgress } from './progress.mts';
@@ -396,6 +396,18 @@ export async function serve(root: string, logCheckMs = LOG_CHECK_MS): Promise<nu
   process.on('SIGTERM', onTerminate);
   process.on('SIGINT', onInterrupt);
   process.on('SIGHUP', onHangUp);
+  const crash = (error: unknown): void => {
+    process.stderr.write(
+      `worker crashed: ${error instanceof Error ? error.stack : String(error)}\n`,
+    );
+    killChildren();
+    try {
+      worker.release();
+    } catch {}
+    process.exit(1);
+  };
+  process.on('uncaughtException', crash);
+  process.on('unhandledRejection', crash);
   process.stderr.write(`worker listening on ${paths.socketPath}\n`);
   await worker.closed;
   stopTrimming();

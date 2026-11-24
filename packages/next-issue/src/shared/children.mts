@@ -119,12 +119,7 @@ export function stopChildren(signal: NodeJS.Signals, beforeExit?: () => void): v
   }
   const running = [...groups];
   stopAll({ groups: new Set(running), stoppers }, signal);
-  for (const undo of undos) {
-    try {
-      undo();
-    } catch {}
-  }
-  undos.clear();
+  runUndos();
   process.off('SIGTERM', onTerminate);
   process.off('SIGHUP', onHangUp);
   const exit = (): void => {
@@ -145,6 +140,24 @@ export function stopChildren(signal: NodeJS.Signals, beforeExit?: () => void): v
   };
   ending = exitOnceEnded;
   escalate(running, ['SIGTERM', 'SIGKILL'], exit);
+}
+
+function runUndos(): void {
+  for (const undo of undos) {
+    try {
+      undo();
+    } catch {}
+  }
+  undos.clear();
+}
+
+/** Kills every process group at once, for a worker that crashed and cannot wait for them. */
+export function killChildren(): void {
+  for (const children of runs) {
+    children.stopped = true;
+  }
+  stopAll({ groups: new Set(groups), stoppers }, 'SIGKILL');
+  runUndos();
 }
 
 const onTerminate = (): void => stopChildren('SIGTERM');
