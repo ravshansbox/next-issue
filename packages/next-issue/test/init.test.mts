@@ -59,7 +59,7 @@ async function assertInstalled(folder: string): Promise<void> {
 
 async function untouched(root: string, home: string): Promise<void> {
   assert.deepEqual(await readdir(home), []);
-  assert.deepEqual((await readdir(root)).sort(), ['.git', 'package.json']);
+  assert.deepEqual((await readdir(root)).sort(), ['.git', '.worktrees', 'package.json']);
   assert.doesNotMatch(await readFile(join(root, '.git/info/exclude'), 'utf8'), /\.next-issue\//);
 }
 

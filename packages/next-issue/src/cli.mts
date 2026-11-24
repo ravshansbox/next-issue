@@ -24,7 +24,7 @@ import {
   refreshSkills,
   untrackSkills,
 } from './cli/skills.mts';
-import { removeOldWorktrees, WORKTREE_DIR } from './shared/worktree.mts';
+import { WORKTREE_DIR } from './shared/worktree.mts';
 
 function write(stream: NodeJS.WriteStream, text: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -134,15 +134,8 @@ async function excludeStateDirectories(root: string, stream: NodeJS.WriteStream)
       await write(stream, `added ${entry} to ${exclude}\n`);
     }
   }
-  for (const entry of await removeIgnored(root, [`${STATE_DIR}/`])) {
+  for (const entry of await removeIgnored(root, [`${STATE_DIR}/`, '.worktrees/'])) {
     await write(stream, `removed ${entry} from .gitignore\n`);
-  }
-  const { removed, kept } = await removeOldWorktrees(root);
-  for (const path of removed) {
-    await write(stream, `removed ${path}\n`);
-  }
-  for (const { path, reason } of kept) {
-    await write(stream, `could not remove ${path}: ${reason}\n`);
   }
 }
 

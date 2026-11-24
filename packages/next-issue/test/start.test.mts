@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { type ChildProcess, spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { cp, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { dirname, join } from 'node:path';
@@ -125,27 +125,6 @@ test('a user who runs start sees one line that the run started naming logs and s
   await observer.next((value) => value.type === 'output' && value.text === 'after start\n');
   assert.equal(fake.calls.length, 1);
   assert.equal(fake.controls().interrupts.afterIssue(), false);
-  fake.finish();
-});
-
-test('a user with an old worktree in .worktrees/hunt who runs start sees its path and the folder named as removed and the run started', async (t) => {
-  const root = await repository(ORIGIN);
-  await must(
-    'git',
-    ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'first'],
-    { cwd: root },
-  );
-  const hunt = join(root, '.worktrees', 'hunt');
-  await must('git', ['worktree', 'add', '-q', '--detach', hunt], { cwd: root });
-  const fake = fakeRuns();
-  await fakeWorker(t, root, fake.runRepo);
-  const started = startCommand(t, root, []);
-  assert.equal(await started.exited, 0, started.stderr());
-  assert.match(
-    started.stderr(),
-    new RegExp(`^removed ${hunt}\nremoved ${join(root, '.worktrees')}$`, 'm'),
-  );
-  assert.equal(existsSync(join(root, '.worktrees')), false);
   fake.finish();
 });
 

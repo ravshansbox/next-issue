@@ -9,7 +9,6 @@ import {
   addWorktree,
   fastForwardBase,
   findWorktree,
-  removeOldWorktrees,
   removeWorktree,
 } from '../src/shared/worktree.mts';
 import { clones, commit, git } from './clones.mts';
@@ -171,16 +170,15 @@ test('a user whose Claude Code worktree at .claude/worktrees/3 holds branch 3 ke
   assert.equal(existsSync(join(repo.root, '.claude', 'worktrees', 'next-issue-3')), false);
 });
 
-test('a user who resumes issue 3 after its old worktree .worktrees/3 was removed gets the commits of branch 3 in .claude/worktrees/next-issue-3', async () => {
+test('a user who resumes issue 3 while its worktree is still in .worktrees/3 gets the work in that worktree', async () => {
   const { repo } = await clones();
   const old = join(repo.root, '.worktrees', '3');
   await git(repo.root, 'worktree', 'add', '-q', '-b', '3', old, 'origin/main');
   const kept = await commit(old, 'kept.txt');
-  await removeOldWorktrees(repo.root);
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
-  assert.equal(path, join(repo.root, '.claude', 'worktrees', 'next-issue-3'));
-  assert.equal(await git(path, 'branch', '--show-current'), '3');
+  assert.equal(path, await realpath(old));
   assert.equal(await revision(path), kept);
+  assert.equal(existsSync(join(repo.root, '.claude', 'worktrees', 'next-issue-3')), false);
 });
 
 test('a user who resumes issue 3 on a saved branch gets that branch in the worktree', async () => {
@@ -201,17 +199,19 @@ test('a user whose worktree at ../tool-issue-3 holds the saved branch keeps it w
   assert.equal(await findWorktree(repo, 'issue-3'), undefined);
 });
 
-test('a user whose worktree at .claude/worktrees/next-issue-5 holds branch 3 keeps it when issue 3 resumes', async () => {
-  const { repo } = await clones();
-  const mine = join(repo.root, '.claude', 'worktrees', 'next-issue-5');
-  await git(repo.root, 'worktree', 'add', '-q', '-b', '3', mine, 'origin/main');
-  await assert.rejects(
-    addWorktree(repo, 3, '3', 'main', 'origin', false),
-    new RegExp(`worktree at ${await realpath(mine)} has branch 3 checked out`),
-  );
-  assert.equal(await git(mine, 'branch', '--show-current'), '3');
-  assert.equal(await findWorktree(repo, '3'), undefined);
-});
+for (const folder of [join('.worktrees', 'fix'), join('.claude', 'worktrees', 'next-issue-5')]) {
+  test(`a user whose worktree at ${folder} holds branch 3 keeps it when issue 3 resumes`, async () => {
+    const { repo } = await clones();
+    const mine = join(repo.root, folder);
+    await git(repo.root, 'worktree', 'add', '-q', '-b', '3', mine, 'origin/main');
+    await assert.rejects(
+      addWorktree(repo, 3, '3', 'main', 'origin', false),
+      new RegExp(`worktree at ${await realpath(mine)} has branch 3 checked out`),
+    );
+    assert.equal(await git(mine, 'branch', '--show-current'), '3');
+    assert.equal(await findWorktree(repo, '3'), undefined);
+  });
+}
 
 test('a user who resumes issue 3 while .claude/worktrees/next-issue-3 is left detached gets branch 3 back in it', async () => {
   const { repo } = await clones();
@@ -271,7 +271,7 @@ test('a user whose issue ends while the main worktree holds its branch keeps the
 
 test('a user whose issue ends gets the worktree that holds its branch removed', async () => {
   const { repo } = await clones();
-  const old = join(repo.root, '.claude', 'worktrees', 'next-issue-3');
+  const old = join(repo.root, '.worktrees', '3');
   await git(repo.root, 'worktree', 'add', '-q', '-b', '3', old, 'origin/main');
   const path = await findWorktree(repo, '3');
   assert.notEqual(path, undefined);
