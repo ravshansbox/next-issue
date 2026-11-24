@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { APPROVE, changes, harness, roles } from './harness.mts';
+import type { TestContext } from 'node:test';
+import { stopChildren } from '../src/shared/children.mts';
+import type { IssueState } from '../src/shared/state.mts';
+import { APPROVE, changes, type Harness, harness, ISSUE, roles } from './harness.mts';
 
 test('an implementer whose commit fails in a hook gets the hook output and commits the fix', async (t) => {
   const target = await harness(t, { commits: ['oxlint: publicProcedure is never used', true] });
@@ -79,4 +82,69 @@ test('the worker reports an error without a commit fix when git itself refuses a
   assert.match(report.reason!, /index\.lock exists/);
   assert.deepEqual(roles(target), ['implementer']);
   assert.equal((await target.state())?.commitFixes ?? 0, 0);
+});
+
+function onCommitFix(target: Harness, act: () => Promise<void>): void {
+  const runAgent = target.context.ports.runAgent;
+  let implementers = 0;
+  target.context.ports.runAgent = async (recorder, request) => {
+    if (request.name === 'implementer') {
+      implementers += 1;
+      if (implementers === 2) {
+        await act();
+      }
+    }
+    return runAgent(recorder, request);
+  };
+}
+
+async function resumeAfterCommitFix(t: TestContext, saved: IssueState | undefined) {
+  const target = await harness(t, {
+    saved,
+    issue: { ...ISSUE, labels: ['status:in-progress'] },
+    config: { maxCommitFixes: 1 },
+    commits: ['lint fails', true],
+  });
+  const report = await target.run();
+  return { target, report };
+}
+
+test('a user who stops a run now during the commit fix of the last allowed try gets the next run to run that commit fix before any hand-over', async (t) => {
+  const first = await harness(t, { config: { maxCommitFixes: 1 }, commits: ['lint fails'] });
+  onCommitFix(first, async () => {
+    first.stopNow();
+    throw new Error('The run stopped.');
+  });
+  assert.equal((await first.run()).outcome, 'stopped');
+  const { target, report } = await resumeAfterCommitFix(t, await first.state());
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(roles(target).slice(0, 2), ['implementer', 'implementer']);
+  assert.equal(
+    target.labels.some(({ label }) => label === 'status:needs-human'),
+    false,
+  );
+});
+
+test('a user who interrupts the worker during the commit fix of the last allowed try gets the next run to run that commit fix before any hand-over', async (t) => {
+  const first = await harness(t, { config: { maxCommitFixes: 1 }, commits: ['lint fails'] });
+  let started = (): void => undefined;
+  const commitFix = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  onCommitFix(first, async () => {
+    started();
+    await new Promise<never>(() => undefined);
+  });
+  const kills = t.mock.method(process, 'kill', () => true);
+  void first.run();
+  await commitFix;
+  stopChildren('SIGINT');
+  kills.mock.restore();
+  const { target, report } = await resumeAfterCommitFix(t, await first.state());
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(roles(target).slice(0, 2), ['implementer', 'implementer']);
+  assert.equal(
+    target.labels.some(({ label }) => label === 'status:needs-human'),
+    false,
+  );
 });

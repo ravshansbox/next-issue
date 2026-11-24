@@ -1,6 +1,6 @@
 import { parseCommitSubject, parseResolved, parseUnrelated } from './agent-reply.mts';
 import { CODING } from '../shared/agents.mts';
-import { type BudgetUse, budgetUse } from './budget.mts';
+import { type BudgetUse, budgetUse, refundIfCut } from './budget.mts';
 import { runStopped } from '../shared/children.mts';
 import { message } from '../shared/errors.mts';
 import { HookError } from '../shared/git-commit.mts';
@@ -212,10 +212,10 @@ async function hookFix(
   await writeState(repo, state);
   const output = keepTail(message(error), config.logMaxChars);
   log.event('commit.fail', { role, output });
-  const fix = await log.step(
-    'commit-fix',
-    { role, round: state.commitFixes, limit: config.maxCommitFixes },
-    () => runRole(job, role, hookPrompt(issue, comments, role, output), CODING),
+  const fix = await refundIfCut(job, 'commitFixes', () =>
+    log.step('commit-fix', { role, round: state.commitFixes, limit: config.maxCommitFixes }, () =>
+      runRole(job, role, hookPrompt(issue, comments, role, output), CODING),
+    ),
   );
   return parseCommitSubject(fix.text, subject);
 }

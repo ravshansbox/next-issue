@@ -3,14 +3,18 @@ import { escalateAndFinish } from '../shared/handover.mts';
 import type { Finished, Run } from '../shared/job.mts';
 import { writeState, writeStateNow } from '../shared/state.mts';
 
-const LIMITS = { ciFixes: 'maxCiFixes', reviewRounds: 'maxReviewRounds' } as const;
+const LIMITS = {
+  ciFixes: 'maxCiFixes',
+  commitFixes: 'maxCommitFixes',
+  reviewRounds: 'maxReviewRounds',
+} as const;
 
 type Budget = keyof typeof LIMITS;
 
 export type BudgetUse = { round: number; limit: number };
 
 export function budgetUse(job: Run, budget: Budget): BudgetUse {
-  return { round: job.state[budget], limit: job.context.config[LIMITS[budget]] };
+  return { round: job.state[budget] ?? 0, limit: job.context.config[LIMITS[budget]] };
 }
 
 export async function spendBudget(
@@ -26,14 +30,14 @@ export async function spendBudget(
     const after = (await beforeHandOver?.()) ?? '';
     return escalateAndFinish(job, `${note}${after}`, reason);
   }
-  state[budget] += 1;
+  state[budget] = (state[budget] ?? 0) + 1;
   await writeState(context.repo, state);
   return undefined;
 }
 
 async function refundBudget(job: Run, budget: Budget): Promise<void> {
   const { context, state } = job;
-  state[budget] = Math.max(0, state[budget] - 1);
+  state[budget] = Math.max(0, (state[budget] ?? 0) - 1);
   await writeState(context.repo, state);
 }
 
@@ -49,7 +53,7 @@ export async function refundIfCut<T>(
   const forget = onKill(() => {
     refunded = true;
     undo?.();
-    state[budget] = Math.max(0, state[budget] - 1);
+    state[budget] = Math.max(0, (state[budget] ?? 0) - 1);
     writeStateNow(context.repo, state);
   });
   try {
