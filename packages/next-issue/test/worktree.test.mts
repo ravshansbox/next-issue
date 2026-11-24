@@ -227,6 +227,73 @@ test('a user who resumes issue 3 while .claude/worktrees/next-issue-3 is left de
   assert.equal(path, first);
   assert.equal(await git(path, 'branch', '--show-current'), '3');
   assert.equal(await revision(path), kept);
+  const aside = await git(
+    repo.root,
+    'branch',
+    '--list',
+    '3-detached-*',
+    '--format=%(refname:short)',
+  );
+  assert.match(aside, /^3-detached-[0-9a-f]{7}$/);
+  assert.equal(await git(repo.root, 'show', `${aside}:stray.txt`), 'x');
+});
+
+test('a user who resumes issue 3 while .claude/worktrees/next-issue-3 is left on another branch keeps its edits on a 3-detached branch', async () => {
+  const { repo } = await clones();
+  const { path: first } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  await git(first, 'config', 'user.name', 't');
+  await git(first, 'config', 'user.email', 't@t');
+  const kept = await commit(first, 'kept.txt');
+  await git(first, 'checkout', '-q', '-b', 'scratch', 'origin/main');
+  const scratch = await revision(first);
+  await writeFile(join(first, 'a.txt'), 'edited\n');
+  await writeFile(join(first, 'stray.txt'), 'x\n');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  assert.equal(path, first);
+  assert.equal(await git(path, 'branch', '--show-current'), '3');
+  assert.equal(await revision(path), kept);
+  const aside = await git(
+    repo.root,
+    'branch',
+    '--list',
+    '3-detached-*',
+    '--format=%(refname:short)',
+  );
+  assert.match(aside, /^3-detached-[0-9a-f]{7}$/);
+  assert.equal(await git(repo.root, 'show', `${aside}:a.txt`), 'edited');
+  assert.equal(await git(repo.root, 'show', `${aside}:stray.txt`), 'x');
+  assert.equal(await git(repo.root, 'rev-parse', 'scratch'), scratch);
+});
+
+test('a user who resumes issue 3 while .claude/worktrees/next-issue-3 is left mid-merge on another branch keeps its edits on a 3-detached branch', async () => {
+  const { repo } = await clones();
+  const { path: first } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  await git(first, 'config', 'user.name', 't');
+  await git(first, 'config', 'user.email', 't@t');
+  const kept = await commit(first, 'kept.txt');
+  await git(first, 'checkout', '-q', '-b', 'theirs', 'origin/main');
+  await writeFile(join(first, 'a.txt'), 'theirs\n');
+  await git(first, 'commit', '-q', '-am', 'theirs');
+  await git(first, 'checkout', '-q', '-b', 'scratch', 'origin/main');
+  await writeFile(join(first, 'a.txt'), 'ours\n');
+  await git(first, 'commit', '-q', '-am', 'ours');
+  const scratch = await revision(first);
+  await git(first, 'merge', '-q', 'theirs').catch(() => '');
+  await writeFile(join(first, 'stray.txt'), 'x\n');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  assert.equal(await git(path, 'branch', '--show-current'), '3');
+  assert.equal(await revision(path), kept);
+  const aside = await git(
+    repo.root,
+    'branch',
+    '--list',
+    '3-detached-*',
+    '--format=%(refname:short)',
+  );
+  assert.match(aside, /^3-detached-[0-9a-f]{7}$/);
+  assert.match(await git(repo.root, 'show', `${aside}:a.txt`), /ours/);
+  assert.equal(await git(repo.root, 'show', `${aside}:stray.txt`), 'x');
+  assert.equal(await git(repo.root, 'rev-parse', 'scratch'), scratch);
 });
 
 test('a user who resumes issue 3 while the hunt worktree holds branch 3 gets the work in .claude/worktrees/next-issue-3', async () => {
