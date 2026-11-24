@@ -253,7 +253,7 @@ test('an agent who answers a hand-over lists the waiting issues of <repo> and pa
 test('an agent who answers a hand-over reads the latest hand-over comment, the branch, the diff and the failed check logs', async () => {
   const skill = await readFile(answerHandOver, 'utf8');
   assert.match(skill, /`### next-issue · Hand-over: needs help`/);
-  assert.match(skill, /`next-issue needs help:`/);
+  assert.doesNotMatch(skill, /next-issue needs help:/);
   assert.match(skill, /`question:`/);
   assert.match(skill, /git diff/);
   assert.match(skill, /gh run view --repo <repo> <run> --log-failed/);
@@ -295,9 +295,7 @@ test('an agent who retries, guides or gives up changes the labels of the issue o
   assert.doesNotMatch(skill, /--remove-label "<needs-human>"\n/);
   assert.match(skill, /gh issue comment --repo <repo> <number> --body-file <file>/);
   assert.match(skill, /`### next-issue ·`/);
-  assert.match(skill, /`### Review:`/);
-  assert.match(skill, /`### Fixer:`/);
-  assert.match(skill, /`### Already done`/);
+  assert.doesNotMatch(skill, /`### Review:`|`### Fixer:`|`### Already done`/);
   assert.match(skill, /gh label list --repo <repo> --limit 1000 --json name/);
   assert.match(skill, /without case/);
   assert.match(skill, /gh label create --repo <repo> "<skip>"/);

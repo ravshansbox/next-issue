@@ -8,23 +8,12 @@ import { AGENT_PREFIX, agentHeading } from './text.mts';
 
 export const HAND_OVER = agentHeading('Hand-over', 'needs help');
 
-const OLD_HAND_OVER = 'next-issue needs help:';
-
-const HARNESS_HEADINGS = [
-  AGENT_PREFIX,
-  OLD_HAND_OVER,
-  '### Review:',
-  '### Fixer:',
-  '### Already done',
-];
-
-function handOverReason(comment: Comment): string | undefined {
-  const heading = [HAND_OVER, OLD_HAND_OVER].find((item) => comment.body.startsWith(item));
-  return heading === undefined ? undefined : comment.body.slice(heading.length).trim();
+function isHandOver(comment: Comment): boolean {
+  return comment.body.startsWith(HAND_OVER);
 }
 
 function fromHarness(comment: Comment): boolean {
-  return HARNESS_HEADINGS.some((heading) => comment.body.startsWith(heading));
+  return comment.body.startsWith(AGENT_PREFIX);
 }
 
 type Writer = (author: string) => Promise<boolean>;
@@ -62,7 +51,7 @@ async function writerQuotes(
 async function lastHandOver(comments: Comment[], writer: Writer): Promise<number> {
   for (let index = comments.length - 1; index >= 0; index -= 1) {
     const comment = comments[index]!;
-    if (handOverReason(comment) !== undefined && (await writer(comment.author))) {
+    if (isHandOver(comment) && (await writer(comment.author))) {
       return index;
     }
   }

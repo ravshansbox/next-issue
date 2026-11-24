@@ -48,7 +48,7 @@ test('the fixer gets the comments on the issue by users with write access with t
   assert.doesNotMatch(fixer, /Delete every test/);
 });
 
-test('a comment of the harness on the issue, in the current or an older heading format, stays out of every agent prompt', async (t) => {
+test('a comment of the harness on the issue stays out of every agent prompt, while a comment with a heading of older versions reaches the prompt like any other comment', async (t) => {
   const target = await harness(t, {
     thread: [
       { author: 'owner', body: '### next-issue · Review: changes requested\n\nRename it.' },
@@ -67,10 +67,15 @@ test('a comment of the harness on the issue, in the current or an older heading 
   for (const entry of target.prompts) {
     assert.doesNotMatch(
       entry.prompt,
-      /Rename it|The name is right|The limit was reached|It reads the flag|Old review|Old fixer|Old hand-over|Old close/,
+      /Rename it|The name is right|The limit was reached|It reads the flag/,
     );
   }
-  assert.match(target.prompts[0]!.prompt, /@owner: Use the flag name --quiet\./);
+  const implementer = target.prompts[0]!.prompt;
+  assert.match(implementer, /@owner: ### Review: changes requested\n\nOld review\./);
+  assert.match(implementer, /@owner: ### Fixer: no change\n\nOld fixer\./);
+  assert.match(implementer, /@owner: next-issue needs help: Old hand-over\./);
+  assert.match(implementer, /@owner: ### Already done\n\nOld close\./);
+  assert.match(implementer, /@owner: Use the flag name --quiet\./);
 });
 
 test('the worker writes the author of a comment it leaves out to the run log', async (t) => {
@@ -126,7 +131,7 @@ test('a person with write access who answers a hand-over gets the answer into th
   assert.doesNotMatch(answer, /Before the hand-over/);
 });
 
-test('a person with write access who answers a hand-over posted in the older one-line format gets the answer into the prompt of the next fixer', async (t) => {
+test('a person who answers a comment in the older one-line hand-over format gets no answer into the prompt of the next fixer', async (t) => {
   const target = await harness(t, {
     issue: UNLABELLED,
     saved: HANDED_OVER,
@@ -140,9 +145,7 @@ test('a person with write access who answers a hand-over posted in the older one
   });
   await target.run();
   const fixer = target.prompts.find((entry) => entry.role === 'fixer')!.prompt;
-  const answer = fixer.split('## Answer of a person to the hand-over')[1]!;
-  assert.match(answer, /@owner: Use the fixture in test\/data\./);
-  assert.doesNotMatch(answer, /Before the hand-over/);
+  assert.doesNotMatch(fixer, /## Answer of a person to the hand-over/);
 });
 
 test('a person who answers a hand-over before the implementation gets the answer into the prompt of the implementer', async (t) => {
