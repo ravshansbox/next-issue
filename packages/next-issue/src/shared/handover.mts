@@ -175,7 +175,10 @@ export async function finish(job: Run, outcome: Outcome, reason?: string): Promi
 }
 
 async function deleteBranches(context: Context, log: Recorder, branch: string): Promise<void> {
-  const { repo, ports } = context;
+  const { repo, ports, config } = context;
+  await removeOrKeep(context, log, 'branch.remote-kept', { branch }, () =>
+    ports.deleteRemoteBranch(repo, config.remote, branch),
+  );
   for (const name of [branch, ...(await ports.disputeBranches(repo, branch))]) {
     await removeOrKeep(context, log, 'branch.kept', { branch: name }, () =>
       ports.deleteBranch(repo, name),

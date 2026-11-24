@@ -6,6 +6,8 @@ import { runChildren, stopRunChildren, withRunChildren } from '../src/shared/chi
 import { HookError } from '../src/shared/git-commit.mts';
 import {
   baseMoved,
+  deleteRemoteBranch,
+  pushBranch,
   pushToBase,
   reapplyRevert,
   type Revert,
@@ -13,18 +15,18 @@ import {
   squashOnto,
 } from '../src/shared/git-land.mts';
 import { commitMerge, startMerge } from '../src/shared/git-merge.mts';
-import { isLanded, isOnBase } from '../src/shared/git.mts';
+import { isLanded, isOnBase, type Repo } from '../src/shared/git.mts';
 import { addWorktree } from '../src/shared/worktree.mts';
 import { clones, commit, git } from './clones.mts';
 
-async function branch(): Promise<{ path: string; other: string }> {
+async function branch(): Promise<{ path: string; other: string; repo: Repo }> {
   const { repo, other } = await clones();
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   await git(path, 'config', 'user.name', 't');
   await git(path, 'config', 'user.email', 't@t');
   await commit(path, 'b.txt');
   await commit(path, 'c.txt');
-  return { path, other };
+  return { path, other, repo };
 }
 
 test('the worker squashes the change into one commit on top of the base and lands it there', async () => {
@@ -41,6 +43,32 @@ test('the worker squashes the change into one commit on top of the base and land
   assert.equal((await pushToBase(path, 'origin', 'main')).pushed, true);
   await git(other, 'pull', '-q', 'origin', 'main');
   assert.equal(await git(other, 'rev-parse', 'HEAD'), await git(path, 'rev-parse', 'HEAD'));
+});
+
+test('the worker pushes the issue branch, pushes it again after a squash rewrote it, and deletes it from the remote', async () => {
+  const { path, other, repo } = await branch();
+  assert.equal((await pushBranch(path, 'origin', '3')).pushed, true);
+  await git(other, 'fetch', '-q', 'origin');
+  assert.equal(await git(other, 'rev-parse', 'origin/3'), await git(path, 'rev-parse', 'HEAD'));
+  assert.equal(await squashOnto(path, 'origin/main', 'feat: add b and c'), true);
+  assert.equal((await pushBranch(path, 'origin', '3')).pushed, true);
+  await git(other, 'fetch', '-q', 'origin');
+  assert.equal(await git(other, 'rev-parse', 'origin/3'), await git(path, 'rev-parse', 'HEAD'));
+  assert.equal(await deleteRemoteBranch(repo, 'origin', '3'), true);
+  await git(other, 'fetch', '-q', '--prune', 'origin');
+  await assert.rejects(git(other, 'rev-parse', '--verify', 'origin/3'));
+});
+
+test('the worker pushes the issue branch even when a pre-push hook of the project would refuse it', async () => {
+  const { path, other } = await branch();
+  const hooks = join(path, '..', 'hooks');
+  await mkdir(hooks, { recursive: true });
+  await writeFile(join(hooks, 'pre-push'), '#!/bin/sh\necho work in progress >&2\nexit 1\n');
+  await chmod(join(hooks, 'pre-push'), 0o755);
+  await git(path, 'config', 'core.hooksPath', hooks);
+  assert.equal((await pushBranch(path, 'origin', '3')).pushed, true);
+  await git(other, 'fetch', '-q', 'origin');
+  assert.equal(await git(other, 'rev-parse', 'origin/3'), await git(path, 'rev-parse', 'HEAD'));
 });
 
 test('the worker makes no squash commit for a change that the base already holds', async () => {

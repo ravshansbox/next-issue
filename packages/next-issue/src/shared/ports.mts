@@ -2,7 +2,15 @@ import { runAgent } from './agents.mts';
 import { failedCiLogs, rerunFailedCi, waitForCiChecks } from './ci-checks.mts';
 import { run } from './exec.mts';
 import { commitAll, saveSetupOutput } from './git-commit.mts';
-import { baseMoved, pushToBase, reapplyRevert, revertOnBase, squashOnto } from './git-land.mts';
+import {
+  baseMoved,
+  deleteRemoteBranch,
+  pushBranch,
+  pushToBase,
+  reapplyRevert,
+  revertOnBase,
+  squashOnto,
+} from './git-land.mts';
 import { abortMerge, commitMerge, startMerge } from './git-merge.mts';
 import {
   changedFiles,
@@ -66,6 +74,7 @@ export const PORTS = {
   commitAll,
   commitMerge,
   deleteBranch,
+  deleteRemoteBranch,
   detectSetupCommand,
   diff,
   discardChanges,
@@ -84,6 +93,7 @@ export const PORTS = {
   latestSubject,
   openBlockers,
   openIssues,
+  pushBranch,
   pushToBase,
   reapplyRevert,
   removeWorktree,

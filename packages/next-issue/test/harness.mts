@@ -106,6 +106,8 @@ export type Plan = {
   /** The error of git for a push that the remote refuses while the base stays put. */
   pushRefused?: string;
   pushLandsAndFails?: boolean;
+  /** The error of git for every push of the issue branch. */
+  branchPushFails?: string;
   pushLandsAndStops?: boolean;
   baseFetchFails?: boolean;
   baseMoved?: boolean;
@@ -165,6 +167,9 @@ export type Harness = {
   baseMerges: number;
   mergeAborts: string[];
   deleted: string[];
+  /** Each push of an issue branch, with the head it pushed. */
+  pushed: Array<{ branch: string; head: string }>;
+  remoteDeleted: string[];
   landed: string[];
   localBase: string | undefined;
   reverts: Array<{ shas: string[]; message: string }>;
@@ -241,6 +246,8 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     baseMerges: 0,
     mergeAborts: [],
     deleted: [],
+    pushed: [],
+    remoteDeleted: [],
     landed: [],
     localBase: undefined,
     reverts: [],
@@ -327,6 +334,10 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       state.deleted.push(branch);
       return true;
     },
+    deleteRemoteBranch: async (_repo, _remote, branch) => {
+      state.remoteDeleted.push(branch);
+      return true;
+    },
     diff: async () => plan.diff ?? 'the diff',
     editIssueBody: async (_repo, number, body) => {
       state.bodies.push({ number, body });
@@ -380,6 +391,13 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       return plan.pushLandsAndFails === true
         ? { pushed: false, error: PUSH_REJECTED }
         : { pushed: true };
+    },
+    pushBranch: async (_worktree, _remote, branch) => {
+      if (plan.branchPushFails !== undefined) {
+        return { pushed: false, error: plan.branchPushFails };
+      }
+      state.pushed.push({ branch, head: String(head) });
+      return { pushed: true };
     },
     baseMoved: async () => plan.pushRefused === undefined,
     isOnBase: async (_worktree, _base, _remote, sha) => {

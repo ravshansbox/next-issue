@@ -170,10 +170,20 @@ export async function commitWork(
         return false;
       }
       state.title = subject;
-      return true;
     } catch (error) {
       subject = await hookFix(job, error, subject, role);
+      continue;
     }
+    await pushBranch(job);
+    return true;
+  }
+}
+
+async function pushBranch(job: Run): Promise<void> {
+  const { context, log, branch, worktree } = job;
+  const push = await context.ports.pushBranch(worktree, context.config.remote, branch);
+  if (!push.pushed) {
+    log.event('branch.push-fail', { branch, error: push.error.trim() });
   }
 }
 

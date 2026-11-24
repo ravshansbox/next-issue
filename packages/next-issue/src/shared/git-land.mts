@@ -9,6 +9,7 @@ import {
   isOnBase,
   oneFetchAtATime,
   remoteRef,
+  type Repo,
   revision,
   succeeds,
 } from './git.mts';
@@ -38,6 +39,26 @@ export async function pushToBase(cwd: string, remote: string, base: string): Pro
     run('git', ['push', remote, `HEAD:refs/heads/${base}`], { cwd }),
   );
   return succeeded(result) ? { pushed: true } : { pushed: false, error: result.stderr };
+}
+
+export async function pushBranch(cwd: string, remote: string, branch: string): Promise<Push> {
+  const result = await oneFetchAtATime(() =>
+    run('git', ['push', '--no-verify', '--force-with-lease', remote, `HEAD:refs/heads/${branch}`], {
+      cwd,
+    }),
+  );
+  return succeeded(result) ? { pushed: true } : { pushed: false, error: result.stderr };
+}
+
+export async function deleteRemoteBranch(
+  repo: Repo,
+  remote: string,
+  branch: string,
+): Promise<boolean> {
+  const result = await oneFetchAtATime(() =>
+    run('git', ['push', remote, '--delete', `refs/heads/${branch}`], { cwd: repo.root }),
+  );
+  return succeeded(result);
 }
 
 /** Whether the last fetched base holds a commit that `HEAD` lacks. */
