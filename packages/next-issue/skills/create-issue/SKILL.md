@@ -45,11 +45,11 @@ Run any next-issue command as `npx -y next-issue@latest <command>`. Never run it
 
    For a confirmed split, repeat steps 6 to 8 for each issue of the split, in order. Create each one with `--blocked-by` the issues of the split it depends on, so it is linked before you add its ready label.
 
-9. Once the issue exists with its ready label, or the last issue of a split has its ready label, run `npx -y next-issue@latest status` once. When `labels.ready` is empty, run it too, since the worker claims every open issue.
+9. Once the issue exists with its ready label, or the last issue of a split has its ready label, run `npx -y next-issue@latest start` once. When `labels.ready` is empty, run it too, since the worker claims every open issue. It starts a run when none is going, and joins a going run.
 
-   When the first line of the status starts with `stopping`, run no `start`: the run is stopping, so the issue waits for the next run. Otherwise run `npx -y next-issue@latest start` once. It starts a run when none is going, and joins a going run.
+   When `start` fails with `the run is stopping`, the run is stopping, so the issue waits for the next run. Report this as the outcome, and do not retry `start`.
 
-   Then give the user the issue url, or each url of a split, and the outcome of `start`, or that the run is stopping, in one line, and stop.
+   Then give the user the issue url, or each url of a split, and the outcome of `start`, in one line, and stop.
 
 10. When the user asks for a change to the issue, make the change on GitHub. Write the new body into the temporary file and run:
 

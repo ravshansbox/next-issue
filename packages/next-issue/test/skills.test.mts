@@ -211,32 +211,34 @@ test('a person who reads the next-issue behaviour doc learns which repository th
   assert.match(behaviour, /repository of the `remote` of `\.next-issue\/config\.json`/);
 });
 
-test('an agent who files an issue with the create-issue skill checks the run status, then starts the run unless it is stopping, and reports the urls and the outcome in one line', async () => {
+test('an agent who files an issue with the create-issue skill runs start once with no status check, and reports the urls and the outcome of start in one line', async () => {
   const skill = await readFile(createIssue, 'utf8');
   const behaviour = await readFile(behaviourFile, 'utf8');
   assert.match(
     skill,
-    /Once the issue exists with its ready label, or the last issue of a split has its ready label, run `npx -y next-issue@latest status` once\. When `labels\.ready` is empty, run it too, since the worker claims every open issue\./,
+    /Once the issue exists with its ready label, or the last issue of a split has its ready label, run `npx -y next-issue@latest start` once\. When `labels\.ready` is empty, run it too, since the worker claims every open issue\. It starts a run when none is going, and joins a going run\./,
   );
   assert.match(
     skill,
-    /When the first line of the status starts with `stopping`, run no `start`: the run is stopping, so the issue waits for the next run\. Otherwise run `npx -y next-issue@latest start` once\. It starts a run when none is going, and joins a going run\./,
+    /When `start` fails with `the run is stopping`, the run is stopping, so the issue waits for the next run\. Report this as the outcome, and do not retry `start`\./,
   );
   assert.match(
     skill,
-    /give the user the issue url, or each url of a split, and the outcome of `start`, or that the run is stopping, in one line, and stop\./,
+    /give the user the issue url, or each url of a split, and the outcome of `start`, in one line, and stop\./,
   );
+  assert.doesNotMatch(skill, /next-issue@latest status/);
   assert.doesNotMatch(skill, /Run no next-issue command/);
   assert.doesNotMatch(skill, /next-issue (refresh|watch)/);
   assert.doesNotMatch(skill, /c\) change the issue/);
   assert.doesNotMatch(behaviour, /refresh/);
+  assert.doesNotMatch(behaviour, /runs `npx -y next-issue@latest status`/);
   assert.match(
     behaviour,
-    /runs `npx -y next-issue@latest status`, then `npx -y next-issue@latest start` unless the run is `stopping`, once for the issue or a whole split/,
+    /runs `npx -y next-issue@latest start` once for the issue or a whole split, after the last ready label, also when `labels\.ready` is empty\. When the run is stopping, `start` fails with `the run is stopping`, so the issue waits for the next run, and the skill does not retry it/,
   );
   assert.match(
     behaviour,
-    /gives you the issue url, or each url of a split, and the outcome of `start`, or that the run is stopping, in one line/,
+    /gives you the issue url, or each url of a split, and the outcome of `start`, such as `the run is stopping`, in one line/,
   );
 });
 
