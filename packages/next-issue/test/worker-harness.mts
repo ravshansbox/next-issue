@@ -16,14 +16,17 @@ export type Client = {
   next: (match: (value: WorkerMessage) => boolean) => Promise<WorkerMessage>;
   closed: Promise<void>;
   close: () => Promise<void>;
+  pause: () => void;
+  resume: () => void;
 };
 
 const nextTimeoutMs = 30_000;
 
 export async function connect(t: TestContext, socketPath: string): Promise<Client> {
   // A `ws+unix://` URL would percent-encode the path and cut it at `#`, `?` and `:`.
+  const stream = createConnection(socketPath);
   const socket = new WebSocket('ws://localhost/', {
-    createConnection: () => createConnection(socketPath),
+    createConnection: () => stream,
   });
   const seen: WorkerMessage[] = [];
   const waiters: (() => void)[] = [];
@@ -80,6 +83,8 @@ export async function connect(t: TestContext, socketPath: string): Promise<Clien
       socket.close();
       return closed;
     },
+    pause: () => stream.pause(),
+    resume: () => stream.resume(),
   };
 }
 

@@ -1650,3 +1650,66 @@ test('a client that starts a resumed run gets its end, and the worker then close
   );
   await started.closed;
 });
+
+async function stalledWorker(
+  t: TestContext,
+  limits: { endSendMs?: number; maxBufferedBytes?: number },
+) {
+  t.mock.method(process.stderr, 'write', () => true);
+  const fake = fakeRuns();
+  const dir = await tempDir();
+  const socketPath = join(dir, 'w.sock');
+  const started = await startWorker({
+    root: '/repo',
+    socketPath,
+    lockPath: join(dir, 'w.lock'),
+    version: '2.0.0',
+    runRepo: fake.runRepo,
+    ...limits,
+  });
+  assert.ok(started);
+  t.after(() => started.close());
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo' });
+  await client.next((value) => runsOf(value) && value.runs['/repo']?.status === 'running');
+  return { fake, dir, started, client };
+}
+
+const outputLine = `${'x'.repeat(1023)}\n`;
+
+test('a worker whose run ends while a client stops reading exits and removes its socket and lock within the end time limit', async (t) => {
+  const { fake, dir, started, client } = await stalledWorker(t, { endSendMs: 200 });
+  client.pause();
+  for (let count = 0; count < 2048; count += 1) {
+    fake.controls().output!(outputLine);
+  }
+  const ended = Date.now();
+  fake.finish(0);
+  await started.closed;
+  assert.ok(Date.now() - ended < 2_000);
+  assert.deepEqual(await readdir(dir), []);
+});
+
+test('a worker disconnects a client that stops reading once its output buffer passes the limit, while another client keeps getting the output', async (t) => {
+  const {
+    fake,
+    dir,
+    client: stalled,
+  } = await stalledWorker(t, {
+    maxBufferedBytes: 64 * 1024,
+  });
+  const reading = await connect(t, join(dir, 'w.sock'));
+  stalled.pause();
+  for (let count = 0; count < 1024; count += 1) {
+    fake.controls().output!(outputLine);
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  fake.controls().output!('last line\n');
+  await reading.next((value) => value.type === 'output' && value.text === 'last line\n');
+  stalled.resume();
+  await stalled.closed;
+  await assert.rejects(
+    stalled.next((value) => value.type === 'output' && value.text === 'last line\n'),
+    /the connection closed/,
+  );
+});

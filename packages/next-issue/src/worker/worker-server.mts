@@ -52,23 +52,46 @@ export function send(socket: Peer, value: WorkerMessage): void {
   socket.send(JSON.stringify(value));
 }
 
-export function broadcast(sockets: WebSocketServer, runs: Map<string, Run>): void {
-  sendAll(sockets, runsMessage(runs));
+export function broadcast(
+  sockets: WebSocketServer,
+  runs: Map<string, Run>,
+  maxBufferedBytes: number,
+): void {
+  sendAll(sockets, runsMessage(runs), maxBufferedBytes);
 }
 
-export function sendAll(sockets: WebSocketServer, value: WorkerMessage): void {
+export function sendAll(
+  sockets: WebSocketServer,
+  value: WorkerMessage,
+  maxBufferedBytes: number,
+): void {
   for (const socket of sockets.clients) {
     send(socket, value);
+    if (socket.bufferedAmount > maxBufferedBytes) {
+      socket.terminate();
+    }
   }
 }
 
-export async function sendAllSent(sockets: WebSocketServer, value: WorkerMessage): Promise<void> {
+export async function sendAllSent(
+  sockets: WebSocketServer,
+  value: WorkerMessage,
+  limitMs: number,
+): Promise<void> {
   const text = JSON.stringify(value);
-  await Promise.all(
-    [...sockets.clients].map(
-      (socket) => new Promise<void>((resolve) => socket.send(text, () => resolve())),
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, limitMs);
+  });
+  await Promise.race([
+    Promise.all(
+      [...sockets.clients].map(
+        (socket) => new Promise<void>((resolve) => socket.send(text, () => resolve())),
+      ),
     ),
-  );
+    late,
+  ]);
+  clearTimeout(timer);
 }
 
 export function listen(server: Server, path: string): Promise<void> {

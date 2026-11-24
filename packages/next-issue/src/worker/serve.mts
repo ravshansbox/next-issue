@@ -61,12 +61,16 @@ type WorkerOptions = {
   runRepo: RunRepo;
   lockWaitMs?: number;
   idleMs?: number;
+  endSendMs?: number;
+  maxBufferedBytes?: number;
   registry?: string;
   successorLaunch?: (version: string) => Launch;
 };
 
 const LOCK_WAIT_MS = 5_000;
 const IDLE_MS = 30_000;
+const END_SEND_MS = 5_000;
+const MAX_BUFFERED_BYTES = 8 * 1024 * 1024;
 
 export async function startWorker(options: WorkerOptions): Promise<Worker | undefined> {
   checkSocketPath(options.socketPath);
@@ -88,6 +92,8 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
 
   const server = createServer();
   const sockets = new WebSocketServer({ server });
+  const maxBufferedBytes = options.maxBufferedBytes ?? MAX_BUFFERED_BYTES;
+  const endSendMs = options.endSendMs ?? END_SEND_MS;
   const busy = (): boolean => [...runs.values()].some(active);
 
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -101,7 +107,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       const reason = `the worker could not start next-issue ${restart}: ${message(error)}`;
       process.stderr.write(`${reason}\n`);
       run.progress = { ...run.progress, status: 'failed', error: reason };
-      broadcast(sockets, runs);
+      broadcast(sockets, runs, maxBufferedBytes);
     }
     await shutdown(server, sockets, owned, listening);
   };
@@ -132,7 +138,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       ...(successor === undefined ? {} : { resumes: true }),
     };
     if (requestUpgrade(run, upgrade, everyRun)) {
-      broadcast(sockets, runs);
+      broadcast(sockets, runs, maxBufferedBytes);
     }
   };
 
@@ -159,7 +165,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       refuse(refusal);
       return;
     }
-    broadcast(sockets, runs);
+    broadcast(sockets, runs, maxBufferedBytes);
     upgradeBetweenIssues(run);
     send(socket, runsMessage(runs, id));
   };
@@ -195,20 +201,21 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     runs.set(root, run);
     const update = (next: Progress): void => {
       run.progress = next;
-      broadcast(sockets, runs);
+      broadcast(sockets, runs, maxBufferedBytes);
     };
-    broadcast(sockets, runs);
+    broadcast(sockets, runs, maxBufferedBytes);
     let summary: RunSummary | undefined;
     withRunChildren(run.children, () =>
       options.runRepo(root, args, {
         ...runControls(run, update),
         beforeClaim: () => upgradeToLatest(run),
         print: args.watch
-          ? async (pass) => sendAll(sockets, { type: 'pass', root, summary: pass })
+          ? async (pass) =>
+              sendAll(sockets, { type: 'pass', root, summary: pass }, maxBufferedBytes)
           : undefined,
         output: (text) => {
           process.stderr.write(text);
-          sendAll(sockets, { type: 'output', root, text });
+          sendAll(sockets, { type: 'output', root, text }, maxBufferedBytes);
         },
         ended: (ended) => {
           summary = ended;
@@ -221,17 +228,25 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       .then(
         (code) => {
           update({ ...run.progress, status: endStatus(run) });
-          return sendAllSent(sockets, {
-            type: 'end',
-            root,
-            code,
-            ...(summary === undefined ? {} : { summary }),
-          });
+          return sendAllSent(
+            sockets,
+            {
+              type: 'end',
+              root,
+              code,
+              ...(summary === undefined ? {} : { summary }),
+            },
+            endSendMs,
+          );
         },
         (error: unknown) => {
           process.stderr.write(`${message(error)}\n`);
           update({ ...run.progress, status: 'failed', error: message(error) });
-          return sendAllSent(sockets, { type: 'end', root, code: 1, error: message(error) });
+          return sendAllSent(
+            sockets,
+            { type: 'end', root, code: 1, error: message(error) },
+            endSendMs,
+          );
         },
       )
       .finally(() => void close());
@@ -250,7 +265,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     }
     const dropped = dropUpgrade(run);
     if (requestStop(run, point) || dropped) {
-      broadcast(sockets, runs);
+      broadcast(sockets, runs, maxBufferedBytes);
     }
   };
 
@@ -267,7 +282,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       return;
     }
     set(run!, on);
-    broadcast(sockets, runs);
+    broadcast(sockets, runs, maxBufferedBytes);
     upgradeBetweenIssues(run!);
   };
 
