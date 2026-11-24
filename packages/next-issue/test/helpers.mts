@@ -75,7 +75,7 @@ export async function linkedWorktree(root: string): Promise<string> {
     ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'first'],
     { cwd: root },
   );
-  const linked = join(root, '.worktrees', '42');
+  const linked = `${root}-42`;
   await must('git', ['worktree', 'add', '-q', '-b', '42', linked], { cwd: root });
   return linked;
 }

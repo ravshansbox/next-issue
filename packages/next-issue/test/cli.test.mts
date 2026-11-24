@@ -86,7 +86,7 @@ test('a user who runs init in a linked worktree gets the entries in the shared i
   assert.equal(await exists(join(linked, '.next-issue')), false);
 });
 
-test('a user who runs init sees .next-issue/ and .worktrees/ removed from .gitignore and other lines, .claude/worktrees/ included, kept', async () => {
+test('a user who runs init sees .next-issue/ removed from .gitignore and other lines, .worktrees/ and .claude/worktrees/ included, kept', async () => {
   const root = await repository();
   await writeFile(
     join(root, '.gitignore'),
@@ -95,25 +95,85 @@ test('a user who runs init sees .next-issue/ and .worktrees/ removed from .gitig
   await initCommand(root);
   assert.equal(
     await readFile(join(root, '.gitignore'), 'utf8'),
-    'node_modules/\n  dist/\n.claude/worktrees/\n',
+    'node_modules/\n  dist/\n.worktrees/\n.claude/worktrees/\n',
   );
 });
 
-test('a user who runs init keeps one old .worktrees/ line in info/exclude and sees it removed from .gitignore', async () => {
+test('a user who runs init sees a .gitignore deleted when only .next-issue/ was in it', async () => {
   const root = await repository();
-  await appendFile(join(root, '.git/info/exclude'), '.worktrees/\n');
-  await writeFile(join(root, '.gitignore'), 'node_modules/\n.worktrees/\n');
-  await initCommand(root);
-  const exclude = await readFile(join(root, '.git/info/exclude'), 'utf8');
-  assert.equal(exclude.split('\n').filter((line) => line === '.worktrees/').length, 1);
-  assert.equal(await readFile(join(root, '.gitignore'), 'utf8'), 'node_modules/\n');
-});
-
-test('a user who runs init sees a .gitignore deleted when only next-issue entries were in it', async () => {
-  const root = await repository();
-  await writeFile(join(root, '.gitignore'), '.next-issue/\n.worktrees/\n');
+  await writeFile(join(root, '.gitignore'), '.next-issue/\n');
   await initCommand(root);
   assert.equal(await exists(join(root, '.gitignore')), false);
+});
+
+async function oldWorktrees(): Promise<{
+  root: string;
+  hunt: string;
+  issue: string;
+  head: string;
+}> {
+  const root = await repository();
+  await must('git', ['config', 'user.name', 't'], { cwd: root });
+  await must('git', ['config', 'user.email', 't@t'], { cwd: root });
+  await must('git', ['commit', '-q', '--allow-empty', '-m', 'first'], { cwd: root });
+  const hunt = join(root, '.worktrees', 'hunt');
+  await must('git', ['worktree', 'add', '-q', '--detach', hunt], { cwd: root });
+  const issue = join(root, '.worktrees', '7');
+  await must('git', ['worktree', 'add', '-q', '-b', '7', issue], { cwd: root });
+  await writeFile(join(issue, 'work.txt'), 'unsaved\n');
+  const head = await must('git', ['rev-parse', '7'], { cwd: root });
+  return { root, hunt, issue, head };
+}
+
+async function assertOldWorktreesRemoved(
+  { root, hunt, issue, head }: Awaited<ReturnType<typeof oldWorktrees>>,
+  output: string,
+): Promise<void> {
+  for (const path of [hunt, issue, join(root, '.worktrees')]) {
+    assert.match(output, new RegExp(`^removed ${path}$`, 'm'));
+  }
+  assert.equal(await exists(join(root, '.worktrees')), false);
+  assert.doesNotMatch(await must('git', ['worktree', 'list'], { cwd: root }), /\.worktrees/);
+  assert.equal(await must('git', ['rev-parse', '7'], { cwd: root }), head);
+  const kept = await must(
+    'git',
+    ['branch', '--list', '7-detached-*', '--format=%(refname:short)'],
+    {
+      cwd: root,
+    },
+  );
+  assert.match(kept, /^7-detached-[0-9a-f]{7}$/);
+  assert.equal(await must('git', ['show', `${kept}:work.txt`], { cwd: root }), 'unsaved');
+}
+
+test('a user with old worktrees in .worktrees/hunt and .worktrees/7 who runs init sees each path and the folder named as removed, the uncommitted files of 7 on a 7-detached-<sha> branch and branch 7 kept', async () => {
+  const old = await oldWorktrees();
+  const { stdout } = await initCommand(old.root);
+  await assertOldWorktreesRemoved(old, stdout);
+});
+
+test('a user with a locked old worktree in .worktrees/7 who runs init sees it named as kept with the reason, its files and the folder kept, and the other old worktree removed', async () => {
+  const { root, hunt, issue } = await oldWorktrees();
+  await must('git', ['worktree', 'lock', issue], { cwd: root });
+  const { stdout } = await initCommand(root);
+  assert.match(stdout, new RegExp(`^removed ${hunt}$`, 'm'));
+  assert.match(stdout, new RegExp(`^could not remove ${issue}: .*locked`, 'm'));
+  assert.doesNotMatch(stdout, new RegExp(`^removed ${join(root, '.worktrees')}$`, 'm'));
+  assert.equal(await readFile(join(issue, 'work.txt'), 'utf8'), 'unsaved\n');
+  assert.match(await must('git', ['worktree', 'list'], { cwd: root }), /\.worktrees\/7/);
+});
+
+test('a user with no .worktrees/ folder who runs init sees nothing removed', async () => {
+  const root = await repository();
+  const { stdout } = await initCommand(root);
+  assert.doesNotMatch(stdout, /^removed /m);
+});
+
+test('a user with old worktrees in .worktrees/ who starts the worker sees each path and the folder named as removed and the uncommitted files kept on a branch', async (t) => {
+  const old = await oldWorktrees();
+  const { child, stderr } = await serveWorker(old.root);
+  t.after(() => child.kill('SIGKILL'));
+  await assertOldWorktreesRemoved(old, stderr());
 });
 
 test('a user who runs init outside a git repository gets an error, a non-zero exit code and no file', async () => {

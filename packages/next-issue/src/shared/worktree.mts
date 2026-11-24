@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
-import { realpath } from 'node:fs/promises';
-import { join } from 'node:path';
+import { realpath, rm } from 'node:fs/promises';
+import { basename, join, sep } from 'node:path';
+import { message } from './errors.mts';
 import { commitAll } from './git-commit.mts';
 import {
   currentBranch,
@@ -126,10 +127,46 @@ export async function findWorktree(repo: Repo, branch: string): Promise<string |
 }
 
 async function isOwn(repo: Repo, branch: string, path: string): Promise<boolean> {
-  return (
-    (await samePath(path, join(repo.root, WORKTREE_DIR, `next-issue-${branch}`))) ||
-    (await samePath(path, join(repo.root, '.worktrees', branch)))
-  );
+  return samePath(path, join(repo.root, WORKTREE_DIR, `next-issue-${branch}`));
+}
+
+type OldWorktrees = { removed: string[]; kept: { path: string; reason: string }[] };
+
+/** Removes the worktrees of older versions in `.worktrees/`, keeping uncommitted files on a `<n>-detached-<sha>` branch, then the folder unless a worktree could not be removed. */
+export async function removeOldWorktrees(root: string): Promise<OldWorktrees> {
+  const folder = join(root, '.worktrees');
+  if (!existsSync(folder)) {
+    return { removed: [], kept: [] };
+  }
+  await git(root, ['worktree', 'prune']);
+  const inside = `${await realpath(folder)}${sep}`;
+  const removed: string[] = [];
+  const kept: OldWorktrees['kept'] = [];
+  for (const path of await worktreePaths(root)) {
+    if ((await realpath(path).catch(() => path)).startsWith(inside)) {
+      try {
+        await git(path, ['checkout', '--detach']);
+        await keepDetachedEdits(path, basename(path));
+        await git(root, ['worktree', 'remove', '--force', path]);
+        removed.push(path);
+      } catch (error) {
+        kept.push({ path, reason: message(error) });
+      }
+    }
+  }
+  if (kept.length > 0) {
+    return { removed, kept };
+  }
+  await rm(folder, { recursive: true, force: true });
+  return { removed: [...removed, folder], kept };
+}
+
+async function worktreePaths(root: string): Promise<string[]> {
+  const list = await git(root, ['worktree', 'list', '--porcelain']);
+  return list
+    .split('\n')
+    .filter((line) => line.startsWith('worktree '))
+    .map((line) => line.slice('worktree '.length));
 }
 
 async function refuseOwnWorktree(
