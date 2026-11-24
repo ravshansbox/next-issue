@@ -4,19 +4,21 @@ function lastMatch(text: string, pattern: RegExp): string | undefined {
 
 const PLACEHOLDERS = new Set(['', 'none', 'n/a', '-']);
 
-export function parseUnrelated(text: string): string | undefined {
-  const note = lastMatch(text, /^unrelated:[^\S\r\n]*(.+)$/gim);
+function parseTagged(text: string, tag: string): string | undefined {
+  const note = lastMatch(text, new RegExp(`^${tag}:[^\\S\\r\\n]*(.+)$`, 'gim'));
   return note === undefined || PLACEHOLDERS.has(note.toLowerCase()) ? undefined : note;
+}
+
+export function parseUnrelated(text: string): string | undefined {
+  return parseTagged(text, 'unrelated');
 }
 
 export function parseResolved(text: string): string | undefined {
-  const note = lastMatch(text, /^resolved:[^\S\r\n]*(.+)$/gim);
-  return note === undefined || PLACEHOLDERS.has(note.toLowerCase()) ? undefined : note;
+  return parseTagged(text, 'resolved');
 }
 
 export function parseDone(text: string): string | undefined {
-  const note = lastMatch(text, /^done:[^\S\r\n]*(.+)$/gim);
-  return note === undefined || PLACEHOLDERS.has(note.toLowerCase()) ? undefined : note;
+  return parseTagged(text, 'done');
 }
 
 export function parseQuestions(text: string): string[] {
