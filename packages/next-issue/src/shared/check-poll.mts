@@ -1,7 +1,7 @@
 import type { Config } from './config.mts';
 import { refuseWhenStopped } from './children.mts';
 import { minutesToMs, secondsToMs } from './durations.mts';
-import { asError } from './errors.mts';
+import { asError, errorMatches } from './errors.mts';
 import { type Clock, type Polling, pause, REAL_CLOCK } from './poll.mts';
 
 export type CheckState =
@@ -10,11 +10,14 @@ export type CheckState =
   | 'pending'
   | 'none'
   | 'timeout'
+  | 'limited'
   | 'moved'
   | 'cancelled'
   | 'cut';
 
 const READ_TRIES = 3;
+const RATE_LIMIT = /rate limit|HTTP 429/i;
+const RATE_LIMIT_WAIT_MS = 60_000;
 
 export type ChecksProbe = {
   head: () => Promise<string>;
@@ -55,12 +58,20 @@ export async function pollChecks(
   for (;;) {
     refuseWhenStopped();
     if (rest() === 0) {
+      if (errorMatches(last, RATE_LIMIT)) {
+        return 'limited';
+      }
       return last === 'pass' || last === 'none' ? last : 'timeout';
     }
     const state = await read(probe, options.head, rest(), () => (shown ??= clock.now()));
     last = state;
     if (state === 'behind' && shown !== undefined) {
       return 'moved';
+    }
+    if (errorMatches(state, RATE_LIMIT)) {
+      failures = 0;
+      await clock.sleep(Math.min(RATE_LIMIT_WAIT_MS, rest()));
+      continue;
     }
     if (state instanceof Error) {
       failures += 1;

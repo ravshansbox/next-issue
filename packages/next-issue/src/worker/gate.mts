@@ -49,6 +49,13 @@ export async function checkGate(job: Run, sha: string): Promise<Gate> {
       'main checks cut short',
     );
   }
+  if (checks === 'limited') {
+    return escalateAndFinish(
+      job,
+      `GitHub refused to read the checks on ${base} with a rate limit until \`checkTimeoutMinutes\` ran out, so nobody knows whether they passed. Another user of the same token may have used up its rate limit. ${HALT_NOTE}`,
+      'main checks timeout',
+    );
+  }
   if (checks !== 'fail') {
     return escalateAndFinish(
       job,

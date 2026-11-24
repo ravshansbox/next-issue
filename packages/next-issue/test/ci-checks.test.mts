@@ -670,6 +670,67 @@ for (const [checks, state] of [
   });
 }
 
+async function failingReads(
+  t: TestContext,
+  config: Partial<Config>,
+  failures: number,
+  error: string,
+) {
+  const target = await harness(t, { config });
+  const time = fakeClock();
+  let reads = 0;
+  target.context.ports.waitForCiChecks = (_repo, _sha, _branch, options) =>
+    pollChecks(
+      {
+        head: async () => '2',
+        lags: async () => true,
+        list: async () => {
+          reads += 1;
+          if (reads <= failures) {
+            throw new Error(error);
+          }
+          return 'some';
+        },
+        watch: async () => 'pass',
+      },
+      options,
+      time,
+    );
+  return { target, time };
+}
+
+const RATE_LIMIT = 'gh: API rate limit exceeded for user ID 1. (HTTP 403)';
+
+test('a user whose read of the checks on main hits a rate limit five times and then passes gets the issue closed and done after a minute between reads', async (t) => {
+  const { target, time } = await failingReads(t, {}, 5, RATE_LIMIT);
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(target.closed, [7]);
+  assert.equal(time.time, 300_000);
+});
+
+test('a user whose read of the checks on main hits a rate limit past the check timeout gets the issue handed over with the timeout reason and a comment that names the rate limit', async (t) => {
+  const { target, time } = await failingReads(t, { checkTimeoutMinutes: 2 }, Infinity, RATE_LIMIT);
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'main checks timeout');
+  assert.equal(report.halt, true);
+  assert.equal(time.time, 120_000);
+  assert.match(
+    target.comments.at(-1)!,
+    /GitHub refused to read the checks on main with a rate limit/,
+  );
+});
+
+test('a user whose read of the checks on main fails three times in a row with another error gets the issue handed over with checks error', async (t) => {
+  const { target, time } = await failingReads(t, {}, 3, 'gh: could not resolve host');
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(report.reason, 'checks error');
+  assert.equal(report.halt, true);
+  assert.equal(time.time, 30_000);
+});
+
 type RerunPlan = {
   before?: unknown[][];
   runs: unknown[];
