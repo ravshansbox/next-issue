@@ -25,7 +25,10 @@ export function landApproved(job: Run): Promise<Finished> {
 export function resumeLanding(job: Run, sha: string): Promise<Finished> {
   return inLandingLock(job, async () => {
     const { state, context } = job;
-    if (await beforeBaseSettled(state, context.base, () => holdsUnlandedFix(job, sha))) {
+    if (
+      !job.handedOver &&
+      (await beforeBaseSettled(state, context.base, () => holdsUnlandedFix(job, sha)))
+    ) {
       return unblocked(job, () => {
         job.mainBroken = true;
         job.repairing = true;
@@ -37,7 +40,18 @@ export function resumeLanding(job: Run, sha: string): Promise<Finished> {
     if (gate.done) {
       return gate;
     }
-    return gate.fixed ? unblocked(job, () => landLoop(job)) : finishDone(job);
+    if (gate.fixed) {
+      return unblocked(job, () => landLoop(job));
+    }
+    if (
+      job.handedOver &&
+      (await beforeBaseSettled(state, context.base, () => holdsUnlandedFix(job, sha)))
+    ) {
+      // The landed commit passed its checks, so a later revert must leave it on the base.
+      state.landed = undefined;
+      return unblocked(job, () => landLoop(job));
+    }
+    return finishDone(job);
   });
 }
 

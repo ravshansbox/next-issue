@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import type { CheckState } from '../src/shared/check-poll.mts';
 import { stateDir } from '../src/shared/state.mts';
 import { changes, harness, ISSUE, roles, SAVED } from './harness.mts';
 
@@ -104,6 +105,47 @@ test('a user who resumes a run that died after the fix of main was committed get
     target.comments.at(-1)!,
     /failed 3 times\. The last error of git:\n\n```\n.+\n```\n The harness reverted the change on main\./,
   );
+});
+
+test('a person who adds a commit to a handed-over issue whose landed change passes its checks gets those checks read first and the commit landed without a revert', async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: [] },
+    saved: { ...HANDED_OVER, halted: true, landed: ['-1'] },
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(target.reverts, []);
+  assert.deepEqual(roles(target), []);
+  assert.deepEqual(target.landed, ['1']);
+  assert.deepEqual(target.baseWaits, ['-1', '1']);
+  assert.deepEqual(target.closed, [7]);
+});
+
+test('a person who adds a commit to a handed-over issue whose landed change passes its checks gets only their own commit reverted when its checks keep failing', async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: [] },
+    saved: { ...HANDED_OVER, halted: true, landed: ['-1'] },
+    baseChecks: ['pass', ...Array<CheckState>(20).fill('fail')],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'needs-human');
+  assert.equal(target.reverts.length, 1);
+  assert.equal(target.reverts[0]?.shas.includes('-1'), false);
+  assert.equal(target.reverts[0]?.shas[0], '1');
+});
+
+test('a person who adds a commit to a handed-over issue whose landed change fails its checks gets the fixer run on that commit and the fix landed', async (t) => {
+  const target = await harness(t, {
+    issue: { ...ISSUE, labels: [] },
+    saved: { ...HANDED_OVER, halted: true, landed: ['-1'] },
+    baseChecks: ['fail', 'pass'],
+  });
+  const report = await target.run();
+  assert.equal(report.outcome, 'done');
+  assert.deepEqual(target.reverts, []);
+  assert.deepEqual(roles(target), ['fixer']);
+  assert.equal(target.baseWaits[0], '-1');
+  assert.equal(target.landed.length, 1);
 });
 
 test('a user who takes the needs-human label off a handed-over approved change gets it reviewed again', async (t) => {

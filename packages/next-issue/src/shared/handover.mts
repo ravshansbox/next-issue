@@ -86,6 +86,7 @@ export async function finishClosing(
     started,
     mainBroken: false,
     repairing: false,
+    handedOver: false,
     asides: [],
   };
   return (await finishDone(job)).report;

@@ -49,6 +49,8 @@ export type Run = {
   started: number;
   mainBroken: boolean;
   repairing: boolean;
+  /** The run resumed the issue after a hand-over, so a commit on the branch may come from a person rather than a fix. */
+  handedOver: boolean;
   /** The dispute branches that hold the edits a fixer left behind in this run. */
   asides: string[];
   /** The `concurrency` slot of the issue, freed while it lands; absent when nothing limits the agents. */
