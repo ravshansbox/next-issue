@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { message, parseJson } from './errors.mts';
@@ -94,21 +95,24 @@ function listed(names: string[]): string {
 
 const WHY = `next-issue runs ${listed(SCRIPTS)} before each push, since the humanless flow relies on these checks instead of a person. Each script must fail on a problem, and \`format\` must check the formatting, not write files.`;
 
-const BASE_CHECK_REF = 'refs/next-issue/base';
-
 export type BasePackage = { base: string; text: string | undefined };
 
-/** Fetches the base branch from the remote into a ref of its own, so a fetch or push of the worker never clashes with it, and reads the `package.json` at its root. */
+/** Fetches the base branch from the remote into a ref of its own for this call, so a fetch in another process (another `start`, or the worker) never clashes with it, reads the `package.json` at its root and then removes the ref. */
 export async function basePackage(repo: Repo, remote: string): Promise<BasePackage> {
   const branch = await defaultBranch(repo);
-  await gitFetch(repo.root, [
-    '--no-write-fetch-head',
-    '--refmap=',
-    remote,
-    `+refs/heads/${branch}:${BASE_CHECK_REF}`,
-  ]);
-  const result = await run('git', ['show', `${BASE_CHECK_REF}:package.json`], { cwd: repo.root });
-  return { base: remoteRef(remote, branch), text: succeeded(result) ? result.stdout : undefined };
+  const ref = `refs/next-issue/base-${randomUUID()}`;
+  try {
+    await gitFetch(repo.root, [
+      '--no-write-fetch-head',
+      '--refmap=',
+      remote,
+      `+refs/heads/${branch}:${ref}`,
+    ]);
+    const result = await run('git', ['show', `${ref}:package.json`], { cwd: repo.root });
+    return { base: remoteRef(remote, branch), text: succeeded(result) ? result.stdout : undefined };
+  } finally {
+    await run('git', ['update-ref', '-d', ref], { cwd: repo.root });
+  }
 }
 
 /** Fails when the `package.json` of the base is missing or lacks any of the scripts of the local gate. */
