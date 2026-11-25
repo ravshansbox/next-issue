@@ -319,6 +319,58 @@ test('a user whose fixer calls a failure unrelated when the failed logs name a f
   );
 });
 
+for (const [changed, where, baseLogs] of [
+  ['package.json', 'alone', 'npm error JSON.parse package.json: Unexpected token'],
+  ['package.json', 'after ./', 'npm error JSON.parse ./package.json: Unexpected token'],
+  [
+    'package.json',
+    'by the checkout path',
+    'npm error JSON.parse /home/runner/work/tool/tool/package.json',
+  ],
+  [
+    'package.json',
+    'by the checkout path in another case',
+    'npm error JSON.parse /home/runner/work/Tool/Tool/package.json',
+  ],
+  ['src/index.ts', 'after ./', 'not ok 3 - ./src/index.ts:3:5'],
+]) {
+  test(`a user whose fixer calls a failure unrelated when the failed logs name the changed ${changed} ${where} gets the claim refused and another fix round`, async (t) => {
+    const target = await harness(t, {
+      baseChecks: ['fail', 'pass'],
+      baseLogs,
+      changedFiles: [changed],
+      fixerText: ['unrelated: npm is flaky', 'Done.\ncommit: fix: repair the manifest'],
+    });
+    const report = await target.run();
+    assert.equal(report.outcome, 'done');
+    assert.equal(report.ciFixes, 2);
+    assert.match(
+      target.prompts[3]!.prompt,
+      new RegExp(
+        `the failed logs name a file of this change, so the failure is not unrelated:\\n\`\`\`untrusted\\n${changed.replaceAll('.', '\\.')}\\n\`\`\``,
+      ),
+    );
+  });
+}
+
+for (const [changed, baseLogs] of [
+  ['package.json', 'error in /home/runner/work/tool/tool/node_modules/left-pad/package.json'],
+  ['src/index.ts', 'not ok 3 - packages/other/src/index.ts:12:5'],
+]) {
+  test(`a user whose fixer calls a failure unrelated when the failed logs name ${changed} only inside another folder gets the change reverted and the issue handed over`, async (t) => {
+    const target = await harness(t, {
+      baseChecks: ['fail'],
+      baseLogs,
+      changedFiles: [changed],
+      fixerText: 'unrelated: the failure is in another package',
+    });
+    const report = await target.run();
+    assert.equal(report.reason, 'unrelated failure');
+    assert.equal(report.ciFixes, 1);
+    assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer']);
+  });
+}
+
 test('a user whose fixer calls a failure unrelated and whose read of the changed files then fails gets the change reverted and the issue handed over', async (t) => {
   const target = await harness(t, {
     baseChecks: ['fail'],

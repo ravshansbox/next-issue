@@ -193,7 +193,7 @@ async function failedChecksFix(job: Run, sha: string, refused?: string): Promise
     } catch (error) {
       return escalateError(job, error, 'The read of the files of the change failed', 'files error');
     }
-    const named = namedFile(logs, files);
+    const named = namedFile(logs, files, repo.name);
     if (named !== undefined) {
       log.event('fix.refused', { file: named });
       return failedChecksFix(job, sha, named);
@@ -213,8 +213,10 @@ function refusedNote(refused: string | undefined): string {
     : ` The last fixer called the failure unrelated, but the failed logs name a file of this change, so the failure is not unrelated:\n${untrusted(refused)}`;
 }
 
-/** The first file of the change that the logs name, by its path or by a tail of its path that keeps a folder and has no folder before it. */
-function namedFile(logs: string, files: string[]): string | undefined {
+/** The first file of the change that the logs name, by its path (also after `./` or the GitHub Actions checkout folder `<repo>/<repo>/`, in any case) or by a tail of its path that keeps a folder; no folder may come before either. */
+function namedFile(logs: string, files: string[], repo: string): string | undefined {
+  const name = `(?i:${escapeRegExp(repo)})`;
+  const prefixes = `|(?<=(?<![\\w./-])\\./)|(?<=/${name}/${name}/)`;
   return files.find((file) => {
     const parts = file.split('/');
     const tails =
@@ -222,9 +224,9 @@ function namedFile(logs: string, files: string[]): string | undefined {
         ? [file]
         : parts.slice(0, -1).map((_, index) => parts.slice(index).join('/'));
     return tails.some((tail) =>
-      new RegExp(`(?<![\\w.${tail === file ? '' : '/'}-])${escapeRegExp(tail)}(?![\\w.-])`).test(
-        logs,
-      ),
+      new RegExp(
+        `(?:(?<![\\w./-])${tail === file ? prefixes : ''})${escapeRegExp(tail)}(?![\\w.-])`,
+      ).test(logs),
     );
   });
 }
