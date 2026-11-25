@@ -11,13 +11,13 @@ Run any next-issue command as `npx -y next-issue@latest <command>`. Never run it
 
 1. Find the repository, `<repo>`, that the worker reads. `<remote>` is the value of `remote` in `.next-issue/config.json` at the root of the repository. When there is no config file or no `remote` field, `<remote>` is `origin`. Run `git remote get-url <remote>` and take `<owner>/<name>` from the url, without `.git`. That is `<repo>`. When the host of the url is not `github.com`, `<repo>` is `<host>/<owner>/<name>`, so gh acts on that host. For an ssh url, such as `git@<host>:<owner>/<name>.git`, run `ssh -G <host>` and take the host from its `hostname` line, since `<host>` may be an alias from the ssh config. The host `ssh.github.com` means `github.com` (GitHub's ssh over port 443), so `<repo>` is then `<owner>/<name>`. Pass `--repo <repo>` to every `gh` command but `gh api`, since gh otherwise may pick another remote, such as `upstream`.
 2. Find the labels. `<needs-human>` is the value of `labels.needsHuman` in `.next-issue/config.json`, or `status:needs-human` when it is not set or there is no config file. `<skip>` is the value of `labels.skip` in `.next-issue/config.json`, or `status:blocked` when it is not set or there is no config file. `<ready>` is the value of `labels.ready` in `.next-issue/config.json`, or `status:todo` when it is not set or there is no config file. When `labels.ready` is `""`, leave out `--add-label "<ready>"` below, since the worker then claims every open issue.
-3. List the waiting issues:
+3. List the waiting issues, oldest first:
 
    ```bash
-   gh issue list --repo <repo> --state open --label "<needs-human>" --json number,title,url
+   gh issue list --repo <repo> --state open --label "<needs-human>" --search "sort:created-asc" --json number,title,url
    ```
 
-   When the list is empty, say so and stop. When it holds one issue, pick it. Otherwise show the list and ask the user which one to answer, with lettered options and a recommendation.
+   When the list is empty, say so and stop. Otherwise show the list. Answer the waiting issues one by one, oldest first, without asking which one: for each issue, go through steps 4 to 10.
 
 4. Read the issue, then its comments. Only comments from users with write access to `<repo>` count, both for the hand-over comment and for an answer, so check who wrote each comment before you read any comment text. Read the issue without its comments:
 
@@ -100,4 +100,4 @@ Run any next-issue command as `npx -y next-issue@latest <command>`. Never run it
 
 10. After a retry, with or without guidance, tell the user what you did. Run no next-issue command and ask nothing about a run.
 
-11. Ask whether to answer another waiting issue. On yes, go back to step 3.
+11. When an issue is left in the list, go back to step 4 for the next one. After the last issue, stop.

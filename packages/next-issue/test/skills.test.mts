@@ -333,3 +333,19 @@ test('a person who reads the next-issue README learns that next-issue init insta
   assert.doesNotMatch(readme, /`update`|next-issue@latest update/);
   assert.doesNotMatch(readme, /refresh/);
 });
+
+test('an agent who finds several waiting issues answers them one by one, oldest first, without asking which one or whether to answer another', async () => {
+  const skill = await readFile(answerHandOver, 'utf8');
+  const behaviour = await readFile(behaviourFile, 'utf8');
+  assert.match(
+    skill,
+    /gh issue list --repo <repo> --state open --label "<needs-human>" --search "sort:created-asc" --json number,title,url/,
+  );
+  assert.match(skill, /Answer the waiting issues one by one, oldest first/);
+  assert.match(skill, /go through steps 4 to 10/);
+  assert.match(skill, /After the last issue, stop/);
+  assert.doesNotMatch(skill, /ask the user which one to answer/);
+  assert.doesNotMatch(skill, /answer another/);
+  assert.match(behaviour, /answers every waiting issue one by one, oldest first/);
+  assert.doesNotMatch(behaviour, /lets you pick one/);
+});

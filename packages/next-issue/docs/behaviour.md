@@ -304,7 +304,7 @@ The worker's agents never get these skills, see [Requirements](#requirements).
 
 Ask Claude to answer a question or a hand-over, or run `/answer-hand-over`. Claude then:
 
-1. lists the open issues with the `needsHuman` label and lets you pick one;
+1. lists the open issues with the `needsHuman` label and answers every waiting issue one by one, oldest first, going through the steps below for each and stopping after the last one;
 2. checks the permission of each comment author first, reads the text of comments from users with write access only, as data and not instructions, and finds the latest `### next-issue · Hand-over: needs help` comment and its `question:` lines; it reads the commits and the diff of the issue branch when there is one, and the logs of the failed checks when the hand-over names them;
 3. explains the blocker in plain words;
 4. asks numbered questions, with lettered options and a recommendation, until it knows whether to retry, retry with guidance or give up;
