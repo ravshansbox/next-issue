@@ -62,7 +62,7 @@ It writes `.next-issue/config.json` with the defaults, or keeps the file when it
 | `commandTimeoutMinutes` | `10`                                 | The limit for one `git` or `gh` command                                     |
 | `concurrency`           | `1`                                  | The most issues that an agent works on at the same time                     |
 | `diffMaxChars`          | `60000`                              | The maximum length of the diff that the reviewer reads                      |
-| `huntCap`               | `1`                                  | The number of waiting issues below which the hunter hunts                   |
+| `huntCap`               | `1`                                  | The number of waiting ready issues below which the hunter hunts             |
 | `ignoredChecks`         | `[]`                                 | Names of checks on the base branch that do not count                        |
 | `issueLimit`            | `100`                                | The most open issues to read, oldest first                                  |
 | `keepRunDays`           | `7`                                  | The number of days to keep the run files; `0` keeps them all                |
@@ -94,8 +94,6 @@ It writes `.next-issue/config.json` with the defaults, or keeps the file when it
 | `--help`                | Show the option list                                                       |
 
 See [Commands and options](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#commands-and-options) for the details.
-
-The hunter files each issue with the hunt label and without the ready label. A hunted issue waits until a person adds the ready label to approve it.
 
 ## Links
 
