@@ -219,6 +219,37 @@ test('a watching run stops after a pass that halts the run', async () => {
   assert.deepEqual(fake.passes, [[1]]);
 });
 
+test('a watching run stops after a halt that comes after a failed fetch of the open issues in the same pass, and claims no issue in a later pass', async () => {
+  const fake = watcher([
+    ['needs-human', 'done'],
+    ['done', 'done', 'done'],
+  ]);
+  const fetchFailed = deferred();
+  const issues = fake.issues;
+  let fetches = 0;
+  fake.issues = async () => {
+    fetches += 1;
+    if (fetches === 2) {
+      fetchFailed.resolve();
+      throw new Error('gh failed');
+    }
+    return issues();
+  };
+  const process = fake.process;
+  fake.process = async (target) => {
+    const ended = await process(target);
+    if (target.number !== 1) {
+      return ended;
+    }
+    await fetchFailed.promise;
+    return { ...ended, halt: true };
+  };
+  const result = await watchIssues({ ...fake, concurrency: 2 });
+  assert.deepEqual(fake.processed, [1, 2]);
+  assert.equal(result.stoppedAt, 1);
+  assert.deepEqual(fake.waits, []);
+});
+
 function deferred(): { promise: Promise<void>; resolve: () => void } {
   let resolve: () => void = () => undefined;
   const promise = new Promise<void>((done) => {

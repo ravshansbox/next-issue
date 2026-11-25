@@ -80,8 +80,8 @@ export async function runIssues(loop: Loop, seen = new Set<number>()): Promise<L
     if (report.outcome === 'done') {
       readmitBlocked(seen, tried);
     }
-    if (claiming && (loop.stop() || report.halt === true)) {
-      stoppedAt = issue;
+    if (report.halt === true || (claiming && loop.stop())) {
+      stoppedAt ??= issue;
       claiming = false;
       stopped = true;
     }
