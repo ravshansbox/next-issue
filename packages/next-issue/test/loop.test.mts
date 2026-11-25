@@ -378,3 +378,28 @@ test('a run whose check before a claim changes nothing claims each issue after i
   await runIssues(going);
   assert.deepEqual(order, ['check', 'claim 1', 'check', 'claim 2']);
 });
+
+test('a person who takes back a stop that the run saw while claiming gets the rest of the pass claimed', async () => {
+  const fake = loop({ 1: 'done', 2: 'done' });
+  fake.concurrency = 2;
+  let stop = false;
+  let asked = false;
+  fake.stop = () => stop;
+  fake.beforeClaim = async () => {
+    if (fake.processed.length === 1 && !asked) {
+      asked = true;
+      stop = true;
+    }
+  };
+  fake.process = async (target) => {
+    fake.processed.push(target.number);
+    if (target.number === 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      stop = false;
+    }
+    return report(target.number, 'done');
+  };
+  const result = await runIssues(fake);
+  assert.deepEqual(fake.processed, [1, 2]);
+  assert.equal(result.stoppedAt, undefined);
+});

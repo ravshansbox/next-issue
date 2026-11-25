@@ -47,6 +47,7 @@ export async function runIssues(loop: Loop, seen = new Set<number>()): Promise<L
       recount = false;
       try {
         ({ claiming, unclaimed } = await claimIssues(loop, seen, tried, { running, slots }));
+        stopped = !claiming;
       } catch (failure) {
         error = failure;
         claiming = false;

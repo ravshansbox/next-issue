@@ -113,7 +113,13 @@ export function fakeRuns(): Fake {
   };
 }
 
-export async function worker(t: TestContext, fake: Fake, version = '2.0.0', folder?: string) {
+export async function worker(
+  t: TestContext,
+  fake: Fake,
+  version = '2.0.0',
+  folder?: string,
+  registry?: string,
+) {
   const dir = folder === undefined ? await tempDir() : join(await tempDir(), folder);
   await mkdir(dir, { recursive: true });
   const paths = {
@@ -125,6 +131,7 @@ export async function worker(t: TestContext, fake: Fake, version = '2.0.0', fold
     ...paths,
     version,
     runRepo: fake.runRepo,
+    ...(registry === undefined ? {} : { registry }),
   });
   assert.ok(started);
   t.after(() => started.close());

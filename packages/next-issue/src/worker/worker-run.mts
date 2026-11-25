@@ -16,6 +16,7 @@ export type Run = {
   progress: Progress;
   stop?: StopPoint;
   stoppedByPerson?: boolean;
+  upgradeCancelled?: boolean;
   children: RunChildren;
   wake?: () => void;
   lookNow: AbortController;
@@ -121,7 +122,7 @@ export function stoppingMessage(root: string, run: Run, id?: string): WorkerMess
 export function requestUpgrade(run: Run, upgrade: Upgrade, everyRun = false): boolean {
   if (
     !active(run) ||
-    (!everyRun && !run.watching.on()) ||
+    (!run.watching.on() && (!everyRun || run.upgradeCancelled === true)) ||
     run.stoppedByPerson === true ||
     run.progress.upgrade !== undefined
   ) {
@@ -159,6 +160,7 @@ export function setWatching(run: Run, on: boolean): void {
   if (!on) {
     run.hunting.set(false);
     if (dropUpgrade(run)) {
+      run.upgradeCancelled = true;
       run.stop = undefined;
       run.progress = { ...run.progress, status: 'running' };
     }

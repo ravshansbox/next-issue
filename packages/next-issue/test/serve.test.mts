@@ -21,7 +21,7 @@ import { WebSocket } from 'ws';
 import { fullDisk } from './full-disk.mts';
 import { issue, report } from './loop-harness.mts';
 import { tempDir } from './temp-dir.mts';
-import { connect, fakeRuns, http, runsOf, worker } from './worker-harness.mts';
+import { connect, fakeRegistry, fakeRuns, http, runsOf, worker } from './worker-harness.mts';
 
 const SERVE = new URL('../src/worker/serve.mts', import.meta.url).href;
 
@@ -1290,6 +1290,53 @@ test('a person who turns watching off on a run that stops for an upgrade sees th
   await client.next(watchingIs(false));
   release();
   await client.next((value) => value.type === 'end');
+  assert.deepEqual(processed, [1, 2]);
+  await started.closed;
+});
+
+test('a person who turns watching off on a run that stops because npm serves a newer next-issue sees the run claim the rest of the pass and end finished with no upgrade', async (t) => {
+  const fake = fakeRuns();
+  const processed: number[] = [];
+  let release: () => void = () => undefined;
+  const first = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const runRepo = fake.runRepo;
+  fake.runRepo = (root, args, controls) => {
+    void runRepo(root, args, controls);
+    return runIssues({
+      issues: async () => [issue(1), issue(2)],
+      beforeClaim: async () => {
+        if (processed.length > 0) {
+          await controls.beforeClaim?.();
+        }
+      },
+      process: async (target) => {
+        processed.push(target.number);
+        if (target.number === 1) {
+          await first;
+        }
+        return report(target.number, 'done');
+      },
+      stop: controls.interrupts.afterIssue,
+      concurrency: 2,
+    }).then(() => 0);
+  };
+  const registry = await fakeRegistry(t, { version: '2.1.0' });
+  const { socketPath, worker: started } = await worker(t, fake, '2.0.0', undefined, registry.url);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo', args: ['--watch', 'on'] });
+  await client.next(upgrading);
+  client.send({ type: 'watch', root: '/repo', on: false });
+  await client.next(watchingIs(false));
+  release();
+  const ended = await client.next(
+    (value) =>
+      value.type === 'runs' &&
+      (value.runs['/repo']?.status === 'finished' || value.runs['/repo']?.status === 'stopped'),
+  );
+  assert.equal(ended.type === 'runs' && ended.runs['/repo']!.status, 'finished');
+  assert.equal(ended.type === 'runs' && ended.runs['/repo']!.upgrade, undefined);
   assert.deepEqual(processed, [1, 2]);
   await started.closed;
 });
