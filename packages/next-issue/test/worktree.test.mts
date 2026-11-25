@@ -9,7 +9,6 @@ import {
   addWorktree,
   fastForwardBase,
   findWorktree,
-  removeOldWorktrees,
   removeWorktree,
 } from '../src/shared/worktree.mts';
 import { clones, commit, git } from './clones.mts';
@@ -171,16 +170,16 @@ test('a user whose Claude Code worktree at .claude/worktrees/3 holds branch 3 ke
   assert.equal(existsSync(join(repo.root, '.claude', 'worktrees', 'next-issue-3')), false);
 });
 
-test('a user whose issue 3 branch was in .worktrees/3 resumes after the old worktrees are removed and gets the commits of branch 3 in .claude/worktrees/next-issue-3', async () => {
+test('a user whose issue 3 branch is still in an old .worktrees/3 gets the resume refused with a message that names that worktree, and keeps its commits', async () => {
   const { repo } = await clones();
   const old = join(repo.root, '.worktrees', '3');
   await git(repo.root, 'worktree', 'add', '-q', '-b', '3', old, 'origin/main');
   const kept = await commit(old, 'kept.txt');
-  await removeOldWorktrees(repo.root);
-  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
-  assert.equal(path, join(repo.root, '.claude', 'worktrees', 'next-issue-3'));
-  assert.equal(await revision(path), kept);
-  assert.equal(existsSync(old), false);
+  await assert.rejects(
+    addWorktree(repo, 3, '3', 'main', 'origin', false),
+    new RegExp(`worktree at ${await realpath(old)} has branch 3 checked out`),
+  );
+  assert.equal(await revision(old), kept);
 });
 
 test('a user who resumes issue 3 on a saved branch gets that branch in the worktree', async () => {

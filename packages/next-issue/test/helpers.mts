@@ -1,4 +1,5 @@
-import { realpath, writeFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import { readFile, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { must } from '../src/shared/exec.mts';
 import { tempDir } from './temp-dir.mts';
@@ -80,17 +81,33 @@ export async function linkedWorktree(root: string): Promise<string> {
   return linked;
 }
 
-/** Makes the worktrees an older next-issue left: `.worktrees/hunt` on a detached HEAD and `.worktrees/7` on branch 7 with an uncommitted file. */
-export async function oldWorktrees(root: string): Promise<{ hunt: string; issue: string }> {
+/** Makes a person's own worktree `.worktrees/42` on branch 42 with an edited tracked file, an untracked file and an ignored `.env`, and returns a check that it is unchanged. */
+export async function personWorktree(
+  root: string,
+): Promise<{ path: string; assertKept: () => Promise<void> }> {
   await must('git', ['config', 'user.name', 't'], { cwd: root });
   await must('git', ['config', 'user.email', 't@t'], { cwd: root });
   await must('git', ['commit', '-q', '--allow-empty', '-m', 'first'], { cwd: root });
-  const hunt = join(root, '.worktrees', 'hunt');
-  await must('git', ['worktree', 'add', '-q', '--detach', hunt], { cwd: root });
-  const issue = join(root, '.worktrees', '7');
-  await must('git', ['worktree', 'add', '-q', '-b', '7', issue], { cwd: root });
-  await writeFile(join(issue, 'work.txt'), 'work\n');
-  return { hunt, issue };
+  const path = join(root, '.worktrees', '42');
+  await must('git', ['worktree', 'add', '-q', '-b', '42', path], { cwd: root });
+  await writeFile(join(path, '.gitignore'), '.env\n');
+  await writeFile(join(path, 'tracked.txt'), 'committed\n');
+  await must('git', ['add', '.'], { cwd: path });
+  await must('git', ['commit', '-q', '-m', 'mine'], { cwd: path });
+  const files = { 'tracked.txt': 'edited\n', 'untracked.txt': 'new\n', '.env': 'SECRET=1\n' };
+  for (const [name, text] of Object.entries(files)) {
+    await writeFile(join(path, name), text);
+  }
+  const head = await must('git', ['rev-parse', '42'], { cwd: root });
+  const assertKept = async () => {
+    assert.equal(await must('git', ['branch', '--show-current'], { cwd: path }), '42');
+    assert.equal(await must('git', ['rev-parse', '42'], { cwd: root }), head);
+    for (const [name, text] of Object.entries(files)) {
+      assert.equal(await readFile(join(path, name), 'utf8'), text);
+    }
+    assert.equal(await must('git', ['branch', '--list', '42-detached-*'], { cwd: root }), '');
+  };
+  return { path, assertKept };
 }
 
 export function sleep(ms: number): Promise<void> {

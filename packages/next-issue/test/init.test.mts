@@ -1,16 +1,14 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { git } from './clones.mts';
 import { baseGh } from './fake-gh.mts';
 import {
   linkedWorktree,
-  oldWorktrees,
+  personWorktree,
   pushPackage,
   pushScripts,
   repository,
@@ -251,69 +249,12 @@ test('a user who runs init in a terminal and gives another answer than user or p
   await untouched(root, home);
 });
 
-test('a user who runs init with worktrees an older next-issue left in .worktrees sees each removed and named, the folder gone, branch 7 kept and its uncommitted file on a 7-detached branch', async () => {
+test('a user who runs init with their own worktree .worktrees/42 keeps it on branch 42 with its edited, untracked and ignored files, and sees no worktree named as removed', async () => {
   const home = await tempDir();
   const root = await repository();
-  const { hunt, issue } = await oldWorktrees(root);
-  const branch = await git(root, 'rev-parse', '7');
+  const { path, assertKept } = await personWorktree(root);
   const { stdout } = await init(root, home, ['--scope', 'user']);
-  assert.ok(stdout.includes(`removed old worktree ${hunt}\n`));
-  assert.ok(stdout.includes(`removed old worktree ${issue}\n`));
-  assert.equal(existsSync(join(root, '.worktrees')), false);
-  assert.equal(await git(root, 'rev-parse', '7'), branch);
-  const kept = await git(root, 'branch', '--list', '7-detached-*', '--format=%(refname:short)');
-  assert.match(kept, /^7-detached-[0-9a-f]{7}$/);
-  assert.equal(await git(root, 'show', `${kept}:work.txt`), 'work');
-});
-
-test('a user who runs init with a locked old worktree in .worktrees sees it named as not removed, the other one removed and the folder kept', async () => {
-  const home = await tempDir();
-  const root = await repository();
-  const { hunt, issue } = await oldWorktrees(root);
-  await git(root, 'worktree', 'lock', issue);
-  const { stdout } = await init(root, home, ['--scope', 'user']);
-  assert.ok(stdout.includes(`could not remove ${issue}: `));
-  assert.ok(stdout.includes(`removed old worktree ${hunt}\n`));
-  assert.equal(existsSync(issue), true);
-  assert.equal(existsSync(hunt), false);
-});
-
-test('a user who runs init with their own worktree .worktrees/feature-x beside an old .worktrees/7 keeps feature-x, its ignored .env and the folder, and sees only .worktrees/7 removed', async () => {
-  const home = await tempDir();
-  const root = await repository();
-  const { hunt, issue } = await oldWorktrees(root);
-  const feature = join(root, '.worktrees', 'feature-x');
-  await git(root, 'worktree', 'add', '-q', '-b', 'feature-x', feature);
-  await writeFile(join(feature, '.gitignore'), '.env\n');
-  await writeFile(join(feature, '.env'), 'SECRET=1\n');
-  const { stdout } = await init(root, home, ['--scope', 'user']);
-  assert.ok(stdout.includes(`removed old worktree ${issue}\n`));
-  assert.ok(stdout.includes(`removed old worktree ${hunt}\n`));
-  assert.ok(!stdout.includes(feature));
-  assert.equal(existsSync(issue), false);
-  assert.equal(await readFile(join(feature, '.env'), 'utf8'), 'SECRET=1\n');
-  assert.match(await git(root, 'worktree', 'list'), /feature-x/);
-  assert.equal(await git(root, 'branch', '--list', 'feature-x-detached-*'), '');
-});
-
-test('a user who runs init with a plain file .worktrees/notes.txt and a clone .worktrees/otherclone keeps both', async () => {
-  const home = await tempDir();
-  const root = await repository();
-  const notes = join(root, '.worktrees', 'notes.txt');
-  const clone = join(root, '.worktrees', 'otherclone');
-  await mkdir(clone, { recursive: true });
-  await writeFile(notes, 'todo\n');
-  await git(clone, 'init', '-q');
-  await writeFile(join(clone, 'work.txt'), 'work\n');
-  await init(root, home, ['--scope', 'user']);
-  assert.equal(await readFile(notes, 'utf8'), 'todo\n');
-  assert.equal(await readFile(join(clone, 'work.txt'), 'utf8'), 'work\n');
-  assert.equal(existsSync(join(clone, '.git')), true);
-});
-
-test('a user who runs init with no .worktrees folder sees no old worktree named', async () => {
-  const home = await tempDir();
-  const root = await repository();
-  const { stdout } = await init(root, home, ['--scope', 'user']);
-  assert.doesNotMatch(stdout, /old worktree/);
+  await assertKept();
+  assert.doesNotMatch(stdout, /removed old worktree|could not remove/);
+  assert.ok(!stdout.includes(path));
 });

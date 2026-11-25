@@ -19,7 +19,7 @@ import { processStart } from '../src/shared/lock.mts';
 import { runsDir, stateDir } from '../src/shared/state.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
 import { baseGh, idleGh, installGh } from './fake-gh.mts';
-import { linkedWorktree, oldWorktrees, repository, until, serveBase } from './helpers.mts';
+import { linkedWorktree, personWorktree, repository, until, serveBase } from './helpers.mts';
 import { tempDir } from './temp-dir.mts';
 import { connect } from './worker-harness.mts';
 
@@ -351,23 +351,21 @@ test('a user who starts the worker without init gets .next-issue/ and .claude/wo
   assert.equal(exclude.split('\n').filter((line) => line === '.claude/worktrees/').length, 1);
 });
 
-test('a user who starts a run with worktrees an older next-issue left in .worktrees sees each removed and named and the folder gone', async (t) => {
+test('a user who starts a run with their own worktree .worktrees/42 keeps it on branch 42 with its edited, untracked and ignored files, and sees no worktree named as removed', async (t) => {
   const root = await repository();
-  const { hunt, issue } = await oldWorktrees(root);
+  const { assertKept } = await personWorktree(root);
   const stderr = await watchingRun(t, root);
-  assert.ok(stderr.includes(`removed old worktree ${hunt}\n`));
-  assert.ok(stderr.includes(`removed old worktree ${issue}\n`));
-  assert.equal(await exists(join(root, '.worktrees')), false);
+  await assertKept();
+  assert.doesNotMatch(stderr, /removed old worktree|could not remove/);
 });
 
-test('a user who serves the repository with worktrees an older next-issue left in .worktrees sees each removed and named and the folder gone', async (t) => {
+test('a user who serves the repository with their own worktree .worktrees/42 keeps it on branch 42 with its edited, untracked and ignored files, and sees no worktree named as removed', async (t) => {
   const root = await repository();
-  const { hunt, issue } = await oldWorktrees(root);
+  const { assertKept } = await personWorktree(root);
   const { child, stderr } = await serveWorker(root);
   t.after(() => child.kill('SIGKILL'));
-  assert.ok(stderr().includes(`removed old worktree ${hunt}\n`));
-  assert.ok(stderr().includes(`removed old worktree ${issue}\n`));
-  assert.equal(await exists(join(root, '.worktrees')), false);
+  await assertKept();
+  assert.doesNotMatch(stderr(), /removed old worktree|could not remove/);
 });
 
 test('a user who starts a run with unknown fields in the config file sees each removed from the file and named, and the run going', async (t) => {
