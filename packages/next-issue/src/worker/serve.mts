@@ -1,5 +1,7 @@
+import { appendFileSync } from 'node:fs';
 import { mkdir, rename, rm } from 'node:fs/promises';
 import { createServer, STATUS_CODES } from 'node:http';
+import { constants } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { WebSocketServer } from 'ws';
 import { type Args, givenStartFlags, parseStartArgs } from '../shared/args.mts';
@@ -8,6 +10,7 @@ import { message } from '../shared/errors.mts';
 import { lock } from '../shared/lock.mts';
 import { startProgress } from './progress.mts';
 import { type ClientMessage, isNewer, type Launch, type Progress } from '../shared/protocol.mts';
+import { render } from '../shared/render.mts';
 import { runRepo, type RunControls } from './run.mts';
 import type { RunSummary } from '../shared/summary.mts';
 import { packageVersion } from '../shared/version.mts';
@@ -65,6 +68,7 @@ type WorkerOptions = {
   maxBufferedBytes?: number;
   registry?: string;
   successorLaunch?: (version: string) => Launch;
+  log?: (text: string) => void;
 };
 
 const LOCK_WAIT_MS = 5_000;
@@ -95,6 +99,19 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   const maxBufferedBytes = options.maxBufferedBytes ?? MAX_BUFFERED_BYTES;
   const endSendMs = options.endSendMs ?? END_SEND_MS;
   const busy = (): boolean => [...runs.values()].some(active);
+  const log = options.log ?? (() => undefined);
+  const exit = (fields: Record<string, unknown>, below = ''): void => {
+    const ts = new Date().toISOString();
+    log(`${render({ ts, kind: 'worker.exit', ...fields })}${below}`);
+    for (const run of runs.values()) {
+      if (active(run) && run.log !== undefined) {
+        const record = { ts, runId: run.log.runId, kind: 'worker.exit', ...fields };
+        try {
+          appendFileSync(run.log.file, `${JSON.stringify(record)}\n`);
+        } catch {}
+      }
+    }
+  };
 
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
   const idleMs = options.idleMs ?? IDLE_MS;
@@ -118,8 +135,14 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     const run = runs.get(options.root);
     if (successor !== undefined && run !== undefined && upgradedRun(run)) {
       await handOver(successor, run);
+      exit({ reason: 'hand-over', code: 0 });
     } else {
       await shutdown(server, sockets, owned);
+      exit(
+        restart === undefined
+          ? { reason: 'idle', code: 0 }
+          : { reason: 'upgrade', code: 0, to: restart },
+      );
     }
   });
   const closeWhenIdle = (): void => {
@@ -345,7 +368,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   await rename(draft, options.socketPath);
   owned.socket = fileId(options.socketPath);
   idleTimer = setTimeout(closeWhenIdle, idleMs);
-  return { closed, close, release: () => removeOwned(owned) };
+  return { closed, close, release: () => removeOwned(owned), exit };
 }
 
 type Refuse = (text: string) => void;
@@ -372,11 +395,13 @@ function refuser(socket: Peer, value: ClientMessage, served: string): Refuse {
 
 export async function serve(root: string, logCheckMs = LOG_CHECK_MS): Promise<number> {
   const { logPath, ...paths } = workerPaths(root);
+  const version = await packageVersion();
   const worker = await startWorker({
     root,
     ...paths,
-    version: await packageVersion(),
+    version,
     runRepo,
+    log: (text) => process.stderr.write(text),
   });
   if (worker === undefined) {
     process.stderr.write('another worker is running\n');
@@ -387,7 +412,10 @@ export async function serve(root: string, logCheckMs = LOG_CHECK_MS): Promise<nu
     process.off('SIGTERM', onTerminate);
     process.off('SIGINT', onInterrupt);
     process.off('SIGHUP', onHangUp);
-    stopChildren(signal, worker.release);
+    stopChildren(signal, () => {
+      worker.exit({ reason: signal, code: 128 + constants.signals[signal] });
+      worker.release();
+    });
   };
   const onTerminate = (): void => end('SIGTERM');
   const onInterrupt = (): void => end('SIGINT');
@@ -396,9 +424,8 @@ export async function serve(root: string, logCheckMs = LOG_CHECK_MS): Promise<nu
   process.on('SIGINT', onInterrupt);
   process.on('SIGHUP', onHangUp);
   const crash = (error: unknown): void => {
-    process.stderr.write(
-      `worker crashed: ${error instanceof Error ? error.stack : String(error)}\n`,
-    );
+    const stack = error instanceof Error && error.stack !== undefined ? `${error.stack}\n` : '';
+    worker.exit({ reason: 'crash', code: 1, error: message(error) }, stack);
     killChildren();
     try {
       worker.release();
@@ -407,7 +434,15 @@ export async function serve(root: string, logCheckMs = LOG_CHECK_MS): Promise<nu
   };
   process.on('uncaughtException', crash);
   process.on('unhandledRejection', crash);
-  process.stderr.write(`worker listening on ${paths.socketPath}\n`);
+  process.stderr.write(
+    render({
+      ts: new Date().toISOString(),
+      kind: 'worker.start',
+      version,
+      pid: process.pid,
+      socket: paths.socketPath,
+    }),
+  );
   await worker.closed;
   stopTrimming();
   return 0;

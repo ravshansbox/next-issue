@@ -22,6 +22,7 @@ export type Run = {
   huntBusy?: () => boolean;
   watching: Toggle;
   hunting: Toggle;
+  log?: { file: string; runId: string };
 };
 
 export function newRun(progress: Progress): Run {
@@ -182,7 +183,12 @@ export function runControls(run: Run, update: (next: Progress) => void): RunCont
     hunting: run.hunting,
     watching: run.watching,
     lookNow: () => run.lookNow.signal,
-    onEvent: (record) => update(applyEvent(run.progress, record)),
+    onEvent: (record) => {
+      if (record['kind'] === 'run.start') {
+        run.log = { file: String(record['log']), runId: String(record['runId']) };
+      }
+      update(applyEvent(run.progress, record));
+    },
     onHunter: (busy) => {
       run.huntBusy = busy;
     },

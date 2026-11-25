@@ -44,10 +44,19 @@ async function serveWorker(root: string, env: NodeJS.ProcessEnv = process.env) {
   const exited = new Promise<NodeJS.Signals | null>((resolve) =>
     child.on('exit', (_code, signal) => resolve(signal)),
   );
-  for (let left = 600; left > 0 && !stderr.includes('listening'); left -= 1) {
+  for (let left = 600; left > 0 && !stderr.includes('worker.start'); left -= 1) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   return { child, exited, stderr: () => stderr };
+}
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function initCommand(cwd: string) {
@@ -223,6 +232,18 @@ test('a user who starts a watch run with no open issue sees start exit with 0 an
     .filter((line) => line.includes('watch.wait'))
     .map((line) => line.replace(/^\S+ /, ''));
   assert.deepEqual(waits, ['watch.wait minutes=1']);
+});
+
+test('a user who follows the logs of a watch run whose worker gets SIGTERM sees worker.exit with reason SIGTERM', async (t) => {
+  const root = await repository();
+  await watchingRun(t, root);
+  const pid = Number((await readFile(workerPaths(root).lockPath, 'utf8')).split(' ')[0]);
+  process.kill(pid, 'SIGTERM');
+  await until(() => !alive(pid), 'the worker to exit');
+  const { child, read } = followLogs(root, []);
+  t.after(() => child.kill('SIGKILL'));
+  await until(() => read().includes('worker.exit'), 'the worker exit in the logs');
+  assert.match(read(), /^\d\d:\d\d:\d\d worker\.exit reason=SIGTERM code=143$/m);
 });
 
 test('a user who runs status while a watch run with no open issue waits sees when the worker looks again', async (t) => {
@@ -460,7 +481,11 @@ test('a user who runs next-issue over a worker.lock that a dead process left tak
 test('a user who stops the worker with SIGTERM sees it exit and remove its socket and lock files', async () => {
   const root = await repository();
   const { child, exited, stderr } = await serveWorker(root);
-  assert.match(stderr(), /^worker listening on .*\.next-issue\/worker\.sock$/m);
+  assert.match(
+    stderr(),
+    /^\d\d:\d\d:\d\d worker\.start version=\S+ pid=\d+ socket=.*\.next-issue\/worker\.sock$/m,
+  );
+  assert.doesNotMatch(stderr(), /listening/);
   child.kill('SIGTERM');
   assert.equal(await exited, 'SIGTERM');
   assert.deepEqual(await readdir(stateDir(root)), []);

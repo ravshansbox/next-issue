@@ -14,7 +14,7 @@ const SUCCESSOR = new URL('successor-worker.mts', import.meta.url).pathname;
 
 async function oldWorker(
   t: TestContext,
-  options: Pick<Parameters<typeof startWorker>[0], 'registry' | 'successorLaunch'> = {},
+  options: Pick<Parameters<typeof startWorker>[0], 'registry' | 'successorLaunch' | 'log'> = {},
 ) {
   const root = await realpath(await tempDir('/tmp'));
   const { logPath: _logPath, ...paths } = workerPaths(root);
@@ -70,6 +70,27 @@ test('a watching run that stops for a newer client comes back on the newer worke
   assert.equal(resumed?.status, 'running');
   assert.equal(resumed?.watching, true);
   assert.equal(resumed?.hunting, true);
+  fresh.send({ type: 'stop', root });
+  await fresh.next((value) => runOf(root, value)?.status === 'stopped');
+});
+
+test('a worker that hands its watching run over to a newer worker writes worker.exit with reason hand-over and code 0', async (t) => {
+  let log = '';
+  const { root, fake, started, socketPath } = await oldWorker(t, { log: (text) => (log += text) });
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root, args: ['--watch', 'on'] });
+  await client.next((value) => runOf(root, value)?.watching === true);
+  client.send({
+    type: 'hello',
+    version: '2.1.0',
+    launch: { command: process.execPath, args: [SUCCESSOR] },
+  });
+  await client.next((value) => runOf(root, value)?.upgrade !== undefined);
+  await client.close();
+  fake.finish();
+  await started.closed;
+  assert.match(log, /^\d\d:\d\d:\d\d worker\.exit reason=hand-over code=0\n$/m);
+  const fresh = await connect(t, socketPath);
   fresh.send({ type: 'stop', root });
   await fresh.next((value) => runOf(root, value)?.status === 'stopped');
 });

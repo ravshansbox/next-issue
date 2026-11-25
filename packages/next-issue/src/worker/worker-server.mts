@@ -151,9 +151,10 @@ export type Worker = {
   closed: Promise<void>;
   close: () => Promise<void>;
   release: () => void;
+  exit: (fields: Record<string, unknown>, below?: string) => void;
 };
 
-export function closer(stop: () => Promise<void>): Omit<Worker, 'release'> {
+export function closer(stop: () => Promise<void>): Pick<Worker, 'closed' | 'close'> {
   let finish: () => void = () => undefined;
   const closed = new Promise<void>((resolve) => {
     finish = resolve;

@@ -845,7 +845,8 @@ test('a user who runs start with no worker sees a worker start in the background
   assert.equal(await started.exited, 0, started.stderr());
   assert.equal(withoutSetupNotes(started.stderr()), STARTED);
   const log = await readFile(workerPaths(root).logPath, 'utf8');
-  assert.match(log, /^worker listening on .*worker\.sock$/m);
+  assert.match(log, /^\d\d:\d\d:\d\d worker\.start version=\S+ pid=\d+ socket=.*worker\.sock$/m);
+  assert.doesNotMatch(log, /listening/);
 });
 
 test('a user who runs start while an idle worker is alive sees the run go in that worker, the started line and nothing on stdout', async (t) => {
@@ -855,7 +856,7 @@ test('a user who runs start while an idle worker is alive sees the run go in tha
   t.after(() => worker.kill('SIGKILL'));
   let workerOutput = '';
   worker.stderr.on('data', (chunk) => (workerOutput += chunk));
-  await until(() => workerOutput.includes('listening'), 'the worker to listen');
+  await until(() => workerOutput.includes('worker.start'), 'the worker to listen');
   const started = startCommand(t, root, ['--watch', 'off'], env);
   assert.equal(await started.exited, 0);
   await until(() => / run\.start /.test(workerOutput), 'the run to start in the worker');

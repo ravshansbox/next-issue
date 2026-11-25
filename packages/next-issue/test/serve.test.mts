@@ -564,6 +564,42 @@ test('a worker that no client connects to closes and removes its socket and lock
   assert.deepEqual(await readdir(dir), []);
 });
 
+test('a worker that no client connects to writes worker.exit with reason idle and code 0 when it closes', async () => {
+  const dir = await tempDir();
+  let log = '';
+  const started = await startWorker({
+    root: '/repo',
+    socketPath: join(dir, 'w.sock'),
+    lockPath: join(dir, 'w.lock'),
+    version: '2.0.0',
+    runRepo: fakeRuns().runRepo,
+    idleMs: 50,
+    log: (text) => (log += text),
+  });
+  assert.ok(started);
+  await started.closed;
+  assert.match(log, /^\d\d:\d\d:\d\d worker\.exit reason=idle code=0\n$/m);
+});
+
+test('a worker that closes for a newer client writes worker.exit with reason upgrade, code 0 and the newer version', async (t) => {
+  const dir = await tempDir();
+  const socketPath = join(dir, 'w.sock');
+  let log = '';
+  const started = await startWorker({
+    root: '/repo',
+    socketPath,
+    lockPath: join(dir, 'w.lock'),
+    version: '2.0.0',
+    runRepo: fakeRuns().runRepo,
+    log: (text) => (log += text),
+  });
+  assert.ok(started);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'hello', version: '2.1.0' });
+  await started.closed;
+  assert.match(log, /^\d\d:\d\d:\d\d worker\.exit reason=upgrade code=0 to=2\.1\.0\n$/m);
+});
+
 test('a client that sends an HTTP request to the worker gets 426 Upgrade Required and no next-issue answer', async (t) => {
   const { socketPath } = await worker(t, fakeRuns());
   assert.deepEqual(await http(socketPath, 'GET'), { status: 426, body: 'Upgrade Required' });
@@ -920,31 +956,37 @@ test('a worker that closes leaves a lock file that another worker in the same pr
   assert.deepEqual(await readdir(dir), ['w.lock']);
 });
 
+async function spawnWorker(t: TestContext, script: string) {
+  const child = spawn(process.execPath, ['--input-type=module', '-e', script], {
+    stdio: ['ignore', 'ignore', 'pipe'],
+  });
+  t.after(() => child.kill('SIGKILL'));
+  const exited = new Promise<number | null>((resolve) => child.once('exit', resolve));
+  let output = '';
+  await new Promise<void>((resolve) => {
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk: string) => {
+      output += chunk;
+      if (output.includes('worker.start')) {
+        resolve();
+      }
+    });
+  });
+  return { child, exited, output: () => output };
+}
+
+async function servingWorker(t: TestContext, root: string) {
+  return spawnWorker(
+    t,
+    `import { serve } from ${JSON.stringify(SERVE)}; await serve(${JSON.stringify(root)});`,
+  );
+}
+
 for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) {
   test(`a worker that gets ${signal} leaves a socket and lock file that are not its own`, async (t) => {
     const root = await tempDir();
     const { socketPath, lockPath } = workerPaths(root);
-    const child = spawn(
-      process.execPath,
-      [
-        '--input-type=module',
-        '-e',
-        `import { serve } from ${JSON.stringify(SERVE)}; await serve(${JSON.stringify(root)});`,
-      ],
-      { stdio: ['ignore', 'ignore', 'pipe'] },
-    );
-    t.after(() => child.kill('SIGKILL'));
-    const exited = new Promise((resolve) => child.once('exit', resolve));
-    await new Promise<void>((resolve) => {
-      let output = '';
-      child.stderr.setEncoding('utf8');
-      child.stderr.on('data', (chunk: string) => {
-        output += chunk;
-        if (output.includes('listening')) {
-          resolve();
-        }
-      });
-    });
+    const { child, exited } = await servingWorker(t, root);
     const dir = dirname(lockPath);
     await writeFile(join(dir, 'other.sock'), '');
     await rename(join(dir, 'other.sock'), socketPath);
@@ -953,6 +995,23 @@ for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) {
     child.kill(signal);
     await exited;
     assert.deepEqual((await readdir(dir)).sort(), ['worker.lock', 'worker.sock']);
+  });
+}
+
+const SIGNAL_CODES = { SIGHUP: 129, SIGINT: 130, SIGTERM: 143 } as const;
+
+for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) {
+  test(`a worker that gets ${signal} writes worker.exit with reason ${signal} and code ${SIGNAL_CODES[signal]}`, async (t) => {
+    const { child, exited, output } = await servingWorker(t, await tempDir());
+    child.kill(signal);
+    await exited;
+    assert.match(
+      output(),
+      new RegExp(
+        `^\\d\\d:\\d\\d:\\d\\d worker\\.exit reason=${signal} code=${SIGNAL_CODES[signal]}\n$`,
+        'm',
+      ),
+    );
   });
 }
 
@@ -976,27 +1035,10 @@ async function stubbornWorker(t: TestContext, onUser = '') {
   const command = `trap '' INT TERM HUP; echo $$ > ${pidFile}; while :; do sleep 0.2; done`;
   const later = `echo $$ > ${laterFile}; sleep 600`;
   const agent = `void withRunChildren(runChildren(), async () => { void run('bash', ['-c', ${JSON.stringify(command)}], { timeoutMs: 120000 }); await new Promise((resolve) => onStop(resolve)); await run('bash', ['-c', ${JSON.stringify(later)}]); }).catch(() => undefined);`;
-  const child = spawn(
-    process.execPath,
-    [
-      '--input-type=module',
-      '-e',
-      `import { serve } from ${JSON.stringify(SERVE)}; import { run } from ${JSON.stringify(EXEC)}; import { onStop, runChildren, withRunChildren } from ${JSON.stringify(CHILDREN)}; const serving = serve(${JSON.stringify(root)}); process.on('SIGUSR2', () => { ${onUser} }); while (process.listenerCount('SIGTERM') === 0) { await new Promise((resolve) => setTimeout(resolve, 10)); } ${agent} await serving;`,
-    ],
-    { stdio: ['ignore', 'ignore', 'pipe'] },
+  const { child, exited, output } = await spawnWorker(
+    t,
+    `import { serve } from ${JSON.stringify(SERVE)}; import { run } from ${JSON.stringify(EXEC)}; import { onStop, runChildren, withRunChildren } from ${JSON.stringify(CHILDREN)}; const serving = serve(${JSON.stringify(root)}); process.on('SIGUSR2', () => { ${onUser} }); while (process.listenerCount('SIGTERM') === 0) { await new Promise((resolve) => setTimeout(resolve, 10)); } ${agent} await serving;`,
   );
-  t.after(() => child.kill('SIGKILL'));
-  const exited = new Promise<number | null>((resolve) => child.once('exit', resolve));
-  let output = '';
-  await new Promise<void>((resolve) => {
-    child.stderr.setEncoding('utf8');
-    child.stderr.on('data', (chunk: string) => {
-      output += chunk;
-      if (output.includes('listening')) {
-        resolve();
-      }
-    });
-  });
   let pid = 0;
   while (pid === 0) {
     pid = Number(await readFile(pidFile, 'utf8').catch(() => '0'));
@@ -1006,7 +1048,7 @@ async function stubbornWorker(t: TestContext, onUser = '') {
       process.kill(-pid, 'SIGKILL');
     } catch {}
   });
-  return { root, child, exited, pid, laterFile, output: () => output };
+  return { root, child, exited, pid, laterFile, output };
 }
 
 async function crashWithStubbornCommand(t: TestContext, crash: string) {
@@ -1035,6 +1077,15 @@ test('a worker that throws an uncaught error while a command runs kills the comm
   assert.equal(result.lockLeft, false);
   assert.equal(result.socketLeft, false);
   assert.match(result.output, /worker boom/);
+});
+
+test('a worker that crashes writes worker.exit with reason crash, code 1 and the error, then the stack on the lines below', async (t) => {
+  const result = await crashWithStubbornCommand(t, "throw new Error('worker boom');");
+  assert.match(
+    result.output,
+    /^\d\d:\d\d:\d\d worker\.exit reason=crash code=1 error=worker boom\nError: worker boom\n {4}at /m,
+  );
+  assert.doesNotMatch(result.output, /worker crashed/);
 });
 
 test('a worker that leaves a promise rejection unhandled while a command runs kills the command, prints the error, removes its lock and socket files and exits with code 1', async (t) => {
@@ -1570,7 +1621,7 @@ test('a worker that runs a long time keeps only the newest whole lines of worker
     }
     return text;
   };
-  const first = await trimmed('old ', 'listening');
+  const first = await trimmed('old ', 'worker.start');
   assert.ok(first.length <= 5 * 1024 * 1024 + 200, `worker.log holds ${first.length} bytes`);
   assert.match(first, /^old x+\n/);
   // A trim that fires partway through a chunked append can leave a file under the limit that never trims again,
