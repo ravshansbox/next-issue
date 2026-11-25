@@ -14,6 +14,7 @@ import {
   viewJson,
 } from './gh.mts';
 import type { Repo } from './git.mts';
+import { hasLabel } from './labels.mts';
 import { lines } from './text.mts';
 
 export type Issue = {
@@ -220,7 +221,7 @@ export async function labeler(
           () => `gh gave a label event of #${issue} that is not valid JSON: ${line}`,
         ) as [string, string | null],
     )
-    .filter(([name]) => name === label);
+    .filter(([name]) => hasLabel([name], label));
   const last = added.at(-1);
   return last === undefined ? undefined : (last[1] ?? GHOST);
 }
