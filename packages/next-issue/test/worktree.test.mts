@@ -75,6 +75,19 @@ test('a user who starts issue 3 afresh gets the base branch instead of a stale l
   assert.equal(await git(path, 'branch', '--show-current'), '3');
 });
 
+test('a user whose repository has a tag 3 on the base keeps the unpushed commit of local branch 3 on a kept branch when issue 3 starts afresh', async () => {
+  const { repo } = await clones();
+  await git(repo.root, 'tag', '3', 'main');
+  await git(repo.root, 'checkout', '-q', '-b', '3');
+  const unpushed = await commit(repo.root, 'unpushed.txt');
+  await git(repo.root, 'checkout', '-q', 'main');
+  await addWorktree(repo, 3, '3', 'main', 'origin', true);
+  assert.equal(
+    await git(repo.root, 'rev-parse', `refs/heads/3-kept-${unpushed.slice(0, 7)}`),
+    unpushed,
+  );
+});
+
 test('a user who starts issue 3 afresh gets the remote branch 3 instead of a stale local branch 3', async () => {
   const { repo, other } = await clones();
   await git(repo.root, 'checkout', '-q', '-b', '3');
@@ -124,6 +137,16 @@ test('a user who resumes issue 3 keeps the work on local branch 3', async () => 
   await git(repo.root, 'checkout', '-q', 'main');
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   assert.equal(await revision(path), kept);
+});
+
+test('a user whose repository has a tag 3 on the base resumes issue 3 and gets the unpushed commit of local branch 3 in the worktree', async () => {
+  const { repo } = await clones();
+  await git(repo.root, 'tag', '3', 'main');
+  await git(repo.root, 'checkout', '-q', '-b', '3');
+  const unpushed = await commit(repo.root, 'unpushed.txt');
+  await git(repo.root, 'checkout', '-q', 'main');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  assert.equal(await revision(path), unpushed);
 });
 
 test('a user who resumes issue 3 whose local branch has no work of its own gets the current base', async () => {

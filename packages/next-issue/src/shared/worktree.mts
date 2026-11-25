@@ -84,11 +84,12 @@ async function keepDetachedEdits(path: string, branch: string): Promise<void> {
 }
 
 async function keepUnmergedCommits(repo: Repo, branch: string, target: string): Promise<void> {
-  if (!(await hasBranch(repo, branch)) || (await isAncestor(repo.root, branch, target))) {
+  const local = `refs/heads/${branch}`;
+  if (!(await hasBranch(repo, branch)) || (await isAncestor(repo.root, local, target))) {
     return;
   }
-  const head = await git(repo.root, ['rev-parse', branch]);
-  await git(repo.root, ['branch', '--force', `${branch}-kept-${head.slice(0, 7)}`, branch]);
+  const head = await git(repo.root, ['rev-parse', local]);
+  await git(repo.root, ['branch', '--force', `${branch}-kept-${head.slice(0, 7)}`, local]);
 }
 
 async function hasWork(
@@ -100,7 +101,7 @@ async function hasWork(
   if (!(await hasBranch(repo, branch))) {
     return false;
   }
-  return pushed || !(await isAncestor(repo.root, branch, base));
+  return pushed || !(await isAncestor(repo.root, `refs/heads/${branch}`, base));
 }
 
 async function hasBranch(repo: Repo, name: string, ...flags: string[]): Promise<boolean> {
