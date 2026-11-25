@@ -195,6 +195,25 @@ test('the implementer and every fixer kind are told the engineering rules', () =
   }
 });
 
+test('the implementer, every fixer kind and the first reviewer are told to write no test when there is no behaviour to test', () => {
+  const prompts = [
+    implementPrompt(ISSUE, []),
+    ...(['review', 'checks', 'local', 'conflict'] as const).map((kind) =>
+      fixPrompt(ISSUE, [], 'The reason.', 'the detail', [], kind),
+    ),
+  ];
+  for (const prompt of prompts) {
+    assert.match(
+      prompt,
+      /Write no test when there is no behaviour to test, such as a change to docs, config or other text\./,
+    );
+  }
+  assert.match(
+    reviewPrompt(ISSUE, [], 'diff', [], 'implementer'),
+    /Check that the change adds no test that checks no behaviour, such as one that matches the text of docs or config\./,
+  );
+});
+
 test('the implementer, every fixer kind and the first reviewer are told to keep each README to what a user needs to start and use the tool', () => {
   const prompts = [
     implementPrompt(ISSUE, []),

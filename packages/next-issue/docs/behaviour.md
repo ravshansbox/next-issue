@@ -34,7 +34,7 @@ Every agent prompt holds the body of the issue and the comments of users with wr
 5. `Out of scope`
 6. `Open questions`, empty when the issue is created
 
-The list lives in `src/shared/issue-format.mts`. The [`create-issue` skill](#create-an-issue) writes an issue in this format, and a contract test fails when its template and the list disagree. The harness does not reject an issue without the format.
+The list lives in `src/shared/issue-format.mts`. The [`create-issue` skill](#create-an-issue) writes an issue in this format. The harness does not reject an issue without the format.
 
 ## Rules for the agents
 
@@ -43,6 +43,7 @@ The implementer and the fixer get these rules in their prompt, and the first rev
 - update the documentation for a change of behaviour or a feature that is added or removed;
 - remove the tests of a feature or behaviour that is removed;
 - test behaviour that a user can observe, and give each test a description that names the actor, the action and the observable outcome;
+- write no test when there is no behaviour to test, such as a change to docs, config or other text;
 - reuse existing code and patterns, stay consistent with the repository and pick the simpler option;
 - check an API, a command or a url in the repository or its dependencies before using it, and invent none;
 - keep each README to what a user needs to start and use the tool, and put edge cases and internal behaviour in other docs.
