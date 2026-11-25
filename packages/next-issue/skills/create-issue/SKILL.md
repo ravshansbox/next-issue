@@ -1,11 +1,13 @@
 ---
 name: create-issue
-description: Turn a problem into a clear GitHub issue that the next-issue worker can claim. Use when the user wants to write, file or create an issue, or asks for a change to the code of a repository that has `.next-issue/config.json`. In that case, file an issue with this skill instead of editing files.
+description: Turn a problem into a clear GitHub issue that the next-issue worker can claim. Use when the user wants to write, file or create an issue, or asks for a change to the code of a repository that has `.next-issue/config.json`. In that case, file an issue with this skill instead of editing files. Always file an issue, and never ask whether to make the change in this session instead.
 ---
 
 # Create an issue
 
 Turn the problem of the user into one GitHub issue, or a split of linked issues when the change is too big for one commit, in the format of `template.md`, next to this file.
+
+When the user asks for a change to the code of a repository that has `.next-issue/config.json`, do not edit files. Always file an issue, and never ask whether to make the change in this session instead.
 
 Run any next-issue command as `npx -y next-issue@latest <command>`. Never run it from the `PATH`, a global install or a local build.
 

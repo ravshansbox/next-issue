@@ -145,6 +145,21 @@ test('a person who asks Claude for a change in a repository with .next-issue/con
   assert.match(description, /file an issue with this skill instead of editing files/);
 });
 
+test('a person who asks Claude for a change in a repository with .next-issue/config.json is never asked whether to make the change in the session instead of filing an issue', async () => {
+  const skill = await readFile(createIssue, 'utf8');
+  const behaviour = await readFile(behaviourFile, 'utf8');
+  const description = skill.match(/^description: (.+)$/m)?.[1] ?? '';
+  const body = skill.replace(/^---\n[\s\S]*?\n---\n/, '');
+  const rule =
+    /Always file an issue, and never ask whether to make the change in this session instead\./;
+  assert.match(description, rule);
+  assert.match(body, rule);
+  assert.match(
+    behaviour,
+    /Claude always files an issue, and never asks whether to make the change in the session instead\./,
+  );
+});
+
 test('an agent who uses either packaged skill runs any next-issue command through npx with the latest version, never from the PATH, a global install or a local build', async () => {
   for (const file of [createIssue, answerHandOver]) {
     const skill = await readFile(file, 'utf8');

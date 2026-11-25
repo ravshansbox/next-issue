@@ -315,7 +315,7 @@ Claude finds the repository as the `create-issue` skill does and passes `--repo`
 
 ### Create an issue
 
-Ask Claude to write an issue, ask for a change in a repository with `.next-issue/config.json`, or run `/create-issue <problem>`. For a change in such a repository, Claude files an issue instead of editing files. Claude then:
+Ask Claude to write an issue, ask for a change in a repository with `.next-issue/config.json`, or run `/create-issue <problem>`. For a change in such a repository, Claude files an issue instead of editing files. Claude always files an issue, and never asks whether to make the change in the session instead. Claude then:
 
 1. restates the problem, reads the code when the problem touches it, and finds the open issues that must be done first;
 2. judges whether the change fits one atomic commit that leaves the trunk green. When it is too big for one atomic commit, it proposes a split into issues that each land alone and keep the trunk green;
