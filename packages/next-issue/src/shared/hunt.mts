@@ -6,7 +6,9 @@ import { minutesToMs } from './durations.mts';
 import { readTextIfPresent } from './files.mts';
 import { hostOf, repoArg, slug } from './gh.mts';
 import { git, gitFetch, remoteRef, type Repo } from './git.mts';
+import type { Issue } from './github.mts';
 import { type Context, withNotes } from './job.mts';
+import { hasLabel } from './labels.mts';
 import { oneAtATime } from './lock.mts';
 import { huntPrompt } from './prompts.mts';
 import { listedIssues, skipReason } from './skip.mts';
@@ -65,7 +67,7 @@ export async function hunt(context: Context, count: number): Promise<boolean> {
       cwd,
       prompt: await withNotes(
         repo.root,
-        huntPrompt(instructions, config.labels.ready, config.labels.hunt, count, repoArg(repo)),
+        huntPrompt(instructions, config.labels.hunt, count, repoArg(repo)),
         false,
       ),
       profile: REVIEWING,
@@ -83,6 +85,20 @@ export async function hunt(context: Context, count: number): Promise<boolean> {
   });
 }
 
+async function awaitingApproval(context: Context): Promise<Issue[]> {
+  const { repo, config, ports } = context;
+  const { ready, hunt, skip, needsHuman } = config.labels;
+  if (ready.length === 0 || hunt.length === 0) {
+    return [];
+  }
+  const decided = [ready, skip, needsHuman];
+  const issues = await ports.openIssues(repo, config.issueLimit, [hunt], decided);
+  return issues.filter(
+    (issue) =>
+      hasLabel(issue.labels, hunt) && !decided.some((label) => hasLabel(issue.labels, label)),
+  );
+}
+
 export function hunter(context: Context): Hunter & { busy: () => boolean } {
   const { repo, config, recorder, ports } = context;
   let hunting = false;
@@ -97,12 +113,13 @@ export function hunter(context: Context): Hunter & { busy: () => boolean } {
       for (const issue of open) {
         blockers.push(await ports.openBlockers(repo, issue.number));
       }
-      return open.filter((_issue, index) =>
+      const ready = open.filter((_issue, index) =>
         blockers[index]!.every((blocker) => {
           const number = Number(/^#(\d+)$/.exec(blocker)?.[1]);
           return running.has(number) || claimable.has(number);
         }),
       );
+      return [...ready, ...(await awaitingApproval(context))];
     },
     hunt: async (count) => {
       hunting = true;

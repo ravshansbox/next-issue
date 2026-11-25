@@ -10,7 +10,7 @@ import { ISSUE_SECTIONS } from '../src/shared/issue-format.mts';
 import { ensureLabel } from '../src/shared/labels.mts';
 import { clones, commit, git } from './clones.mts';
 import { installGh } from './fake-gh.mts';
-import { harness, ISSUE } from './harness.mts';
+import { harness, ISSUE, roles, runLoop } from './harness.mts';
 import { tempDir } from './temp-dir.mts';
 
 test('a user who hunts with .next-issue/hunt.md sees the hunter follow it under Instructions in the hunt worktree with read-only tools', async (t) => {
@@ -58,14 +58,15 @@ test('a user who hunts with no .next-issue/hunt.md sees the hunter told to file 
   assert.match(prompt, /propose to remove or simplify that code instead of adding another guard/);
 });
 
-test('a user who hunts with one free place sees the hunter told to file at most one ready issue in the issue format after a search for duplicates, with no test run and no change', async (t) => {
+test('a user who hunts with one free place sees the hunter told to file at most one issue with the source label and without the ready label, in the issue format after a search for duplicates, with no test run and no change', async (t) => {
   const target = await harness(t);
   await hunt(target.context, 1);
   const prompt = target.prompts[0]!.prompt;
   assert.match(prompt, /File up to 1 issue,/);
   assert.match(prompt, /most serious findings first/);
   assert.match(prompt, /File nothing when you find no real problem/);
-  assert.match(prompt, /--label "status:todo"/);
+  assert.match(prompt, /gh issue create --repo acme\/tool --label "source:hunt" --title/);
+  assert.doesNotMatch(prompt, /status:todo/);
   assert.match(prompt, /duplicate/);
   assert.match(prompt, /Run no test suite/);
   assert.match(prompt, /Change no file/);
@@ -97,7 +98,39 @@ test('a user who hunts in a repository without the ready label sees the harness 
   };
   await hunt(target.context, 1);
   assert.deepEqual(order, ['ensure status:todo', 'ensure source:hunt', 'hunter']);
-  assert.match(target.prompts[0]!.prompt, /--label "status:todo" --label "source:hunt"/);
+});
+
+test('a user whose hunter files an issue sees it carry only the source label and wait unclaimed until a person adds the ready label', async (t) => {
+  const filed = { ...ISSUE, number: 9, labels: ['source:hunt'] };
+  const target = await harness(t, {
+    open: [filed],
+    hunterText: 'Filed.\nissue: https://github.com/acme/tool/issues/9',
+  });
+  assert.equal(await hunt(target.context, 1), true);
+  assert.match(target.prompts[0]!.prompt, /--label "source:hunt" --title/);
+  assert.doesNotMatch(target.prompts[0]!.prompt, /--label "status:todo"/);
+  const reports = await runLoop(target);
+  assert.deepEqual(
+    reports.map((report) => [report.issue, report.outcome]),
+    [[9, 'skipped']],
+  );
+  assert.deepEqual(roles(target), ['hunter']);
+});
+
+test('a user who hunts sees the hunter count open hunted issues that wait for the ready label towards huntCap, and not those a person turned down with the skip or needs-human label', async (t) => {
+  const open = [
+    { ...ISSUE, number: 7 },
+    { ...ISSUE, number: 9, labels: ['source:hunt'] },
+    { ...ISSUE, number: 10, labels: ['status:todo', 'source:hunt'] },
+    { ...ISSUE, number: 11, labels: ['bug'] },
+    { ...ISSUE, number: 12, labels: ['source:hunt', 'status:blocked'] },
+    { ...ISSUE, number: 13, labels: ['source:hunt', 'Status:Needs-Human'] },
+  ];
+  const target = await harness(t, { open, config: { huntCap: 3 } });
+  assert.deepEqual(
+    (await hunter(target.context).ready(new Set(), new Set())).map((issue) => issue.number),
+    [7, 10, 9],
+  );
 });
 
 test('a user whose labels.hunt holds a double quote and a dollar sees the hunter told to pass them to gh unchanged', async (t) => {
@@ -174,7 +207,7 @@ test('a user who hunts sees the hunter told to search and file issues in the rep
   await hunt(target.context, 1);
   const prompt = target.prompts[0]!.prompt;
   assert.match(prompt, /gh issue list --repo acme\/tool --state all --search/);
-  assert.match(prompt, /gh issue create --repo acme\/tool --label "status:todo"/);
+  assert.match(prompt, /gh issue create --repo acme\/tool --label "source:hunt"/);
 });
 
 test('a user whose remote points to a fork sees the hunter told to search and file issues in the fork', async (t) => {
@@ -364,7 +397,7 @@ test('a user who hunts sees the hunter count only issues that the watch can clai
     (await watched.ready(new Set(), new Set())).map((issue) => issue.number),
     [7],
   );
-  assert.deepEqual(asked, [['status:todo'], ['status:todo']]);
+  assert.deepEqual(asked, [['status:todo'], ['status:todo'], ['source:hunt']]);
 });
 
 test('a user who hunts sees the hunter count an issue blocked only by running or claimable issues of the same repository, and not one with a blocker that cannot move', async (t) => {

@@ -643,7 +643,7 @@ test('a user who watches with --hunt sees a claim leave the waiting hunter alone
   await watchIssues(fake);
   assert.deepEqual(fake.processed, [1]);
   assert.deepEqual(waits, [1]);
-  assert.equal(listings, 2);
+  assert.equal(listings, 3);
   assert.equal(blockerReads, 1);
 });
 

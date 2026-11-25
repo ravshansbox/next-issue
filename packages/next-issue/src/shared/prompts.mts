@@ -286,17 +286,13 @@ const HUNT_DEFAULT = [
 
 export function huntPrompt(
   instructions: string | undefined,
-  ready: string,
   source: string,
   count: number,
   repository: string,
 ): string {
   const issues = count === 1 ? '1 issue' : `${count} issues`;
   const kept = instructions?.trim() ?? '';
-  const label = [ready, source]
-    .filter((name) => name !== '')
-    .map((name) => ` --label "${name.replace(/[\\"$`]/g, '\\$&')}"`)
-    .join('');
+  const label = source === '' ? '' : ` --label "${source.replace(/[\\"$`]/g, '\\$&')}"`;
   return paragraphs([
     `You are the hunter. Find the most serious problems in this repository and file up to ${issues} for them.`,
     `## Instructions\n${kept === '' ? HUNT_DEFAULT : kept}`,
