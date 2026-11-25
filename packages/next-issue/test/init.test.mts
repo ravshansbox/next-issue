@@ -22,6 +22,7 @@ await baseGh();
 
 const CLI = fileURLToPath(new URL('../src/cli.mts', import.meta.url));
 const SKILLS = fileURLToPath(new URL('../skills/', import.meta.url));
+const OLD_COPY = '---\nname: create-issue\ndescription: Create a next-issue issue.\n---\n\nold\n';
 const TERMINAL_STDIN = '--import=data:text/javascript,process.stdin.isTTY=true';
 const FULL_DISK = `--import=data:text/javascript,${encodeURIComponent(
   "import fs from 'node:fs/promises';import { syncBuiltinESMExports } from 'node:module';fs.cp = async (source, destination) => { await fs.mkdir(destination, { recursive: true }); await fs.writeFile(destination + '/SKILL.md', 'half'); throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' }); };syncBuiltinESMExports();",
@@ -177,7 +178,7 @@ test('a user who runs init over older copies of the skills gets them replaced an
   const home = await tempDir();
   const folder = join(home, '.claude', 'skills');
   await mkdir(join(folder, 'create-issue'), { recursive: true });
-  await writeFile(join(folder, 'create-issue', 'SKILL.md'), 'old');
+  await writeFile(join(folder, 'create-issue', 'SKILL.md'), OLD_COPY);
   await writeFile(join(folder, 'create-issue', 'old.md'), 'old');
   await mkdir(join(folder, 'mine'));
   await writeFile(join(folder, 'mine', 'SKILL.md'), 'mine');
@@ -191,11 +192,38 @@ test('a user who runs init over older copies of the skills gets them replaced an
   assert.deepEqual((await readdir(folder)).sort(), ['answer-hand-over', 'create-issue', 'mine']);
 });
 
+test('a user with their own create-issue and answer-hand-over skills who runs init keeps both folders unchanged, sees kept for each and exit code 0', async () => {
+  for (const scope of ['user', 'project']) {
+    const home = await tempDir();
+    const root = await repository();
+    const folder = join(scope === 'user' ? home : root, '.claude', 'skills');
+    for (const name of ['create-issue', 'answer-hand-over']) {
+      await mkdir(join(folder, name), { recursive: true });
+      await writeFile(
+        join(folder, name, 'SKILL.md'),
+        `---\nname: ${name}\ndescription: My own skill.\n---\n\nmine\n`,
+      );
+      await writeFile(join(folder, name, 'notes.md'), 'mine');
+    }
+    const { stdout } = await init(root, home, ['--scope', scope]);
+    for (const name of ['create-issue', 'answer-hand-over']) {
+      assert.deepEqual((await readdir(join(folder, name))).sort(), ['SKILL.md', 'notes.md']);
+      assert.equal(
+        await readFile(join(folder, name, 'SKILL.md'), 'utf8'),
+        `---\nname: ${name}\ndescription: My own skill.\n---\n\nmine\n`,
+      );
+      assert.equal(await readFile(join(folder, name, 'notes.md'), 'utf8'), 'mine');
+      assert.match(stdout, new RegExp(`^kept ${join(folder, name)}: not a next-issue skill$`, 'm'));
+      assert.doesNotMatch(stdout, new RegExp(`wrote ${join(folder, name)}`));
+    }
+  }
+});
+
 test('a user who runs init when the skill copy fails part way keeps the skill installed before, has no half-written copy left and gets an error and exit code 1', async () => {
   const home = await tempDir();
   const folder = join(home, '.claude', 'skills');
   await mkdir(join(folder, 'create-issue'), { recursive: true });
-  await writeFile(join(folder, 'create-issue', 'SKILL.md'), 'old');
+  await writeFile(join(folder, 'create-issue', 'SKILL.md'), OLD_COPY);
   await assert.rejects(
     initOnFullDisk(await repository(), home, ['--scope', 'user']),
     (error: { code: number; stderr: string }) => {
@@ -206,7 +234,7 @@ test('a user who runs init when the skill copy fails part way keeps the skill in
   );
   assert.deepEqual(await readdir(folder), ['create-issue']);
   assert.deepEqual(await readdir(join(folder, 'create-issue')), ['SKILL.md']);
-  assert.equal(await readFile(join(folder, 'create-issue', 'SKILL.md'), 'utf8'), 'old');
+  assert.equal(await readFile(join(folder, 'create-issue', 'SKILL.md'), 'utf8'), OLD_COPY);
 });
 
 test('a user who runs init with no --scope and no terminal gets an error that names init and --scope, exit code 1 and nothing written', async () => {

@@ -74,11 +74,16 @@ async function replaceSkill(folder: string, name: string): Promise<string> {
 
 export async function installSkills(scope: Scope): Promise<string[]> {
   const folder = await skillsFolder(scope);
-  const written: string[] = [];
+  const notes: string[] = [];
   for (const name of OWN_SKILLS) {
-    written.push(await replaceSkill(folder, name));
+    const target = join(folder, name);
+    if ((await skillHash(target)) !== undefined && !(await isOwnSkill(target))) {
+      notes.push(`kept ${target}: not a next-issue skill`);
+    } else {
+      notes.push(`wrote ${await replaceSkill(folder, name)}`);
+    }
   }
-  return written;
+  return notes;
 }
 
 async function skillHash(folder: string): Promise<string | undefined> {

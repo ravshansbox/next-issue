@@ -99,8 +99,8 @@ async function init(root: string, args: Args): Promise<number> {
   }
   await removeUnknownConfig(root, process.stdout);
   await excludeStateDirectories(root, process.stdout);
-  for (const folder of await installSkills(scope)) {
-    await write(process.stdout, `wrote ${folder}\n`);
+  for (const note of await installSkills(scope)) {
+    await write(process.stdout, `${note}\n`);
   }
   const base = await rootBasePackage(root).catch((error: unknown) => {
     const reason = message(error);
