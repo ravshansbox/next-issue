@@ -3,35 +3,24 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { type CommandRecord, setCommandObserver } from '../src/shared/exec.mts';
-import { ensureLabel, labelArgs, setLabel } from '../src/shared/labels.mts';
+import { ensureLabel, setLabel, staleLabels } from '../src/shared/labels.mts';
 import { installGh } from './fake-gh.mts';
 import { tempDir } from './temp-dir.mts';
 
 const MANAGED = ['status:todo', 'status:in-progress', 'status:in-review', 'status:done'];
 
 test('the worker removes only a label that is present', () => {
-  assert.deepEqual(labelArgs('status:in-review', MANAGED, ['status:todo', 'type: bug']), [
-    '--add-label',
-    'status:in-review',
-    '--remove-label',
+  assert.deepEqual(staleLabels('status:in-review', MANAGED, ['status:todo', 'type: bug']), [
     'status:todo',
   ]);
 });
 
 test('the worker removes a present label held in another case by its own name', () => {
-  assert.deepEqual(labelArgs('status:in-review', MANAGED, ['Status:Todo']), [
-    '--add-label',
-    'status:in-review',
-    '--remove-label',
-    'Status:Todo',
-  ]);
+  assert.deepEqual(staleLabels('status:in-review', MANAGED, ['Status:Todo']), ['Status:Todo']);
 });
 
 test('the worker never removes the label it adds', () => {
-  assert.deepEqual(labelArgs('status:done', MANAGED, ['status:done', 'status:in-review']), [
-    '--add-label',
-    'status:done',
-    '--remove-label',
+  assert.deepEqual(staleLabels('status:done', MANAGED, ['status:done', 'status:in-review']), [
     'status:in-review',
   ]);
 });
@@ -150,4 +139,47 @@ esac
   const repo = { owner: 'acme', name: 'many', root: dir };
   await ensureLabel(repo, 'source:hunt');
   assert.equal(await readFile(labels, 'utf8'), `${others}source:hunt\n`);
+});
+
+async function issueLabelsGh(t: TestContext, failAdd: boolean): Promise<string> {
+  const dir = await tempDir();
+  const held = join(dir, 'held');
+  await writeFile(held, 'status:in-progress\n');
+  const script = `#!/bin/sh
+case "$1 $2" in
+  "api --paginate") echo '[{"name":"status:in-progress"},{"name":"status:in-review"}]' ;;
+  "issue view") jq -Rn '{labels: [inputs | {name: .}]}' "${held}" ;;
+  "issue edit")
+    shift 3
+    add=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --remove-label) grep -vx -- "$2" "${held}" > "${held}.new"; mv "${held}.new" "${held}" ;;
+        --add-label) add="$2" ;;
+      esac
+      shift 2
+    done
+    if [ -n "$add" ]; then
+      if [ ${failAdd} = true ]; then echo 'HTTP 403: forbidden' >&2; exit 1; fi
+      echo "$add" >> "${held}"
+    fi ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+`;
+  await installGh(t, dir, script);
+  return dir;
+}
+
+test('the worker keeps the old status label on an issue when GitHub fails to add the new one', async (t) => {
+  const dir = await issueLabelsGh(t, true);
+  const repo = { owner: 'acme', name: 'add-fails', root: dir };
+  await assert.rejects(setLabel(repo, 'issue', 1, 'status:in-review', MANAGED), /forbidden/);
+  assert.equal(await readFile(join(dir, 'held'), 'utf8'), 'status:in-progress\n');
+});
+
+test('the worker replaces the old status label on an issue with the new one', async (t) => {
+  const dir = await issueLabelsGh(t, false);
+  const repo = { owner: 'acme', name: 'add-works', root: dir };
+  await setLabel(repo, 'issue', 1, 'status:in-review', MANAGED);
+  assert.equal(await readFile(join(dir, 'held'), 'utf8'), 'status:in-review\n');
 });

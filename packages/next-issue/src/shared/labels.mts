@@ -10,11 +10,10 @@ async function labelsOf(repo: Repo, kind: Kind, number: number): Promise<string[
   return names(parsed.labels);
 }
 
-export function labelArgs(add: string, remove: string[], current: string[]): string[] {
-  const stale = current.filter(
+export function staleLabels(add: string, remove: string[], current: string[]): string[] {
+  return current.filter(
     (label) => hasLabel(remove, label) && label.toLowerCase() !== add.toLowerCase(),
   );
-  return ['--add-label', add, ...stale.flatMap((name) => ['--remove-label', name])];
 }
 
 export function hasLabel(labels: string[], name: string): boolean {
@@ -30,11 +29,16 @@ export async function setLabel(
 ): Promise<void> {
   await createUnknownLabel(repo, add);
   const current = await labelsOf(repo, kind, number);
-  const args = [kind, 'edit', String(number), ...labelArgs(add, remove, current)];
+  const edit = [kind, 'edit', String(number)];
+  const args = [...edit, '--add-label', add];
   try {
     await gh(repo, args);
   } catch (error) {
     await retryWithLabel(repo, args, add, error);
+  }
+  const stale = staleLabels(add, remove, current);
+  if (stale.length > 0) {
+    await gh(repo, [...edit, ...stale.flatMap((name) => ['--remove-label', name])]);
   }
 }
 

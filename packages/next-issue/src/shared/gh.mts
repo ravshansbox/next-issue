@@ -6,7 +6,7 @@ import type { Repo } from './git.mts';
 
 const NETWORK_TRIES = 3;
 const NETWORK_FAULT =
-  /unexpected EOF|connection reset|connection refused|i\/o timeout|TLS handshake timeout|HTTP 50[234]/i;
+  /unexpected EOF|connection reset|connection refused|i\/o timeout|TLS handshake timeout|HTTP 50[234]|Something went wrong while executing your query/i;
 
 export const GITHUB_HOST = 'github.com';
 

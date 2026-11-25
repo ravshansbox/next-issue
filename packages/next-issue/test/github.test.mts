@@ -57,6 +57,12 @@ test('the worker tries a label edit again and succeeds when the network fails on
   assert.equal(await callsOf(dir, 'issue edit'), 2);
 });
 
+test('the worker tries a label edit again and succeeds when GitHub fails its GraphQL query once', async (t) => {
+  const dir = await flakyGh(t, 1, 'GraphQL: Something went wrong while executing your query');
+  await setLabel({ owner: 'acme', name: 'graphql', root: dir }, 'issue', 1, 'status:todo', []);
+  assert.equal(await callsOf(dir, 'issue edit'), 2);
+});
+
 test('the worker gives up a label edit after three tries when the network keeps failing', async (t) => {
   const dir = await flakyGh(t, 3, NETWORK_FAULT);
   await assert.rejects(
