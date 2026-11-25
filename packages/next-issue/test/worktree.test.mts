@@ -260,6 +260,35 @@ test('a user who resumes issue 3 while .claude/worktrees/next-issue-3 is left de
   assert.equal(await git(repo.root, 'show', `${aside}:stray.txt`), 'x');
 });
 
+test('a user who resumes issue 3 while .claude/worktrees/next-issue-3 holds a commit on a detached HEAD keeps that commit on a 3-detached branch', async () => {
+  const { repo } = await clones();
+  const { path: first } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  await git(first, 'config', 'user.name', 't');
+  await git(first, 'config', 'user.email', 't@t');
+  await git(first, 'checkout', '-q', '--detach', 'origin/main');
+  const detached = await commit(first, 'detached.txt');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  assert.equal(await git(path, 'branch', '--show-current'), '3');
+  const aside = await git(
+    repo.root,
+    'branch',
+    '--list',
+    '3-detached-*',
+    '--format=%(refname:short)',
+  );
+  assert.equal(aside, `3-detached-${detached.slice(0, 7)}`);
+  assert.equal(await git(repo.root, 'rev-parse', aside), detached);
+});
+
+test('a user who resumes issue 3 while .claude/worktrees/next-issue-3 is left clean on a detached HEAD that origin/main holds gets no 3-detached branch', async () => {
+  const { repo } = await clones();
+  const { path: first } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  await git(first, 'checkout', '-q', '--detach', 'origin/main');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  assert.equal(await git(path, 'branch', '--show-current'), '3');
+  assert.equal(await git(repo.root, 'branch', '--list', '3-detached-*'), '');
+});
+
 test('a user who resumes issue 3 while .claude/worktrees/next-issue-3 is left on another branch keeps its edits on a 3-detached branch', async () => {
   const { repo } = await clones();
   const { path: first } = await addWorktree(repo, 3, '3', 'main', 'origin', false);

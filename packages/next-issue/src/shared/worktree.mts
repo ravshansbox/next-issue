@@ -77,7 +77,8 @@ async function keepDetachedEdits(path: string, branch: string): Promise<void> {
   if ((await currentBranch(path)) !== undefined) {
     await git(path, ['update-ref', '--no-deref', 'HEAD', 'HEAD']);
   }
-  if (!(await commitAll(path, 'chore: edits left on a detached HEAD', { hooks: false }))) {
+  await commitAll(path, 'chore: edits left on a detached HEAD', { hooks: false });
+  if ((await git(path, ['for-each-ref', '--count=1', '--contains', 'HEAD'])) !== '') {
     return;
   }
   await git(path, ['branch', `${branch}-detached-${(await revision(path)).slice(0, 7)}`]);
