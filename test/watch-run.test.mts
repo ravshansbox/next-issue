@@ -206,12 +206,12 @@ test('a user who reads the status of a watch run sees it wait to look again duri
     },
   });
   const status = (): string =>
-    statusText('1.0.0', events.reduce(applyEvent, startProgress())).split('\n')[2]!;
+    statusText('1.0.0', '1.0.0', events.reduce(applyEvent, startProgress())).split('\n')[5]!;
   await until(() => run.sleeps.length === 1, 'the first wait');
-  assert.equal(status(), 'looking again in 1 minute');
+  assert.equal(status(), 'issues: none, next look in 1 minute');
   run.elapse();
   await until(() => run.passes() === 2, 'the second pass');
-  assert.equal(status(), 'looking for an issue');
+  assert.equal(status(), 'issues: none, looking for one');
   release();
   await run.end();
 });

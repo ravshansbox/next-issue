@@ -89,7 +89,7 @@ It writes `.next-issue/config.json` with the defaults, replacing the file when i
 | `hunt on\|off`          | Switch hunting of the going run                                            |
 | `init`                  | Write the config file with the defaults and install the skills             |
 | `stop`                  | Stop the going run after its current issues                                |
-| `status`                | Show the going run, its worker and its running issues                      |
+| `status`                | Show the CLI and worker versions, the going run and its running issues     |
 | `logs`                  | Show the latest run log and follow it                                      |
 | `--watch on\|off`       | With `start`: read the open issues again after each pass. On by default    |
 | `--hunt on\|off`        | With `start`: hunt the repository for bugs. Off by default. Needs watching |

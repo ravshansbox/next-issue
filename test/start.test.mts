@@ -801,7 +801,7 @@ test('a user who runs stop with no worker or no run going sees that no run is go
   assert.equal(fake.calls.length, 0);
 });
 
-test('a user who runs status with a run going sees its status, the worker version, watching, hunting and each running issue with its step, exit code 0 and the run unchanged', async (t) => {
+test('a user who runs status with a run going sees the cli version, the worker version, its state, watching, hunting and each running issue with its step on lines of their own, exit code 0 and the run unchanged', async (t) => {
   const root = await repository(ORIGIN);
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo);
@@ -820,11 +820,15 @@ test('a user who runs status with a run going sees its status, the worker versio
   assert.equal(
     status.stdout(),
     [
-      `running in worker ${await packageVersion()}`,
-      'watching on, hunting on',
-      '#624 reviewing (round 2)',
-      '#625 starting',
-      '#626 waiting for checks',
+      `cli: ${await packageVersion()}`,
+      `worker: ${await packageVersion()}`,
+      'state: running',
+      'watching: on',
+      'hunting: on',
+      'issues:',
+      '  #624 reviewing (round 2)',
+      '  #625 starting',
+      '  #626 waiting for checks',
       '',
     ].join('\n'),
   );
@@ -834,7 +838,7 @@ test('a user who runs status with a run going sees its status, the worker versio
   fake.finish();
 });
 
-test('a user who runs status while the worker looks for an issue or waits to look again sees "looking for an issue", then "looking again in <n> minutes", and only the issue lines while an issue runs', async (t) => {
+test('a user who runs status while the worker looks for an issue or waits to look again sees "issues: none, looking for one", then "issues: none, next look in <n> minutes", and the issue lines while an issue runs', async (t) => {
   const root = await repository(ORIGIN);
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo);
@@ -845,29 +849,29 @@ test('a user who runs status while the worker looks for an issue or waits to loo
   const statusLine = async (): Promise<string> => {
     const status = cliCommand(t, root, ['status']);
     assert.equal(await status.exited, 0, status.stderr());
-    return status.stdout().split('\n').slice(2).join('\n');
+    return status.stdout().split('\n').slice(5).join('\n');
   };
-  assert.equal(await statusLine(), 'looking for an issue\n');
+  assert.equal(await statusLine(), 'issues: none, looking for one\n');
   controls.onEvent!({ kind: 'issue.start', issue: 636 });
   await other.next((value) => value.type === 'runs' && value.runs[root]?.issues.length === 1);
-  assert.equal(await statusLine(), '#636 starting\n');
+  assert.equal(await statusLine(), 'issues:\n  #636 starting\n');
   controls.onEvent!({ kind: 'issue.end', issue: 636 });
   await other.next((value) => value.type === 'runs' && value.runs[root]?.issues.length === 0);
-  assert.equal(await statusLine(), 'looking for an issue\n');
+  assert.equal(await statusLine(), 'issues: none, looking for one\n');
   const ago = new Date(Date.now() - 61_000).toISOString();
   controls.onEvent!({ kind: 'watch.wait', minutes: 3, ts: ago });
   await other.next((value) => value.type === 'runs' && value.runs[root]?.looking === false);
-  assert.equal(await statusLine(), 'looking again in 2 minutes\n');
+  assert.equal(await statusLine(), 'issues: none, next look in 2 minutes\n');
   controls.onEvent!({ kind: 'watch.wait', minutes: 1, ts: new Date().toISOString() });
   await other.next((value) => value.type === 'runs' && value.runs[root]?.nextLook !== undefined);
-  assert.equal(await statusLine(), 'looking again in 1 minute\n');
+  assert.equal(await statusLine(), 'issues: none, next look in 1 minute\n');
   controls.onEvent!({ kind: 'watch.wake' });
   await other.next((value) => value.type === 'runs' && value.runs[root]?.looking === true);
-  assert.equal(await statusLine(), 'looking for an issue\n');
+  assert.equal(await statusLine(), 'issues: none, looking for one\n');
   fake.finish();
 });
 
-test('a user who runs status while a hunt runs sees "hunting for bugs" after the idle line or the issue lines, and no such line once the hunt ends', async (t) => {
+test('a user who runs status while a hunt runs sees "hunting: on (hunting now)" and no "hunting for bugs" line, and "hunting: on" once the hunt ends', async (t) => {
   const root = await repository(ORIGIN);
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo);
@@ -878,25 +882,22 @@ test('a user who runs status while a hunt runs sees "hunting for bugs" after the
   const statusLines = async (): Promise<string> => {
     const status = cliCommand(t, root, ['status']);
     assert.equal(await status.exited, 0, status.stderr());
-    return status.stdout().split('\n').slice(1).join('\n');
+    return status.stdout().split('\n').slice(4).join('\n');
   };
-  assert.equal(await statusLines(), 'watching on, hunting on\nlooking for an issue\n');
+  assert.equal(await statusLines(), 'hunting: on\nissues: none, looking for one\n');
   controls.onEvent!({ kind: 'hunt.start' });
   await other.next((value) => value.type === 'runs' && value.runs[root]?.hunt === true);
-  assert.equal(
-    await statusLines(),
-    'watching on, hunting on\nlooking for an issue\nhunting for bugs\n',
-  );
+  assert.equal(await statusLines(), 'hunting: on (hunting now)\nissues: none, looking for one\n');
   controls.onEvent!({ kind: 'issue.start', issue: 654 });
   await other.next((value) => value.type === 'runs' && value.runs[root]?.issues.length === 1);
-  assert.equal(await statusLines(), 'watching on, hunting on\n#654 starting\nhunting for bugs\n');
+  assert.equal(await statusLines(), 'hunting: on (hunting now)\nissues:\n  #654 starting\n');
   controls.onEvent!({ kind: 'hunt.end' });
   await other.next((value) => value.type === 'runs' && value.runs[root]?.hunt === undefined);
-  assert.equal(await statusLines(), 'watching on, hunting on\n#654 starting\n');
+  assert.equal(await statusLines(), 'hunting: on\nissues:\n  #654 starting\n');
   fake.finish();
 });
 
-test('a user who runs status while the run stops for an upgrade sees the run stopping, the upgrade and that no issue is running', async (t) => {
+test('a user who runs status while the run stops for an upgrade sees the state stopping, the upgrade line and "issues: none"', async (t) => {
   const root = await repository(ORIGIN);
   const fake = fakeRuns();
   await fakeWorker(t, root, fake.runRepo, '0.0.0-old');
@@ -910,10 +911,13 @@ test('a user who runs status while the run stops for an upgrade sees the run sto
   assert.equal(
     status.stdout(),
     [
-      'stopping in worker 0.0.0-old',
-      'watching on, hunting off',
-      `stopping for an upgrade to ${await packageVersion()}`,
-      'no issue is running',
+      `cli: ${await packageVersion()}`,
+      'worker: 0.0.0-old',
+      'state: stopping',
+      'watching: on',
+      'hunting: off',
+      `upgrade: stopping for ${await packageVersion()}`,
+      'issues: none',
       '',
     ].join('\n'),
   );
@@ -995,10 +999,13 @@ test('a user who runs start while an older worker has a watch run going sees the
     withoutSetupNotes(started.stderr()),
     [
       'a run is going already',
-      'stopping in worker 0.0.0-old',
-      'watching on, hunting on',
-      `stopping for an upgrade to ${version}`,
-      'no issue is running',
+      `cli: ${version}`,
+      'worker: 0.0.0-old',
+      'state: stopping',
+      'watching: on',
+      'hunting: on',
+      `upgrade: stopping for ${version}`,
+      'issues: none',
       '',
     ].join('\n'),
   );
@@ -1026,8 +1033,22 @@ async function goingRun(t: TestContext, root: string, args: string[] = []) {
   return { fake, other };
 }
 
-function statusLines(status: string, settings: string, idle = 'looking for an issue'): string {
-  return ['a run is going already', status, settings, idle, ''].join('\n');
+async function statusLines(
+  worker: string,
+  watching: string,
+  hunting: string,
+  issues = 'issues: none, looking for one',
+): Promise<string> {
+  return [
+    'a run is going already',
+    `cli: ${await packageVersion()}`,
+    `worker: ${worker}`,
+    'state: running',
+    `watching: ${watching}`,
+    `hunting: ${hunting}`,
+    issues,
+    '',
+  ].join('\n');
 }
 
 test('a user who runs start while a run is going sees the status of that run on stderr, exit code 0, and the run keep going with its settings and no second run', async (t) => {
@@ -1037,7 +1058,7 @@ test('a user who runs start while a run is going sees the status of that run on 
   assert.equal(await started.exited, 0, started.stderr());
   assert.equal(
     withoutSetupNotes(started.stderr()),
-    statusLines(`running in worker ${await packageVersion()}`, 'watching on, hunting on'),
+    await statusLines(await packageVersion(), 'on', 'on'),
   );
   assert.equal(started.stdout(), '');
   assert.equal(fake.calls.length, 1);
@@ -1049,16 +1070,16 @@ test('a user who runs start while a run is going sees the status of that run on 
 test('a user who runs start with --watch or --hunt while a run is going sees the run switch to the given settings, the new settings in the status and exit code 0', async (t) => {
   const root = await repository(ORIGIN);
   const { fake } = await goingRun(t, root);
-  for (const [args, settings, watching, hunting] of [
-    [['--hunt', 'on'], 'watching on, hunting on', true, true],
-    [['--watch', 'off'], 'watching off, hunting off', false, false],
-    [['--watch', 'on', '--hunt', 'off'], 'watching on, hunting off', true, false],
+  for (const [args, watchingText, huntingText, watching, hunting] of [
+    [['--hunt', 'on'], 'on', 'on', true, true],
+    [['--watch', 'off'], 'off', 'off', false, false],
+    [['--watch', 'on', '--hunt', 'off'], 'on', 'off', true, false],
   ] as const) {
     const started = startCommand(t, root, [...args]);
     assert.equal(await started.exited, 0, started.stderr());
     assert.equal(
       withoutSetupNotes(started.stderr()),
-      statusLines(`running in worker ${await packageVersion()}`, settings),
+      await statusLines(await packageVersion(), watchingText, huntingText),
     );
     assert.equal(fake.controls().watching?.on(), watching);
     assert.equal(fake.controls().hunting?.on(), hunting);
@@ -1132,7 +1153,7 @@ test('a user who runs start --hunt on while a worker older than request ids has 
   assert.equal(await started.exited, 0, started.stderr());
   assert.equal(
     withoutSetupNotes(started.stderr()),
-    statusLines('running in worker 0.0.0-old', 'watching on, hunting on', 'no issue is running'),
+    await statusLines('0.0.0-old', 'on', 'on', 'issues: none'),
   );
 });
 

@@ -142,41 +142,45 @@ function listText(items: string[]): string {
 }
 
 export function statusInWorker(root: string): Promise<string> {
-  return inWorker(root, async (connection, progress) => statusText(connection.version, progress));
+  return inWorker(root, async (connection, progress) =>
+    statusText(await packageVersion(), connection.version, progress),
+  );
 }
 
-export function statusText(version: string, progress: Progress): string {
+export function statusText(cliVersion: string, workerVersion: string, progress: Progress): string {
+  const hunting = onOffText(progress.hunting);
   const lines = [
-    `${progress.status} in worker ${version}`,
-    `watching ${onOffText(progress.watching)}, hunting ${onOffText(progress.hunting)}`,
+    `cli: ${cliVersion}`,
+    `worker: ${workerVersion}`,
+    `state: ${progress.status}`,
+    `watching: ${onOffText(progress.watching)}`,
+    `hunting: ${progress.hunt === true ? `${hunting} (hunting now)` : hunting}`,
   ];
   if (progress.upgrade !== undefined) {
-    lines.push(`stopping for an upgrade to ${progress.upgrade.to}`);
+    lines.push(`upgrade: stopping for ${progress.upgrade.to}`);
   }
   if (progress.issues.length === 0) {
-    lines.push(idleLine(progress));
-  }
-  lines.push(...progress.issues.map(issueLine));
-  if (progress.hunt === true) {
-    lines.push('hunting for bugs');
+    lines.push(`issues: ${idleText(progress)}`);
+  } else {
+    lines.push('issues:', ...progress.issues.map((issue) => `  ${issueLine(issue)}`));
   }
   return `${lines.join('\n')}\n`;
 }
 
-function idleLine(progress: Progress): string {
+function idleText(progress: Progress): string {
   if (progress.status !== 'running') {
-    return 'no issue is running';
+    return 'none';
   }
   const minutes =
     progress.nextLook === undefined
       ? 0
       : Math.ceil((Date.parse(progress.nextLook) - Date.now()) / 60_000);
   if (minutes > 0) {
-    return `looking again in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
+    return `none, next look in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
   }
   return progress.looking === true || progress.nextLook !== undefined
-    ? 'looking for an issue'
-    : 'no issue is running';
+    ? 'none, looking for one'
+    : 'none';
 }
 
 function issueLine({ issue, step, round }: RunningIssue): string {

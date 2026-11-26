@@ -28,7 +28,7 @@ export async function startInWorker(root: string, argv: string[]): Promise<strin
     if (going(progress)) {
       const join = await joined(connection, root, argv, progress!);
       if (join.joined) {
-        return `a run is going already\n${statusText(connection.version, join.progress)}`;
+        return `a run is going already\n${statusText(version, connection.version, join.progress)}`;
       }
       if (!isNewer(version, connection.version) || !REFUSED_GOING.includes(join.refusal)) {
         throw new Error(join.refusal);
@@ -40,7 +40,7 @@ export async function startInWorker(root: string, argv: string[]): Promise<strin
       if (given.hunt !== undefined) {
         latest = await switched(connection, root, 'hunt', given.hunt, true);
       }
-      return `a run is going already\n${statusText(connection.version, latest)}`;
+      return `a run is going already\n${statusText(version, connection.version, latest)}`;
     }
     const id = randomUUID();
     const accepted = startedRun(connection, root, id);

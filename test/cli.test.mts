@@ -261,7 +261,7 @@ test('a user who runs status while a watch run with no open issue waits sees whe
   const root = await repository();
   await watchingRun(t, root);
   const { stdout } = await promisify(execFile)(process.execPath, [CLI, 'status'], { cwd: root });
-  assert.equal(stdout.split('\n')[2], 'looking again in 1 minute');
+  assert.equal(stdout.split('\n')[5], 'issues: none, next look in 1 minute');
 });
 
 const STARTED = /^the run started in the worker/m;
@@ -415,7 +415,7 @@ test('a user who runs next-issue start while another run of start is going in th
   const { stderr } = await promisify(execFile)(process.execPath, [CLI, 'start'], { cwd: root });
   assert.match(
     stderr,
-    /^a run is going already\nrunning in worker .*\nwatching on, hunting off\n/m,
+    /^a run is going already\ncli: .*\nworker: .*\nstate: running\nwatching: on\nhunting: off\n/m,
   );
   assert.equal(await exists(called), false);
 });
