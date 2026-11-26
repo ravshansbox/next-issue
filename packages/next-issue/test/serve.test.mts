@@ -1928,3 +1928,24 @@ test('a worker disconnects a client that stops reading once its output buffer pa
     /the connection closed/,
   );
 });
+
+test('a client that is still receiving the run end when a newer client connects gets the end before the worker closes for the upgrade', async (t) => {
+  const { fake, dir, started, client: slow } = await stalledWorker(t, { endSendMs: 10_000 });
+  slow.pause();
+  for (let count = 0; count < 2048; count += 1) {
+    fake.controls().output!(outputLine);
+  }
+  const newer = await connect(t, join(dir, 'w.sock'));
+  fake.finish(0);
+  await newer.next((value) => runsOf(value) && value.runs['/repo']?.status === 'finished');
+  newer.send({ type: 'hello', version: '2.1.0' });
+  newer.send({ type: 'stop', root: '/repo', after: 'never' as never, id: 'answered' });
+  await newer.next((value) => value.type === 'error' && value.id === 'answered');
+  slow.resume();
+  assert.deepEqual(await slow.next((value) => value.type === 'end'), {
+    type: 'end',
+    root: '/repo',
+    code: 0,
+  });
+  await started.closed;
+});

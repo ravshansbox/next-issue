@@ -93,6 +93,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   let restart: string | undefined;
   let successor: Launch | undefined;
   let closing = false;
+  let sendingEnd = false;
 
   const server = createServer();
   const sockets = new WebSocketServer({ server });
@@ -154,7 +155,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     return 0;
   });
   const closeWhenIdle = (): void => {
-    if ((restart !== undefined || sockets.clients.size === 0) && !busy()) {
+    if ((restart !== undefined || sockets.clients.size === 0) && !busy() && !sendingEnd) {
       void close();
     }
   };
@@ -255,6 +256,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     )
       .finally(() => {
         closing = true;
+        sendingEnd = true;
       })
       .then(
         (code) => {
