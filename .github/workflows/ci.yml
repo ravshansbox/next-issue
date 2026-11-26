@@ -72,6 +72,6 @@ jobs:
           tag="v$version"
           git tag "$tag"
           git push origin "$tag"
-          npm publish --workspaces
+          npm publish
           notes=$(.github/scripts/release-notes.sh "$tag")
           gh release create "$tag" --title "$tag" --notes-file - <<<"$notes"

@@ -13,31 +13,21 @@ trap 'git -C "$root" worktree remove --force "$tree"' EXIT
 git worktree add --quiet --detach "$tree" "$last"
 cd "$tree"
 
-missing=()
-for manifest in packages/*/package.json; do
-  if [ "$(node -p "require('./$manifest').private === true")" = true ]; then
-    continue
-  fi
-  name=$(node -p "require('./$manifest').name")
+if [ "$(node -p "require('./package.json').private === true")" != true ]; then
+  name=$(node -p "require('./package.json').name")
   if [ "$(npm view "$name@$version" version --prefer-online 2>/dev/null)" = "$version" ]; then
     echo "npm already holds $name@$version."
   else
-    missing+=("$(dirname "$manifest")")
-  fi
-done
-
-if [ "${#missing[@]}" -gt 0 ]; then
-  npm ci --ignore-scripts
-  npm version --no-git-tag-version --allow-same-version --workspaces "$version" > /dev/null
-  for workspace in "${missing[@]}"; do
-    if ! output=$(npm publish -w "$workspace" --provenance=false 2>&1); then
+    npm ci --ignore-scripts
+    npm version --no-git-tag-version --allow-same-version "$version" > /dev/null
+    if ! output=$(npm publish --provenance=false 2>&1); then
       echo "$output" >&2
       if ! grep -qE 'previously (published|staged) version' <<<"$output"; then
         exit 1
       fi
-      echo "npm already holds $workspace at $version."
+      echo "npm already holds $name@$version."
     fi
-  done
+  fi
 fi
 
 if ! gh release view "$last" > /dev/null 2>&1; then

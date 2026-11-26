@@ -10,7 +10,7 @@ setup() {
   root=$(mktemp -d "$temp/XXXXXX")
   bin=$root/bin
   repo=$root/repo
-  mkdir -p "$bin" "$repo/packages/first" "$repo/packages/plugin"
+  mkdir -p "$bin" "$repo"
   cat > "$bin/npm" <<'EOF'
 #!/usr/bin/env bash
 name=${2%@*}
@@ -23,8 +23,7 @@ EOF
 echo slept >> "$SLEPT"
 EOF
   chmod +x "$bin/npm" "$bin/sleep"
-  echo '{"name":"first","version":"0.0.0"}' > "$repo/packages/first/package.json"
-  echo '{"name":"plugin","version":"0.0.0","private":true}' > "$repo/packages/plugin/package.json"
+  echo '{"name":"first","version":"0.0.0"}' > "$repo/package.json"
 }
 
 wait_for() {
@@ -44,14 +43,14 @@ check() {
 
 setup
 if wait_for first; then result=0; else result=1; fi
-check 'the release job waits for every public package and none that is private' 0 "$result"
+check 'the release job ends once npm serves the root package' 0 "$result"
 
 setup
 if wait_for ''; then result=0; else result=1; fi
-check 'the release job fails when npm does not serve a public package in time' 1 "$result"
+check 'the release job fails when npm does not serve the root package in time' 1 "$result"
 
 setup
 if wait_for '' 600 first; then result=0; else result=1; fi
-check 'the release job retries until npm serves a public package after one wait' '0 1' "$result $(wc -l 2>/dev/null < "$root/slept" | tr -d ' ')"
+check 'the release job retries until npm serves the root package after one wait' '0 1' "$result $(wc -l 2>/dev/null < "$root/slept" | tr -d ' ')"
 
 exit "$failures"
