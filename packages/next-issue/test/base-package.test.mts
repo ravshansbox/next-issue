@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { setTimeout } from 'node:timers/promises';
 import { promisify } from 'node:util';
 import type { Repo } from '../src/shared/git.mts';
 import { clones, git } from './clones.mts';
@@ -23,6 +25,23 @@ async function holdRefLocks(root: string): Promise<void> {
     '#!/bin/sh\nif [ "$1" = prepared ]; then sleep 1; fi\n',
     { mode: 0o755 },
   );
+}
+
+async function holdPackedRefsAfterFetch(root: string): Promise<() => Promise<void>> {
+  const hooks = await git(root, 'rev-parse', '--git-path', 'hooks');
+  const lock = join(root, await git(root, 'rev-parse', '--git-path', 'packed-refs.lock'));
+  await writeFile(
+    join(root, hooks, 'reference-transaction'),
+    `#!/bin/sh\nif [ "$1" = committed ] && [ ! -e '${lock}.held' ]; then touch '${lock}.held' '${lock}'; fi\n`,
+    { mode: 0o755 },
+  );
+  return async () => {
+    while (!existsSync(lock)) {
+      await setTimeout(20);
+    }
+    await setTimeout(2000);
+    await rm(lock);
+  };
 }
 
 function readBase(repo: Repo): Promise<{ stdout: string }> {
@@ -46,5 +65,12 @@ test('two processes that check the package.json of the base at the same time bot
     results.map((result) => result.stdout),
     ['origin/main true', 'origin/main true'],
   );
+  assert.equal(await git(repo.root, 'for-each-ref', 'refs/next-issue'), '');
+});
+
+test('a process that checks the package.json of the base while another git process holds the packed refs lock for 2 seconds leaves no ref behind', async () => {
+  const { repo } = await clones();
+  const releaseAfterTwoSeconds = await holdPackedRefsAfterFetch(repo.root);
+  await Promise.all([readBase(repo), releaseAfterTwoSeconds()]);
   assert.equal(await git(repo.root, 'for-each-ref', 'refs/next-issue'), '');
 });

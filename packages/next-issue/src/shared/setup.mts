@@ -94,6 +94,8 @@ function listed(names: string[]): string {
 
 const WHY = `next-issue runs ${listed(SCRIPTS)} before each push, since the humanless flow relies on these checks instead of a person. Each script must fail on a problem, and \`format\` must check the formatting, not write files.`;
 
+const PACKED_REFS_WAIT_MS = 10_000;
+
 export type BasePackage = { base: string; text: string | undefined };
 
 export async function basePackage(repo: Repo, remote: string): Promise<BasePackage> {
@@ -109,7 +111,13 @@ export async function basePackage(repo: Repo, remote: string): Promise<BasePacka
     const result = await run('git', ['show', `${ref}:package.json`], { cwd: repo.root });
     return { base: remoteRef(remote, branch), text: succeeded(result) ? result.stdout : undefined };
   } finally {
-    await run('git', ['update-ref', '-d', ref], { cwd: repo.root });
+    await run(
+      'git',
+      ['-c', `core.packedRefsTimeout=${PACKED_REFS_WAIT_MS}`, 'update-ref', '-d', ref],
+      {
+        cwd: repo.root,
+      },
+    );
   }
 }
 
