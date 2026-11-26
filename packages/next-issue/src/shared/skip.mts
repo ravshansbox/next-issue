@@ -135,10 +135,6 @@ export async function closedReport(
   return open ? undefined : dropClosed(context, log, issue, saved);
 }
 
-/**
- * A person gave up on a halted issue: it never resumes to check the base while it has the skip label, so its halt
- * stops blocking the landings of other issues. The state keeps what is on the base for a later resume.
- */
 async function release(context: Context, log: Recorder, saved: IssueState): Promise<void> {
   delete saved.halted;
   await writeState(context.repo, saved);

@@ -15,7 +15,6 @@ export async function setUp(job: Run): Promise<Round> {
   return setupFailed(job, setup, unsettledBase(job));
 }
 
-/** Installs the dependencies of the merged base before the local checks; gives the hand-over when the setup fails. */
 export async function setUpBeforeChecks(job: Run): Promise<Finished | undefined> {
   const setup = await runSetup(job);
   if (setup === undefined || succeeded(setup)) {

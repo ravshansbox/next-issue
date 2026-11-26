@@ -37,7 +37,6 @@ export async function processIssue(
     return unclaimedError(log, issue, error, started);
   }
   const handedOver = wasHandedOver(context, issue, saved);
-  // A hand-over takes a closing issue back: its resume may revert or add to the change.
   const closing = saved?.closing === true && !handedOver;
   if (issue.closed === true && !closing) {
     return dropClosed(context, log, issue, saved);
@@ -77,10 +76,6 @@ export async function processIssue(
   return report;
 }
 
-/**
- * A hand-over whose comment failed counts once its label reached GitHub (a person who takes it off retries),
- * or once the issue is claimed with its label still on, that is with an answer.
- */
 function wasHandedOver(context: Context, issue: Issue, saved: IssueState | undefined): boolean {
   if (saved?.handedOver === true) {
     return true;

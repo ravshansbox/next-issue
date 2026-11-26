@@ -76,7 +76,6 @@ const RUNNERS: Array<[string, string]> = [
   ['bun.lockb', 'bun run'],
 ];
 
-/** The command that runs a package script, from the lock file of the package manager. */
 export async function scriptRunner(root: string): Promise<string> {
   for (const [file, runner] of RUNNERS) {
     if (await exists(join(root, file))) {
@@ -97,7 +96,6 @@ const WHY = `next-issue runs ${listed(SCRIPTS)} before each push, since the huma
 
 export type BasePackage = { base: string; text: string | undefined };
 
-/** Fetches the base branch from the remote into a ref of its own for this call, so a fetch in another process (another `start`, or the worker) never clashes with it, reads the `package.json` at its root and then removes the ref. */
 export async function basePackage(repo: Repo, remote: string): Promise<BasePackage> {
   const branch = await defaultBranch(repo);
   const ref = `refs/next-issue/base-${randomUUID()}`;
@@ -115,7 +113,6 @@ export async function basePackage(repo: Repo, remote: string): Promise<BasePacka
   }
 }
 
-/** Fails when the `package.json` of the base is missing or lacks any of the scripts of the local gate. */
 export function requireScripts({ base, text }: BasePackage): void {
   if (text === undefined) {
     throw new Error(

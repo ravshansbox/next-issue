@@ -31,9 +31,7 @@ export type IssueReport = {
   reviewRounds: number;
   ms: number;
   halt?: boolean;
-  /** An error after the claim whose hand-over reached GitHub, so the label holds the issue until a person answers. */
   handedOver?: boolean;
-  /** Skipped for an open blocker, so it may be claimed again once another issue of the run is done. */
   blocked?: boolean;
 };
 
@@ -49,11 +47,8 @@ export type Run = {
   started: number;
   mainBroken: boolean;
   repairing: boolean;
-  /** The run resumed the issue after a hand-over, so a commit on the branch may come from a person rather than a fix. */
   handedOver: boolean;
-  /** The dispute branches that hold the edits a fixer left behind in this run. */
   asides: string[];
-  /** The `concurrency` slot of the issue, freed while it lands; absent when nothing limits the agents. */
   slot?: Slot;
 };
 

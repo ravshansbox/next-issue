@@ -23,7 +23,6 @@ export type Client = {
 const nextTimeoutMs = 30_000;
 
 export async function connect(t: TestContext, socketPath: string): Promise<Client> {
-  // A `ws+unix://` URL would percent-encode the path and cut it at `#`, `?` and `:`.
   const stream = createConnection(socketPath);
   const socket = new WebSocket('ws://localhost/', {
     createConnection: () => stream,

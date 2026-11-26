@@ -41,7 +41,6 @@ export async function pushToBase(cwd: string, remote: string, base: string): Pro
   return succeeded(result) ? { pushed: true } : { pushed: false, error: result.stderr };
 }
 
-/** Pushes `HEAD` to branch `<branch>` only while the remote branch is still at `expected` (`''`: no branch). */
 export async function pushBranch(
   cwd: string,
   remote: string,
@@ -56,7 +55,6 @@ export async function pushBranch(
   return succeeded(result) ? { pushed: true } : { pushed: false, error: result.stderr };
 }
 
-/** Deletes branch `<branch>` on the remote only while it is still at `expected`. */
 export async function deleteRemoteBranch(
   repo: Repo,
   remote: string,
@@ -71,7 +69,6 @@ export async function deleteRemoteBranch(
   return succeeded(result);
 }
 
-/** Whether the last fetched base holds a commit that `HEAD` lacks. */
 export async function baseMoved(cwd: string, base: string, remote: string): Promise<boolean> {
   return !(await isAncestor(cwd, remoteRef(remote, base), 'HEAD'));
 }

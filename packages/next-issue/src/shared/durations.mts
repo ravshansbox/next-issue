@@ -39,7 +39,6 @@ export function elapsedMs(started: number): number {
 
 export type Sleeper = { wake?: () => void };
 
-// Resolves false when woken, or when `woken` aborts.
 export function wakeableSleep(
   sleeper: Sleeper,
   ms: number,

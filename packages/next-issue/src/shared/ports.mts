@@ -52,7 +52,6 @@ async function runSetup(command: string, cwd: string, timeoutMs: number): Promis
 
 export type CheckResult = { code: number; output: string; timedOut: boolean };
 
-/** Runs a check command with its stderr in its stdout, so the output keeps the order it was written in. */
 async function runCheck(
   command: string,
   cwd: string,

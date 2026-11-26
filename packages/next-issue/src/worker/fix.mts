@@ -78,7 +78,6 @@ export async function fixRound(
     job.state.changeTitle ??= title;
   }
   const committed = await commitWork(job, before, subject, 'fixer');
-  // A review or local check fix is squashed into the change, which keeps its title.
   if (kind === 'review' || kind === 'local') {
     job.state.title = title;
   }
@@ -121,7 +120,6 @@ async function disputedFix(
 ): Promise<Fix> {
   const { context, issue, log, worktree, branch } = job;
   const { ports } = context;
-  // A retry or the revert after a failed check cleans this worktree, so edits left there would be lost.
   const saved = await ports.commitAll(
     worktree,
     commitMessage(`fix: edits left by the ${kind === 'review' ? 'review' : 'check'} fixer`, issue),

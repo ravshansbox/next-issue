@@ -42,7 +42,6 @@ esac
   return { ...process.env };
 }
 
-/** Puts a fake `gh` that names `main` as the default branch on the `PATH` of the whole test file. */
 export async function baseGh(): Promise<void> {
   const dir = await tempDir();
   await writeFile(join(dir, 'gh-raw'), BASE_GH);

@@ -113,7 +113,6 @@ export function onStop(stopper: () => void): () => void {
   };
 }
 
-/** Runs `undo` (synchronously) if the process is killed, for a step the kill leaves unsettled. */
 export function onKill(undo: () => void): () => void {
   undos.add(undo);
   return () => {
@@ -173,7 +172,6 @@ function runUndos(): void {
   undos.clear();
 }
 
-/** Kills every process group at once, for a worker that crashed and cannot wait for them. */
 export function killChildren(): void {
   for (const children of runs) {
     children.stopped = true;
@@ -186,10 +184,6 @@ const onTerminate = (): void => stopChildren('SIGTERM');
 
 const onHangUp = (): void => stopChildren('SIGHUP');
 
-/**
- * Handles `SIGTERM` and `SIGHUP` (a closed terminal) while a command or an agent runs,
- * so its process group is stopped too.
- */
 function guard(): void {
   if (groups.size === 0 && stoppers.size === 0) {
     process.on('SIGTERM', onTerminate);

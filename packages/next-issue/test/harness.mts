@@ -87,11 +87,8 @@ export type Plan = {
   fixerWrites?: boolean;
   detected?: string;
   issue?: Issue;
-  /** The issue as GitHub holds it when the harness reads it again after the implementer. */
   fresh?: Issue;
-  /** The last person to change the issue body when the harness reads it again after the implementer; by default the first one. */
   freshEditor?: string;
-  /** Reading the issue again after the implementer fails. */
   freshFails?: boolean;
   baseUpdated?: boolean;
   branchUpdated?: boolean;
@@ -103,10 +100,8 @@ export type Plan = {
   mergeResolved?: boolean;
   mergeHook?: string;
   pushRejects?: number;
-  /** The error of git for a push that the remote refuses while the base stays put. */
   pushRefused?: string;
   pushLandsAndFails?: boolean;
-  /** The error of git for every push of the issue branch. */
   branchPushFails?: string;
   pushLandsAndStops?: boolean;
   baseFetchFails?: boolean;
@@ -120,14 +115,11 @@ export type Plan = {
   baseChecks?: CheckState[];
   rerunChecks?: CheckState[];
   rerunFails?: boolean;
-  /** Commits whose failed workflow runs were already rerun, as GitHub shows by their attempts. */
   rerunDone?: string[];
   pressDuring?: string;
   stopNowDuring?: string;
-  /** The agent (or `rerun`) that never settles, as when the process is killed while it runs. */
   hangDuring?: string;
   stopNowDuringSetup?: boolean;
-  /** The exit codes of the local check commands in turn; a missing code passes, `timeout` does not finish. */
   checkCodes?: Array<number | 'timeout'>;
   stopNowDuringCheck?: boolean;
   stopNowOnLabel?: string;
@@ -135,17 +127,13 @@ export type Plan = {
   earlier?: string;
   thread?: Array<{ author: string; body: string; url?: string; createdAt?: string }>;
   writers?: string[];
-  /** The person who last added the skip label; by default a person with write access. */
   skipLabeler?: string;
-  /** The last people to change the issue body and title; by default a person with write access. */
   editors?: { body: string; title: string };
-  /** The title and body GitHub holds when the worker checks the editors; by default the listed ones. */
   current?: { title: string; body: string };
   accessFails?: boolean;
   hunterText?: string;
   root?: string;
   onEvent?: (record: Record<string, unknown>) => void;
-  /** Every write to the run log fails with `ENOSPC`, as on a full disk. */
   runLogFails?: boolean;
 };
 
@@ -158,16 +146,13 @@ export type Harness = {
   messages: string[];
   comments: string[];
   issueNotes: Array<{ number: number; body: string }>;
-  /** Each body the harness wrote to an issue. */
   bodies: Array<{ number: number; body: string }>;
   discards: number;
   setups: string[];
-  /** Each local check command run, with the head it ran on. */
   checks: Array<{ command: string; head: string }>;
   baseMerges: number;
   mergeAborts: string[];
   deleted: string[];
-  /** Each push of an issue branch, with the head it pushed and the remote commit it expected. */
   pushed: Array<{ branch: string; head: string; expected: string }>;
   remoteDeleted: string[];
   landed: string[];
@@ -181,16 +166,13 @@ export type Harness = {
   branches: string[];
   starts: boolean[];
   asides: Array<{ target: string; aside: string }>;
-  /** Edits of a fixer committed with no hooks. */
   saves: number;
   threads: number[];
   events: Array<Record<string, unknown>>;
   hunts: string[];
   head: () => string;
   stopNow: () => void;
-  /** Settles when the step named by `hangDuring` starts. */
   hung: Promise<void>;
-  /** Makes the step named by `hangDuring` fail, as when its process is killed. */
   failHung: () => void;
   run: () => Promise<IssueReport>;
   state: () => Promise<IssueState | undefined>;

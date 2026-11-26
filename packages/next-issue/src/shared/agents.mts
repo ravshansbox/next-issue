@@ -124,7 +124,6 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
         throw error;
       }
     } finally {
-      // A call that times out, fails or is stopped has spent tokens too.
       result = await sessionResult(recorder, request, session, started);
     }
     refuseWhenStopped();

@@ -190,7 +190,6 @@ async function editorsJson(repo: Repo, issue: number): Promise<string> {
   }
 }
 
-/** The title and body of an issue with the last people to change them; the author when never changed, `ghost` for a deleted account. */
 export async function issueEditors(repo: Repo, issue: number): Promise<IssueText> {
   const raw = await editorsJson(repo, issue);
   const parsed = parseJson(
@@ -216,7 +215,6 @@ export async function issueEditors(repo: Repo, issue: number): Promise<IssueText
   };
 }
 
-/** The person who last added the label to the issue, `ghost` for a deleted account, or undefined when nobody added it. */
 export async function labeler(
   repo: Repo,
   issue: number,

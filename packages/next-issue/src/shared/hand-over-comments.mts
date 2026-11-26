@@ -74,7 +74,6 @@ function postedAfter(comment: Comment, since: string | undefined): boolean {
   return since !== undefined && comment.createdAt !== undefined && comment.createdAt > since;
 }
 
-/** With a pending hand-over, only comments after it answer; without its time, none do. */
 function answerCandidates(
   comments: Comment[],
   last: number,
@@ -123,7 +122,6 @@ export async function handOverReply(
   return replyAfter(comments, last, writer, pending);
 }
 
-/** The time of the newest thread comment, `''` for an empty thread, `undefined` when the thread cannot be read. */
 export async function threadEnd(context: Context, issue: number): Promise<string | undefined> {
   try {
     const comments = await context.ports.threadComments(context.repo, issue);

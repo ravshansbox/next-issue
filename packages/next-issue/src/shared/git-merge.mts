@@ -27,7 +27,6 @@ export async function startMerge(cwd: string, base: string, remote: string): Pro
   return { target, files, unmarked };
 }
 
-// A recorded resolution would hide the conflict markers from the fixer.
 const NO_RERERE = ['-c', 'rerere.enabled=false', '-c', 'rerere.autoUpdate=false'];
 
 async function unmergedFiles(cwd: string): Promise<string[]> {
@@ -49,8 +48,6 @@ function conflictMarker(size: number): RegExp {
   return new RegExp(`^(?:<{${size}}|>{${size}})(?: |$)`, 'm');
 }
 
-// git writes the markers with the attributes of the branch's own commit, while the merged
-// base or the fixer can change them in the worktree, so both sizes count.
 async function markerSizes(cwd: string, file: string, before: string): Promise<Set<number>> {
   return new Set([await markerSize(cwd, file, ['--source', before]), await markerSize(cwd, file)]);
 }

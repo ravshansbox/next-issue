@@ -79,7 +79,6 @@ export async function diff(cwd: string, base: string, remote: string): Promise<s
   return git(cwd, ['diff', `${remoteRef(remote, base)}...HEAD`]);
 }
 
-/** The files that the commits added or changed, as paths from the repository root. */
 export async function changedFiles(cwd: string, shas: string[]): Promise<string[]> {
   if (shas.length === 0) {
     return [];

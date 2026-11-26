@@ -9,7 +9,6 @@ export const STATE_DIR = '.next-issue';
 
 type Phase = 'claimed' | 'implemented' | 'review' | 'approved';
 
-/** A hand-over whose comment may not have reached GitHub: `since` is the time of the newest thread comment before it. */
 export type PendingHandOver = { reason: string; since?: string; labelled?: boolean };
 
 export type IssueState = {
@@ -28,20 +27,15 @@ export type IssueState = {
   reverting?: string;
   squashing?: string;
   reviewing?: string;
-  /** The commit the worker last pushed to branch `<n>`, or `''` for no branch: the lease of its next push. */
   branchHead?: string;
   reviewRounds: number;
   reviewLog: ReviewRound[];
   handedOver?: boolean;
   pendingHandOver?: PendingHandOver;
   closing?: boolean;
-  /** The already done note to post while closing, until it is posted. */
   doneNote?: string;
-  /** The already done note is on the issue, so no resume posts it again. */
   donePosted?: boolean;
-  /** The run halted while a commit of this issue was, or may be, on the base with checks nobody awaited. */
   halted?: boolean;
-  /** No worktree of the issue opened yet, so a worktree that holds its branch is a person's. */
   fresh?: boolean;
 };
 
@@ -166,10 +160,6 @@ export function newState(issue: number, branch: string): IssueState {
   return { issue, phase: 'claimed', branch, ciFixes: 0, reviewRounds: 0, reviewLog: [] };
 }
 
-/**
- * Drops the budgets and findings of a handed-over issue, and cancels an approval, the closing mark and its unposted note, the review start and the squash start,
- * so a resume that stops before it finishes is resumed again rather than closed as done.
- */
 export function resetState(state: IssueState): IssueState {
   const {
     handedOver: _handedOver,
@@ -189,7 +179,6 @@ export async function writeState(repo: Repo, state: IssueState): Promise<void> {
   await replaceJson(file(repo, state.issue), state);
 }
 
-/** Writes the state synchronously, from a kill of the process. */
 export function writeStateNow(repo: Repo, state: IssueState): void {
   replaceJsonNow(file(repo, state.issue), state);
 }

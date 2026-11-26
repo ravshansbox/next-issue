@@ -11,13 +11,11 @@ export type Hunter = {
 };
 
 export type Watch = Loop & {
-  // `woken` aborts when watching is switched or `lookNow` aborts; the wait then ends early.
   wait: (minutes: number, woken?: AbortSignal) => Promise<boolean>;
   passEnd: (reports: IssueReport[]) => Promise<void>;
   unreadable: (error: unknown) => void;
   hunter?: Hunter;
   hunting?: Switch;
-  // Off ends the watch after the current pass, or at once during a wait.
   watching?: Switch;
   lookNow?: () => AbortSignal;
 };

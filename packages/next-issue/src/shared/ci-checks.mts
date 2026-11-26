@@ -76,7 +76,6 @@ async function baseRuns(
   return judged.filter((entry) => entry !== undefined);
 }
 
-/** Judges a workflow run by its jobs outside the ignored checks; a run that GitHub concludes `success` keeps it, as a failed `continue-on-error` job does not fail it; a run with no job yet, or a running one whose listed jobs all finished, keeps its own state, as a job not listed yet may follow. A running one whose kept jobs failed waits until it finishes, as GitHub refuses to rerun a running run. */
 async function withoutIgnored(
   repo: Repo,
   run: BaseRun,
@@ -172,7 +171,6 @@ async function baseChecks(
     baseRuns(repo, sha, branch, ignored),
     externalChecks(repo, sha, ignored),
   ]);
-  // A rerun run counts as running until a later attempt of it completes, so its old failure never ends the wait.
   const rerunning = restarted.some(
     (entry) =>
       !runs.some(
@@ -187,13 +185,11 @@ function failedRun(entry: { status: string; conclusion: string }): boolean {
   return entry.status === 'completed' && FAILED_CONCLUSIONS.has(entry.conclusion);
 }
 
-/** A failed workflow run whose failed jobs were not rerun yet; one that waits for approval cannot be rerun. */
 function rerunnable(entry: BaseRun): boolean {
   return failedRun(entry) && entry.conclusion !== AWAITS_APPROVAL && !(entry.attempt > 1);
 }
 
 function baseState(runs: BaseRun[], external: Check[]): CheckState {
-  // A failure that gets a rerun ends the wait at once; any other failure waits for every check, so no run that fails later misses its rerun.
   if (runs.some(rerunnable)) {
     return 'fail';
   }
@@ -259,7 +255,6 @@ async function rerun(repo: Repo, id: number): Promise<void> {
   try {
     await gh(repo, ['run', 'rerun', String(id), '--failed']);
   } catch (error) {
-    // A rerun repeated after a lost reply finds the run running again, so that answer means the rerun started.
     if (!errorMatches(error, ALREADY_RUNNING)) {
       throw error;
     }

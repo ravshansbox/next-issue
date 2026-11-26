@@ -1,10 +1,8 @@
-/** The slot of one issue: freed while it waits to land, taken back for each agent it runs meanwhile. */
 export type Slot = {
   free: () => void;
   take: () => Promise<boolean>;
 };
 
-/** The `concurrency` slots of a run; an issue that waits for a slot comes before a new claim. */
 export class Slots {
   private readonly size: number;
   private used = 0;

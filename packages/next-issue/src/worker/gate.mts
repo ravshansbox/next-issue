@@ -22,7 +22,6 @@ export async function checkGate(job: Run, sha: string): Promise<Gate> {
     }
     return unreadChecks(job, error);
   }
-  // Checks that passed leave the base known, so an earlier halt on this issue no longer holds back other landings.
   if (checks === 'pass' || checks === 'none') {
     if (job.state.halted === true) {
       delete job.state.halted;
@@ -32,7 +31,6 @@ export async function checkGate(job: Run, sha: string): Promise<Gate> {
   }
   job.mainBroken = true;
   if (checks !== 'fail') {
-    // Checks that never finished leave the base unknown, so later runs land nothing until a person resumes this issue.
     job.state.halted = true;
   }
   if (checks === 'cancelled') {
@@ -63,7 +61,6 @@ export async function checkGate(job: Run, sha: string): Promise<Gate> {
       'main checks timeout',
     );
   }
-  // Failed checks leave the base broken until the fix lands, so a stop or kill before then keeps other landings back.
   job.state.halted = true;
   await writeState(job.context.repo, job.state);
   return failedChecksFix(job, sha);
@@ -91,7 +88,6 @@ async function waitForChecks(
   return checks;
 }
 
-/** Reruns the failed jobs of each failed workflow run once; GitHub keeps the attempts, so a resume reruns only runs not rerun yet. */
 async function rerunOnce(job: Run, sha: string, checks: CheckState): Promise<CheckState> {
   let state = checks;
   while (state === 'fail') {
@@ -120,7 +116,6 @@ async function rerunFailed(job: Run, sha: string): Promise<Restarted[]> {
       },
       context.config.ignoredChecks,
     );
-    // An empty list tells why the fixer starts with no rerun: no failed workflow run is left to rerun.
     log.event('ci-checks.rerun', { sha, runs });
   } catch (error) {
     if (runStopped()) {
@@ -130,7 +125,6 @@ async function rerunFailed(job: Run, sha: string): Promise<Restarted[]> {
       log.event('ci-checks.rerun-failed', { sha, error: asError(error).message });
       return restarted;
     }
-    // Some runs restarted, so the fixer waits for them rather than getting a failure with no log.
     log.event('ci-checks.rerun', {
       sha,
       runs: restarted.map((run) => String(run.id)),
@@ -213,7 +207,6 @@ function refusedNote(refused: string | undefined): string {
     : ` The last fixer called the failure unrelated, but the failed logs name a file of this change, so the failure is not unrelated:\n${untrusted(refused)}`;
 }
 
-/** The first file of the change that the logs name, by its path (also after `./` or the GitHub Actions checkout folder `<repo>/<repo>/`, in any case) or by a tail of its path that keeps a folder; no folder may come before either. */
 function namedFile(logs: string, files: string[], repo: string): string | undefined {
   const name = `(?i:${escapeRegExp(repo)})`;
   const prefixes = `|(?<=(?<![\\w./-])\\./)|(?<=/${name}/${name}/)`;
@@ -235,7 +228,6 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** A landed commit whose checks cannot be read leaves the base unknown, so the run halts and keeps the commit. */
 async function unreadChecks(job: Run, error: unknown): Promise<Finished> {
   if (runStopped()) {
     throw error;
@@ -250,7 +242,6 @@ async function unreadChecks(job: Run, error: unknown): Promise<Finished> {
   );
 }
 
-/** A broken base whose checks cannot be read is reverted; while the revert fails, the halt stays saved. */
 async function unreadFixChecks(job: Run, error: unknown): Promise<Finished> {
   if (runStopped()) {
     throw error;

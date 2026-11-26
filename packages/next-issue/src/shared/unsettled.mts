@@ -2,7 +2,6 @@ import { runStopped } from './children.mts';
 import { message } from './errors.mts';
 import type { IssueState } from './state.mts';
 
-/** What the state holds that is, or may be, on the base branch with checks nobody awaited. */
 export function heldOnBase(state: IssueState, base: string): string {
   const { landed, pushing, reverting } = state;
   const name = `\`${base}\``;
@@ -15,21 +14,17 @@ export function heldOnBase(state: IssueState, base: string): string {
     .join(', ');
 }
 
-/** Whether anything of this issue is, or may be, on the base with unknown checks. */
 export function holdsOnBase(state: IssueState): boolean {
   return heldOnBase(state, '') !== '';
 }
 
-/** What a halt with an unchecked commit on the base means for the next runs. */
 export const HALT_NOTE =
   'The run halts, and no run lands another change until this issue resumes (after an answer or once the label is off) and checks the base, or a person with write access gives it up with the skip label.';
 
-/** Whether this state keeps every run from landing: it halted with a commit on the base whose checks are still unknown. */
 export function blocksLanding(state: IssueState, base: string): boolean {
   return state.halted === true && state.closing !== true && heldOnBase(state, base) !== '';
 }
 
-/** Drops a saved halt once nothing of this issue is, or may be, on the base with unknown checks. */
 export function releaseSettled(state: IssueState): void {
   if (!holdsOnBase(state)) {
     delete state.halted;
@@ -40,7 +35,6 @@ export function unsettledNote(held: string, step: string): string {
   return ` ${step} before it checked the base: ${held}, and its checks were not awaited. ${HALT_NOTE}`;
 }
 
-/** An error thrown on a resume before it settled the base, while a commit is or may be on it. */
 export class UnsettledBase extends Error {
   readonly note: string;
 
@@ -50,7 +44,6 @@ export class UnsettledBase extends Error {
   }
 }
 
-/** Runs a step of a resume that comes before the base is settled; its error halts the run when the state holds a commit on the base. */
 export async function beforeBaseSettled<T>(
   state: IssueState,
   base: string,

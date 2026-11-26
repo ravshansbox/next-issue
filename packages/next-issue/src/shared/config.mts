@@ -33,7 +33,6 @@ export type Config = {
   keepRunDays: number;
   setupCommand?: string;
   checksTimeoutMinutes: number;
-  /** Names of GitHub Actions jobs, check runs and commit statuses that the checks of a landed commit leave out. */
   ignoredChecks: string[];
   models: {
     default?: string;
@@ -313,8 +312,6 @@ function labelName(value: unknown, field: string, allowEmpty: boolean): string {
   return name;
 }
 
-// Label checks ignore case, so two status labels that match without case would
-// make the harness read one status as another.
 function rejectSameLabels(labels: Config['labels']): void {
   const seen = new Map<string, string>();
   for (const name of LABEL_NAMES) {

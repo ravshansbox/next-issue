@@ -20,7 +20,6 @@ export async function commitAll(
   return true;
 }
 
-/** Commits what the setup wrote on top of the change, with no hooks, so every check sees it. */
 export async function saveSetupOutput(cwd: string): Promise<void> {
   await commitAll(cwd, 'chore: setup output', { hooks: false });
 }

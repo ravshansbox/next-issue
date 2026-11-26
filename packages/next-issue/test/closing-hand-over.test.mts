@@ -15,7 +15,6 @@ function doneLabelFails(target: Target): void {
   };
 }
 
-/** Lands the change, fails its done label and hands the issue over; returns the repository root. */
 async function handedOverWhileClosing(t: Parameters<typeof harness>[0]): Promise<string> {
   const first = await harness(t, { verdicts: [APPROVE, APPROVE] });
   doneLabelFails(first);
@@ -49,7 +48,6 @@ test('a user whose closing issue is handed over after its done label fails, answ
   assert.ok(!next.labels.some((entry) => entry.label === 'status:done'));
 });
 
-/** Rewrites the saved state of issue 7 in `root` with `change`. */
 async function rewrite(
   root: string,
   change: (state: NonNullable<Awaited<ReturnType<typeof readState>>>) => object,

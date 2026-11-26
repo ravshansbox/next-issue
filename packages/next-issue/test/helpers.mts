@@ -21,7 +21,6 @@ export async function repository(origin?: string): Promise<string> {
   return root;
 }
 
-/** Serves the remote `origin` of `root` (an ssh url) from `served`, by default a new repository whose `main` holds a package.json with all four scripts. */
 export async function serveBase(root: string, served?: string): Promise<void> {
   const origin = served ?? (await baseWithScripts());
   const ssh = join(await tempDir(), 'ssh.sh');
@@ -41,12 +40,10 @@ async function baseWithScripts(): Promise<string> {
   return served;
 }
 
-/** Commits a package.json with only the given scripts on the served base of `root`. */
 export function pushScripts(root: string, scripts: string[]): Promise<void> {
   return pushPackage(root, scriptsJson(scripts));
 }
 
-/** Commits the given package.json text (no file for `null`) on the served base of `root`. */
 export async function pushPackage(root: string, text: string | null): Promise<void> {
   const served = servedBases.get(root)!;
   if (text === null) {
@@ -65,7 +62,6 @@ function scriptsJson(scripts: string[]): string {
   return `${JSON.stringify({ scripts: Object.fromEntries(entries) })}\n`;
 }
 
-/** Writes a root `package.json` with only the given scripts. */
 export function writeScripts(root: string, scripts: string[]): Promise<void> {
   return writeFile(join(root, 'package.json'), scriptsJson(scripts));
 }
@@ -81,7 +77,6 @@ export async function linkedWorktree(root: string): Promise<string> {
   return linked;
 }
 
-/** Makes a person's own worktree `.worktrees/42` on branch 42 with an edited tracked file, an untracked file and an ignored `.env`, and returns a check that it is unchanged. */
 export async function personWorktree(
   root: string,
 ): Promise<{ path: string; assertKept: () => Promise<void> }> {

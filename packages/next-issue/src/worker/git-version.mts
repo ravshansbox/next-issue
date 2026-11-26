@@ -1,6 +1,5 @@
 import { must } from '../shared/exec.mts';
 
-// `git hook run` (every commit) needs 2.36, `git check-attr --source` (every conflict) needs 2.40.
 export const MIN_GIT: readonly [number, number] = [2, 40];
 
 export function gitVersionError(output: string): string | undefined {

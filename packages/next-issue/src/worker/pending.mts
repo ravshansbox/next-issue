@@ -5,10 +5,6 @@ import { listedIssues, waitingIssues } from '../shared/skip.mts';
 import { type IssueState, readState, savedIssues, writeState } from '../shared/state.mts';
 import { blocksLanding, heldOnBase } from '../shared/unsettled.mts';
 
-/**
- * What `gh issue view` says for an issue that was deleted or moved to another repository. Its GraphQL
- * `repository.issue` lookup does not follow a transfer (only REST does), so a moved issue fails like a deleted one.
- */
 const ISSUE_GONE = /Could not resolve to an issue or pull request|HTTP 404/;
 
 export async function pendingIssues(context: Context): Promise<Issue[]> {
@@ -38,7 +34,6 @@ export async function pendingIssues(context: Context): Promise<Issue[]> {
   }
   context.recorder.event('issues', { open: openCount });
   const blocking = blockingIssues(context, states);
-  // An issue that blocks every landing goes first, so its resume can lift the block before an older issue reaches the landing.
   return issues.sort(
     (a, b) =>
       Number(blocking.has(b.number)) - Number(blocking.has(a.number)) ||
@@ -92,11 +87,6 @@ async function savedIssue(
   }
 }
 
-/**
- * A halted issue that was deleted or moved never resumes or gets the skip label, so its halt would block every
- * landing for good: drop it like a given-up issue. The state keeps what is on the base. A passing read failure
- * (a network error) keeps the halt.
- */
 async function releaseGone(context: Context, saved: IssueState): Promise<void> {
   if (!blocksLanding(saved, context.base)) {
     return;

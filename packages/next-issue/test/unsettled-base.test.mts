@@ -317,8 +317,6 @@ for (const concurrency of [1, 2]) {
       },
     });
     if (concurrency > 1) {
-      // The older issue reaches the landing lock first, while the halted commit is still unchecked: #7's resume
-      // waits before its landing step, outside the repo and landing locks, until #5 is blocked.
       const discardChanges = next.context.ports.discardChanges;
       next.context.ports.discardChanges = async (...args) => {
         if (args[2] === '7') {

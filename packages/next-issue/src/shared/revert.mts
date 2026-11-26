@@ -13,7 +13,6 @@ export async function revertFailedFix(job: Run): Promise<string> {
   return revertFailedChecks(job);
 }
 
-/** Hands over a fix of failed checks; once the revert ends with no stop, its saved halt gives way, so the run halt alone holds back other landings. */
 export async function revertFailedChecks(job: Run): Promise<string> {
   const reverted = await revertOrReport(job);
   const { context, state } = job;
@@ -39,7 +38,6 @@ export async function revertOrReport(job: Run): Promise<string> {
     job.repairing = false;
     const { context, state } = job;
     if (state.reverting !== undefined) {
-      // The revert push was tried and its result is unknown, like a push unknown: the halt is saved.
       state.halted = true;
       await writeState(context.repo, state);
       return ` The revert of the change on ${context.base} failed: ${sentence(message(error))} The revert may be on \`${context.base}\`, and its checks were not awaited. ${HALT_NOTE}`;

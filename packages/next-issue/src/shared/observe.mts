@@ -25,7 +25,6 @@ class Sink {
   readonly file: string;
   private readonly listener: ((record: Fields) => void) | undefined;
   readonly output: (text: string) => void;
-  /** Set once the run log fails: the run goes on, and its events reach only the listener. */
   private failed = false;
 
   constructor(
@@ -38,7 +37,6 @@ class Sink {
     this.output = output;
     this.file = file;
     this.listener = listener;
-    // With no listener, a failed open or write (`ENOSPC`, `EIO`, `EMFILE`) would crash the process.
     stream.on('error', (error) => this.fail(error));
   }
 
@@ -77,7 +75,6 @@ class Sink {
         resolve();
         return;
       }
-      // `close` comes after the last write is flushed, and also after an error.
       this.stream.once('close', () => resolve());
       this.stream.end();
     });
@@ -133,7 +130,6 @@ export class Recorder {
     this.sink.output(render(this.record(kind, fields)));
   }
 
-  /** Writes the event to the run log only, not to the console. */
   record(kind: string, fields: Fields = {}): Fields {
     this.sink.count(kind);
     const record = {

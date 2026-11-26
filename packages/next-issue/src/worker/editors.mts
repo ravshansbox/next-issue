@@ -2,7 +2,6 @@ import { escalateAndFinish } from '../shared/handover.mts';
 import type { Finished, Run } from '../shared/job.mts';
 import { heldOnBase, unsettledNote } from '../shared/unsettled.mts';
 
-/** Hands the issue over when a person without write access last changed its title or body; otherwise gives the job the title and body checked. */
 export async function untrustedEditors(job: Run): Promise<Finished | undefined> {
   const { context, issue, log } = job;
   const { repo, ports } = context;

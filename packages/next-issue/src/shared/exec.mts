@@ -38,10 +38,6 @@ const defaultTimeout = new AsyncLocalStorage<number>();
 
 const STDERR_TAIL = 200_000;
 
-// After the child exits, wait this long for `close`, which comes once both pipes have
-// finished. A background process that inherited the pipes can keep them open, so `close`
-// may never come. The fallback then waits one more poll phase before it closes the pipes,
-// so output still in the pipes is read even when the event loop was busy past the wait.
 const DRAIN_MS = 200;
 
 let shownCommands = 0;

@@ -19,7 +19,6 @@ type Worktree = {
   path: string;
   baseUpdated: boolean;
   branchUpdated: boolean;
-  /** The commit of the remote branch after the fetch, or `''` when there is none. */
   remoteHead: string;
 };
 

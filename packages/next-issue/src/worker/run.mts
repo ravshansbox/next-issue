@@ -30,9 +30,7 @@ export type RunControls = {
   onEvent?: (record: Fields) => void;
   output?: (text: string) => void;
   ended?: (summary: RunSummary) => void;
-  // The worker passes a switch that its clients turn on and off; without one, the run keeps --hunt.
   hunting?: Switch;
-  // The worker passes a switch that its clients turn on and off; without one, the run keeps --watch.
   watching?: Switch;
   lookNow?: () => AbortSignal;
   beforeClaim?: () => Promise<void>;

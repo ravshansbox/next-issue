@@ -35,7 +35,6 @@ export function resumeLanding(job: Run, sha: string): Promise<Finished> {
         return landLoop(job);
       });
     }
-    // Checking a commit that is already on the base lands nothing, so other halted issues do not hold it back.
     const gate = await checkGate(job, sha);
     if (gate.done) {
       return gate;
@@ -47,7 +46,6 @@ export function resumeLanding(job: Run, sha: string): Promise<Finished> {
       job.handedOver &&
       (await beforeBaseSettled(state, context.base, () => holdsUnlandedFix(job, sha)))
     ) {
-      // The landed commit passed its checks, so a later revert must leave it on the base.
       state.landed = undefined;
       return unblocked(job, () => landLoop(job));
     }
@@ -78,15 +76,12 @@ function inLandingLock(job: Run, work: () => Promise<Finished>): Promise<Finishe
   });
 }
 
-/** Runs a step that lands a change, unless an earlier run halted with a commit on the base whose checks nobody read. */
 async function unblocked(job: Run, work: () => Promise<Finished>): Promise<Finished> {
   const { log } = job;
   const unchecked = await uncheckedIssues(job);
   if (unchecked.length === 0) {
     return work();
   }
-  // Landing now would build on a commit whose checks nobody read. The run claims no more issues, but it does not
-  // set `context.halted`: a blocking issue already running must still resume and check its commit on the base.
   log.event('land.blocked', { issues: unchecked });
   const held = await holdBack(job, 'base unchecked');
   return { ...held, report: { ...held.report, halt: true } };
@@ -98,7 +93,6 @@ async function holdBack(job: Run, reason: string): Promise<Finished> {
   return { done: true, report: stop(job, reason) };
 }
 
-/** The other saved issues whose halt left a commit on the base with checks nobody awaited. */
 async function uncheckedIssues(job: Run): Promise<number[]> {
   const { repo, base } = job.context;
   const unchecked: number[] = [];
@@ -106,7 +100,6 @@ async function uncheckedIssues(job: Run): Promise<number[]> {
     if (issue === job.issue.number) {
       continue;
     }
-    // An unreadable state file fails its own issue; it does not hold back every landing.
     const state = await readState(repo, issue).catch(() => undefined);
     if (state !== undefined && blocksLanding(state, base)) {
       unchecked.push(issue);
@@ -152,14 +145,12 @@ async function pushChange(job: Run): Promise<Finished | string> {
     }
     const checked = await localChecks(job);
     if (checked === false) {
-      // The fixer committed: merge the base again and run every check on the result.
       continue;
     }
     if (checked !== true) {
       return checked;
     }
     const sha = await ports.revision(worktree);
-    // A halt saved before nothing of this issue was left on the base must not block once this push lands.
     releaseSettled(state);
     const halted = state.halted;
     state.pushing = sha;

@@ -10,11 +10,6 @@ import { SCRIPTS, scriptRunner } from '../shared/setup.mts';
 import { outputBlock } from '../shared/text.mts';
 import { setUpBeforeChecks } from './worktree-setup.mts';
 
-/**
- * Runs the `format`, `lint`, `typecheck` and `test` scripts in the worktree before a push.
- * Gives `true` when every command passed, `false` when the fixer committed a fix (merge and check again),
- * or the finished hand-over.
- */
 export async function localChecks(job: Run): Promise<Finished | boolean> {
   const { context, state, worktree } = job;
   const { ports, repo } = context;
@@ -57,7 +52,6 @@ async function runChecks(job: Run): Promise<Failed | undefined> {
       ),
     );
     await evenWhenStopped(() => ports.discardChanges(worktree, head));
-    // A stop kills the command, so its failure is no finding: the next run checks again.
     refuseWhenStopped();
     log.record('check.output', {
       cmd: command,

@@ -19,10 +19,6 @@ export type LoopResult = {
 
 type Settled = { issue: number; slot: Slot; report?: IssueReport; failure?: unknown };
 
-/**
- * Issues that may be claimed again in the pass once their labels differ from those of the first fetch after their
- * attempt, and issues skipped for an open blocker, claimed again once another issue is done.
- */
 type Tried = { ended: Set<number>; labels: Map<number, string | undefined>; blocked: Set<number> };
 
 export async function runIssues(loop: Loop, seen = new Set<number>()): Promise<LoopResult> {

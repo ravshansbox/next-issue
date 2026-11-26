@@ -246,11 +246,9 @@ async function handOver(
   const { repo, ports, config } = context;
   log.event('hand-over', { reason });
   const { pendingHandOver: _pending, ...rest } = state;
-  // Once the label is on, the issue is taken back from a close (`finishDone`) it may have reached.
   const { closing: _closing, ...taken } = rest;
   let pending: PendingHandOver | undefined = earlier;
   try {
-    // A retry keeps the thread time and the labelled mark of its earlier try.
     const since = earlier?.since ?? (await threadEnd(context, issue));
     pending = { ...earlier, reason, ...(since === undefined ? {} : { since }) };
     await writeState(repo, { ...rest, pendingHandOver: pending });
@@ -300,7 +298,6 @@ export async function claimedError(
 ): Promise<IssueReport> {
   const reason = message(error);
   if (error instanceof UnsettledBase) {
-    // Saved with the hand-over, so later runs land nothing before the base is checked.
     state.halted = true;
   }
   let handedOver = false;

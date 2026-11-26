@@ -1,6 +1,5 @@
 export type Switch = {
   on: () => boolean;
-  // Aborted at the next change, so a wait can end as soon as the switch turns on or off.
   changed: () => AbortSignal;
 };
 

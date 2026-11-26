@@ -49,7 +49,6 @@ export async function replaceJson(path: string, value: unknown): Promise<void> {
   }
 }
 
-/** The synchronous `replaceJson`, for a write that must land before the process dies. */
 export function replaceJsonNow(path: string, value: unknown): void {
   const draft = `${path}.${process.pid}.${randomUUID()}.tmp`;
   try {
