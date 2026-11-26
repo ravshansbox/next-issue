@@ -10,7 +10,7 @@ import { startWorker } from '../src/worker/serve.mts';
 import { installGh } from './fake-gh.mts';
 import { ALL_SCRIPTS, pushPackage, pushScripts, serveBase, writeScripts } from './helpers.mts';
 import { tempDir } from './temp-dir.mts';
-import { connect, fakeRegistry, fakeRuns, worker } from './worker-harness.mts';
+import { connect, fakeRegistry, fakeRuns, versionCheck, worker } from './worker-harness.mts';
 
 const issues = [
   { number: 1, title: 'issue 1', body: '', createdAt: '2026-01-01T00:00:00Z', labels: [] },
@@ -21,6 +21,7 @@ async function repoWorker(
   gh: string,
   registry?: string,
   scripts: string[] | null = ALL_SCRIPTS,
+  check = versionCheck(0),
 ) {
   t.mock.method(process.stderr, 'write', () => true);
   const root = await tempDir();
@@ -50,6 +51,7 @@ async function repoWorker(
     runRepo,
     registry: registry ?? (await fakeRegistry(t, { version: '2.0.0' })).url,
     successorLaunch: () => ({ command: join(root, 'missing'), args: ['serve'] }),
+    versionCheck: check,
   });
   assert.ok(started);
   t.after(() => started.close());
@@ -210,6 +212,25 @@ for (const [answer, what] of [
     assert.equal(registry.asked(), 1);
   });
 }
+
+test('a client whose run is about to claim an issue while npm serves a newer next-issue that npx cannot run yet sees the run claim the issue on its own version and no upgrade', async (t) => {
+  const registry = await fakeRegistry(t, { version: '2.1.0' });
+  const checked: string[] = [];
+  const { root, client } = await repoWorker(
+    t,
+    WORKING_GH,
+    registry.url,
+    ALL_SCRIPTS,
+    versionCheck(1, checked),
+  );
+  client.send({ type: 'start', root, args: ['--watch', 'off'] });
+  const { end } = await outputUntilEnd(client, root);
+  assert.deepEqual(
+    end.type === 'end' && end.summary?.issues.map((report) => [report.issue, report.outcome]),
+    [[1, 'skipped']],
+  );
+  assert.deepEqual(checked, ['2.1.0']);
+});
 
 test('a client whose run is about to claim an issue while npm cannot be reached sees the run claim the issue as before', async (t) => {
   const { root, client } = await repoWorker(t, WORKING_GH, 'http://127.0.0.1:1/next-issue/latest');

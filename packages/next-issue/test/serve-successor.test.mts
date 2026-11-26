@@ -12,13 +12,16 @@ import { workerPaths } from '../src/shared/worker-paths.mts';
 import { LOG_LIMIT_BYTES, trimLog } from '../src/worker/worker-log.mts';
 import { watchIssues } from '../src/shared/watch.mts';
 import { tempDir } from './temp-dir.mts';
-import { connect, fakeRegistry, fakeRuns, worker } from './worker-harness.mts';
+import { connect, fakeRegistry, fakeRuns, versionCheck, worker } from './worker-harness.mts';
 
 const SUCCESSOR = new URL('successor-worker.mts', import.meta.url).pathname;
 
 async function oldWorker(
   t: TestContext,
-  options: Pick<Parameters<typeof startWorker>[0], 'registry' | 'successorLaunch' | 'log'> = {},
+  options: Pick<
+    Parameters<typeof startWorker>[0],
+    'registry' | 'successorLaunch' | 'log' | 'versionCheck'
+  > = {},
 ) {
   const root = await realpath(await tempDir('/tmp'));
   const { logPath: _logPath, ...paths } = workerPaths(root);
@@ -28,6 +31,7 @@ async function oldWorker(
     ...paths,
     version: '2.0.0',
     runRepo: (root, args, controls) => fake.runRepo(root, args, controls),
+    versionCheck: versionCheck(0),
     ...options,
   });
   assert.ok(started);
@@ -204,17 +208,20 @@ test('a client that says hello with a malformed way to start the worker gets an 
   }
 });
 
-test('a run with watching off that stops because npm serves a newer next-issue comes back on the newer worker with watching and hunting off', async (t) => {
+test('a run with watching off that stops because npm serves a newer next-issue that npx can run comes back on the newer worker with watching and hunting off', async (t) => {
   const registry = await fakeRegistry(t, { version: '2.1.0' });
+  const checked: string[] = [];
   const { root, fake, started, socketPath } = await oldWorker(t, {
     registry: registry.url,
     successorLaunch: (version) => ({ command: process.execPath, args: [SUCCESSOR, version] }),
+    versionCheck: versionCheck(0, checked),
   });
   const client = await connect(t, socketPath);
   client.send({ type: 'start', root, args: ['--watch', 'off'] });
   await client.next((value) => runOf(root, value)?.status === 'running');
   await fake.controls().beforeClaim?.();
   assert.equal(fake.controls().interrupts.afterIssue(), true);
+  assert.deepEqual(checked, ['2.1.0']);
   fake.finish();
   await started.closed;
   const fresh = await connect(t, socketPath);
@@ -227,6 +234,40 @@ test('a run with watching off that stops because npm serves a newer next-issue c
   assert.equal(resumed?.hunting, false);
   fresh.send({ type: 'stop', root });
   await fresh.next((value) => value.type === 'end');
+});
+
+test('a run that is about to claim an issue while npm serves a newer next-issue that npx cannot run yet goes on without an upgrade, the worker says it stays on its version and checks again before the issue after', async (t) => {
+  let log = '';
+  const written: string[] = [];
+  t.mock.method(process.stderr, 'write', (chunk: unknown) => {
+    written.push(String(chunk));
+    return true;
+  });
+  const registry = await fakeRegistry(t, { version: '2.1.0' });
+  const checked: string[] = [];
+  const { root, fake, started, socketPath } = await oldWorker(t, {
+    registry: registry.url,
+    successorLaunch: (version) => ({ command: process.execPath, args: [SUCCESSOR, version] }),
+    versionCheck: versionCheck(1, checked),
+    log: (text) => (log += text),
+  });
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root, args: ['--watch', 'on'] });
+  await client.next((value) => runOf(root, value)?.status === 'running');
+  await fake.controls().beforeClaim?.();
+  assert.equal(fake.controls().interrupts.afterIssue(), false);
+  await fake.controls().beforeClaim?.();
+  assert.equal(fake.controls().interrupts.afterIssue(), false);
+  assert.deepEqual(checked, ['2.1.0', '2.1.0']);
+  const stays = written.filter((line) => line.startsWith('the worker stays on next-issue '));
+  assert.equal(stays.length, 2);
+  for (const line of stays) {
+    assert.match(line, /^the worker stays on next-issue 2\.0\.0: .+\n$/);
+  }
+  await client.close();
+  fake.finish();
+  await started.closed;
+  assert.match(log, /^\d\d:\d\d:\d\d worker\.exit reason=idle code=0\n$/m);
 });
 
 test('a worker that starts a newer worker leaves worker.log whole, so it keeps the lines the newer worker appends meanwhile', async (t) => {

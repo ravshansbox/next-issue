@@ -7,6 +7,7 @@ import { WebSocketServer } from 'ws';
 import { type Args, givenStartFlags, parseStartArgs } from '../shared/args.mts';
 import { killChildren, stopChildren, withRunChildren } from '../shared/children.mts';
 import { message } from '../shared/errors.mts';
+import { must } from '../shared/exec.mts';
 import { lock } from '../shared/lock.mts';
 import { startProgress } from './progress.mts';
 import { type ClientMessage, isNewer, type Launch, type Progress } from '../shared/protocol.mts';
@@ -15,7 +16,7 @@ import { runRepo, type RunControls } from './run.mts';
 import type { RunSummary } from '../shared/summary.mts';
 import { packageVersion } from '../shared/version.mts';
 import { resumeOnSuccessor } from '../shared/worker-client.mts';
-import { latestVersion, NPM_LATEST, npxLaunch } from './latest-version.mts';
+import { latestVersion, NPM_LATEST, npxLaunch, npxVersionCheck } from './latest-version.mts';
 import { keepLogTrimmed, LOG_CHECK_MS, whileStartingSuccessor } from './worker-log.mts';
 import { checkSocketPath, workerPaths } from '../shared/worker-paths.mts';
 import {
@@ -68,6 +69,7 @@ type WorkerOptions = {
   maxBufferedBytes?: number;
   registry?: string;
   successorLaunch?: (version: string) => Launch;
+  versionCheck?: (version: string) => Launch;
   log?: (text: string) => void;
 };
 
@@ -75,6 +77,7 @@ const LOCK_WAIT_MS = 5_000;
 const IDLE_MS = 30_000;
 const END_SEND_MS = 5_000;
 const MAX_BUFFERED_BYTES = 8 * 1024 * 1024;
+const VERSION_CHECK_MS = 120_000;
 
 export async function startWorker(options: WorkerOptions): Promise<Worker | undefined> {
   checkSocketPath(options.socketPath);
@@ -176,9 +179,25 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     }
   };
 
+  const runnable = async (version: string): Promise<boolean> => {
+    const check = (options.versionCheck ?? npxVersionCheck)(version);
+    try {
+      await must(check.command, check.args, { timeoutMs: VERSION_CHECK_MS });
+      return true;
+    } catch (error) {
+      process.stderr.write(
+        `the worker stays on next-issue ${options.version}: ${message(error)}\n`,
+      );
+      return false;
+    }
+  };
+
   const upgradeToLatest = async (run: Run): Promise<void> => {
     const latest = await latestVersion(options.registry ?? NPM_LATEST);
     if (latest === undefined || !isNewer(latest, options.version)) {
+      return;
+    }
+    if (restart === undefined && !(await runnable(latest))) {
       return;
     }
     if (restart === undefined) {

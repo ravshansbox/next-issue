@@ -253,6 +253,7 @@ test('a client that starts a run with a command or a flag that start does not ta
     [['--quiet'], 'Unknown argument: `--quiet`'],
     [['--force'], '`start` does not take `--force`'],
     [['--help'], '`start` does not take `--help`'],
+    [['--version'], '`start` does not take `--version`'],
     [['--merge'], 'Unknown argument: `--merge`'],
   ] as const) {
     client.send({ type: 'start', root: '/repo', args: [...args] });

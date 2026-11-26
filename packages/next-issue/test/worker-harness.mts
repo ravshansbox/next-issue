@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import type { TestContext } from 'node:test';
 import { WebSocket } from 'ws';
 import type { Args } from '../src/shared/args.mts';
-import type { ClientMessage, WorkerMessage } from '../src/shared/protocol.mts';
+import type { ClientMessage, Launch, WorkerMessage } from '../src/shared/protocol.mts';
 import type { RunControls } from '../src/worker/run.mts';
 import { type RunRepo, startWorker } from '../src/worker/serve.mts';
 import { tempDir } from './temp-dir.mts';
@@ -130,6 +130,7 @@ export async function worker(
     ...paths,
     version,
     runRepo: fake.runRepo,
+    versionCheck: versionCheck(0),
     ...(registry === undefined ? {} : { registry }),
   });
   assert.ok(started);
@@ -159,6 +160,13 @@ export function http(
     sent.on('error', reject);
     sent.end(body);
   });
+}
+
+export function versionCheck(code: number, checked: string[] = []): (version: string) => Launch {
+  return (version) => {
+    checked.push(version);
+    return { command: process.execPath, args: ['-e', `process.exit(${code})`] };
+  };
 }
 
 export async function fakeRegistry(

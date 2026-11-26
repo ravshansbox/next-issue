@@ -7,6 +7,7 @@ export type Scope = 'user' | 'project';
 export type Args = {
   command?: Command;
   help: boolean;
+  version: boolean;
   force: boolean;
   watch: boolean;
   hunt: boolean;
@@ -14,13 +15,14 @@ export type Args = {
   scope?: Scope;
 };
 
-type Switch = 'help' | 'force';
+type Switch = 'help' | 'version' | 'force';
 
 type RunFlag = 'watch' | 'hunt';
 
 const SWITCHES = new Map<string, Switch>([
   ['--force', 'force'],
   ['--help', 'help'],
+  ['--version', 'version'],
 ]);
 
 const RUN_FLAGS = new Map<string, RunFlag>([
@@ -46,11 +48,12 @@ export const USAGE = `npx -y next-issue@latest <command> [options]
 
   --force           replace an existing config file, with init
   --help            show this text
+  --version         show the next-issue version
 `;
 
 export function parseArgs(argv: string[]): Args {
   const { args, flag, runFlag } = readArgs(argv);
-  if (args.help) {
+  if (args.help || args.version) {
     return args;
   }
   if (args.command === undefined && flag !== undefined) {
@@ -98,6 +101,7 @@ function readArgs(passed: string[]): {
   const argv = passed[0] === '--help' ? [...passed.slice(1), '--help'] : passed;
   const args: Args = {
     help: false,
+    version: false,
     force: false,
     watch: true,
     hunt: false,
@@ -107,7 +111,7 @@ function readArgs(passed: string[]): {
   let runFlag: string | undefined;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]!;
-    if ((index !== 0 || arg.startsWith('-')) && arg !== '--help') {
+    if ((index !== 0 || arg.startsWith('-')) && arg !== '--help' && arg !== '--version') {
       flag ??= arg;
     }
     if (index === 0 && !arg.startsWith('-')) {
@@ -147,7 +151,7 @@ function command(arg: string): Command {
   return found;
 }
 
-const OUTPUT_ONLY: Switch[] = ['force', 'help'];
+const OUTPUT_ONLY: Switch[] = ['force', 'help', 'version'];
 
 function readStartArgs(argv: string[]): { args: Args; given: RunFlags } {
   const { args, given } = readArgs(argv);

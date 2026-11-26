@@ -16,6 +16,7 @@ import { followLog, newestRunLog } from './cli/logs.mts';
 import { serve } from './worker/serve.mts';
 import { startInWorker } from './cli/start.mts';
 import { STATE_DIR } from './shared/state.mts';
+import { packageVersion } from './shared/version.mts';
 import { statusInWorker, stopInWorker, switchInWorker } from './cli/switch-run.mts';
 import {
   chooseScope,
@@ -37,6 +38,10 @@ async function main(): Promise<number> {
   const args = parseArgs(argv);
   if (args.help) {
     await write(process.stdout, USAGE);
+    return 0;
+  }
+  if (args.version) {
+    await write(process.stdout, `${await packageVersion()}\n`);
     return 0;
   }
   if (args.command === undefined) {

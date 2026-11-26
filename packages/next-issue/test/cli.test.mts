@@ -16,6 +16,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { must } from '../src/shared/exec.mts';
 import { processStart } from '../src/shared/lock.mts';
+import { packageVersion } from '../src/shared/version.mts';
 import { runsDir, stateDir } from '../src/shared/state.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
 import { baseGh, idleGh, installGh } from './fake-gh.mts';
@@ -854,6 +855,18 @@ for (const args of [
     assert.equal(await exists(called), false);
   });
 }
+
+test('a user who runs --version outside a repository sees the package version and exit code 0', async () => {
+  const { stdout } = await promisify(execFile)(process.execPath, [CLI, '--version'], {
+    cwd: await tempDir(),
+  });
+  assert.equal(stdout, `${await packageVersion()}\n`);
+});
+
+test('a user who runs --help sees the --version flag', async () => {
+  const { stdout } = await promisify(execFile)(process.execPath, [CLI, '--help']);
+  assert.match(stdout, /^ {2}--version {9}show the next-issue version$/m);
+});
 
 test('a user who runs --help sees none of the removed flags', async () => {
   const { stdout } = await promisify(execFile)(process.execPath, [CLI, '--help']);

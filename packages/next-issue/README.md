@@ -92,6 +92,7 @@ It writes `.next-issue/config.json` with the defaults, or keeps the file when it
 | `--hunt on\|off`        | With `start`: hunt the repository for bugs. Off by default. Needs watching |
 | `--scope user\|project` | With `init`: install for the user (`~/.claude/skills/`) or the project     |
 | `--help`                | Show the option list                                                       |
+| `--version`             | Show the next-issue version                                                |
 
 See [Commands and options](https://github.com/ravshansbox/next-issue/blob/main/packages/next-issue/docs/behaviour.md#commands-and-options) for the details.
 

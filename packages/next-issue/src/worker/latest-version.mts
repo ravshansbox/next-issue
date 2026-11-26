@@ -20,3 +20,7 @@ export async function latestVersion(registry: string): Promise<string | undefine
 export function npxLaunch(version: string): Launch {
   return { command: 'npx', args: ['-y', `next-issue@${version}`, 'serve'] };
 }
+
+export function npxVersionCheck(version: string): Launch {
+  return { command: 'npx', args: ['-y', `next-issue@${version}`, '--version'] };
+}
