@@ -61,15 +61,8 @@ export async function ghJson<T>(repo: Repo, args: string[]): Promise<T> {
   return JSON.parse(await gh(repo, args)) as T;
 }
 
-export type Kind = 'issue';
-
-export async function viewJson<T>(
-  repo: Repo,
-  kind: Kind,
-  number: number,
-  fields: string,
-): Promise<T> {
-  return ghJson<T>(repo, [kind, 'view', String(number), '--json', fields]);
+export async function viewJson<T>(repo: Repo, issue: number, fields: string): Promise<T> {
+  return ghJson<T>(repo, ['issue', 'view', String(issue), '--json', fields]);
 }
 
 export async function ghOnce(repo: Repo, args: string[], input?: string): Promise<string> {

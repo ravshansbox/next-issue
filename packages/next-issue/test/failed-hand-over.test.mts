@@ -18,11 +18,11 @@ type Target = Awaited<ReturnType<typeof harness>>;
 
 function labelFails(target: Target) {
   const setLabel = target.context.ports.setLabel;
-  target.context.ports.setLabel = async (repo, kind, number, label, remove) => {
+  target.context.ports.setLabel = async (repo, number, label, remove) => {
     if (label === 'status:needs-human') {
       throw new Error('gh: API rate limit exceeded');
     }
-    return setLabel(repo, kind, number, label, remove);
+    return setLabel(repo, number, label, remove);
   };
 }
 
@@ -261,11 +261,11 @@ async function labelledThenRetryFails(t: test.TestContext, threadFails: boolean)
     }
     return commentOnIssue(repo, issue, body);
   };
-  ports.setLabel = async (repo, kind, number, label, remove) => {
+  ports.setLabel = async (repo, number, label, remove) => {
     if (outage && label === 'status:needs-human') {
       throw new Error('gh: HTTP 502');
     }
-    return setLabel(repo, kind, number, label, remove);
+    return setLabel(repo, number, label, remove);
   };
   ports.threadComments = async (...args) => {
     if (outage && threadFails) {

@@ -50,8 +50,8 @@ test('the worker creates a missing label once and records no failed command', as
   setCommandObserver((record) => seen.push(record));
   t.after(() => setCommandObserver(() => undefined));
   const repo = { owner: 'acme', name: 'labels', root: dir };
-  await setLabel(repo, 'issue', 1, 'status:todo', []);
-  await setLabel(repo, 'issue', 1, 'status:new', []);
+  await setLabel(repo, 1, 'status:todo', []);
+  await setLabel(repo, 1, 'status:new', []);
   assert.deepEqual(
     seen.filter((record) => record.code !== 0),
     [],
@@ -65,8 +65,8 @@ test('the worker tries a label create again when it failed', async (t) => {
   setCommandObserver((record) => seen.push(record));
   t.after(() => setCommandObserver(() => undefined));
   const repo = { owner: 'acme', name: 'retry', root: dir };
-  await setLabel(repo, 'issue', 1, 'status:todo', []);
-  await setLabel(repo, 'issue', 1, 'status:todo', []);
+  await setLabel(repo, 1, 'status:todo', []);
+  await setLabel(repo, 1, 'status:todo', []);
   const creates = seen.filter(
     (record) => record.args[0] === 'label' && record.args[1] === 'create',
   );
@@ -88,9 +88,9 @@ esac
 `;
   await installGh(t, dir, script);
   const repo = { owner: 'acme', name: 'deleted', root: dir };
-  await setLabel(repo, 'issue', 1, 'status:todo', []);
+  await setLabel(repo, 1, 'status:todo', []);
   await writeFile(labels, '');
-  await setLabel(repo, 'issue', 1, 'status:todo', []);
+  await setLabel(repo, 1, 'status:todo', []);
   assert.equal(await readFile(labels, 'utf8'), 'status:todo\n');
 });
 
@@ -107,10 +107,7 @@ esac
 `;
   await installGh(t, dir, script);
   const repo = { owner: 'acme', name: 'forbidden', root: dir };
-  await assert.rejects(
-    setLabel(repo, 'issue', 1, 'status:todo', []),
-    /label create .*permission denied/,
-  );
+  await assert.rejects(setLabel(repo, 1, 'status:todo', []), /label create .*permission denied/);
 });
 
 test('the worker creates a missing label and leaves a known one alone', async (t) => {
@@ -173,13 +170,13 @@ esac
 test('the worker keeps the old status label on an issue when GitHub fails to add the new one', async (t) => {
   const dir = await issueLabelsGh(t, true);
   const repo = { owner: 'acme', name: 'add-fails', root: dir };
-  await assert.rejects(setLabel(repo, 'issue', 1, 'status:in-review', MANAGED), /forbidden/);
+  await assert.rejects(setLabel(repo, 1, 'status:in-review', MANAGED), /forbidden/);
   assert.equal(await readFile(join(dir, 'held'), 'utf8'), 'status:in-progress\n');
 });
 
 test('the worker replaces the old status label on an issue with the new one', async (t) => {
   const dir = await issueLabelsGh(t, false);
   const repo = { owner: 'acme', name: 'add-works', root: dir };
-  await setLabel(repo, 'issue', 1, 'status:in-review', MANAGED);
+  await setLabel(repo, 1, 'status:in-review', MANAGED);
   assert.equal(await readFile(join(dir, 'held'), 'utf8'), 'status:in-review\n');
 });

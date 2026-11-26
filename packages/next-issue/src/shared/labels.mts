@@ -1,12 +1,12 @@
 import { asError } from './errors.mts';
-import { gh, ghApi, ghOnce, type Kind, type Named, names, repoArg, viewJson } from './gh.mts';
+import { gh, ghApi, ghOnce, type Named, names, repoArg, viewJson } from './gh.mts';
 import type { Repo } from './git.mts';
 import { lines } from './text.mts';
 
 const KNOWN_LABELS = new Map<string, Set<string>>();
 
-async function labelsOf(repo: Repo, kind: Kind, number: number): Promise<string[]> {
-  const parsed = await viewJson<{ labels: Named[] }>(repo, kind, number, 'labels');
+async function labelsOf(repo: Repo, issue: number): Promise<string[]> {
+  const parsed = await viewJson<{ labels: Named[] }>(repo, issue, 'labels');
   return names(parsed.labels);
 }
 
@@ -22,14 +22,13 @@ export function hasLabel(labels: string[], name: string): boolean {
 
 export async function setLabel(
   repo: Repo,
-  kind: Kind,
-  number: number,
+  issue: number,
   add: string,
   remove: string[],
 ): Promise<void> {
   await createUnknownLabel(repo, add);
-  const current = await labelsOf(repo, kind, number);
-  const edit = [kind, 'edit', String(number)];
+  const current = await labelsOf(repo, issue);
+  const edit = ['issue', 'edit', String(issue)];
   const args = [...edit, '--add-label', add];
   try {
     await gh(repo, args);

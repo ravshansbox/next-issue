@@ -61,9 +61,9 @@ test('the worker puts the status labels on the issue alone', async (t) => {
   const target = await harness(t);
   await target.run();
   assert.deepEqual(target.labels, [
-    { kind: 'issue', number: 7, label: 'status:in-progress' },
-    { kind: 'issue', number: 7, label: 'status:in-review' },
-    { kind: 'issue', number: 7, label: 'status:done' },
+    { number: 7, label: 'status:in-progress' },
+    { number: 7, label: 'status:in-review' },
+    { number: 7, label: 'status:done' },
   ]);
 });
 

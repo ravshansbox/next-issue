@@ -120,5 +120,5 @@ export async function setStatus(
 ): Promise<void> {
   const { repo, config, ports } = context;
   const remove = managedLabels(config).filter((name) => !keep.includes(name));
-  await ports.setLabel(repo, 'issue', issue, label, remove);
+  await ports.setLabel(repo, issue, label, remove);
 }

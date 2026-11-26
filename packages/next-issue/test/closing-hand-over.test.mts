@@ -7,11 +7,11 @@ type Target = Awaited<ReturnType<typeof harness>>;
 
 function doneLabelFails(target: Target): void {
   const setLabel = target.context.ports.setLabel;
-  target.context.ports.setLabel = async (repo, kind, number, label, remove) => {
+  target.context.ports.setLabel = async (repo, number, label, remove) => {
     if (label === 'status:done') {
       throw new Error('gh: HTTP 502');
     }
-    return setLabel(repo, kind, number, label, remove);
+    return setLabel(repo, number, label, remove);
   };
 }
 

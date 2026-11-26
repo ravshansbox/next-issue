@@ -14,7 +14,6 @@ import {
   openBlockers,
   repositorySlug,
   openIssues,
-  reopenIssue,
   threadComments,
   viewIssue,
 } from '../src/shared/github.mts';
@@ -53,20 +52,20 @@ const NETWORK_FAULT = 'Post "https://api.github.com/graphql": unexpected EOF';
 
 test('the worker tries a label edit again and succeeds when the network fails once', async (t) => {
   const dir = await flakyGh(t, 1, NETWORK_FAULT);
-  await setLabel({ owner: 'acme', name: 'flaky', root: dir }, 'issue', 1, 'status:todo', []);
+  await setLabel({ owner: 'acme', name: 'flaky', root: dir }, 1, 'status:todo', []);
   assert.equal(await callsOf(dir, 'issue edit'), 2);
 });
 
 test('the worker tries a label edit again and succeeds when GitHub fails its GraphQL query once', async (t) => {
   const dir = await flakyGh(t, 1, 'GraphQL: Something went wrong while executing your query');
-  await setLabel({ owner: 'acme', name: 'graphql', root: dir }, 'issue', 1, 'status:todo', []);
+  await setLabel({ owner: 'acme', name: 'graphql', root: dir }, 1, 'status:todo', []);
   assert.equal(await callsOf(dir, 'issue edit'), 2);
 });
 
 test('the worker gives up a label edit after three tries when the network keeps failing', async (t) => {
   const dir = await flakyGh(t, 3, NETWORK_FAULT);
   await assert.rejects(
-    setLabel({ owner: 'acme', name: 'down', root: dir }, 'issue', 1, 'status:todo', []),
+    setLabel({ owner: 'acme', name: 'down', root: dir }, 1, 'status:todo', []),
     /unexpected EOF/,
   );
   assert.equal(await callsOf(dir, 'issue edit'), 3);
@@ -75,7 +74,7 @@ test('the worker gives up a label edit after three tries when the network keeps 
 test('the worker fails a label edit at once when gh fails for a reason other than the network', async (t) => {
   const dir = await flakyGh(t, 1, 'HTTP 404: Not Found');
   await assert.rejects(
-    setLabel({ owner: 'acme', name: 'missing', root: dir }, 'issue', 1, 'status:todo', []),
+    setLabel({ owner: 'acme', name: 'missing', root: dir }, 1, 'status:todo', []),
     /Not Found/,
   );
   assert.equal(await callsOf(dir, 'issue edit'), 1);
@@ -99,7 +98,7 @@ echo "$*" >> "${calls}"
 case "$1 $2" in
   "repo view") echo '{"defaultBranchRef":{"name":"trunk"}}' ;;
   "api --hostname") echo '{"id":1,"full_name":"acme/tool"}' ;;
-  "issue close"|"issue reopen") ;;
+  "issue close") ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `;
@@ -108,12 +107,10 @@ esac
   assert.equal(await defaultBranch(repo), 'trunk');
   assert.equal(await repositorySlug(repo), 'acme/tool');
   await closeIssue(repo, 4);
-  await reopenIssue(repo, 4);
   assert.deepEqual((await readFile(calls, 'utf8')).trim().split('\n'), [
     'repo view github.example.com/acme/tool --json defaultBranchRef',
     'api --hostname github.example.com repos/acme/tool --jq .full_name',
     'issue close 4 --reason completed --repo github.example.com/acme/tool',
-    'issue reopen 4 --repo github.example.com/acme/tool',
   ]);
 });
 
@@ -303,7 +300,6 @@ async function fakeAnyGh(t: TestContext): Promise<string> {
 case "$1 $2" in
   "repo view") echo '{"defaultBranchRef":{"name":"main"}}' ;;
   "issue view") echo '{"number":7,"title":"t","body":"","createdAt":"2026-01-01T00:00:00Z","labels":[],"state":"OPEN"}' ;;
-  "issue reopen") ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
 `;
@@ -319,7 +315,6 @@ test('the worker passes gh the repository and the issue number it acts on', asyn
   const repo = { owner: 'acme', name: 'tool', root: dir };
   await defaultBranch(repo);
   await viewIssue(repo, 7);
-  await reopenIssue(repo, 7);
   assert.deepEqual(seen, [
     ['repo', 'view', 'acme/tool', '--json', 'defaultBranchRef'],
     [
@@ -331,7 +326,6 @@ test('the worker passes gh the repository and the issue number it acts on', asyn
       '--repo',
       'acme/tool',
     ],
-    ['issue', 'reopen', '7', '--repo', 'acme/tool'],
   ]);
 });
 

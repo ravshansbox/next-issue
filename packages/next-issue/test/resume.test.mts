@@ -226,11 +226,7 @@ test('a person with write access who answers a handed-over issue gets the issue 
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.deepEqual(roles(target), ['reviewer']);
-  assert.deepEqual(target.labels[0], {
-    kind: 'issue',
-    number: 7,
-    label: 'status:in-progress',
-  });
+  assert.deepEqual(target.labels[0], { number: 7, label: 'status:in-progress' });
   assert.ok(target.removable[0]!.includes('status:needs-human'));
 });
 

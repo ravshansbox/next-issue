@@ -253,7 +253,7 @@ async function handOver(
     pending = { ...earlier, reason, ...(since === undefined ? {} : { since }) };
     await writeState(repo, { ...rest, pendingHandOver: pending });
     if (config.labels.ready.length > 0) {
-      await ports.setLabel(repo, 'issue', issue, config.labels.ready, []);
+      await ports.setLabel(repo, issue, config.labels.ready, []);
     }
     await setStatus(context, issue, config.labels.needsHuman, [config.labels.ready]);
     pending = { ...pending, labelled: true };

@@ -5,7 +5,6 @@ import {
   ghJson,
   ghOnce,
   hostname,
-  type Kind,
   type Named,
   names,
   repeatable,
@@ -92,12 +91,7 @@ export async function openIssues(
 }
 
 export async function viewIssue(repo: Repo, issue: number): Promise<Issue & { open: boolean }> {
-  const parsed = await viewJson<RawIssue & { state: string }>(
-    repo,
-    'issue',
-    issue,
-    `${ISSUE_FIELDS},state`,
-  );
+  const parsed = await viewJson<RawIssue & { state: string }>(repo, issue, `${ISSUE_FIELDS},state`);
   return { ...toIssue(parsed), open: parsed.state === 'OPEN' };
 }
 
@@ -263,20 +257,12 @@ export async function repositorySlug(repo: Repo): Promise<string> {
   return repeatable(repo, ['api', ...hostname(repo), `repos/${slug(repo)}`, '--jq', '.full_name']);
 }
 
-export async function reopenIssue(repo: Repo, issue: number): Promise<void> {
-  await gh(repo, ['issue', 'reopen', String(issue)]);
-}
-
 export async function closeIssue(repo: Repo, issue: number): Promise<void> {
   await gh(repo, ['issue', 'close', String(issue), '--reason', 'completed']);
 }
 
-async function comment(repo: Repo, kind: Kind, number: number, body: string): Promise<void> {
-  await ghOnce(repo, [kind, 'comment', String(number), '--body-file', '-'], body);
-}
-
 export async function commentOnIssue(repo: Repo, issue: number, body: string): Promise<void> {
-  await comment(repo, 'issue', issue, body);
+  await ghOnce(repo, ['issue', 'comment', String(issue), '--body-file', '-'], body);
 }
 
 export async function editIssueBody(repo: Repo, issue: number, body: string): Promise<void> {

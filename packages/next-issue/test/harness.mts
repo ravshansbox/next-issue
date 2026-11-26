@@ -140,7 +140,7 @@ export type Plan = {
 export type Harness = {
   context: Context;
   profiles: Array<{ role: string; disallowedTools: string[] }>;
-  labels: Array<{ kind: string; number: number; label: string }>;
+  labels: Array<{ number: number; label: string }>;
   removable: string[][];
   prompts: Array<{ role: string; prompt: string }>;
   messages: string[];
@@ -162,7 +162,6 @@ export type Harness = {
   closed: number[];
   baseWaits: string[];
   reruns: string[];
-  reopened: number[];
   branches: string[];
   starts: boolean[];
   asides: Array<{ target: string; aside: string }>;
@@ -244,7 +243,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
     closed: [],
     baseWaits: [],
     reruns: [],
-    reopened: [],
     branches: [],
     starts: [],
     asides: [],
@@ -437,9 +435,6 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       removed = true;
       return true;
     },
-    reopenIssue: async (_repo, number) => {
-      state.reopened.push(number);
-    },
     rerunFailedCi: async (_repo, sha, _branch, started = () => undefined) => {
       if (rerunDone.has(sha)) {
         return [];
@@ -522,9 +517,9 @@ export async function harness(t: TestContext, plan: Plan = {}): Promise<Harness>
       state.asides.push({ target, aside });
       head = Number(target);
     },
-    setLabel: async (_repo, kind, number, label, remove) => {
+    setLabel: async (_repo, number, label, remove) => {
       refuseWhenStopped();
-      state.labels.push({ kind, number, label });
+      state.labels.push({ number, label });
       state.removable.push(remove);
       if (label === plan.stopNowOnLabel) {
         stopRunChildren(children);
