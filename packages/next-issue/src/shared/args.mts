@@ -149,8 +149,8 @@ function command(arg: string): Command {
 
 const OUTPUT_ONLY: Switch[] = ['force', 'help'];
 
-export function parseStartArgs(argv: string[]): Args {
-  const { args } = readArgs(argv);
+function readStartArgs(argv: string[]): { args: Args; given: RunFlags } {
+  const { args, given } = readArgs(argv);
   if (args.command !== undefined) {
     throw new Error(`\`start\` does not take \`${args.command}\``);
   }
@@ -161,10 +161,13 @@ export function parseStartArgs(argv: string[]): Args {
   if (refused !== undefined) {
     throw new Error(`\`start\` does not take \`--${refused}\``);
   }
-  return { ...args, command: 'start' };
+  return { args: { ...args, command: 'start' }, given };
+}
+
+export function parseStartArgs(argv: string[]): Args {
+  return readStartArgs(argv).args;
 }
 
 export function givenStartFlags(argv: string[]): RunFlags {
-  parseStartArgs(argv);
-  return readArgs(argv).given;
+  return readStartArgs(argv).given;
 }
