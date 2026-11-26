@@ -28,6 +28,7 @@ jobs:
       - run: .github/scripts/check-npm.test.sh
       - run: .github/scripts/wait-for-npm.test.sh
       - run: .github/scripts/release-notes.test.sh
+      - run: .github/scripts/release-version.test.sh
 
   release:
     needs: check
@@ -67,10 +68,7 @@ jobs:
           if [ -n "$base" ]; then
             .github/scripts/wait-for-npm.sh "$base" 600
           fi
-          npm version --no-git-tag-version --allow-same-version -w next-issue "${base:-0.0.0}" > /dev/null
-          npm version --no-git-tag-version -w next-issue "$BUMP" > /dev/null
-          version=$(node -p "require('./packages/next-issue/package.json').version")
-          npm version --no-git-tag-version --allow-same-version --workspaces "$version" > /dev/null
+          version=$(.github/scripts/release-version.sh "$last" "$BUMP")
           tag="v$version"
           git tag "$tag"
           git push origin "$tag"
