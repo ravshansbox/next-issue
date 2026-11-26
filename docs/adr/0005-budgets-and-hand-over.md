@@ -32,6 +32,7 @@ Option A.
 
 - Each issue has a budget of review rounds (`maxReviewRounds`), CI fixes (`maxCiFixes`) and fixes of a commit that a git hook stopped (`maxCommitFixes`), and each agent call has a time limit (`agentTimeoutMinutes`).
 - When a budget runs out or the work cannot go on, the harness reverts any change it landed, gives the issue `status:needs-human` and comments the reason. Then it takes the next issue.
+- It does not revert when it cannot tell whether a change is on the base or whether its checks pass (`push unknown`, `checks error`, `main checks cancelled`, `main checks cut short`, `main checks timeout`). It hands the issue over and halts, so a person decides.
 - A person answers on the issue, with the `answer-hand-over` skill, and the next run claims it again.
 - When the base branch is broken and cannot be fixed, the run claims no new issue.
 

@@ -20,7 +20,7 @@ flowchart TD
     checks -- no --> fixCi[Fixer repairs the build]
     fixCi --> land
     checks -- yes --> done[Close the issue, set status:done]
-    fixCi -. budget runs out .-> human[Revert, hand over to a person: status:needs-human]
+    fixCi -. budget runs out, revert .-> human[Hand over to a person: status:needs-human]
     fixReview -. budget runs out .-> human
     done --> claim
     human --> claim
