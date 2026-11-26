@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseCommitSubject, parseResolved, parseUnrelated } from '../src/worker/agent-reply.mts';
+import {
+  parseCommitSubject,
+  parseDone,
+  parseQuestions,
+  parseResolved,
+  parseUnrelated,
+} from '../src/worker/agent-reply.mts';
 import { withoutClosingReferences } from '../src/shared/text.mts';
 
 const FALLBACK = 'fix: fallback';
@@ -174,4 +180,55 @@ test('the worker keeps a commit subject whose number is followed by word charact
   ]) {
     assert.equal(withoutClosingReferences(subject, FALLBACK), subject);
   }
+});
+
+test('the worker finds no dispute when a fixer that fixed the cause wrote a prose unrelated line before its closing lines', () => {
+  const reply =
+    'Unrelated: I also saw a flaky test in foo.\nThe fix guards the null body.\n\ncommit: fix: guard the null body';
+  assert.equal(parseUnrelated(reply), undefined);
+  assert.equal(parseResolved(reply.replace('Unrelated', 'Resolved')), undefined);
+  assert.equal(parseCommitSubject(reply, FALLBACK), 'fix: guard the null body');
+});
+
+test('the worker reads an unrelated marker in the closing lines next to the commit line', () => {
+  assert.equal(
+    parseUnrelated('Checked main.\n\nunrelated: main fails too\n\ncommit: fix: none'),
+    'main fails too',
+  );
+  assert.equal(
+    parseResolved('Ran it.\nresolved: the test fails before the fix\n'),
+    'the test fails before the fix',
+  );
+});
+
+test('the worker treats a placeholder with a trailing full stop or exclamation mark as no dispute', () => {
+  for (const value of ['none.', 'None!', 'N/A.', '-.', 'none. ']) {
+    assert.equal(parseUnrelated(`fixed it\nunrelated: ${value}`), undefined, value);
+    assert.equal(parseResolved(`fixed it\nresolved: ${value}`), undefined, value);
+  }
+});
+
+test('the worker reads a marker line that the agent wrapped in backticks', () => {
+  assert.equal(parseCommitSubject('Done.\n`commit: feat: x`', FALLBACK), 'feat: x');
+  assert.equal(parseUnrelated('Checked.\n``unrelated: main fails too``'), 'main fails too');
+  assert.equal(
+    parseResolved('Ran it.\n`resolved: the test fails before`'),
+    'the test fails before',
+  );
+  assert.equal(parseDone('Already there.\n`done: src/a.mts:3 does it`'), 'src/a.mts:3 does it');
+  assert.deepEqual(parseQuestions('`question: 1. Which one?`'), ['Which one?']);
+});
+
+test('the worker reads an unrelated or resolved marker that the fixer put inside a code fence at the end of its reply', () => {
+  assert.equal(parseUnrelated('Checked main.\n```\nunrelated: main fails\n```'), 'main fails');
+  assert.equal(
+    parseResolved('Ran it.\n```text\nresolved: the test fails before\n```\n'),
+    'the test fails before',
+  );
+  assert.equal(
+    parseUnrelated(
+      '```\nUnrelated: a flaky test in foo.\n```\nThe fix guards it.\ncommit: fix: guard',
+    ),
+    undefined,
+  );
 });
