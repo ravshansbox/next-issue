@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { closeSync, openSync, statSync } from 'node:fs';
+import { closeSync, existsSync, openSync, statSync } from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { syncBuiltinESMExports } from 'node:module';
@@ -1150,6 +1150,58 @@ test('a worker that gets SIGTERM while a command ignores it keeps its lock from 
   assert.equal(left.includes('worker.lock'), false);
   assert.equal(left.includes('worker.sock'), false);
 });
+
+test('a worker that gets SIGTERM waits for a clean-up command started after the signal before it removes its lock and exits', async (t) => {
+  const root = await tempDir();
+  const pidFile = join(root, 'command.pid');
+  const started = join(root, 'cleanup.started');
+  const done = join(root, 'cleanup.done');
+  const stubborn = `trap '' INT TERM HUP; echo $$ > ${pidFile}; while [ ! -f ${started} ]; do sleep 0.05; done`;
+  const cleanup = `touch ${started}; sleep 1; touch ${done}`;
+  const runs = `void withRunChildren(runChildren(), () => run('bash', ['-c', ${JSON.stringify(stubborn)}])); void withRunChildren(runChildren(), async () => { await run('sleep', ['600']); await evenWhenStopped(() => run('bash', ['-c', ${JSON.stringify(cleanup)}])); });`;
+  const { child, exited } = await spawnWorker(
+    t,
+    `import { serve } from ${JSON.stringify(SERVE)}; import { run } from ${JSON.stringify(EXEC)}; import { evenWhenStopped, runChildren, withRunChildren } from ${JSON.stringify(CHILDREN)}; const serving = serve(${JSON.stringify(root)}); while (process.listenerCount('SIGTERM') === 0) { await new Promise((resolve) => setTimeout(resolve, 10)); } ${runs} await serving;`,
+  );
+  while ((await readFile(pidFile, 'utf8').catch(() => '')) === '') {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  child.kill('SIGTERM');
+  await exited;
+  const { lockPath } = workerPaths(root);
+  assert.equal(existsSync(done), true);
+  assert.equal((await readdir(dirname(lockPath))).includes('worker.lock'), false);
+});
+
+test(
+  'a worker that gets SIGTERM kills a clean-up command started after the signal that ignores it before it removes its lock and exits',
+  { timeout: 40_000 },
+  async (t) => {
+    const root = await tempDir();
+    const pidFile = join(root, 'command.pid');
+    const cleanupFile = join(root, 'cleanup.pid');
+    const stubborn = `trap '' INT TERM HUP; echo $$ > ${pidFile}; while true; do sleep 0.05; done`;
+    const cleanup = `trap '' INT TERM HUP; echo $$ > ${cleanupFile}; while true; do sleep 0.05; done`;
+    const runs = `void withRunChildren(runChildren(), () => run('bash', ['-c', ${JSON.stringify(stubborn)}])); void withRunChildren(runChildren(), async () => { await run('sleep', ['600']); await evenWhenStopped(() => run('bash', ['-c', ${JSON.stringify(cleanup)}])); });`;
+    const { child, exited } = await spawnWorker(
+      t,
+      `import { serve } from ${JSON.stringify(SERVE)}; import { run } from ${JSON.stringify(EXEC)}; import { evenWhenStopped, runChildren, withRunChildren } from ${JSON.stringify(CHILDREN)}; const serving = serve(${JSON.stringify(root)}); while (process.listenerCount('SIGTERM') === 0) { await new Promise((resolve) => setTimeout(resolve, 10)); } ${runs} await serving;`,
+    );
+    while ((await readFile(pidFile, 'utf8').catch(() => '')) === '') {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    child.kill('SIGTERM');
+    await exited;
+    const cleanupPid = Number(await readFile(cleanupFile, 'utf8'));
+    const cleanupAlive = alive(cleanupPid);
+    if (cleanupAlive) {
+      process.kill(-cleanupPid, 'SIGKILL');
+    }
+    const { lockPath } = workerPaths(root);
+    assert.equal(cleanupAlive, false);
+    assert.equal((await readdir(dirname(lockPath))).includes('worker.lock'), false);
+  },
+);
 
 test('a worker removes the draft files that a dead worker left', async () => {
   const dir = await tempDir();

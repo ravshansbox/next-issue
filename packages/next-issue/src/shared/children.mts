@@ -50,24 +50,40 @@ export function stopRunChildren(children: RunChildren): void {
   escalate(running, ['SIGTERM', 'SIGKILL']);
 }
 
-function escalate(running: number[], signals: NodeJS.Signals[], ended?: () => void): void {
+function escalate(running: number[], signals: NodeJS.Signals[]): void {
   const [signal, ...later] = signals;
-  if (running.length === 0) {
-    ended?.();
+  if (running.length === 0 || signal === undefined) {
     return;
   }
   setTimeout(() => {
     const left = running.filter((pid) => groups.has(pid));
-    if (signal === undefined) {
-      ended?.();
-      return;
-    }
     for (const pid of left) {
       try {
         process.kill(-pid, signal);
       } catch {}
     }
-    escalate(left, later, ended);
+    escalate(left, later);
+  }, STOP_GRACE_MS).unref();
+}
+
+function escalateAll(signals: NodeJS.Signals[], killed: Set<number>, ended: () => void): void {
+  setTimeout(() => {
+    const [signal, ...later] = signals;
+    const left = [...groups].filter((pid) => !killed.has(pid));
+    if (signal === undefined && left.length === 0) {
+      ended();
+      return;
+    }
+    const sending = signal ?? 'SIGKILL';
+    for (const pid of left) {
+      try {
+        process.kill(-pid, sending);
+      } catch {}
+      if (sending === 'SIGKILL') {
+        killed.add(pid);
+      }
+    }
+    escalateAll(later, killed, ended);
   }, STOP_GRACE_MS).unref();
 }
 
@@ -134,12 +150,18 @@ export function stopChildren(signal: NodeJS.Signals, beforeExit?: () => void): v
     }
   };
   const exitOnceEnded = (): void => {
-    if (running.every((pid) => !groups.has(pid))) {
-      exit();
-    }
+    setImmediate(() => {
+      if (groups.size === 0) {
+        exit();
+      }
+    });
   };
   ending = exitOnceEnded;
-  escalate(running, ['SIGTERM', 'SIGKILL'], exit);
+  if (running.length === 0) {
+    exit();
+    return;
+  }
+  escalateAll(['SIGTERM', 'SIGKILL'], new Set(), exit);
 }
 
 function runUndos(): void {

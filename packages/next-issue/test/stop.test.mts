@@ -696,6 +696,7 @@ test('a user who sends SIGTERM to a command-line run while a command runs during
   const unwatch = watch(999_999);
   process.emit('SIGTERM', 'SIGTERM');
   unwatch();
+  await new Promise(setImmediate);
   assert.deepEqual(kills.mock.calls.at(-1)?.arguments, [process.pid, 'SIGTERM']);
   kills.mock.restore();
   assert.equal((await first.state())?.reviewRounds, 0);
@@ -744,12 +745,13 @@ test('a user whose terminal closes (SIGHUP) on a command-line run while an agent
   assert.equal(process.listenerCount('SIGHUP'), listeners);
 });
 
-test('a user whose terminal closes (SIGHUP) on a command-line run while a command runs sees its process group stopped before the run exits', (t) => {
+test('a user whose terminal closes (SIGHUP) on a command-line run while a command runs sees its process group stopped before the run exits', async (t) => {
   const listeners = process.listenerCount('SIGHUP');
   const kills = t.mock.method(process, 'kill', () => true);
   const unwatch = watch(999_999);
   process.emit('SIGHUP', 'SIGHUP');
   unwatch();
+  await new Promise(setImmediate);
   kills.mock.restore();
   assert.deepEqual(
     kills.mock.calls.map((call) => call.arguments),
@@ -776,6 +778,7 @@ async function killWorkerWithAnotherGroup(t: TestContext, target: Harness): Prom
   target.failHung();
   await run.catch(() => undefined);
   unwatch();
+  await new Promise(setImmediate);
   kills.mock.restore();
 }
 
