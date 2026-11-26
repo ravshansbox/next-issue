@@ -268,3 +268,25 @@ test('a person who runs start on a watching run during a pass sees the run still
   assert.deepEqual(run.sleeps, [1, 2]);
   await run.end();
 });
+
+test('a worker whose npm check before a hunt stops the run sees that run check npm once and start no hunt', async (t) => {
+  let checks = 0;
+  let answerNpm = (): void => undefined;
+  const npmAnswered = new Promise<void>((resolve) => {
+    answerNpm = resolve;
+  });
+  const run = await startWatch(t, parseArgs(['start', '--hunt', 'on']), {
+    controls: {
+      beforeHunt: async () => {
+        checks += 1;
+        await npmAnswered;
+      },
+    },
+  });
+  await until(() => checks === 1, 'the npm check before the hunt');
+  const ended = run.end();
+  answerNpm();
+  await ended;
+  assert.equal(checks, 1);
+  assert.equal(run.hunts(), 0);
+});

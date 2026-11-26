@@ -34,6 +34,7 @@ export type RunControls = {
   watching?: Switch;
   lookNow?: () => AbortSignal;
   beforeClaim?: () => Promise<void>;
+  beforeHunt?: () => Promise<void>;
   onHunter?: (busy: () => boolean) => void;
 };
 
@@ -130,6 +131,7 @@ export function watchRun(
     hunting: controls.hunting ?? onOff(args.hunt),
     watching: controls.watching,
     lookNow: controls.lookNow,
+    beforeHunt: controls.beforeHunt,
   });
 }
 

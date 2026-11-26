@@ -10,6 +10,7 @@ import type { WorkerMessage } from '../src/shared/protocol.mts';
 import { startWorker } from '../src/worker/serve.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
 import { LOG_LIMIT_BYTES, trimLog } from '../src/worker/worker-log.mts';
+import { watchIssues } from '../src/shared/watch.mts';
 import { tempDir } from './temp-dir.mts';
 import { connect, fakeRegistry, fakeRuns, worker } from './worker-harness.mts';
 
@@ -26,7 +27,7 @@ async function oldWorker(
     root,
     ...paths,
     version: '2.0.0',
-    runRepo: fake.runRepo,
+    runRepo: (root, args, controls) => fake.runRepo(root, args, controls),
     ...options,
   });
   assert.ok(started);
@@ -258,4 +259,113 @@ test('a worker that starts a newer worker leaves worker.log whole, so it keeps t
   const fresh = await connect(t, socketPath);
   fresh.send({ type: 'stop', root });
   await fresh.next((value) => runOf(root, value)?.status === 'stopped');
+});
+
+function huntingRun(fake: ReturnType<typeof fakeRuns>): {
+  hunts: () => number;
+  hunted: Promise<void>;
+} {
+  let hunts = 0;
+  let hunted: () => void = () => undefined;
+  const firstHunt = new Promise<void>((resolve) => {
+    hunted = resolve;
+  });
+  const runRepo = fake.runRepo;
+  fake.runRepo = (root, args, controls) => {
+    void runRepo(root, args, controls);
+    return watchIssues({
+      issues: async () => [],
+      process: async () => {
+        throw new Error('no issue to process');
+      },
+      stop: controls.interrupts.afterIssue,
+      wait: (minutes, woken) => controls.interrupts.sleep(minutes * 60_000, woken),
+      passEnd: async () => undefined,
+      unreadable: () => undefined,
+      hunter: {
+        cap: 1,
+        ready: async () => [],
+        hunt: async () => {
+          hunts += 1;
+          hunted();
+          return false;
+        },
+        wait: (_minutes, signal) =>
+          new Promise((resolve) =>
+            signal.addEventListener('abort', () => resolve(), { once: true }),
+          ),
+      },
+      hunting: controls.hunting,
+      watching: controls.watching,
+      beforeHunt: controls.beforeHunt,
+    }).then(() => 0);
+  };
+  return { hunts: () => hunts, hunted: firstHunt };
+}
+
+test('a hunting run with no ready issues that is about to hunt while npm serves a newer next-issue starts no hunt, stops for an upgrade that resumes, and comes back on the newer worker with hunting on', async (t) => {
+  const registry = await fakeRegistry(t, { version: '2.1.0' });
+  const { root, fake, started, socketPath } = await oldWorker(t, {
+    registry: registry.url,
+    successorLaunch: (version) => ({ command: process.execPath, args: [SUCCESSOR, version] }),
+  });
+  const run = huntingRun(fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root, args: ['--hunt', 'on'] });
+  const asked = await client.next((value) => runOf(root, value)?.upgrade !== undefined);
+  assert.deepEqual(runOf(root, asked)?.upgrade, { from: '2.0.0', to: '2.1.0', resumes: true });
+  await client.close();
+  await started.closed;
+  assert.equal(run.hunts(), 0);
+  const fresh = await connect(t, socketPath);
+  assert.deepEqual(await fresh.next((value) => value.type === 'hello'), {
+    type: 'hello',
+    version: '2.1.0',
+  });
+  const resumed = runOf(root, await fresh.next((value) => value.type === 'runs'));
+  assert.equal(resumed?.status, 'running');
+  assert.equal(resumed?.hunting, true);
+  fresh.send({ type: 'stop', root });
+  await fresh.next((value) => runOf(root, value)?.status === 'stopped');
+});
+
+for (const [answer, what] of [
+  [{ version: '2.0.0' }, 'the same version'],
+  [{ version: '1.9.0' }, 'an older version'],
+  [{ status: 500 }, 'an error'],
+  ['silent', 'nothing for 3 seconds'],
+] as const) {
+  test(`a hunting run that is about to hunt while npm answers with ${what} starts the hunt as before`, async (t) => {
+    const registry = await fakeRegistry(t, answer);
+    const { root, started, socketPath, fake } = await oldWorker(t, { registry: registry.url });
+    const run = huntingRun(fake);
+    const client = await connect(t, socketPath);
+    client.send({ type: 'start', root, args: ['--hunt', 'on'] });
+    await run.hunted;
+    assert.equal(run.hunts(), 1);
+    assert.equal(registry.asked(), 1);
+    client.send({ type: 'stop', root });
+    const ended = runOf(
+      root,
+      await client.next(
+        (value) => value.type === 'runs' && runOf(root, value)?.status === 'stopped',
+      ),
+    );
+    assert.equal(ended?.upgrade, undefined);
+    await started.close();
+  });
+}
+
+test('a hunting run that is about to hunt while npm cannot be reached starts the hunt as before', async (t) => {
+  const { root, started, socketPath, fake } = await oldWorker(t, {
+    registry: 'http://127.0.0.1:1/next-issue/latest',
+  });
+  const run = huntingRun(fake);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root, args: ['--hunt', 'on'] });
+  await run.hunted;
+  assert.equal(run.hunts(), 1);
+  client.send({ type: 'stop', root });
+  await client.next((value) => runOf(root, value)?.status === 'stopped');
+  await started.close();
 });

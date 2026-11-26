@@ -243,6 +243,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       options.runRepo(root, args, {
         ...runControls(run, update),
         beforeClaim: () => upgradeToLatest(run),
+        beforeHunt: () => upgradeToLatest(run),
         print: args.watch
           ? async (pass) =>
               sendAll(sockets, { type: 'pass', root, summary: pass }, maxBufferedBytes)

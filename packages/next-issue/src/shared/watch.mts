@@ -18,6 +18,7 @@ export type Watch = Loop & {
   hunting?: Switch;
   watching?: Switch;
   lookNow?: () => AbortSignal;
+  beforeHunt?: () => Promise<void>;
 };
 
 const BACK_OFF_MINUTES = [1, 2, 3, 5, 10];
@@ -37,6 +38,7 @@ export async function watchIssues(watch: Watch): Promise<LoopResult> {
           watch.issues,
           () => ended.signal.aborted || watch.stop(),
           ended.signal,
+          watch.beforeHunt,
         );
   try {
     return await watchPasses(failed, {
@@ -76,6 +78,7 @@ async function huntIssues(
   issues: () => Promise<Issue[]>,
   stopped: () => boolean,
   signal: AbortSignal,
+  beforeHunt?: () => Promise<void>,
 ): Promise<void> {
   let step = 0;
   while (!stopped()) {
@@ -90,6 +93,10 @@ async function huntIssues(
     }
     const waiting = ready?.filter((issue) => !running.has(issue.number)).length;
     if (waiting !== undefined && waiting < hunter.cap && hunting.on()) {
+      await beforeHunt?.();
+      if (stopped()) {
+        return;
+      }
       if (await hunter.hunt(hunter.cap - waiting)) {
         step = 0;
         await issues().catch(() => undefined);
