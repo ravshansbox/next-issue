@@ -138,6 +138,27 @@ test('a client of a watching run whose worker cannot start the newer worker sees
   await client.closed;
 });
 
+test('a worker that cannot start the newer worker writes worker.exit with reason hand-over-failed, code 1 and the error, and closes with code 1', async (t) => {
+  let log = '';
+  const { root, fake, started, socketPath } = await oldWorker(t, { log: (text) => (log += text) });
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root, args: ['--watch', 'on'] });
+  await client.next((value) => runOf(root, value)?.watching === true);
+  client.send({
+    type: 'hello',
+    version: '2.1.0',
+    launch: { command: join(root, 'missing'), args: ['serve'] },
+  });
+  await client.next((value) => runOf(root, value)?.upgrade !== undefined);
+  fake.finish();
+  assert.equal(await started.closed, 1);
+  assert.match(
+    log,
+    /^\d\d:\d\d:\d\d worker\.exit reason=hand-over-failed code=1 error=the worker could not start next-issue 2\.1\.0: .*\n$/m,
+  );
+  await client.closed;
+});
+
 test('a client of a watching run that fails while it stops for a newer client sees the run fail, and no newer worker starts it again', async (t) => {
   const { root, fake, started, socketPath } = await oldWorker(t);
   const client = await connect(t, socketPath);

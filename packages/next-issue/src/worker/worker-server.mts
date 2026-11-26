@@ -148,15 +148,15 @@ export async function shutdown(
 }
 
 export type Worker = {
-  closed: Promise<void>;
+  closed: Promise<number>;
   close: () => Promise<void>;
   release: () => void;
   exit: (fields: Record<string, unknown>, below?: string) => void;
 };
 
-export function closer(stop: () => Promise<void>): Pick<Worker, 'closed' | 'close'> {
-  let finish: () => void = () => undefined;
-  const closed = new Promise<void>((resolve) => {
+export function closer(stop: () => Promise<number>): Pick<Worker, 'closed' | 'close'> {
+  let finish: (code: number) => void = () => undefined;
+  const closed = new Promise<number>((resolve) => {
     finish = resolve;
   });
   let closing: Promise<void> | undefined;

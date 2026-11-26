@@ -115,9 +115,10 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
 
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
   const idleMs = options.idleMs ?? IDLE_MS;
-  const handOver = async (how: Launch, run: Run): Promise<void> => {
+  const handOver = async (how: Launch, run: Run): Promise<string | undefined> => {
     const listening = stopListening(server);
     removeOwned(owned);
+    let failure: string | undefined;
     try {
       await resumeOnSuccessor(options.root, how, resumeArgs(run));
     } catch (error) {
@@ -125,8 +126,10 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       process.stderr.write(`${reason}\n`);
       run.progress = { ...run.progress, status: 'failed', error: reason };
       broadcast(sockets, runs, maxBufferedBytes);
+      failure = reason;
     }
     await shutdown(server, sockets, owned, listening);
+    return failure;
   };
 
   const { closed, close } = closer(async () => {
@@ -134,7 +137,11 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     clearTimeout(idleTimer);
     const run = runs.get(options.root);
     if (successor !== undefined && run !== undefined && upgradedRun(run)) {
-      await handOver(successor, run);
+      const failure = await handOver(successor, run);
+      if (failure !== undefined) {
+        exit({ reason: 'hand-over-failed', code: 1, error: failure });
+        return 1;
+      }
       exit({ reason: 'hand-over', code: 0 });
     } else {
       await shutdown(server, sockets, owned);
@@ -144,6 +151,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
           : { reason: 'upgrade', code: 0, to: restart },
       );
     }
+    return 0;
   });
   const closeWhenIdle = (): void => {
     if ((restart !== undefined || sockets.clients.size === 0) && !busy()) {
@@ -443,7 +451,7 @@ export async function serve(root: string, logCheckMs = LOG_CHECK_MS): Promise<nu
       socket: paths.socketPath,
     }),
   );
-  await worker.closed;
+  const code = await worker.closed;
   stopTrimming();
-  return 0;
+  return code;
 }
