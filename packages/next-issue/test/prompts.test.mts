@@ -92,14 +92,16 @@ test('a later reviewer is told that a settled note answers every finding of its 
   );
 });
 
-test('the implementer and the fixer get the answer of a person to the hand-over under its own heading', () => {
+test('the implementer, the fixer and the hook fixer get the answer of a person to the hand-over under its own heading', () => {
   const reply = ['@owner: ready, take it'];
   const implement = implementPrompt(ISSUE, [], reply);
   const fix = fixPrompt(ISSUE, [], 'The reviewer requested changes.', 'x', [], 'review', reply);
-  for (const prompt of [implement, fix]) {
+  const hook = hookPrompt(ISSUE, [], 'implementer', 'hook output', reply);
+  for (const prompt of [implement, fix, hook]) {
     assert.match(prompt, /## Answer of a person to the hand-over\n[\s\S]*@owner: ready, take it/);
   }
   assert.doesNotMatch(implementPrompt(ISSUE, []), /hand-over/);
+  assert.doesNotMatch(hookPrompt(ISSUE, [], 'implementer', 'hook output'), /hand-over/);
 });
 
 test('the reviewer is asked for a full review when no earlier finding exists', () => {

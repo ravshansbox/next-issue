@@ -214,7 +214,7 @@ async function hookFix(
   log.event('commit.fail', { role, output });
   const fix = await refundIfCut(job, 'commitFixes', () =>
     log.step('commit-fix', { role, round: state.commitFixes, limit: config.maxCommitFixes }, () =>
-      runRole(job, role, hookPrompt(issue, comments, role, output), CODING),
+      runRole(job, role, hookPrompt(issue, comments, role, output, job.reply), CODING),
     ),
   );
   return parseCommitSubject(fix.text, subject);

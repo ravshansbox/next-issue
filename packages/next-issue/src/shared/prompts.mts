@@ -97,11 +97,18 @@ export function implementPrompt(
   ]);
 }
 
-export function hookPrompt(issue: Issue, comments: string[], role: string, output: string): string {
+export function hookPrompt(
+  issue: Issue,
+  comments: string[],
+  role: string,
+  output: string,
+  reply: string[] = [],
+): string {
   return paragraphs([
     `You are the ${role}. The harness could not commit your work for the issue below, because a git hook failed.`,
     issueBlock(issue, comments),
     `## Hook output\n${untrusted(output)}`,
+    replyBlock(reply),
     '## Rules',
     'Fix what the hook reports and keep the rest of the work in this worktree. Do not skip or weaken the hook.',
     COMMIT_RULES,
