@@ -4,7 +4,7 @@ import { readTextOrEmpty } from './files.mts';
 import { commitEverything } from './git-commit.mts';
 import { fetchBase, git, isAncestor, resetHard, succeeds } from './git.mts';
 
-export type MergeStart = { target: string; files: string[] | undefined; unmarked: string[] };
+type MergeStart = { target: string; files: string[] | undefined; unmarked: string[] };
 
 export async function startMerge(cwd: string, base: string, remote: string): Promise<MergeStart> {
   const target = await git(cwd, ['rev-parse', await fetchBase(cwd, base, remote)]);

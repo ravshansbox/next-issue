@@ -32,7 +32,7 @@ export async function squashOnto(cwd: string, target: string, message: string): 
   return true;
 }
 
-export type Push = { pushed: true } | { pushed: false; error: string };
+type Push = { pushed: true } | { pushed: false; error: string };
 
 export async function pushToBase(cwd: string, remote: string, base: string): Promise<Push> {
   const result = await oneFetchAtATime(() =>
@@ -83,7 +83,7 @@ export type Revert = {
   pushing: (sha: string) => Promise<void>;
 };
 
-export type Reverted = 'pushed' | 'failed' | 'already reverted';
+type Reverted = 'pushed' | 'failed' | 'already reverted';
 
 export async function revertOnBase(cwd: string, revert: Revert): Promise<Reverted> {
   try {
@@ -107,7 +107,7 @@ function putBranchBack(cwd: string, branch: string): Promise<void> {
   });
 }
 
-export type Reapply = Pick<Revert, 'base' | 'remote' | 'branch' | 'reapply'> & {
+type Reapply = Pick<Revert, 'base' | 'remote' | 'branch' | 'reapply'> & {
   reverted: string;
 };
 

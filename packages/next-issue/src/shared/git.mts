@@ -22,7 +22,7 @@ function githubHost(host: string): string {
   return lower === GITHUB_SSH_HOST ? 'github.com' : lower;
 }
 
-export type Remote = { host: string; owner: string; name: string };
+type Remote = { host: string; owner: string; name: string };
 
 export function parseRemote(url: string): Remote {
   for (const pattern of REMOTE_PATTERNS) {

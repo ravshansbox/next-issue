@@ -14,7 +14,7 @@ export function heldOnBase(state: IssueState, base: string): string {
     .join(', ');
 }
 
-export function holdsOnBase(state: IssueState): boolean {
+function holdsOnBase(state: IssueState): boolean {
   return heldOnBase(state, '') !== '';
 }
 
