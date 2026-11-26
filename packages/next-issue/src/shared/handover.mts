@@ -115,7 +115,7 @@ export async function dropClosed(
   }
   try {
     if (openedOwnWorktree(saved)) {
-      await cleanUp(context, log, saved.branch);
+      await cleanUp(context, log, issue.number, saved.branch);
       await deleteBranches(context, log, saved);
     }
     await dropState(context.repo, issue.number);
@@ -171,7 +171,7 @@ function issueReport(
 export async function finish(job: Run, outcome: Outcome, reason?: string): Promise<IssueReport> {
   const { context, issue, log, branch } = job;
   const { repo } = context;
-  await cleanUp(context, log, branch);
+  await cleanUp(context, log, issue.number, branch);
   if (outcome === 'done') {
     await deleteBranches(context, log, job.state);
     await dropState(repo, issue.number);
@@ -215,10 +215,15 @@ function openedOwnWorktree(state: IssueState | undefined): state is IssueState {
   return state !== undefined && state.fresh !== true;
 }
 
-async function cleanUp(context: Context, log: Recorder, branch: string): Promise<void> {
+async function cleanUp(
+  context: Context,
+  log: Recorder,
+  issue: number,
+  branch: string,
+): Promise<void> {
   const { repo, ports } = context;
   try {
-    const path = await ports.findWorktree(repo, branch);
+    const path = await ports.findWorktree(repo, issue, branch);
     if (path === undefined) {
       return;
     }
@@ -308,7 +313,7 @@ export async function claimedError(
   }
   logIssueError(log, error, started);
   if (openedOwnWorktree(state)) {
-    await cleanUp(context, log, state.branch);
+    await cleanUp(context, log, issue.number, state.branch);
   }
   const report = {
     ...issueReport(issue.number, 'error', state, started, reason),

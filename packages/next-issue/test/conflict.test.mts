@@ -350,7 +350,7 @@ for (const [who, conflict, file] of MARKERLESS) {
     assert.deepEqual(roles(target), ['implementer', 'reviewer']);
     assert.equal(await remoteMain(base), before);
     const root = target.context.repo.root;
-    assert.equal(await findWorktree(target.context.repo, ISSUE_BRANCH), undefined);
+    assert.equal(await findWorktree(target.context.repo, ISSUE.number, ISSUE_BRANCH), undefined);
     assert.equal(
       (await git(root, 'rev-list', '--parents', '-1', ISSUE_BRANCH)).split(' ').length,
       2,

@@ -53,7 +53,7 @@ test('a user who closes an issue that was handed over gets the next run to remov
   const { target, reports, views } = await closedRun(t, saved);
   assertCleanedUp(target, reports);
   assert.equal(await target.state(), undefined);
-  assert.equal(await target.context.ports.findWorktree(target.context.repo, '7'), undefined);
+  assert.equal(await target.context.ports.findWorktree(target.context.repo, 7, '7'), undefined);
   const before = views();
   await pendingIssues(target.context);
   assert.equal(views(), before);
@@ -90,7 +90,7 @@ test('a user who closes an issue whose worktree and branches cannot be removed g
     ['skipped'],
   );
   assert.equal(await target.state(), undefined);
-  assert.notEqual(await target.context.ports.findWorktree(target.context.repo, '7'), undefined);
+  assert.notEqual(await target.context.ports.findWorktree(target.context.repo, 7, '7'), undefined);
   assert.deepEqual(
     target.events.filter((record) => record.kind === 'branch.kept').map((record) => record.branch),
     ['7', '7-dispute-1'],
@@ -106,7 +106,7 @@ test('a user who closes an issue that a stop after the round left with its workt
   const { target, reports } = await closedRun(t, saved);
   assertCleanedUp(target, reports);
   assert.equal(await target.state(), undefined);
-  assert.equal(await target.context.ports.findWorktree(target.context.repo, '7'), undefined);
+  assert.equal(await target.context.ports.findWorktree(target.context.repo, 7, '7'), undefined);
 });
 
 test('a user who closes an issue just after a run lists it as open gets the run to skip it as closed with no label, comment or agent', async (t) => {
@@ -129,7 +129,7 @@ test('a user who closes a stopped issue just after a run lists it as open gets t
   assertCleanedUp(target, [report]);
   assert.equal(report.reason, 'closed');
   assert.equal(await target.state(), undefined);
-  assert.equal(await target.context.ports.findWorktree(target.context.repo, '7'), undefined);
+  assert.equal(await target.context.ports.findWorktree(target.context.repo, 7, '7'), undefined);
 });
 
 test('a person who closes an issue halted on a checks error gets the next run to log land.released with the reason closed and land another issue', async (t) => {

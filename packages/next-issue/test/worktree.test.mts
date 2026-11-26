@@ -189,7 +189,7 @@ test('a user whose Claude Code worktree at .claude/worktrees/3 holds branch 3 ke
     new RegExp(`worktree at ${await realpath(mine)} has branch 3 checked out`),
   );
   assert.equal(await revision(mine), kept);
-  assert.equal(await findWorktree(repo, '3'), undefined);
+  assert.equal(await findWorktree(repo, 3, '3'), undefined);
   assert.equal(existsSync(join(repo.root, '.claude', 'worktrees', 'next-issue-3')), false);
 });
 
@@ -211,6 +211,17 @@ test('a user who resumes issue 3 on a saved branch gets that branch in the workt
   assert.equal(await git(path, 'branch', '--show-current'), 'issue-3');
 });
 
+test('a user who resumes issue 3 on a saved branch issue-3 twice gets the same worktree, and it is removed when the issue ends', async () => {
+  const { repo } = await clones();
+  const { path } = await addWorktree(repo, 3, 'issue-3', 'main', 'origin', false);
+  const { path: resumed } = await addWorktree(repo, 3, 'issue-3', 'main', 'origin', false);
+  assert.equal(await realpath(resumed), await realpath(path));
+  const found = await findWorktree(repo, 3, 'issue-3');
+  assert.equal(await realpath(found!), await realpath(path));
+  assert.equal(await removeWorktree(repo, found!), true);
+  assert.equal(existsSync(path), false);
+});
+
 test('a user whose worktree at ../tool-issue-3 holds the saved branch keeps it when issue 3 resumes', async () => {
   const { repo } = await clones();
   const mine = join(repo.root, '..', 'tool-issue-3');
@@ -220,7 +231,7 @@ test('a user whose worktree at ../tool-issue-3 holds the saved branch keeps it w
     new RegExp(`worktree at ${await realpath(mine)} has branch issue-3 checked out`),
   );
   assert.equal(await git(mine, 'branch', '--show-current'), 'issue-3');
-  assert.equal(await findWorktree(repo, 'issue-3'), undefined);
+  assert.equal(await findWorktree(repo, 3, 'issue-3'), undefined);
 });
 
 for (const folder of [join('.worktrees', 'fix'), join('.claude', 'worktrees', 'next-issue-5')]) {
@@ -233,7 +244,7 @@ for (const folder of [join('.worktrees', 'fix'), join('.claude', 'worktrees', 'n
       new RegExp(`worktree at ${await realpath(mine)} has branch 3 checked out`),
     );
     assert.equal(await git(mine, 'branch', '--show-current'), '3');
-    assert.equal(await findWorktree(repo, '3'), undefined);
+    assert.equal(await findWorktree(repo, 3, '3'), undefined);
   });
 }
 
@@ -352,7 +363,7 @@ test('a user who resumes issue 3 while the hunt worktree holds branch 3 gets the
   const hunt = await huntWorktree(repo, 'main', 'origin');
   await git(hunt, 'checkout', '-q', '-b', '3');
   const kept = await commit(hunt, 'kept.txt');
-  assert.equal(await findWorktree(repo, '3'), undefined);
+  assert.equal(await findWorktree(repo, 3, '3'), undefined);
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
   assert.equal(path, join(repo.root, '.claude', 'worktrees', 'next-issue-3'));
   assert.equal(await git(path, 'branch', '--show-current'), '3');
@@ -386,18 +397,18 @@ test('a user whose main worktree holds branch 3 never gets it as the worktree of
 test('a user whose issue ends while the main worktree holds its branch keeps the main worktree', async () => {
   const { repo } = await clones();
   await git(repo.root, 'checkout', '-q', '-b', '3');
-  assert.equal(await findWorktree(repo, '3'), undefined);
+  assert.equal(await findWorktree(repo, 3, '3'), undefined);
 });
 
 test('a user whose issue ends gets the worktree that holds its branch removed', async () => {
   const { repo } = await clones();
   const old = join(repo.root, '.claude', 'worktrees', 'next-issue-3');
   await git(repo.root, 'worktree', 'add', '-q', '-b', '3', old, 'origin/main');
-  const path = await findWorktree(repo, '3');
+  const path = await findWorktree(repo, 3, '3');
   assert.notEqual(path, undefined);
   assert.equal(await removeWorktree(repo, path!), true);
   assert.equal(existsSync(old), false);
-  assert.equal(await findWorktree(repo, '3'), undefined);
+  assert.equal(await findWorktree(repo, 3, '3'), undefined);
 });
 
 test('the worker reports a base that it cannot fast-forward for the worktree', async () => {

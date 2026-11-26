@@ -580,7 +580,7 @@ test('a user who stops a run now after GitHub applied the done label, before the
   assert.deepEqual(target.closed, [7]);
   assert.equal(await target.state(), undefined);
   assert.deepEqual(target.deleted, ['7']);
-  assert.equal(await target.context.ports.findWorktree(target.context.repo, '7'), undefined);
+  assert.equal(await target.context.ports.findWorktree(target.context.repo, 7, '7'), undefined);
   assert.deepEqual(roles(target), []);
   assert.deepEqual(target.landed, []);
   assert.deepEqual(target.reverts, []);
@@ -613,7 +613,7 @@ test('a user who stops a run now after the issue is closed, before its state fil
   assert.equal(report.outcome, 'done');
   assert.equal(await target.state(), undefined);
   assert.deepEqual(target.deleted, ['7', '7-dispute']);
-  assert.equal(await target.context.ports.findWorktree(target.context.repo, '7'), undefined);
+  assert.equal(await target.context.ports.findWorktree(target.context.repo, 7, '7'), undefined);
   assert.deepEqual(target.closed, []);
   assert.deepEqual(target.labels, []);
   assert.deepEqual(roles(target), []);

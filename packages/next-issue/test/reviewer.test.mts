@@ -110,7 +110,7 @@ test('a reviewer that checks out another branch leaves that branch where it was 
   });
   withGit(target, (worktree) => git(worktree, 'checkout', '-q', 'other'));
   assert.equal((await target.run()).outcome, 'stopped');
-  const worktree = (await findWorktree(repo, '7'))!;
+  const worktree = (await findWorktree(repo, 7, '7'))!;
   assert.equal(await git(repo.root, 'rev-parse', 'other'), other);
   assert.equal(await git(worktree, 'branch', '--show-current'), '7');
   assert.equal(await git(repo.root, 'rev-parse', '7'), await revision(worktree));
@@ -130,7 +130,7 @@ test('a user who stops and resumes issue 7 after a reviewer detached HEAD still 
   const resumed = await harness(t, { root: repo.root, stopNowDuring: 'reviewer' });
   withGit(resumed, async () => undefined);
   assert.equal((await resumed.run()).outcome, 'stopped');
-  const worktree = (await findWorktree(repo, '7'))!;
+  const worktree = (await findWorktree(repo, 7, '7'))!;
   assert.equal(await git(worktree, 'branch', '--show-current'), '7');
   await git(worktree, 'cat-file', '-e', 'HEAD:fixer.txt');
 });
@@ -151,7 +151,7 @@ test('a user who resumes issue 7 after a stop now during the fixer gets a review
     return writeFiles(recorder, request);
   };
   assert.equal((await first.run()).outcome, 'stopped');
-  const worktree = (await findWorktree(repo, '7'))!;
+  const worktree = (await findWorktree(repo, 7, '7'))!;
   assert.notEqual(await git(worktree, 'status', '--porcelain'), '');
   const resumed = await harness(t, { root: repo.root });
   const seen: { status: string; head: string; tree: string }[] = [];
@@ -242,7 +242,7 @@ test('a user who stops now during the squash hook keeps the change on branch 7, 
   withGit(first, async () => undefined);
   const squash = squashStoppedInHook(first, hooks);
   assert.equal((await first.run()).outcome, 'stopped');
-  const worktree = (await findWorktree(repo, '7'))!;
+  const worktree = (await findWorktree(repo, 7, '7'))!;
   assert.equal(await git(repo.root, 'rev-parse', '7'), squash.head());
   assert.equal(await git(worktree, 'status', '--porcelain'), '');
   await git(worktree, 'config', '--unset', 'core.hooksPath');

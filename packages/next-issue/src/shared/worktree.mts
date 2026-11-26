@@ -46,9 +46,9 @@ export async function addWorktree(
   const baseUpdated = await fastForwardBase(repo, base, remote);
   await git(repo.root, ['worktree', 'prune']);
   await releaseFromHunt(repo, branch);
-  await refuseOwnWorktree(repo, issue, branch, start);
+  await refuseOwnWorktree(repo, issue, branch);
   const pushed = await hasBranch(repo, upstream, '--remotes');
-  const existing = await findWorktree(repo, branch);
+  const existing = await findWorktree(repo, issue, branch);
   const path = existing ?? worktreePath(repo, issue);
   const target = pushed ? upstream : remoteBase;
   if (start) {
@@ -124,36 +124,30 @@ async function updateBase(repo: Repo, base: string, remote: string): Promise<boo
   return oneFetchAtATime(() => succeeds(repo.root, args));
 }
 
-export async function findWorktree(repo: Repo, branch: string): Promise<string | undefined> {
+export async function findWorktree(
+  repo: Repo,
+  issue: number,
+  branch: string,
+): Promise<string | undefined> {
   const found = await holder(repo, branch);
-  if (found === undefined || found.main || !(await isOwn(repo, branch, found.path))) {
+  if (
+    found === undefined ||
+    found.main ||
+    !(await samePath(found.path, worktreePath(repo, issue)))
+  ) {
     return undefined;
   }
   return found.path;
 }
 
-async function isOwn(repo: Repo, branch: string, path: string): Promise<boolean> {
-  return samePath(path, join(repo.root, WORKTREE_DIR, `next-issue-${branch}`));
-}
-
-async function refuseOwnWorktree(
-  repo: Repo,
-  issue: number,
-  branch: string,
-  start: boolean,
-): Promise<void> {
+async function refuseOwnWorktree(repo: Repo, issue: number, branch: string): Promise<void> {
   const found = await holder(repo, branch);
   if (found?.main) {
     throw new Error(
       `the main worktree at ${found.path} has branch ${branch} checked out, so the issue cannot have its own worktree; check out another branch there and try again`,
     );
   }
-  if (
-    found !== undefined &&
-    !(await (start
-      ? samePath(found.path, worktreePath(repo, issue))
-      : isOwn(repo, branch, found.path)))
-  ) {
+  if (found !== undefined && !(await samePath(found.path, worktreePath(repo, issue)))) {
     throw new Error(
       `the worktree at ${found.path} has branch ${branch} checked out, so the issue cannot have its own worktree; check out another branch there and try again`,
     );
