@@ -1,3 +1,5 @@
+import type { RunSummary } from './summary.mts';
+
 export type RunStatus = 'running' | 'stopping' | 'finished' | 'stopped' | 'failed';
 
 export type Upgrade = { from: string; to: string; resumes?: boolean };
@@ -20,32 +22,9 @@ export type Progress = {
   nextLook?: string;
 };
 
-export type Usage = {
-  input: number;
-  output: number;
-  cacheRead: number;
-  cacheWrite: number;
-  total: number;
-};
-
-export type RunSummary = {
-  runId: string;
-  logFile: string;
-  roles: Record<string, Usage & { calls: number; ms: number }>;
-  counts: Record<string, number>;
-  total: Usage;
-  issues: {
-    issue: number;
-    outcome: 'done' | 'needs-human' | 'skipped' | 'error' | 'stopped';
-    reason?: string;
-    ciFixes: number;
-    reviewRounds: number;
-    ms: number;
-    halt?: boolean;
-    handedOver?: boolean;
-    blocked?: boolean;
-  }[];
-};
+export function going(progress: Progress | undefined): boolean {
+  return progress?.status === 'running' || progress?.status === 'stopping';
+}
 
 export const STOP_POINTS = ['issue', 'round', 'now'] as const;
 

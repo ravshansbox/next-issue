@@ -7,6 +7,7 @@ import { WebSocket } from 'ws';
 import { lockHolder } from './lock.mts';
 import {
   type ClientMessage,
+  going,
   isNewer,
   type Launch,
   type Progress,
@@ -36,10 +37,6 @@ class SilentWorker extends Error {
   constructor() {
     super('the next-issue worker did not answer');
   }
-}
-
-export function going(progress: Progress | undefined): boolean {
-  return progress?.status === 'running' || progress?.status === 'stopping';
 }
 
 function parse(text: string): WorkerMessage | undefined {

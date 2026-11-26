@@ -1,12 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { isNewer, type Progress, type RunningIssue } from '../shared/protocol.mts';
+import { going, isNewer, type Progress, type RunningIssue } from '../shared/protocol.mts';
 import { packageVersion } from '../shared/version.mts';
 import {
   ANSWER_TIMEOUT_MS,
   CLOSED,
   type Connection,
   findWorker,
-  going,
 } from '../shared/worker-client.mts';
 
 export type SwitchName = 'watch' | 'hunt';

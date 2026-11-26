@@ -1,12 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { givenStartFlags } from '../shared/args.mts';
-import { isNewer, type Progress } from '../shared/protocol.mts';
+import { going, isNewer, type Progress } from '../shared/protocol.mts';
 import { packageVersion } from '../shared/version.mts';
 import {
   ANSWER_TIMEOUT_MS,
   CLOSED,
   type Connection,
-  going,
   reachWorker,
   startedRun,
 } from '../shared/worker-client.mts';

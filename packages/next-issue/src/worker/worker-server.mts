@@ -3,11 +3,8 @@ import type { Server } from 'node:http';
 import type { WebSocketServer } from 'ws';
 import type { HeldLock } from '../shared/lock.mts';
 import type { ClientMessage, Launch, WorkerMessage } from '../shared/protocol.mts';
+import { isRecord } from '../shared/records.mts';
 import { type Run, runsMessage } from './worker-run.mts';
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function isStringArray(value: unknown): boolean {
   return Array.isArray(value) && value.every((item) => typeof item === 'string');

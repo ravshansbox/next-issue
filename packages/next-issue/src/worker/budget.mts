@@ -35,10 +35,13 @@ export async function spendBudget(
   return undefined;
 }
 
+function takeBack(job: Run, budget: Budget): void {
+  job.state[budget] = Math.max(0, (job.state[budget] ?? 0) - 1);
+}
+
 async function refundBudget(job: Run, budget: Budget): Promise<void> {
-  const { context, state } = job;
-  state[budget] = Math.max(0, (state[budget] ?? 0) - 1);
-  await writeState(context.repo, state);
+  takeBack(job, budget);
+  await writeState(job.context.repo, job.state);
 }
 
 export async function refundIfCut<T>(
@@ -52,7 +55,7 @@ export async function refundIfCut<T>(
   const forget = onKill(() => {
     refunded = true;
     undo?.();
-    state[budget] = Math.max(0, (state[budget] ?? 0) - 1);
+    takeBack(job, budget);
     writeStateNow(context.repo, state);
   });
   try {

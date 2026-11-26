@@ -7,7 +7,7 @@ import { killTree, onStop, refuseWhenStopped, watch } from './children.mts';
 import { deadline, elapsedMs } from './durations.mts';
 import type { Fields, Recorder } from './observe.mts';
 import { isRecord } from './records.mts';
-import { emptyUsage, type Usage } from './usage.mts';
+import { addUsage, emptyUsage, type Usage } from './usage.mts';
 
 export type Profile = {
   disallowedTools: string[];
@@ -214,10 +214,7 @@ async function sessionResult(
   if (usage === undefined) {
     usage = emptyUsage();
     for (const each of session.usages.values()) {
-      usage.input += each.input;
-      usage.output += each.output;
-      usage.cacheRead += each.cacheRead;
-      usage.cacheWrite += each.cacheWrite;
+      addUsage(usage, each);
     }
   }
   usage = totalOf(usage);

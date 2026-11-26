@@ -4,6 +4,7 @@ import { type Toggle, onOff } from '../shared/switch.mts';
 import type { Interrupts } from '../shared/interrupt.mts';
 import { applyEvent } from './progress.mts';
 import {
+  going,
   type Progress,
   STOP_POINTS,
   type StopPoint,
@@ -37,7 +38,7 @@ export function newRun(progress: Progress): Run {
 }
 
 export function active(run: Run | undefined): boolean {
-  return run?.progress.status === 'running' || run?.progress.status === 'stopping';
+  return going(run?.progress);
 }
 
 export function endStatus(run: Run): Progress['status'] {
