@@ -654,8 +654,6 @@ for (const [checks, state] of [
     target.context.ports.waitForCiChecks = (_repo, _sha, _branch, options) =>
       pollChecks(
         {
-          head: async () => '2',
-          lags: async () => true,
           list: async () => checks,
           watch: async () => state,
         },
@@ -682,8 +680,6 @@ async function failingReads(
   target.context.ports.waitForCiChecks = (_repo, _sha, _branch, options) =>
     pollChecks(
       {
-        head: async () => '2',
-        lags: async () => true,
         list: async () => {
           reads += 1;
           if (reads <= failures) {

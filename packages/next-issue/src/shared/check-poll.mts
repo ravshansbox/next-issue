@@ -11,7 +11,6 @@ export type CheckState =
   | 'none'
   | 'timeout'
   | 'limited'
-  | 'moved'
   | 'cancelled'
   | 'cut';
 
@@ -20,27 +19,18 @@ const RATE_LIMIT = /rate limit|HTTP 429/i;
 const RATE_LIMIT_WAIT_MS = 60_000;
 
 export type ChecksProbe = {
-  head: () => Promise<string>;
-  lags: (head: string) => Promise<boolean>;
   list: () => Promise<'none' | 'some'>;
   watch: (timeoutMs: number) => Promise<CheckState>;
 };
 
 export type PollOptions = Polling & {
   graceMs: number;
-  head?: string;
 };
-
-export function checkPolling(config: Config): Polling {
-  return {
-    intervalSeconds: config.checkIntervalSeconds,
-    timeoutMs: minutesToMs(config.checkTimeoutMinutes),
-  };
-}
 
 export function checkWaiting(config: Config, grace: boolean): PollOptions {
   return {
-    ...checkPolling(config),
+    intervalSeconds: config.checkIntervalSeconds,
+    timeoutMs: minutesToMs(config.checkTimeoutMinutes),
     graceMs: grace ? secondsToMs(config.checkGraceSeconds) : 0,
   };
 }
@@ -54,7 +44,7 @@ export async function pollChecks(
   const rest = (): number => Math.max(0, deadline - clock.now());
   let shown: number | undefined;
   let failures = 0;
-  let last: CheckState | 'behind' | Error | undefined;
+  let last: CheckState | Error | undefined;
   for (;;) {
     refuseWhenStopped();
     if (rest() === 0) {
@@ -63,11 +53,8 @@ export async function pollChecks(
       }
       return last === 'pass' || last === 'none' ? last : 'timeout';
     }
-    const state = await read(probe, options.head, rest(), () => (shown ??= clock.now()));
+    const state = await read(probe, rest(), () => (shown ??= clock.now()));
     last = state;
-    if (state === 'behind' && shown !== undefined) {
-      return 'moved';
-    }
     if (errorMatches(state, RATE_LIMIT)) {
       failures = 0;
       await clock.sleep(Math.min(RATE_LIMIT_WAIT_MS, rest()));
@@ -89,39 +76,24 @@ export async function pollChecks(
   }
 }
 
-function settled(
-  state: CheckState | 'behind',
-  waitedMs: number,
-  graceMs: number,
-): CheckState | undefined {
+function settled(state: CheckState, waitedMs: number, graceMs: number): CheckState | undefined {
   if (state === 'none' || state === 'pass') {
     return waitedMs >= graceMs ? state : undefined;
   }
-  return state === 'behind' || state === 'pending' ? undefined : state;
+  return state === 'pending' ? undefined : state;
 }
 
 async function read(
   probe: ChecksProbe,
-  head: string | undefined,
   timeoutMs: number,
   shown: () => void,
-): Promise<CheckState | 'behind' | Error> {
+): Promise<CheckState | Error> {
   try {
-    if (head !== undefined) {
-      const current = await probe.head();
-      if (current !== head) {
-        return (await probe.lags(current)) ? 'behind' : 'moved';
-      }
-    }
     shown();
     if ((await probe.list()) === 'none') {
       return 'none';
     }
-    const state = await probe.watch(timeoutMs);
-    if (head !== undefined && (await probe.head()) !== head) {
-      return 'moved';
-    }
-    return state;
+    return await probe.watch(timeoutMs);
   } catch (error) {
     return asError(error);
   }

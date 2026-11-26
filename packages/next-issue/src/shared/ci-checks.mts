@@ -221,8 +221,6 @@ export function waitForCiChecks(
   };
   return pollChecks(
     {
-      head: async () => sha,
-      lags: async () => true,
       list: async () => {
         read = await baseChecks(repo, sha, branch, restarted, ignored);
         return read.runs.length + read.external.length === 0 && !read.rerunning ? 'none' : 'some';
