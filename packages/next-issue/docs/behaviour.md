@@ -286,7 +286,7 @@ To drop an issue instead, close it. The next run that finds a saved state for an
 
 ## Skills
 
-The package ships two skills for Claude Code: `create-issue` writes an issue that the worker can claim, and `answer-hand-over` helps you answer a hand-over. `create-issue` starts the run once it files an issue. `answer-hand-over` runs no next-issue command: a watching run picks up a retried issue at its next read of the open issues. Both skills run any next-issue command as `npx -y next-issue@latest <command>`, never from the `PATH`, a global install or a local build.
+The package ships two skills for Claude Code: `create-issue` writes an issue that the worker can claim, and `answer-hand-over` helps you answer a hand-over. `create-issue` starts the run once it files an issue. `answer-hand-over` runs no next-issue command: a watching run picks up a retried issue at its next read of the open issues. Both skills run any next-issue command as `npx -y next-issue@latest <command>`, never from the `PATH`, a global install or a local build. Both skills read `.next-issue/config.json` of the main worktree (the first `worktree` entry of `git worktree list --porcelain`), also when they run in a linked worktree, so `remote` and `labels` hold there too.
 
 `npx -y next-issue@latest init` installs them, so Claude Code finds them:
 
