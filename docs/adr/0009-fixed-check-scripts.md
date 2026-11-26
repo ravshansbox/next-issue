@@ -40,4 +40,4 @@ Option C.
 
 - A project without a root `package.json` cannot use the harness.
 - The harness does not set the tools up for a project; the owner does.
-- An existing `checks` field stops the run as an unknown field.
+- `init`, `start` and `serve` remove an existing `checks` field from the config file and print `removed checks from .next-issue/config.json`.
