@@ -137,6 +137,23 @@ test('a user who runs init in a repository with no remote gets the config file a
   await assertInstalled(join(home, '.claude', 'skills'));
 });
 
+test('a user whose kept config file is not valid JSON runs init and gets the skills, then exit code 1 and an error that names the config file, not the base check', async () => {
+  const home = await tempDir();
+  const root = await repository(ORIGIN);
+  await mkdir(join(root, '.next-issue'));
+  await writeFile(join(root, '.next-issue/config.json'), '{ "maxCiFixes": ');
+  await assert.rejects(
+    init(root, home, ['--scope', 'user']),
+    (error: { code: number; stderr: string }) => {
+      assert.equal(error.code, 1);
+      assert.match(error.stderr, /^\.next-issue\/config\.json is not valid JSON: /);
+      assert.doesNotMatch(error.stderr, /could not check the scripts/);
+      return true;
+    },
+  );
+  await assertInstalled(join(home, '.claude', 'skills'));
+});
+
 test('a user who runs init --scope project in a linked worktree gets the skills in .claude/skills of the main worktree', async () => {
   const home = await tempDir();
   const root = await repository();

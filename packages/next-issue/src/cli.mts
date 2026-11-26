@@ -102,7 +102,8 @@ async function init(root: string, args: Args): Promise<number> {
   for (const note of await installSkills(scope)) {
     await write(process.stdout, `${note}\n`);
   }
-  const base = await rootBasePackage(root).catch((error: unknown) => {
+  const { remote } = await loadConfig(root);
+  const base = await configuredBasePackage(root, remote).catch((error: unknown) => {
     const reason = message(error);
     return write(process.stderr, `could not check the scripts on the base branch: ${reason}\n`);
   });
@@ -114,6 +115,10 @@ async function init(root: string, args: Args): Promise<number> {
 
 async function rootBasePackage(root: string): Promise<BasePackage> {
   const { remote } = await loadConfig(root);
+  return configuredBasePackage(root, remote);
+}
+
+async function configuredBasePackage(root: string, remote: string): Promise<BasePackage> {
   return basePackage(await detectRepo(root, remote), remote);
 }
 
