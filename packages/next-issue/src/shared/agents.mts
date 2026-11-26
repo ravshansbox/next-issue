@@ -142,9 +142,7 @@ export async function runAgent(recorder: Recorder, request: AgentRequest): Promi
 
 function checkModel(model: string | undefined): void {
   if (model?.includes('/') === true) {
-    throw new Error(
-      `The model ${model} is not a Claude model ID. Use an ID such as claude-opus-5-5.`,
-    );
+    throw new Error(`The model ${model} is not a Claude model ID. Use an ID such as opus.`);
   }
 }
 

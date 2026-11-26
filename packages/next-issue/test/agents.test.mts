@@ -250,9 +250,8 @@ test('a user whose agent succeeds sees exactly one usage event', async (t) => {
 
 test('a user who sets a model in the old provider/model form gets an error that asks for a Claude model ID', async (t) => {
   const { recorder, request, bodies } = await claude(t, [text('done')]);
-  await assert.rejects(runAgent(recorder, { ...request, model: 'anthropic/claude-opus-5-5' }), {
-    message:
-      'The model anthropic/claude-opus-5-5 is not a Claude model ID. Use an ID such as claude-opus-5-5.',
+  await assert.rejects(runAgent(recorder, { ...request, model: 'anthropic/opus' }), {
+    message: 'The model anthropic/opus is not a Claude model ID. Use an ID such as opus.',
   });
   assert.equal(bodies.length, 0);
 });

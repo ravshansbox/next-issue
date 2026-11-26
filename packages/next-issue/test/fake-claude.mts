@@ -136,7 +136,7 @@ export async function fakeClaude(steps: Step[]) {
       cwd: root,
       prompt: 'hi',
       profile: CODING,
-      model: 'claude-opus-5-5',
+      model: 'opus',
       runtime: {
         env: {
           ANTHROPIC_BASE_URL: `http://127.0.0.1:${port}`,

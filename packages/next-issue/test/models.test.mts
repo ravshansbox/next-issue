@@ -21,16 +21,16 @@ async function modelsOf(
 }
 
 test('a user who sets a hunter model sees the hunter run with that model', async (t) => {
-  const used = await modelsOf(t, { hunter: 'claude-haiku-5-5' });
-  assert.equal(used.hunter, 'claude-haiku-5-5');
+  const used = await modelsOf(t, { hunter: 'opus' });
+  assert.equal(used.hunter, 'opus');
 });
 
 test('a user who sets models.default sees each agent without its own model run with the default model', async (t) => {
-  const used = await modelsOf(t, { default: 'claude-sonnet-5-5', reviewer: 'claude-opus-5-5' });
+  const used = await modelsOf(t, { default: 'opus', reviewer: 'fable' });
   assert.deepEqual(used, {
-    implementer: 'claude-sonnet-5-5',
-    reviewer: 'claude-opus-5-5',
-    hunter: 'claude-sonnet-5-5',
+    implementer: 'opus',
+    reviewer: 'fable',
+    hunter: 'opus',
   });
 });
 
