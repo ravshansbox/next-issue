@@ -152,6 +152,7 @@ export type Worker = {
   close: () => Promise<void>;
   release: () => void;
   exit: (fields: Record<string, unknown>, below?: string) => void;
+  signalled: () => void;
 };
 
 export function closer(stop: () => Promise<number>): Pick<Worker, 'closed' | 'close'> {

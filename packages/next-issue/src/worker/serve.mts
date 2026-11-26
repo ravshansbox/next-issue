@@ -94,6 +94,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   let successor: Launch | undefined;
   let closing = false;
   let sendingEnd = false;
+  let signalled = false;
 
   const server = createServer();
   const sockets = new WebSocketServer({ server });
@@ -340,6 +341,8 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
       }
     } else if (value.root !== options.root) {
       refuse(`the worker serves ${options.root} only`);
+    } else if (signalled && (value.type === 'start' || value.type === 'stop')) {
+      refuse('the worker is stopping');
     } else if (value.type === 'start') {
       start(socket, refuse, value.root, value.args ?? [], value.resume === true, value.id);
     } else if (value.type === 'stop') {
@@ -381,7 +384,15 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   await rename(draft, options.socketPath);
   owned.socket = fileId(options.socketPath);
   idleTimer = setTimeout(closeWhenIdle, idleMs);
-  return { closed, close, release: () => removeOwned(owned), exit };
+  return {
+    closed,
+    close,
+    release: () => removeOwned(owned),
+    exit,
+    signalled: () => {
+      signalled = true;
+    },
+  };
 }
 
 type Refuse = (text: string) => void;
@@ -425,6 +436,7 @@ export async function serve(root: string, logCheckMs = LOG_CHECK_MS): Promise<nu
     process.off('SIGTERM', onTerminate);
     process.off('SIGINT', onInterrupt);
     process.off('SIGHUP', onHangUp);
+    worker.signalled();
     stopChildren(signal, () => {
       worker.exit({ reason: signal, code: 128 + constants.signals[signal] });
       worker.release();

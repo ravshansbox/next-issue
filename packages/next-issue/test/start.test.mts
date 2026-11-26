@@ -696,6 +696,28 @@ test('a user who runs stop with a worker that sends no stopping reply sees that 
   );
 });
 
+test('a user who runs stop with a worker that refuses it sees the refusal on stderr and exit code 1', async (t) => {
+  const root = await repository(ORIGIN);
+  const { socketPath } = workerPaths(root);
+  await mkdir(dirname(socketPath), { recursive: true });
+  const progress = { status: 'running', watching: true, hunting: false, issues: [] };
+  const server = new WebSocketServer({ server: createServer().listen(socketPath) });
+  t.after(() => new Promise((resolve) => server.close(() => resolve(undefined))));
+  t.after(() => server.options.server?.close());
+  server.on('connection', (socket) => {
+    socket.send(JSON.stringify({ type: 'hello', version: '0.0.0-old' }));
+    socket.send(JSON.stringify({ type: 'runs', runs: { [root]: progress } }));
+    socket.on('message', (data) => {
+      const { id } = JSON.parse(String(data)) as { id: string };
+      socket.send(JSON.stringify({ type: 'error', root, message: 'the worker is stopping', id }));
+    });
+  });
+  const stopped = cliCommand(t, root, ['stop']);
+  assert.equal(await stopped.exited, 1);
+  assert.equal(stopped.stdout(), '');
+  assert.equal(stopped.stderr(), 'the worker is stopping\n');
+});
+
 test('a user who runs stop while the run is stopping sees that it is stopping already and exit code 0', async (t) => {
   const root = await repository(ORIGIN);
   const fake = fakeRuns();

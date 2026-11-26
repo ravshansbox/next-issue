@@ -1129,6 +1129,24 @@ test(
   },
 );
 
+test('a client that sends start or stop to a worker that got SIGTERM while a command ignores it gets an error that the worker is stopping', async (t) => {
+  const { root, child } = await stubbornWorker(t);
+  const client = await connect(t, workerPaths(root).socketPath);
+  await client.next(runsOf);
+  child.kill('SIGTERM');
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  client.send({ type: 'start', root, id: 'start' });
+  client.send({ type: 'stop', root, after: 'issue', id: 'stop' });
+  const errors = [
+    await client.next((value) => value.type === 'error'),
+    await client.next((value) => value.type === 'error'),
+  ];
+  assert.deepEqual(errors, [
+    { type: 'error', root, message: 'the worker is stopping', id: 'start' },
+    { type: 'error', root, message: 'the worker is stopping', id: 'stop' },
+  ]);
+});
+
 test('a worker that gets SIGTERM while a command ignores it keeps its lock from a second worker until the command ends, then exits and leaves no socket or lock file', async (t) => {
   const { root, child, exited, pid } = await stubbornWorker(t);
   const { socketPath, lockPath } = workerPaths(root);

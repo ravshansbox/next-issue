@@ -102,12 +102,15 @@ type StopReply = { waiting: boolean; hunting: boolean };
 
 function stopReply(connection: Connection, root: string): Promise<StopReply | undefined> {
   const id = randomUUID();
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const timer = setTimeout(() => resolve(undefined), ANSWER_TIMEOUT_MS);
     connection.listen((message) => {
       if (message.type === 'stopping' && message.id === id) {
         clearTimeout(timer);
         resolve(message);
+      } else if (message.type === 'error' && message.id === id) {
+        clearTimeout(timer);
+        reject(new Error(message.message));
       }
     });
     void connection.closed.then(() => {
