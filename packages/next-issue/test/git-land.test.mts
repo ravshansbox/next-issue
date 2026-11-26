@@ -75,6 +75,22 @@ test('the worker pushes the issue branch even when a pre-push hook of the projec
   assert.equal(await git(other, 'rev-parse', 'origin/3'), await git(path, 'rev-parse', 'HEAD'));
 });
 
+test('the worker deletes the issue branch from the remote even when a pre-push hook of the project would refuse it', async () => {
+  const { path, other, repo } = await branch();
+  assert.equal((await pushBranch(path, 'origin', '3', '')).pushed, true);
+  const hooks = join(path, '..', 'hooks');
+  await mkdir(hooks, { recursive: true });
+  await writeFile(join(hooks, 'pre-push'), '#!/bin/sh\necho work in progress >&2\nexit 1\n');
+  await chmod(join(hooks, 'pre-push'), 0o755);
+  await git(repo.root, 'config', 'core.hooksPath', hooks);
+  assert.equal(
+    await deleteRemoteBranch(repo, 'origin', '3', await git(path, 'rev-parse', 'HEAD')),
+    true,
+  );
+  await git(other, 'fetch', '-q', '--prune', 'origin');
+  await assert.rejects(git(other, 'rev-parse', '--verify', 'origin/3'));
+});
+
 test('the worker makes no squash commit for a change that the base already holds', async () => {
   const { path } = await branch();
   await git(path, 'reset', '-q', '--hard', 'origin/main');

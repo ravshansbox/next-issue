@@ -64,7 +64,7 @@ export async function deleteRemoteBranch(
   const ref = `refs/heads/${branch}`;
   const lease = `--force-with-lease=${ref}:${expected}`;
   const result = await oneFetchAtATime(() =>
-    run('git', ['push', lease, remote, '--delete', ref], { cwd: repo.root }),
+    run('git', ['push', '--no-verify', lease, remote, '--delete', ref], { cwd: repo.root }),
   );
   return succeeded(result);
 }
