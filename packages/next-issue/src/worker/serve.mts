@@ -381,6 +381,9 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   const draft = join(dirname(options.socketPath), `~${basename(options.socketPath).slice(1)}`);
   await rm(draft, { force: true });
   await listen(server, draft);
+  sockets.on('error', (error) => {
+    log(render({ ts: new Date().toISOString(), kind: 'worker.error', error: message(error) }));
+  });
   await rename(draft, options.socketPath);
   owned.socket = fileId(options.socketPath);
   idleTimer = setTimeout(closeWhenIdle, idleMs);

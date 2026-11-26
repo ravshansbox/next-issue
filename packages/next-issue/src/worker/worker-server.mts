@@ -142,8 +142,9 @@ export async function shutdown(
   for (const socket of sockets.clients) {
     socket.terminate();
   }
+  const stopped = listening ?? stopListening(server);
   await whenClosed((done) => sockets.close(done));
-  await (listening ?? stopListening(server));
+  await stopped;
   removeOwned(owned);
 }
 

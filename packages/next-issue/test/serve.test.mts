@@ -1100,6 +1100,23 @@ test('a worker that leaves a promise rejection unhandled while a command runs ki
   assert.match(result.output, /worker boom/);
 });
 
+test('a worker whose server emits an error after it listens writes worker.error with the error to its log, keeps its command running and still takes connections', async (t) => {
+  const { root, child, pid, output } = await stubbornWorker(
+    t,
+    "for (const handle of process._getActiveHandles()) { if (handle.constructor.name === 'Server') { handle.emit('error', new Error('accept EMFILE')); } }",
+  );
+  child.kill('SIGUSR2');
+  const deadline = Date.now() + 2000;
+  while (!/worker\.(error|exit)/.test(output()) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.match(output(), /^\d\d:\d\d:\d\d worker\.error error=accept EMFILE\n/m);
+  assert.equal(child.exitCode, null);
+  assert.equal(alive(pid), true);
+  const client = await connect(t, workerPaths(root).socketPath);
+  assert.equal((await client.next(runsOf)).type, 'runs');
+});
+
 async function signalWithStubbornCommand(t: TestContext, signal: NodeJS.Signals) {
   const { child, exited, pid, laterFile } = await stubbornWorker(t);
   const started = Date.now();
