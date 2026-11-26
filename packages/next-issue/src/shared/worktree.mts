@@ -52,6 +52,9 @@ export async function addWorktree(
   const path = existing ?? worktreePath(repo, issue);
   const target = pushed ? upstream : remoteBase;
   if (start) {
+    if (existing !== undefined) {
+      await commitAll(existing, 'chore: edits left in the worktree', { hooks: false });
+    }
     await keepUnmergedCommits(repo, branch, target);
   }
   if (existing === undefined) {

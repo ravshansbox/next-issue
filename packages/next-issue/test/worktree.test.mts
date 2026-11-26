@@ -88,6 +88,22 @@ test('a user whose repository has a tag 3 on the base keeps the unpushed commit 
   );
 });
 
+test('a user who starts issue 3 afresh while .claude/worktrees/next-issue-3 holds uncommitted edits keeps them on a 3-kept branch', async () => {
+  const { repo } = await clones();
+  const { path: first } = await addWorktree(repo, 3, '3', 'main', 'origin', false);
+  await git(first, 'config', 'user.name', 't');
+  await git(first, 'config', 'user.email', 't@t');
+  await commit(first, 'committed.txt');
+  await writeFile(join(first, 'committed.txt'), 'edited\n');
+  await writeFile(join(first, 'untracked.txt'), 'untracked\n');
+  const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', true);
+  assert.equal(await revision(path), await git(repo.root, 'rev-parse', 'origin/main'));
+  const aside = await git(repo.root, 'branch', '--list', '3-kept-*', '--format=%(refname:short)');
+  assert.match(aside, /^3-kept-[0-9a-f]{7}$/);
+  assert.equal(await git(repo.root, 'show', `${aside}:committed.txt`), 'edited');
+  assert.equal(await git(repo.root, 'show', `${aside}:untracked.txt`), 'untracked');
+});
+
 test('a user who starts issue 3 afresh gets the remote branch 3 instead of a stale local branch 3', async () => {
   const { repo, other } = await clones();
   await git(repo.root, 'checkout', '-q', '-b', '3');
