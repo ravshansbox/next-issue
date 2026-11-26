@@ -8,19 +8,17 @@ export type Args = {
   command?: Command;
   help: boolean;
   version: boolean;
-  force: boolean;
   watch: boolean;
   hunt: boolean;
   on?: boolean;
   scope?: Scope;
 };
 
-type Switch = 'help' | 'version' | 'force';
+type Switch = 'help' | 'version';
 
 type RunFlag = 'watch' | 'hunt';
 
 const SWITCHES = new Map<string, Switch>([
-  ['--force', 'force'],
   ['--help', 'help'],
   ['--version', 'version'],
 ]);
@@ -46,7 +44,6 @@ export const USAGE = `npx -y next-issue@latest <command> [options]
   status            show the going run, its worker and its running issues
   logs              show the latest run log and follow it
 
-  --force           replace an existing config file, with init
   --help            show this text
   --version         show the next-issue version
 `;
@@ -69,9 +66,6 @@ export function parseArgs(argv: string[]): Args {
   }
   if ((args.command === 'watch' || args.command === 'hunt') && args.on === undefined) {
     throw new Error(`\`${args.command}\` takes \`on\` or \`off\``);
-  }
-  if (args.command !== undefined && args.command !== 'init' && args.force) {
-    throw new Error(`\`${args.command}\` does not take \`--force\`: it belongs to \`init\``);
   }
   return args;
 }
@@ -102,7 +96,6 @@ function readArgs(passed: string[]): {
   const args: Args = {
     help: false,
     version: false,
-    force: false,
     watch: true,
     hunt: false,
   };
@@ -151,7 +144,7 @@ function command(arg: string): Command {
   return found;
 }
 
-const OUTPUT_ONLY: Switch[] = ['force', 'help', 'version'];
+const OUTPUT_ONLY: Switch[] = ['help', 'version'];
 
 function readStartArgs(argv: string[]): { args: Args; given: RunFlags } {
   const { args, given } = readArgs(argv);

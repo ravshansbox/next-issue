@@ -251,7 +251,7 @@ test('a client that starts a run with a command or a flag that start does not ta
     [['--reset'], 'Unknown argument: `--reset`'],
     [['--verbose'], 'Unknown argument: `--verbose`'],
     [['--quiet'], 'Unknown argument: `--quiet`'],
-    [['--force'], '`start` does not take `--force`'],
+    [['--force'], 'Unknown argument: `--force`'],
     [['--help'], '`start` does not take `--help`'],
     [['--version'], '`start` does not take `--version`'],
     [['--merge'], 'Unknown argument: `--merge`'],

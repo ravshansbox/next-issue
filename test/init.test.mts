@@ -137,20 +137,17 @@ test('a user who runs init in a repository with no remote gets the config file a
   await assertInstalled(join(home, '.claude', 'skills'));
 });
 
-test('a user whose kept config file is not valid JSON runs init and gets the skills, then exit code 1 and an error that names the config file, not the base check', async () => {
+test('a user whose config file is not valid JSON runs init and gets the defaults in it, the skills and exit code 0', async () => {
   const home = await tempDir();
-  const root = await repository(ORIGIN);
+  const root = await repository();
   await mkdir(join(root, '.next-issue'));
   await writeFile(join(root, '.next-issue/config.json'), '{ "maxCiFixes": ');
-  await assert.rejects(
-    init(root, home, ['--scope', 'user']),
-    (error: { code: number; stderr: string }) => {
-      assert.equal(error.code, 1);
-      assert.match(error.stderr, /^\.next-issue\/config\.json is not valid JSON: /);
-      assert.doesNotMatch(error.stderr, /could not check the scripts/);
-      return true;
-    },
+  const { stdout } = await init(root, home, ['--scope', 'user']);
+  assert.equal(
+    JSON.parse(await readFile(join(root, '.next-issue/config.json'), 'utf8')).maxCiFixes,
+    5,
   );
+  assert.match(stdout, new RegExp(`wrote ${join(root, '.next-issue/config.json')}\n`));
   await assertInstalled(join(home, '.claude', 'skills'));
 });
 
@@ -163,32 +160,34 @@ test('a user who runs init --scope project in a linked worktree gets the skills 
   assert.deepEqual(await readdir(home), []);
 });
 
-test('a user who runs init with a config file there already keeps the file, sees kept with its path, gets the skills and the exclude lines, and exit code 0', async () => {
+test('a user who runs init with a config file there already gets the defaults in it, sees wrote with its path and never kept, gets the skills and the exclude lines, and exit code 0', async () => {
   const home = await tempDir();
   const root = await repository();
   await mkdir(join(root, '.next-issue'));
   await writeFile(join(root, '.next-issue/config.json'), '{ "maxCiFixes": 9 }\n');
   const { stdout } = await init(root, home, ['--scope', 'user']);
   assert.equal(
-    await readFile(join(root, '.next-issue/config.json'), 'utf8'),
-    '{ "maxCiFixes": 9 }\n',
+    JSON.parse(await readFile(join(root, '.next-issue/config.json'), 'utf8')).maxCiFixes,
+    5,
   );
-  assert.match(stdout, new RegExp(`kept ${join(root, '.next-issue/config.json')}\n`));
+  assert.match(stdout, new RegExp(`wrote ${join(root, '.next-issue/config.json')}\n`));
+  assert.doesNotMatch(stdout, /^kept .*config\.json/m);
   assert.match(stdout, /added \.next-issue\/ to .*info\/exclude/);
   await assertInstalled(join(home, '.claude', 'skills'));
 });
 
-test('a user who runs init --force with a config file there gets the defaults in it and the skills', async () => {
+test('a user who runs init --force gets the unknown argument error, exit code 1 and no config file', async () => {
   const home = await tempDir();
   const root = await repository();
-  await mkdir(join(root, '.next-issue'));
-  await writeFile(join(root, '.next-issue/config.json'), '{ "maxCiFixes": 9 }\n');
-  await init(root, home, ['--scope', 'user', '--force']);
-  assert.equal(
-    JSON.parse(await readFile(join(root, '.next-issue/config.json'), 'utf8')).maxCiFixes,
-    5,
+  await assert.rejects(
+    init(root, home, ['--scope', 'user', '--force']),
+    (error: { code: number; stderr: string }) => {
+      assert.equal(error.code, 1);
+      assert.match(error.stderr, /Unknown argument: `--force`/);
+      return true;
+    },
   );
-  await assertInstalled(join(home, '.claude', 'skills'));
+  assert.equal(await readdir(root).then((names) => names.includes('.next-issue')), false);
 });
 
 test('a user who runs init over older copies of the skills gets them replaced and keeps their other skills', async () => {

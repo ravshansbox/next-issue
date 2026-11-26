@@ -16,7 +16,7 @@ test('a user who passes --watch on or off gets a run that watches or does one pa
 
 test('a user who passes --watch or --hunt with no value or another value gets an error that says it takes on or off', () => {
   for (const flag of ['--watch', '--hunt']) {
-    for (const rest of [[], ['yes'], ['--force']]) {
+    for (const rest of [[], ['yes'], ['--help']]) {
       assert.throws(
         () => parseArgs(['start', flag, ...rest]),
         new RegExp(`\`${flag}\` takes \`on\` or \`off\``),
@@ -49,7 +49,7 @@ test('a user who runs watch or hunt with on or off gets that command and value',
 
 test('a user who runs watch or hunt with no value or another value gets an error that says it takes on or off', () => {
   for (const command of ['watch', 'hunt']) {
-    for (const rest of [[], ['yes'], ['--force']]) {
+    for (const rest of [[], ['yes']]) {
       assert.throws(
         () => parseArgs([command, ...rest]),
         new RegExp(`\`${command}\` takes \`on\` or \`off\``),
@@ -63,8 +63,8 @@ test('a user who passes start, init, serve, stop, logs, watch or hunt first gets
   assert.equal(parseArgs(['start']).command, 'start');
   assert.throws(() => parseArgs(['--watch', 'on', 'start']), /Unknown argument: `start`/);
   assert.equal(parseArgs(['stop']).command, 'stop');
-  assert.equal(parseArgs(['init', '--force']).command, 'init');
-  assert.throws(() => parseArgs(['--force', 'init']), /Unknown argument: `init`/);
+  assert.equal(parseArgs(['init']).command, 'init');
+  assert.throws(() => parseArgs(['--scope', 'user', 'init']), /Unknown argument: `init`/);
   assert.throws(() => parseArgs(['run']), /Unknown command: `run`/);
   assert.equal(parseArgs(['serve']).command, 'serve');
 });
@@ -137,7 +137,6 @@ test('a user who runs init with --scope user or project gets that scope, and wit
   assert.equal(parseArgs(['init']).scope, undefined);
   assert.equal(parseArgs(['init', '--scope', 'user']).scope, 'user');
   assert.equal(parseArgs(['init', '--scope', 'project']).scope, 'project');
-  assert.equal(parseArgs(['init', '--scope', 'user', '--force']).force, true);
 });
 
 test('a user who passes update gets an unknown command error and a usage text that does not list it', () => {
@@ -147,7 +146,7 @@ test('a user who passes update gets an unknown command error and a usage text th
 });
 
 test('a user who passes --scope with no value or another value gets an error that says it takes user or project', () => {
-  for (const rest of [[], ['all'], ['--force']]) {
+  for (const rest of [[], ['all'], ['--help']]) {
     assert.throws(
       () => parseArgs(['init', '--scope', ...rest]),
       /`--scope` takes `user` or `project`/,
@@ -155,18 +154,11 @@ test('a user who passes --scope with no value or another value gets an error tha
   }
 });
 
-test('a user who passes --force to a command other than init gets an error that says it belongs to init', () => {
-  for (const command of ['start', 'serve', 'stop', 'logs']) {
-    assert.throws(
-      () => parseArgs([command, '--force']),
-      new RegExp(`\`${command}\` does not take \`--force\`: it belongs to \`init\``),
-    );
+test('a user who passes --force to any command gets the unknown argument error', () => {
+  for (const argv of [['init'], ['start'], ['serve'], ['stop'], ['logs'], ['watch', 'on']]) {
+    assert.throws(() => parseArgs([...argv, '--force']), /Unknown argument: `--force`/);
   }
-  assert.throws(
-    () => parseArgs(['watch', 'on', '--force']),
-    /`watch` does not take `--force`: it belongs to `init`/,
-  );
-  assert.equal(parseArgs(['init', '--force']).force, true);
+  assert.doesNotMatch(USAGE, /--force/);
 });
 
 test('a user who passes --scope to another command gets an error that says it belongs to init', () => {

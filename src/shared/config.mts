@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename } from 'node:fs/promises';
+import { mkdir, rename } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
   CONFIG_FILE,
@@ -10,8 +10,8 @@ import {
   whole,
 } from './config-fields.mts';
 import { MAX_TIMER_MS } from './durations.mts';
-import { hasCode, message, parseJson } from './errors.mts';
-import { readTextIfPresent, replaceJson, sortKeys, unlessMissing, writeJson } from './files.mts';
+import { message, parseJson } from './errors.mts';
+import { readTextIfPresent, replaceJson, sortKeys, writeJson } from './files.mts';
 import { isRecord } from './records.mts';
 
 export type Config = {
@@ -137,36 +137,19 @@ function configFile(root: string): string {
   return join(root, CONFIG_FILE);
 }
 
-function existsAlready(): Error {
-  return new Error(`${CONFIG_FILE} exists already. Use \`--force\` to replace it.`);
-}
-
-export async function writeDefaultConfig(
-  root: string,
-  force: boolean,
-): Promise<{ path: string; written: boolean }> {
+export async function writeDefaultConfig(root: string): Promise<string> {
   const path = configFile(root);
   await mkdir(dirname(path), { recursive: true });
-  try {
-    await writeJson(path, FILE_DEFAULTS, { flag: force ? 'w' : 'wx' });
-  } catch (error) {
-    if (hasCode(error, 'EEXIST')) {
-      return { path, written: false };
-    }
-    throw error;
-  }
-  return { path, written: true };
+  await writeJson(path, FILE_DEFAULTS);
+  return path;
 }
 
-export async function moveOldConfig(root: string, force: boolean): Promise<string | undefined> {
+export async function moveOldConfig(root: string): Promise<string | undefined> {
   const old = join(root, OLD_CONFIG_FILE);
   if ((await readTextIfPresent(old)) === undefined) {
     return undefined;
   }
   const path = configFile(root);
-  if (!force && (await unlessMissing(() => readFile(path))) !== undefined) {
-    throw existsAlready();
-  }
   await mkdir(dirname(path), { recursive: true });
   await rename(old, path);
   return path;

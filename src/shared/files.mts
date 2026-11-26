@@ -34,8 +34,8 @@ function sortedJson(value: unknown): string {
   return prettyJson(sortKeys(value));
 }
 
-export function writeJson(path: string, value: unknown, options?: { flag: string }): Promise<void> {
-  return writeFile(path, sortedJson(value), options);
+export function writeJson(path: string, value: unknown): Promise<void> {
+  return writeFile(path, sortedJson(value));
 }
 
 export async function replaceJson(path: string, value: unknown): Promise<void> {

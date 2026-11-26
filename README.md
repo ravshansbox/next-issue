@@ -54,7 +54,7 @@ To set up a repository, run:
 npx -y next-issue@latest init
 ```
 
-It writes `.next-issue/config.json` with the defaults, or keeps the file when it is there already, and installs the skills. A field that is not in the file keeps its default. See [Configuration](https://github.com/ravshansbox/next-issue/blob/main/docs/behaviour.md#configuration) for the details.
+It writes `.next-issue/config.json` with the defaults, replacing the file when it is there already, and installs the skills. A field that is not in the file keeps its default. See [Configuration](https://github.com/ravshansbox/next-issue/blob/main/docs/behaviour.md#configuration) for the details.
 
 | Field                   | Default                              | Effect                                                                      |
 | ----------------------- | ------------------------------------ | --------------------------------------------------------------------------- |
@@ -91,7 +91,6 @@ It writes `.next-issue/config.json` with the defaults, or keeps the file when it
 | `stop`                  | Stop the going run after its current issues                                |
 | `status`                | Show the going run, its worker and its running issues                      |
 | `logs`                  | Show the latest run log and follow it                                      |
-| `--force`               | With `init`: replace an existing config file                               |
 | `--watch on\|off`       | With `start`: read the open issues again after each pass. On by default    |
 | `--hunt on\|off`        | With `start`: hunt the repository for bugs. Off by default. Needs watching |
 | `--scope user\|project` | With `init`: install for the user (`~/.claude/skills/`) or the project     |

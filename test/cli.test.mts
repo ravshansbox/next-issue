@@ -155,19 +155,21 @@ test('a user who runs init with a root next-issue.config.json sees it moved to .
   assert.match(stdout, /moved next-issue\.config\.json to .*\.next-issue\/config\.json/);
 });
 
-test('a user who runs init with a root next-issue.config.json and a .next-issue/config.json gets an error that says to use --force', async () => {
+test('a user who runs init with a root next-issue.config.json and a .next-issue/config.json gets the old file moved over the new one, sees moved and exit code 0', async () => {
   const root = await repository();
-  await writeFile(join(root, 'next-issue.config.json'), '{}\n');
-  await initCommand(root);
-  await writeFile(join(root, 'next-issue.config.json'), '{}\n');
-  await assert.rejects(initCommand(root), (error: { code: number; stderr: string }) => {
-    assert.notEqual(error.code, 0);
-    assert.match(
-      error.stderr,
-      /\.next-issue\/config\.json exists already\. Use `--force` to replace it\./,
-    );
-    return true;
-  });
+  await mkdir(join(root, '.next-issue'));
+  await writeFile(join(root, '.next-issue/config.json'), '{ "maxCiFixes": 4 }\n');
+  await writeFile(join(root, 'next-issue.config.json'), '{ "maxCiFixes": 9 }\n');
+  const { stdout } = await initCommand(root);
+  assert.equal(await exists(join(root, 'next-issue.config.json')), false);
+  assert.equal(
+    await readFile(join(root, '.next-issue/config.json'), 'utf8'),
+    '{ "maxCiFixes": 9 }\n',
+  );
+  assert.match(
+    stdout,
+    new RegExp(`moved next-issue\\.config\\.json to ${join(root, '.next-issue/config.json')}\n`),
+  );
 });
 
 const OLD_CONFIG = {
@@ -199,20 +201,21 @@ function assertRemoved(output: string): void {
   }
 }
 
-test('a user who runs init with unknown fields in the config file sees each removed from the file and named in the output', async () => {
+test('a user who runs init with unknown fields in a root next-issue.config.json sees the file moved, each field removed from it and named in the output', async () => {
   const root = await repository();
-  const path = await writeConfig(root, OLD_CONFIG);
+  await writeFile(join(root, 'next-issue.config.json'), JSON.stringify(OLD_CONFIG));
   const { stdout } = await initCommand(root);
+  const path = join(root, '.next-issue/config.json');
   assert.deepEqual(JSON.parse(await readFile(path, 'utf8')), CLEAN_CONFIG);
   assertRemoved(stdout);
 });
 
-test('a user who runs init with only known fields in the config file sees the file unchanged and no removal named', async () => {
+test('a user who runs init with only known fields in a root next-issue.config.json sees the file moved unchanged and no removal named', async () => {
   const root = await repository();
-  const path = await writeConfig(root, CLEAN_CONFIG);
-  const before = await readFile(path, 'utf8');
+  const before = JSON.stringify(CLEAN_CONFIG);
+  await writeFile(join(root, 'next-issue.config.json'), before);
   const { stdout } = await initCommand(root);
-  assert.equal(await readFile(path, 'utf8'), before);
+  assert.equal(await readFile(join(root, '.next-issue/config.json'), 'utf8'), before);
   assert.doesNotMatch(stdout, /from \.next-issue\/config\.json/);
 });
 

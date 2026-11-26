@@ -95,10 +95,9 @@ async function logs(root: string): Promise<number> {
 
 async function init(root: string, args: Args): Promise<number> {
   const scope = await chooseScope(args.scope);
-  const moved = await moveOldConfig(root, args.force);
+  const moved = await moveOldConfig(root);
   if (moved === undefined) {
-    const { path, written } = await writeDefaultConfig(root, args.force);
-    await write(process.stdout, `${written ? 'wrote' : 'kept'} ${path}\n`);
+    await write(process.stdout, `wrote ${await writeDefaultConfig(root)}\n`);
   } else {
     await write(process.stdout, `moved ${OLD_CONFIG_FILE} to ${moved}\n`);
   }
