@@ -29,6 +29,15 @@ test('a user whose base branch moved without a conflict gets the base merged wit
   assert.match(target.messages.at(-1)!, /^fix: work on #7 \(#7\)$/);
 });
 
+test('a user whose base branch moved without a conflict gets no conflicts logged', async (t) => {
+  const target = await harness(t, { merges: [[]] });
+  await target.run();
+  assert.equal(
+    target.events.some((record) => record.kind === 'rebase.conflicts'),
+    false,
+  );
+});
+
 test('a user whose change conflicts with the base branch gets the fixer to resolve it from the check budget, and the change landed', async (t) => {
   const target = await harness(t, { merges: [['src/a.ts', 'README.md']] });
   const report = await target.run();
