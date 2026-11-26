@@ -47,10 +47,10 @@ export function readVerdict(value: unknown): Verdict | undefined {
   return { summary, findings: checked };
 }
 
-const JSON_FENCE = /```json[^\n]*\n/g;
+const JSON_FENCE = /```json[^\S\n]*\n/gi;
 const FENCE = '```';
 
-function parseJson(text: string): { value: unknown } | undefined {
+function tryParseJson(text: string): { value: unknown } | undefined {
   try {
     return { value: JSON.parse(text) };
   } catch {
@@ -82,7 +82,7 @@ export function parseVerdict(text: string): Verdict | undefined {
 
 function readBlock(text: string, start: number): { value: unknown; end: number } | undefined {
   for (let end = text.indexOf(FENCE, start); end !== -1; end = text.indexOf(FENCE, end + 1)) {
-    const parsed = parseJson(text.slice(start, end));
+    const parsed = tryParseJson(text.slice(start, end));
     if (parsed !== undefined) {
       return { value: parsed.value, end };
     }

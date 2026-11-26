@@ -1244,7 +1244,7 @@ test('a worker removes the draft files that a dead worker left', async () => {
   const guardDraft = join(dir, `w.lock.break.999999999.${randomUUID()}`);
   await writeFile(draft, '');
   await writeFile(guardDraft, '');
-  await writeFile(join(dir, '~.sock'), '');
+  await writeFile(join(dir, '~w'), '');
   const started = await startWorker({
     root: '/repo',
     socketPath: join(dir, 'w.sock'),
@@ -1256,6 +1256,16 @@ test('a worker removes the draft files that a dead worker left', async () => {
   assert.ok(started);
   await started.closed;
   assert.deepEqual(await readdir(dir), []);
+});
+
+test('a worker whose socket path is as long as the system allows starts and runs a client', async (t) => {
+  const longest = process.platform === 'linux' ? 107 : 103;
+  const padding = longest - Buffer.byteLength(join(await tempDir(), 'a', 'w.sock')) + 1;
+  const { socketPath } = await worker(t, fakeRuns(), '2.0.0', 'a'.repeat(padding));
+  assert.equal(Buffer.byteLength(socketPath), longest);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root: '/repo' });
+  await client.next((value) => value.type === 'runs' && value.runs['/repo'] !== undefined);
 });
 
 test('a worker that meets a newer client closes once no run is going', async (t) => {

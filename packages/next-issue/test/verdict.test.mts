@@ -73,6 +73,18 @@ test('the worker finds no verdict without a valid json block', () => {
   assert.equal(parseVerdict('```json\n{"summary": "x"}\n```'), undefined);
 });
 
+test('the worker reads a verdict in a json fence of any letter case', () => {
+  const block = JSON.stringify(BLOCKING);
+  assert.deepEqual(parseVerdict(`\`\`\`JSON\n${block}\n\`\`\``), BLOCKING);
+  assert.deepEqual(parseVerdict(`\`\`\`Json\n${block}\n\`\`\``), BLOCKING);
+});
+
+test('the worker finds no verdict in a fence of another language that starts with json', () => {
+  const block = JSON.stringify(BLOCKING);
+  assert.equal(parseVerdict(`\`\`\`jsonc\n${block}\n\`\`\``), undefined);
+  assert.equal(parseVerdict(`\`\`\`json5\n${block}\n\`\`\``), undefined);
+});
+
 test('the worker refuses a verdict value of the wrong shape', () => {
   assert.equal(readVerdict(undefined), undefined);
   assert.equal(readVerdict('approve'), undefined);

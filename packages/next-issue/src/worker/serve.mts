@@ -2,7 +2,7 @@ import { appendFileSync } from 'node:fs';
 import { mkdir, rename, rm } from 'node:fs/promises';
 import { createServer, STATUS_CODES } from 'node:http';
 import { constants } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { dirname, join, parse } from 'node:path';
 import { WebSocketServer } from 'ws';
 import { type Args, givenStartFlags, parseStartArgs } from '../shared/args.mts';
 import { killChildren, stopChildren, withRunChildren } from '../shared/children.mts';
@@ -379,7 +379,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     response.end(STATUS_CODES[426]);
   });
 
-  const draft = join(dirname(options.socketPath), `~${basename(options.socketPath).slice(1)}`);
+  const draft = join(dirname(options.socketPath), `~${parse(options.socketPath).name}`);
   await rm(draft, { force: true });
   await listen(server, draft);
   sockets.on('error', (error) => {

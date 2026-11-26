@@ -168,7 +168,7 @@ export function reviewPrompt(
   role: 'implementer' | 'fixer',
   reply?: string,
 ): string {
-  return [
+  return paragraphs([
     'You are the reviewer. Judge whether the diff solves the issue correctly.',
     issueBlock(issue, comments),
     `## Diff\n${untrusted(diff)}`,
@@ -183,7 +183,7 @@ export function reviewPrompt(
     'Mark a finding blocking only for a wrong result, a missing part of the issue, a regression or a broken convention.',
     'End your final message with the result as a json block in a ```json fence, in the form {"summary": "<short summary>", "findings": [{"severity": "blocking" or "minor", "detail": "<what is wrong and where>"}]}.',
     'Give one entry per finding, and an empty list when nothing is wrong. The findings decide the outcome, so a problem that you leave out counts as no problem.',
-  ].join('\n\n');
+  ]);
 }
 
 export function donePrompt(issue: Issue, comments: string[], evidence: string): string {
