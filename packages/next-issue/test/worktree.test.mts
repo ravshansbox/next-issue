@@ -138,6 +138,8 @@ test('a user who starts issue 3 afresh while .claude/worktrees/next-issue-3 hold
   const { repo } = await clones();
   const old = join(repo.root, '.claude', 'worktrees', 'next-issue-3');
   await git(repo.root, 'worktree', 'add', '-q', '-b', '3', old, 'origin/main');
+  await git(repo.root, 'config', 'user.name', 't');
+  await git(repo.root, 'config', 'user.email', 't@t');
   await commit(old, 'stale.txt');
   await writeFile(join(old, 'scratch.txt'), 'scratch\n');
   const { path } = await addWorktree(repo, 3, '3', 'main', 'origin', true);
