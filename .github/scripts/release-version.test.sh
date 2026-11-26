@@ -3,9 +3,11 @@ set -euo pipefail
 
 script=$(cd "$(dirname "$0")" && pwd)/release-version.sh
 failures=0
+temp=$(mktemp -d)
+trap 'rm -rf "$temp"' EXIT
 
 setup() {
-  repo=$(mktemp -d)
+  repo=$(mktemp -d "$temp/XXXXXX")
   mkdir -p "$repo/packages/next-issue" "$repo/packages/plugin"
   echo '{"name":"root","private":true,"workspaces":["packages/next-issue","packages/plugin"]}' > "$repo/package.json"
   echo '{"name":"next-issue","version":"0.0.0"}' > "$repo/packages/next-issue/package.json"

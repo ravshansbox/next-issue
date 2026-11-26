@@ -3,9 +3,11 @@ set -euo pipefail
 
 script=$(cd "$(dirname "$0")" && pwd)/release-bump.sh
 failures=0
+temp=$(mktemp -d)
+trap 'rm -rf "$temp"' EXIT
 
 setup() {
-  repo=$(mktemp -d)
+  repo=$(mktemp -d "$temp/XXXXXX")
   git -C "$repo" init --quiet
   git -C "$repo" config user.name test
   git -C "$repo" config user.email test@example.com
@@ -17,7 +19,7 @@ commit() {
 
 check() {
   local output actual
-  output=$(mktemp)
+  output=$(mktemp "$temp/XXXXXX")
   (cd "$repo" && GITHUB_OUTPUT="$output" "$script") > /dev/null 2>&1 || true
   actual=$(cat "$output")
   if [ "$actual" != "$2" ]; then

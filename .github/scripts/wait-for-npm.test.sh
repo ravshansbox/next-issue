@@ -3,9 +3,11 @@ set -euo pipefail
 
 script=$(cd "$(dirname "$0")" && pwd)/wait-for-npm.sh
 failures=0
+temp=$(mktemp -d)
+trap 'rm -rf "$temp"' EXIT
 
 setup() {
-  root=$(mktemp -d)
+  root=$(mktemp -d "$temp/XXXXXX")
   bin=$root/bin
   repo=$root/repo
   mkdir -p "$bin" "$repo/packages/first" "$repo/packages/plugin"

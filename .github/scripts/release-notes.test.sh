@@ -3,9 +3,11 @@ set -euo pipefail
 
 script=$(cd "$(dirname "$0")" && pwd)/release-notes.sh
 failures=0
+temp=$(mktemp -d)
+trap 'rm -rf "$temp"' EXIT
 
 setup() {
-  repo=$(mktemp -d)
+  repo=$(mktemp -d "$temp/XXXXXX")
   git -C "$repo" init --quiet
   git -C "$repo" config user.name test
   git -C "$repo" config user.email test@example.com
