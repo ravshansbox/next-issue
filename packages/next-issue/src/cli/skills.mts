@@ -100,7 +100,7 @@ async function skillHash(folder: string): Promise<string | undefined> {
     throw error;
   }
   const files = entries
-    .filter((entry) => entry.isFile())
+    .filter((entry) => entry.isFile() && entry.name !== '.DS_Store')
     .map((entry) => join(entry.parentPath, entry.name))
     .sort();
   const hash = createHash('sha256');

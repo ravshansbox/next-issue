@@ -490,6 +490,21 @@ test('a user whose copies of the skills match the shipped ones who runs start ke
   assert.equal(await readdir(join(root, '.claude', 'skills')).then((names) => names.length), 1);
 });
 
+test('a user whose next-issue skill copies match the shipped ones apart from a Finder .DS_Store who runs start keeps them as they are and sees nothing about them', async (t) => {
+  const root = await repository(ORIGIN);
+  const home = await tempDir();
+  const user = join(home, '.claude', 'skills', 'create-issue');
+  const project = join(root, '.claude', 'skills', 'answer-hand-over');
+  await cp(join(SKILLS, 'create-issue'), user, { recursive: true });
+  await cp(join(SKILLS, 'answer-hand-over'), project, { recursive: true });
+  await writeFile(join(user, '.DS_Store'), 'finder');
+  await writeFile(join(project, '.DS_Store'), 'finder');
+  const before = [(await stat(user)).ino, (await stat(project)).ino];
+  const stderr = await startWithSkills(t, root, home);
+  assert.deepEqual([(await stat(user)).ino, (await stat(project)).ino], before);
+  assert.doesNotMatch(withoutSetupNotes(stderr), /\.claude\/skills/);
+});
+
 test('a user who runs start with no flags sees start exit with 0 and the run wait for new issues in the worker after a pass instead of ending', async (t) => {
   const root = await repository(ORIGIN);
   t.after(() => killWorker(root));
