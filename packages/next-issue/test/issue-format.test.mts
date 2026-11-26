@@ -25,3 +25,27 @@ test('a user whose issue has a fenced Open questions line and a real section fin
     '```md\n## Open questions\n```\n\n## Open questions\n\n1. Old?\n\n1. Q?',
   );
 });
+
+test('a user whose Open questions heading is indented by three spaces finds the questions under it with no second heading', () => {
+  const body = '## Problem\n\nBroken.\n\n   ## Open questions\n\n## Notes\n\nLater.';
+  assert.equal(
+    withOpenQuestions(body, ['Q?']),
+    '## Problem\n\nBroken.\n\n   ## Open questions\n\n1. Q?\n\n## Notes\n\nLater.',
+  );
+});
+
+test('a user whose Open questions heading has closing hashes finds the questions under it with no second heading', () => {
+  const body = '## Open questions ##\n\n## Notes ##\n\nLater.';
+  assert.equal(
+    withOpenQuestions(body, ['Q?']),
+    '## Open questions ##\n\n1. Q?\n\n## Notes ##\n\nLater.',
+  );
+});
+
+test('a user whose heading after Open questions is indented by three spaces finds the questions before that heading', () => {
+  const body = '## Open questions\n\n1. Old?\n\n   ## Notes\n\nLater.';
+  assert.equal(
+    withOpenQuestions(body, ['Q?']),
+    '## Open questions\n\n1. Old?\n\n1. Q?\n\n   ## Notes\n\nLater.',
+  );
+});

@@ -7,14 +7,14 @@ export const ISSUE_SECTIONS = [
   'Open questions',
 ] as const;
 
-const OPEN_QUESTIONS = /^(#{1,6})[^\S\r\n]+Open questions[^\S\r\n]*$/im;
+const OPEN_QUESTIONS = /^ {0,3}#{1,6}[^\S\r\n]+Open questions(?:[^\S\r\n]+#+)?[^\S\r\n]*$/im;
 
 export function numbered(items: string[]): string {
   return items.map((item, index) => `${index + 1}. ${item}`).join('\n');
 }
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
-const HEADING = /^(#{1,6})[^\S\r\n]/;
+const HEADING = /^ {0,3}(#{1,6})[^\S\r\n]/;
 
 function headings(body: string): { index: number; length: number; text: string }[] {
   const found = [];
