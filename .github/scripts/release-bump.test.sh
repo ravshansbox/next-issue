@@ -61,6 +61,13 @@ bump=major"
 setup
 commit 'feat: first'
 git -C "$repo" tag v1.0.0
+commit 'feat!: replace the key'
+check 'the release job picks a major bump from a feat! subject since the last tag' "last=v1.0.0
+bump=major"
+
+setup
+commit 'feat: first'
+git -C "$repo" tag v1.0.0
 commit 'chore: tidy'
 check 'the release job releases nothing when no commit since the last tag is a feat, fix or breaking change' "last=v1.0.0
 bump="
