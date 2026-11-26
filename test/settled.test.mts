@@ -11,7 +11,7 @@ test('a fixer that settles every finding with no code change keeps the round goi
   assert.equal(report.outcome, 'done');
   assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer', 'reviewer']);
   assert.match(
-    target.comments[1]!,
+    target.comments[2]!,
     /### next-issue · Fixer: settled with no change\n\nthe new test failed with the fix reverted/,
   );
 });

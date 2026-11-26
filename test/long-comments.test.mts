@@ -10,7 +10,7 @@ test('a user whose reviewer approves with a summary longer than a GitHub comment
   const target = await harness(t, { verdicts: [long] });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  const body = target.comments[0]!;
+  const body = target.comments[1]!;
   assert.ok(body.length <= 65536);
   assert.match(body, /^### next-issue · Review: approved\n\nGood\./);
   assert.match(body, CUT);
@@ -20,7 +20,7 @@ test('a user whose reviewer gives long findings of emoji sees the verdict cut be
   const target = await harness(t, { verdicts: [changes(`x${'😀'.repeat(40000)}`), APPROVE] });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  const body = target.comments[0]!;
+  const body = target.comments[1]!;
   assert.ok(body.length <= 65536);
   assert.doesNotMatch(body, /\p{Cs}/u);
   assert.match(body, CUT);
@@ -34,7 +34,7 @@ test('a user whose fixer disputes with a note longer than a GitHub comment sees 
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer', 'reviewer']);
-  const body = target.comments[1]!;
+  const body = target.comments[2]!;
   assert.ok(body.length <= 65536);
   assert.match(body, /^### next-issue · Fixer: no change\n\nyyy/);
   assert.match(body, CUT);
@@ -47,7 +47,7 @@ test('a user whose fixer settles with a note longer than a GitHub comment sees t
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  const body = target.comments[1]!;
+  const body = target.comments[2]!;
   assert.ok(body.length <= 65536);
   assert.match(body, /^### next-issue · Fixer: settled with no change\n\nzzz/);
   assert.match(body, CUT);

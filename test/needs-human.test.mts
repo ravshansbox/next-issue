@@ -93,10 +93,10 @@ test('a user whose issue is handed over after the review gets the verdict and th
   await target.run();
   assert.deepEqual(
     target.issueNotes.map((note) => note.number),
-    [7, 7],
+    [7, 7, 7],
   );
-  assert.match(target.issueNotes[0]!.body, /Review: approved/);
-  assert.match(target.issueNotes[1]!.body, /needs help\n\n/);
+  assert.match(target.issueNotes[1]!.body, /Review: approved/);
+  assert.match(target.issueNotes[2]!.body, /needs help\n\n/);
 });
 
 test('a fixer that changes nothing hands the issue to a person', async (t) => {

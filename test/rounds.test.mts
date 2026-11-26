@@ -9,7 +9,7 @@ test('the worker starts a fix round for a minor finding', async (t) => {
   assert.equal(report.reviewRounds, 2);
   assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer', 'reviewer']);
   assert.match(target.prompts[2]!.prompt, /The name is long\./);
-  assert.match(target.comments[0]!, /Review: changes requested/);
+  assert.match(target.comments[1]!, /Review: changes requested/);
 });
 
 test('the worker leaves a minor finding and approves in the last review round', async (t) => {
@@ -21,8 +21,8 @@ test('the worker leaves a minor finding and approves in the last review round', 
   assert.equal(report.outcome, 'done');
   assert.deepEqual(roles(target), ['implementer', 'reviewer']);
   assert.deepEqual(target.closed, [7]);
-  assert.match(target.comments[0]!, /Review: approved/);
-  assert.match(target.comments[0]!, /the review budget is spent/);
+  assert.match(target.comments[1]!, /Review: approved/);
+  assert.match(target.comments[1]!, /the review budget is spent/);
 });
 
 test('the worker still hands over a blocking finding in the last review round', async (t) => {

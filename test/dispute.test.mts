@@ -31,7 +31,7 @@ test('a fixer that disputes a finding keeps the round going', async (t) => {
   assert.equal(report.outcome, 'done');
   assert.deepEqual(roles(target), ['implementer', 'reviewer', 'fixer', 'reviewer']);
   assert.match(
-    target.comments[1]!,
+    target.comments[2]!,
     /### next-issue · Fixer: no change\n\nthe count follows the convention/,
   );
 });

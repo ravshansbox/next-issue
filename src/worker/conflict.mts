@@ -1,7 +1,7 @@
 import { parseCommitSubject } from './agent-reply.mts';
 import { refundIfCut, spendBudget } from './budget.mts';
 import type { Merge } from '../shared/git-merge.mts';
-import { commitWork, runFixer } from './fix.mts';
+import { commitWork, fixNote, runFixer } from './fix.mts';
 import { escalateAndFinish } from '../shared/handover.mts';
 import { fallbackTitle, type Finished, type Run } from '../shared/job.mts';
 import { writeState } from '../shared/state.mts';
@@ -33,9 +33,9 @@ export async function rebase(job: Run): Promise<Finished | undefined> {
     state.title = title;
   }
   const merged = await ports.revision(worktree);
-  const squashed = await commitWork(job, merged, title, 'fixer', (cwd, message) =>
-    squash(job, cwd, target, message),
-  );
+  const squashed = await commitWork(job, merged, title, 'fixer', {
+    commit: (cwd, message) => squash(job, cwd, target, message),
+  });
   if (!squashed) {
     return escalateAndFinish(
       job,
@@ -97,9 +97,10 @@ async function resolve(job: Run, merge: Merge): Promise<boolean> {
     const fixAndCommit = async (): Promise<boolean> => {
       const text = files.length > 0 ? await fixConflict(job, files) : '';
       const subject = parseCommitSubject(text, `chore: merge ${config.remote}/${context.base}`);
-      return commitWork(job, before, subject, 'fixer', (cwd, message) =>
-        ports.commitMerge(cwd, merge, message),
-      );
+      return commitWork(job, before, subject, 'fixer', {
+        commit: (cwd, message) => ports.commitMerge(cwd, merge, message),
+        ...(files.length > 0 ? { note: fixNote('conflict', text) } : {}),
+      });
     };
     return await (files.length > 0 ? refundIfCut(job, 'ciFixes', fixAndCommit) : fixAndCommit());
   } catch (error) {

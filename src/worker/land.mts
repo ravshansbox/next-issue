@@ -8,7 +8,8 @@ import { escalateAndFinish, finishDone, stop } from '../shared/handover.mts';
 import type { Finished, Run } from '../shared/job.mts';
 import { oneAtATime } from '../shared/lock.mts';
 import { readState, savedIssues, writeState } from '../shared/state.mts';
-import { outputBlock } from '../shared/text.mts';
+import { commitLink } from '../shared/gh.mts';
+import { agentHeading, outputBlock } from '../shared/text.mts';
 import {
   beforeBaseSettled,
   blocksLanding,
@@ -49,7 +50,7 @@ export function resumeLanding(job: Run, sha: string): Promise<Finished> {
       state.landed = undefined;
       return unblocked(job, () => landLoop(job));
     }
-    return finishDone(job);
+    return finishDone(job, landedNote(job));
   });
 }
 
@@ -130,7 +131,7 @@ async function landLoop(job: Run): Promise<Finished> {
       return gate;
     }
     if (!gate.fixed) {
-      return finishDone(job);
+      return finishDone(job, landedNote(job));
     }
   }
 }
@@ -206,6 +207,15 @@ async function pushChange(job: Run): Promise<Finished | string> {
       );
     }
   }
+}
+
+function landedNote(job: Run): string | undefined {
+  const landed = job.state.landed ?? [];
+  if (landed.length === 0) {
+    return undefined;
+  }
+  const links = landed.map((sha) => `- ${commitLink(job.context.repo, sha)}`);
+  return `${agentHeading('Worker', 'landed')}\n\n${links.join('\n')}`;
 }
 
 function gitError(label: string, failure: string): string {

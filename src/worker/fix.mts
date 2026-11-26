@@ -1,8 +1,9 @@
-import { parseCommitSubject, parseResolved, parseUnrelated } from './agent-reply.mts';
+import { parseCommitSubject, parseResolved, parseSummary, parseUnrelated } from './agent-reply.mts';
 import { CODING } from '../shared/agents.mts';
 import { type BudgetUse, budgetUse, refundIfCut } from './budget.mts';
 import { runStopped } from '../shared/children.mts';
 import { message } from '../shared/errors.mts';
+import { commitLink } from '../shared/gh.mts';
 import { HookError } from '../shared/git-commit.mts';
 import { escalateAndFinish } from '../shared/handover.mts';
 import {
@@ -15,7 +16,15 @@ import {
 } from '../shared/job.mts';
 import { type FixKind, fixPrompt, hookPrompt } from '../shared/prompts.mts';
 import { writeState } from '../shared/state.mts';
-import { keepTail, withoutClosingReferences } from '../shared/text.mts';
+import {
+  agentHeading,
+  COMMENT_CUT,
+  fitComment,
+  keepTail,
+  paragraphs,
+  truncate,
+  withoutClosingReferences,
+} from '../shared/text.mts';
 
 type NoChange = { unrelated: string } | { resolved: string };
 
@@ -29,6 +38,26 @@ export type Unfixed = {
 export type Fix = { committed: true } | Unfixed;
 
 type CommitRole = 'implementer' | 'fixer';
+
+export type ChangeNote = { agent: string; outcome: string; reply: string };
+
+type CommitOptions = {
+  commit?: (worktree: string, message: string) => Promise<boolean>;
+  note?: ChangeNote;
+};
+
+const SUMMARY_CHARS = 300;
+
+const FIX_OUTCOMES: Record<FixKind, string> = {
+  review: 'fixed review',
+  checks: 'fixed checks',
+  local: 'fixed local checks',
+  conflict: 'resolved conflict',
+};
+
+export function fixNote(kind: FixKind, reply: string): ChangeNote {
+  return { agent: 'Fixer', outcome: FIX_OUTCOMES[kind], reply };
+}
 
 export function escalateCheckFix(
   job: Run,
@@ -77,7 +106,9 @@ export async function fixRound(
   if (kind === 'checks') {
     job.state.changeTitle ??= title;
   }
-  const committed = await commitWork(job, before, subject, 'fixer');
+  const committed = await commitWork(job, before, subject, 'fixer', {
+    note: fixNote(kind, text),
+  });
   if (kind === 'review' || kind === 'local') {
     job.state.title = title;
   }
@@ -152,11 +183,12 @@ export async function commitWork(
   before: string,
   subject: string,
   role: CommitRole,
-  commit?: (worktree: string, message: string) => Promise<boolean>,
+  options: CommitOptions = {},
 ): Promise<boolean> {
   const { context, issue, log, state, worktree } = job;
   const { ports } = context;
-  const commitChanges = commit ?? ports.commitAll;
+  const commitChanges = options.commit ?? ports.commitAll;
+  const notes = options.note === undefined ? [] : [options.note];
   for (;;) {
     subject = withoutClosingReferences(withoutIssueSuffix(subject), fallbackTitle(issue));
     try {
@@ -169,11 +201,36 @@ export async function commitWork(
       }
       state.title = subject;
     } catch (error) {
-      subject = await hookFix(job, error, subject, role);
+      const fix = await hookFix(job, error, subject, role);
+      subject = fix.subject;
+      notes.push({ agent: 'Fixer', outcome: 'fixed commit hook', reply: fix.reply });
       continue;
     }
     await pushBranch(job);
+    for (const note of notes) {
+      await commentChange(job, note);
+    }
     return true;
+  }
+}
+
+async function commentChange(job: Run, note: ChangeNote): Promise<void> {
+  const { context, issue, log, worktree } = job;
+  const { repo, ports } = context;
+  const heading = agentHeading(note.agent, note.outcome);
+  try {
+    const summary = parseSummary(note.reply);
+    const body = paragraphs([
+      heading,
+      commitLink(repo, await ports.revision(worktree)),
+      summary === undefined ? '' : truncate(summary, SUMMARY_CHARS, '…'),
+    ]);
+    await ports.commentOnIssue(repo, issue.number, fitComment(body, COMMENT_CUT));
+  } catch (error) {
+    if (runStopped()) {
+      throw error;
+    }
+    log.event('comment.fail', { heading, error: message(error) });
   }
 }
 
@@ -199,7 +256,7 @@ async function hookFix(
   error: unknown,
   subject: string,
   role: CommitRole,
-): Promise<string> {
+): Promise<{ subject: string; reply: string }> {
   const { context, issue, log, state, comments } = job;
   const { repo, config } = context;
   const used = state.commitFixes ?? 0;
@@ -215,5 +272,5 @@ async function hookFix(
       runRole(job, role, hookPrompt(issue, comments, role, output, job.reply), CODING),
     ),
   );
-  return parseCommitSubject(fix.text, subject);
+  return { subject: parseCommitSubject(fix.text, subject), reply: fix.text };
 }

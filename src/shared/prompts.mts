@@ -28,6 +28,7 @@ const COMMIT_RULES = [
   HARNESS_RULES,
   'Do not run git, gh or any push command. The harness commits for you.',
   'End your final message with one line in the form `commit: <conventional commit subject>`.',
+  'Just before the `commit:` line, write one line in the form `summary: <one sentence on what you changed>`. The harness posts it on the issue with the commit.',
 ].join('\n');
 
 const QUESTION_RULES = [

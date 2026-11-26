@@ -28,6 +28,10 @@ export function hostOf(repo: Repo): string {
   return repo.host ?? GITHUB_HOST;
 }
 
+export function commitLink(repo: Repo, sha: string): string {
+  return `[\`${sha.slice(0, 7)}\`](https://${hostOf(repo)}/${slug(repo)}/commit/${sha})`;
+}
+
 export function repoArg(repo: Repo): string {
   return hostOf(repo) === GITHUB_HOST ? slug(repo) : `${hostOf(repo)}/${slug(repo)}`;
 }

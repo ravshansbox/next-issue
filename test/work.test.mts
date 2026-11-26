@@ -15,7 +15,7 @@ test('the worker implements, reviews and finishes a clean issue', async (t) => {
   assert.deepEqual(target.closed, [7]);
   assert.equal(await target.state(), undefined);
   assert.deepEqual(target.deleted, ['7']);
-  assert.match(target.comments[0]!, /Review: approved/);
+  assert.match(target.comments[1]!, /Review: approved/);
 });
 
 test('a user with several issues at once gets their worktrees made one at a time', async (t) => {

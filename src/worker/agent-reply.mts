@@ -1,4 +1,4 @@
-const MARKER = /^(commit|unrelated|resolved|done|question):[^\S\r\n]*(.*)$/i;
+const MARKER = /^(commit|summary|unrelated|resolved|done|question):[^\S\r\n]*(.*)$/i;
 
 const PLACEHOLDERS = new Set(['', 'none', 'n/a', '-']);
 
@@ -53,6 +53,10 @@ export function parseResolved(text: string): string | undefined {
 
 export function parseDone(text: string): string | undefined {
   return parseTagged(replyLines(text), 'done');
+}
+
+export function parseSummary(text: string): string | undefined {
+  return parseTagged(replyLines(text), 'summary');
 }
 
 export function parseQuestions(text: string): string[] {

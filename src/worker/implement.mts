@@ -36,7 +36,8 @@ export async function implement(job: Run): Promise<Round> {
     return askQuestions(job, before, questions);
   }
   const subject = parseCommitSubject(result.text, fallbackTitle(issue));
-  if (!(await commitWork(job, before, subject, 'implementer'))) {
+  const note = { agent: 'Implementer', outcome: 'committed', reply: result.text };
+  if (!(await commitWork(job, before, subject, 'implementer', { note }))) {
     const escalated = await useEarlierCommit(job);
     if (escalated !== undefined) {
       return escalated;

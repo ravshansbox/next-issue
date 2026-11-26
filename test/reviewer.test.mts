@@ -70,7 +70,7 @@ test('a reviewer that says request_changes with no finding still approves', asyn
   const report = await target.run();
   assert.equal(report.outcome, 'done');
   assert.equal(report.reviewRounds, 1);
-  assert.match(target.comments[0]!, /Review: approved/);
+  assert.match(target.comments[1]!, /Review: approved/);
 });
 
 test('a reviewer whose finding quotes a code block gets its verdict posted on the issue and the change landed', async (t) => {
@@ -80,8 +80,8 @@ test('a reviewer whose finding quotes a code block gets its verdict posted on th
   });
   const report = await target.run();
   assert.equal(report.outcome, 'done');
-  assert.match(target.comments[0]!, /Review: changes requested/);
-  assert.ok(target.comments[0]!.includes(detail));
+  assert.match(target.comments[1]!, /Review: changes requested/);
+  assert.ok(target.comments[1]!.includes(detail));
 });
 
 test('the worker counts a verdict of the wrong shape as no verdict', async (t) => {
@@ -549,7 +549,7 @@ test('a person whose reviewer timed out and whose branch then could not be put b
   const report = await target.run();
   assert.equal(report.outcome, 'error');
   assert.match(
-    target.issueNotes[0]!.body,
+    target.issueNotes[1]!.body,
     /^### next-issue · Hand-over: needs help\n\nThe run failed: The reviewer agent did not finish in 60000 ms\./,
   );
 });
