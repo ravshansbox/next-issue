@@ -30,7 +30,7 @@ if [ "${#missing[@]}" -gt 0 ]; then
   npm ci --ignore-scripts
   npm version --no-git-tag-version --allow-same-version --workspaces "$version" > /dev/null
   for workspace in "${missing[@]}"; do
-    if ! output=$(npm publish -w "$workspace" 2>&1); then
+    if ! output=$(npm publish -w "$workspace" --provenance=false 2>&1); then
       echo "$output" >&2
       if ! grep -qE 'previously (published|staged) version' <<<"$output"; then
         exit 1

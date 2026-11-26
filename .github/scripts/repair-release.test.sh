@@ -81,7 +81,7 @@ git -C "$repo" tag v1.2.0
 repair first ''
 check 'the release job publishes only the package that npm lacks at the last tag version and makes the missing release' "npm ci --ignore-scripts
 npm version --no-git-tag-version --allow-same-version --workspaces 1.2.0
-npm publish -w packages/second
+npm publish -w packages/second --provenance=false
 gh release create v1.2.0 --title v1.2.0 --notes-file -
 ## Features
 
@@ -94,8 +94,8 @@ git -C "$repo" tag v1.2.0
 repair '' ''
 check 'the release job publishes every package when nothing of the last tag reached npm' "npm ci --ignore-scripts
 npm version --no-git-tag-version --allow-same-version --workspaces 1.2.0
-npm publish -w packages/first
-npm publish -w packages/second
+npm publish -w packages/first --provenance=false
+npm publish -w packages/second --provenance=false
 gh release create v1.2.0 --title v1.2.0 --notes-file -
 ## Features
 
@@ -124,7 +124,7 @@ git -C "$repo" tag v1.2.0
 repair first '' second
 check 'the release job counts a package that npm refuses as previously published as held and makes the missing release' "npm ci --ignore-scripts
 npm version --no-git-tag-version --allow-same-version --workspaces 1.2.0
-npm publish -w packages/second
+npm publish -w packages/second --provenance=false
 gh release create v1.2.0 --title v1.2.0 --notes-file -
 ## Features
 
@@ -137,7 +137,7 @@ git -C "$repo" tag v1.2.0
 repair first '' '' '' second
 check 'the release job counts a package that npm refuses as previously staged as held and makes the missing release' "npm ci --ignore-scripts
 npm version --no-git-tag-version --allow-same-version --workspaces 1.2.0
-npm publish -w packages/second
+npm publish -w packages/second --provenance=false
 gh release create v1.2.0 --title v1.2.0 --notes-file -
 ## Features
 
@@ -150,7 +150,7 @@ git -C "$repo" tag v1.2.0
 repair first '' '' second
 check 'the release job stops before the release when a publish fails for another reason' "npm ci --ignore-scripts
 npm version --no-git-tag-version --allow-same-version --workspaces 1.2.0
-npm publish -w packages/second"
+npm publish -w packages/second --provenance=false"
 
 setup
 git -C "$repo" tag v1.1.0
