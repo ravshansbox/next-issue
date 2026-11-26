@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
-import { realpath } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { appendFile, realpath, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type TestContext, test } from 'node:test';
+import { setTimeout as delay } from 'node:timers/promises';
 import { hasCode } from '../src/shared/errors.mts';
 import { lockHolder } from '../src/shared/lock.mts';
 import type { WorkerMessage } from '../src/shared/protocol.mts';
 import { startWorker } from '../src/worker/serve.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
+import { LOG_LIMIT_BYTES, trimLog } from '../src/worker/worker-log.mts';
 import { tempDir } from './temp-dir.mts';
 import { connect, fakeRegistry, fakeRuns, worker } from './worker-harness.mts';
 
@@ -223,4 +226,36 @@ test('a run with watching off that stops because npm serves a newer next-issue c
   assert.equal(resumed?.hunting, false);
   fresh.send({ type: 'stop', root });
   await fresh.next((value) => value.type === 'end');
+});
+
+test('a worker that starts a newer worker leaves worker.log whole, so it keeps the lines the newer worker appends meanwhile', async (t) => {
+  const { root, fake, started, socketPath } = await oldWorker(t);
+  const { logPath } = workerPaths(root);
+  const client = await connect(t, socketPath);
+  client.send({ type: 'start', root, args: ['--watch', 'on'] });
+  await client.next((value) => runOf(root, value)?.watching === true);
+  client.send({
+    type: 'hello',
+    version: '2.1.0',
+    launch: { command: process.execPath, args: [SUCCESSOR, '2.1.0', '0', '500'] },
+  });
+  await client.next((value) => runOf(root, value)?.upgrade !== undefined);
+  await client.close();
+  fake.finish();
+  while (existsSync(socketPath)) {
+    await delay(5);
+  }
+  const line = `${'x'.repeat(99)}\n`;
+  await appendFile(logPath, line.repeat(LOG_LIMIT_BYTES / line.length + 10));
+  const before = (await stat(logPath)).size;
+  let handedOver = false;
+  void started.closed.then(() => (handedOver = true));
+  while (!handedOver) {
+    trimLog(logPath);
+    await delay(10);
+  }
+  assert.ok((await stat(logPath)).size >= before, 'worker.log was cut during the hand-over');
+  const fresh = await connect(t, socketPath);
+  fresh.send({ type: 'stop', root });
+  await fresh.next((value) => runOf(root, value)?.status === 'stopped');
 });

@@ -5,8 +5,19 @@ export const LOG_LIMIT_BYTES = 10 * 1024 * 1024;
 export const LOG_KEEP_BYTES = 5 * 1024 * 1024;
 export const LOG_CHECK_MS = 60_000;
 
+let successorStarts = 0;
+
+export async function whileStartingSuccessor<T>(body: () => Promise<T>): Promise<T> {
+  successorStarts += 1;
+  try {
+    return await body();
+  } finally {
+    successorStarts -= 1;
+  }
+}
+
 export function trimLog(path: string): void {
-  if (showingCommands()) {
+  if (showingCommands() || successorStarts > 0) {
     return;
   }
   try {

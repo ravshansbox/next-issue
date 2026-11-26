@@ -16,7 +16,7 @@ import type { RunSummary } from '../shared/summary.mts';
 import { packageVersion } from '../shared/version.mts';
 import { resumeOnSuccessor } from '../shared/worker-client.mts';
 import { latestVersion, NPM_LATEST, npxLaunch } from './latest-version.mts';
-import { keepLogTrimmed, LOG_CHECK_MS } from './worker-log.mts';
+import { keepLogTrimmed, LOG_CHECK_MS, whileStartingSuccessor } from './worker-log.mts';
 import { checkSocketPath, workerPaths } from '../shared/worker-paths.mts';
 import {
   active,
@@ -117,22 +117,23 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
 
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
   const idleMs = options.idleMs ?? IDLE_MS;
-  const handOver = async (how: Launch, run: Run): Promise<string | undefined> => {
-    const listening = stopListening(server);
-    removeOwned(owned);
-    let failure: string | undefined;
-    try {
-      await resumeOnSuccessor(options.root, how, resumeArgs(run));
-    } catch (error) {
-      const reason = `the worker could not start next-issue ${restart}: ${message(error)}`;
-      process.stderr.write(`${reason}\n`);
-      run.progress = { ...run.progress, status: 'failed', error: reason };
-      broadcast(sockets, runs, maxBufferedBytes);
-      failure = reason;
-    }
-    await shutdown(server, sockets, owned, listening);
-    return failure;
-  };
+  const handOver = (how: Launch, run: Run): Promise<string | undefined> =>
+    whileStartingSuccessor(async () => {
+      const listening = stopListening(server);
+      removeOwned(owned);
+      let failure: string | undefined;
+      try {
+        await resumeOnSuccessor(options.root, how, resumeArgs(run));
+      } catch (error) {
+        const reason = `the worker could not start next-issue ${restart}: ${message(error)}`;
+        process.stderr.write(`${reason}\n`);
+        run.progress = { ...run.progress, status: 'failed', error: reason };
+        broadcast(sockets, runs, maxBufferedBytes);
+        failure = reason;
+      }
+      await shutdown(server, sockets, owned, listening);
+      return failure;
+    });
 
   const { closed, close } = closer(async () => {
     closing = true;
