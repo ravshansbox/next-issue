@@ -159,25 +159,40 @@ const EDITORS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
 
 const GHOST = 'ghost';
 
+const ISSUE_GONE = /Could not resolve to an Issue/;
+
 type Login = { login: string } | null;
+
+async function editorsJson(repo: Repo, issue: number): Promise<string> {
+  try {
+    return await repeatable(repo, [
+      'api',
+      'graphql',
+      ...hostname(repo),
+      '-f',
+      `query=${EDITORS_QUERY}`,
+      '-f',
+      `owner=${repo.owner}`,
+      '-f',
+      `name=${repo.name}`,
+      '-F',
+      `number=${issue}`,
+      '--jq',
+      '.data.repository.issue',
+    ]);
+  } catch (error) {
+    if (errorMatches(error, ISSUE_GONE)) {
+      throw new Error(
+        `Issue #${issue} was not found: it was deleted or moved to another repository.`,
+      );
+    }
+    throw error;
+  }
+}
 
 /** The title and body of an issue with the last people to change them; the author when never changed, `ghost` for a deleted account. */
 export async function issueEditors(repo: Repo, issue: number): Promise<IssueText> {
-  const raw = await repeatable(repo, [
-    'api',
-    'graphql',
-    ...hostname(repo),
-    '-f',
-    `query=${EDITORS_QUERY}`,
-    '-f',
-    `owner=${repo.owner}`,
-    '-f',
-    `name=${repo.name}`,
-    '-F',
-    `number=${issue}`,
-    '--jq',
-    '.data.repository.issue',
-  ]);
+  const raw = await editorsJson(repo, issue);
   const parsed = parseJson(
     raw,
     () => `gh gave editors of #${issue} that are not valid JSON: ${raw}`,

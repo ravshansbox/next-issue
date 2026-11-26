@@ -429,6 +429,17 @@ esac`,
   });
 });
 
+test('the worker fails the editors check with a reason that names the issue when GitHub no longer finds it', async (t) => {
+  const dir = await fakeApiGh(
+    t,
+    `echo 'gh: Could not resolve to an Issue with the number of 4.' >&2; exit 1`,
+  );
+  const repo = { owner: 'acme', name: 'tool', root: dir };
+  await assert.rejects(issueEditors(repo, 4), {
+    message: 'Issue #4 was not found: it was deleted or moved to another repository.',
+  });
+});
+
 test('the worker names the person who last added a label, ghost for a deleted account and nobody when it was never added', async (t) => {
   const dir = await tempDir();
   const events = [
