@@ -36,10 +36,10 @@ export async function startInWorker(root: string, argv: string[]): Promise<strin
       }
       let latest = join.progress;
       if (given.watch !== undefined) {
-        latest = await switched(connection, root, 'watch', given.watch);
+        latest = await switched(connection, root, 'watch', given.watch, true);
       }
       if (given.hunt !== undefined) {
-        latest = await switched(connection, root, 'hunt', given.hunt);
+        latest = await switched(connection, root, 'hunt', given.hunt, true);
       }
       return `a run is going already\n${statusText(connection.version, latest)}`;
     }

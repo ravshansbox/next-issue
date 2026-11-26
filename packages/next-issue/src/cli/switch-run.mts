@@ -57,6 +57,7 @@ export function switched(
   root: string,
   name: SwitchName,
   on: boolean,
+  olderWorker = false,
 ): Promise<Progress> {
   const id = randomUUID();
   let sent = false;
@@ -67,7 +68,10 @@ export function switched(
         return;
       }
       const progress = message.type === 'runs' ? message.runs[root] : undefined;
-      if (progress !== undefined && progress[FIELDS[name]] === on) {
+      const answered = olderWorker
+        ? progress?.[FIELDS[name]] === on
+        : message.type === 'runs' && message.id === id;
+      if (progress !== undefined && answered) {
         clearTimeout(timer);
         resolve(progress);
       } else if (message.type === 'error' && message.id === id) {

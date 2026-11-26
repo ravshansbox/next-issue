@@ -540,6 +540,40 @@ test('a user who runs watch or hunt with a run going sees the run switch, the ne
   fake.finish();
 });
 
+test('a user who runs watch on or hunt on while the run is stopping sees the run is stopping and exit code 1, even when a step broadcast comes before the refusal', async (t) => {
+  const root = await repository(ORIGIN);
+  const { socketPath } = workerPaths(root);
+  await mkdir(dirname(socketPath), { recursive: true });
+  const progress = { status: 'stopping', watching: true, hunting: true, issues: [] };
+  const server = new WebSocketServer({ server: createServer().listen(socketPath) });
+  t.after(() => new Promise((resolve) => server.close(() => resolve(undefined))));
+  t.after(() => server.options.server?.close());
+  const version = await packageVersion();
+  server.on('connection', (socket) => {
+    socket.send(JSON.stringify({ type: 'hello', version }));
+    socket.send(JSON.stringify({ type: 'runs', runs: { [root]: progress } }));
+    socket.on('message', (data) => {
+      const value = JSON.parse(String(data));
+      if (value.type !== 'watch' && value.type !== 'hunt') {
+        return;
+      }
+      socket.send(JSON.stringify({ type: 'runs', runs: { [root]: progress } }));
+      socket.send(
+        JSON.stringify({ type: 'error', root, message: 'the run is stopping', id: value.id }),
+      );
+    });
+  });
+  for (const argv of [
+    ['watch', 'on'],
+    ['hunt', 'on'],
+  ]) {
+    const switched = cliCommand(t, root, argv);
+    assert.equal(await switched.exited, 1);
+    assert.equal(switched.stdout(), '');
+    assert.match(switched.stderr(), /the run is stopping/);
+  }
+});
+
 test('a user who runs watch or hunt with no worker or no run going sees that no run is going, exit code 0 and no worker started', async (t) => {
   const root = await repository(ORIGIN);
   for (const argv of [

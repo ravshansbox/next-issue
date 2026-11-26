@@ -301,10 +301,12 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   };
 
   const toggle = (
+    socket: Peer,
     refuse: Refuse,
     root: string,
     on: boolean,
     set: (run: Run, on: boolean) => void,
+    id?: string,
   ): void => {
     const run = runs.get(root);
     const refusal = switchRefusal(run, on);
@@ -315,6 +317,7 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     set(run!, on);
     broadcast(sockets, runs, maxBufferedBytes);
     upgradeBetweenIssues(run!);
+    send(socket, runsMessage(runs, id));
   };
 
   const receive = (socket: Peer, value: ClientMessage, refuse: Refuse): void => {
@@ -340,9 +343,9 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
     } else if (value.type === 'stop') {
       stop(socket, refuse, value.root, value.after, value.id);
     } else if (value.type === 'hunt') {
-      toggle(refuse, value.root, value.on, setHunting);
+      toggle(socket, refuse, value.root, value.on, setHunting, value.id);
     } else if (value.type === 'watch') {
-      toggle(refuse, value.root, value.on, setWatching);
+      toggle(socket, refuse, value.root, value.on, setWatching, value.id);
     }
   };
 
