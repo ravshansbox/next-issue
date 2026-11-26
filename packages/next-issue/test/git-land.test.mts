@@ -338,6 +338,23 @@ test('the worker retries a revert push that loses a race on the new base tip', a
   assert.equal(await git(path, 'rev-parse', 'HEAD^'), await git(other, 'rev-parse', 'HEAD'));
 });
 
+test('the worker runs a refusing pre-push hook once when a revert push fails on a base that did not move', async () => {
+  const { path, sha } = await landed();
+  const hooks = join(path, '..', 'hooks');
+  await mkdir(hooks, { recursive: true });
+  const runs = join(hooks, 'runs');
+  await writeFile(
+    join(hooks, 'pre-push'),
+    ['#!/bin/sh', `echo run >> '${runs}'`, 'echo refused >&2', 'exit 1', ''].join('\n'),
+  );
+  await chmod(join(hooks, 'pre-push'), 0o755);
+  await git(path, 'config', 'core.hooksPath', hooks);
+  assert.equal(await revertOnBase(path, revertOf(sha)), 'failed');
+  assert.equal(await readFile(runs, 'utf8'), 'run\n');
+  assert.equal(await git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), '3');
+  assert.equal(await git(path, 'rev-parse', 'HEAD'), sha);
+});
+
 async function pushLandsAndFails(path: string, after = ''): Promise<void> {
   const hooks = join(path, '..', 'hooks');
   await mkdir(hooks, { recursive: true });

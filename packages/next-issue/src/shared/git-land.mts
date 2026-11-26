@@ -162,6 +162,9 @@ async function pushRevert(cwd: string, revert: Revert): Promise<Reverted> {
       await commitReapply(cwd, reverted, reapply, branch);
       return 'pushed';
     }
+    if (!(await baseMoved(cwd, base, remote))) {
+      return 'failed';
+    }
   }
   return 'failed';
 }
