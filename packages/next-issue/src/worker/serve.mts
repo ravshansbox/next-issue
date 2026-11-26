@@ -103,11 +103,11 @@ export async function startWorker(options: WorkerOptions): Promise<Worker | unde
   const busy = (): boolean => [...runs.values()].some(active);
   const log = options.log ?? (() => undefined);
   const exit = (fields: Record<string, unknown>, below = ''): void => {
-    const ts = new Date().toISOString();
-    log(`${render({ ts, kind: 'worker.exit', ...fields })}${below}`);
+    const time = new Date().toISOString();
+    log(`${render({ ts: time, kind: 'worker.exit', ...fields })}${below}`);
     for (const run of runs.values()) {
       if (active(run) && run.log !== undefined) {
-        const record = { ts, runId: run.log.runId, kind: 'worker.exit', ...fields };
+        const record = { ts: time, runId: run.log.runId, kind: 'worker.exit', ...fields };
         try {
           appendFileSync(run.log.file, `${JSON.stringify(record)}\n`);
         } catch {}

@@ -35,9 +35,9 @@ export async function pendingIssues(context: Context): Promise<Issue[]> {
   context.recorder.event('issues', { open: openCount });
   const blocking = blockingIssues(context, states);
   return issues.sort(
-    (a, b) =>
-      Number(blocking.has(b.number)) - Number(blocking.has(a.number)) ||
-      a.createdAt.localeCompare(b.createdAt),
+    (left, right) =>
+      Number(blocking.has(right.number)) - Number(blocking.has(left.number)) ||
+      left.createdAt.localeCompare(right.createdAt),
   );
 }
 

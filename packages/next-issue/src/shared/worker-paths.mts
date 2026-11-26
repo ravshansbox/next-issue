@@ -6,11 +6,11 @@ export function workerPaths(root: string): {
   lockPath: string;
   logPath: string;
 } {
-  const dir = stateDir(root);
+  const directory = stateDir(root);
   return {
-    socketPath: join(dir, 'worker.sock'),
-    lockPath: join(dir, 'worker.lock'),
-    logPath: join(dir, 'worker.log'),
+    socketPath: join(directory, 'worker.sock'),
+    lockPath: join(directory, 'worker.lock'),
+    logPath: join(directory, 'worker.log'),
   };
 }
 

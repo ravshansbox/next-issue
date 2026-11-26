@@ -11,13 +11,13 @@ import { runsDir } from '../shared/state.mts';
 const POLL_MS = 200;
 
 export async function newestRunLog(root: string): Promise<string | undefined> {
-  const dir = runsDir(root);
-  const names = await listOrEmpty(dir);
+  const directory = runsDir(root);
+  const names = await listOrEmpty(directory);
   const newest = names
     .filter((name) => name.endsWith('.jsonl'))
     .sort()
     .at(-1);
-  return newest === undefined ? undefined : join(dir, newest);
+  return newest === undefined ? undefined : join(directory, newest);
 }
 
 function show(line: string): string {

@@ -99,9 +99,9 @@ export class Recorder {
     output: (text: string) => void = (text) => process.stderr.write(text),
   ): Promise<Recorder> {
     const runId = new Date().toISOString().replace(/[:.]/g, '-');
-    const dir = runsDir(root);
-    await mkdir(dir, { recursive: true });
-    const file = join(dir, `${runId}.jsonl`);
+    const directory = runsDir(root);
+    await mkdir(directory, { recursive: true });
+    const file = join(directory, `${runId}.jsonl`);
     const sink = new Sink(open(file), file, listener, output);
     return new Recorder(sink, {}, runId);
   }

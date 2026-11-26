@@ -8,8 +8,8 @@ export function readTextOrEmpty(path: string): Promise<string> {
   return readFile(path, 'utf8').catch(() => '');
 }
 
-export function listOrEmpty(dir: string): Promise<string[]> {
-  return readdir(dir).catch(() => []);
+export function listOrEmpty(directory: string): Promise<string[]> {
+  return readdir(directory).catch(() => []);
 }
 
 export function prettyJson(value: unknown): string {

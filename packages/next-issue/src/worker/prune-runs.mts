@@ -8,12 +8,12 @@ export async function pruneRuns(root: string, keepDays: number): Promise<number>
   if (keepDays <= 0) {
     return 0;
   }
-  const dir = runsDir(root);
-  const names = await listOrEmpty(dir);
+  const directory = runsDir(root);
+  const names = await listOrEmpty(directory);
   const cutoff = Date.now() - daysToMs(keepDays);
   let dropped = 0;
   for (const name of names) {
-    if (await dropIfOlder(join(dir, name), cutoff)) {
+    if (await dropIfOlder(join(directory, name), cutoff)) {
       dropped += 1;
     }
   }

@@ -21,8 +21,8 @@ export function applyEvent(progress: Progress, record: Fields): Progress {
     return { ...progress, error: String(record['error']) };
   }
   if (kind === 'watch.wait' && typeof record['minutes'] === 'number') {
-    const ts = typeof record['ts'] === 'string' ? Date.parse(record['ts']) : Date.now();
-    const nextLook = new Date(ts + minutesToMs(record['minutes'])).toISOString();
+    const time = typeof record['ts'] === 'string' ? Date.parse(record['ts']) : Date.now();
+    const nextLook = new Date(time + minutesToMs(record['minutes'])).toISOString();
     return { ...progress, looking: false, nextLook };
   }
   if (kind === 'watch.wake') {

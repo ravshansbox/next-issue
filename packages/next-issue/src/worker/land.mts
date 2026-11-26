@@ -105,7 +105,7 @@ async function uncheckedIssues(job: Run): Promise<number[]> {
       unchecked.push(issue);
     }
   }
-  return unchecked.sort((a, b) => a - b);
+  return unchecked.sort((left, right) => left - right);
 }
 
 async function landLoop(job: Run): Promise<Finished> {

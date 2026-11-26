@@ -37,7 +37,7 @@ export async function listedIssues(
   for (const issue of [...(await search(false)), ...(await search(true))]) {
     issues.set(issue.number, issue);
   }
-  return [...issues.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return [...issues.values()].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
 }
 
 export function waitingIssues(
