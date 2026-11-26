@@ -19,7 +19,14 @@ import { processStart } from '../src/shared/lock.mts';
 import { runsDir, stateDir } from '../src/shared/state.mts';
 import { workerPaths } from '../src/shared/worker-paths.mts';
 import { baseGh, idleGh, installGh } from './fake-gh.mts';
-import { linkedWorktree, personWorktree, repository, until, serveBase } from './helpers.mts';
+import {
+  linkedWorktree,
+  personWorktree,
+  pushPackage,
+  repository,
+  until,
+  serveBase,
+} from './helpers.mts';
 import { tempDir } from './temp-dir.mts';
 import { connect } from './worker-harness.mts';
 
@@ -331,6 +338,18 @@ test('a user who starts a run without init gets .next-issue/, .claude/worktrees/
   }
   assert.equal(await readFile(join(root, '.gitignore'), 'utf8'), 'node_modules/\n');
   assert.equal(await exists(join(root, '.next-issue/config.json')), false);
+});
+
+test('a user whose base on origin has no package.json runs start without init and gets the run refused, with the next-issue folders already in info/exclude', async () => {
+  const root = await repository(ORIGIN);
+  await pushPackage(root, null);
+  const error = await cliFails(['start'], { cwd: root });
+  assert.equal(error?.code, 1);
+  assert.match(error?.stderr ?? '', /no package\.json at the root of `origin\/main`/);
+  const exclude = await readFile(join(root, '.git/info/exclude'), 'utf8');
+  for (const entry of EXCLUDED) {
+    assert.ok(exclude.split('\n').includes(entry), entry);
+  }
 });
 
 test('a user whose .gitignore holds only .claude/worktrees/ starts a run and sees .gitignore unchanged and no removal note', async (t) => {

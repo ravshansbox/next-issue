@@ -64,10 +64,10 @@ async function main(): Promise<number> {
     return logs(root);
   }
   await removeUnknownConfig(root, process.stderr);
+  await excludeStateDirectories(root, process.stderr);
   if (args.command === 'start') {
     requireScripts(await rootBasePackage(root));
   }
-  await excludeStateDirectories(root, process.stderr);
   if (args.command === 'serve') {
     return serve(root);
   }
