@@ -277,6 +277,21 @@ test('a user who runs init in a terminal and gives another answer than user or p
   await untouched(root, home);
 });
 
+test('a user who runs init in a terminal and closes stdin at the scope question gets an error that says no answer came, exit code 1 and nothing written', async () => {
+  const home = await tempDir();
+  const root = await repository();
+  await linkedWorktree(root);
+  await assert.rejects(
+    initInTerminal(root, home, ''),
+    (error: { code: number; stderr: string }) => {
+      assert.equal(error.code, 1);
+      assert.match(error.stderr, /stdin closed before an answer/);
+      return true;
+    },
+  );
+  await untouched(root, home);
+});
+
 test('a user who runs init with their own worktree .worktrees/42 keeps it on branch 42 with its edited, untracked and ignored files, and sees no worktree named as removed', async () => {
   const home = await tempDir();
   const root = await repository();

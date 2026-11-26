@@ -24,8 +24,11 @@ const ANSWERS = new Map<string, Scope>([
 
 async function ask(question: string, output: NodeJS.WritableStream): Promise<string> {
   const prompt = createInterface({ input: process.stdin, output });
+  const closed = new Promise<never>((_, reject) => {
+    prompt.once('close', () => reject(new Error('stdin closed before an answer')));
+  });
   try {
-    return (await prompt.question(question)).trim().toLowerCase();
+    return (await Promise.race([prompt.question(question), closed])).trim().toLowerCase();
   } finally {
     prompt.close();
   }

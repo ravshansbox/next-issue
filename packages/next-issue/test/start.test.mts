@@ -374,6 +374,21 @@ test('a user who runs start in a terminal in a repository that tracks a next-iss
   assert.equal(await readFile(join(project, 'SKILL.md'), 'utf8'), skill);
 });
 
+test('a user who runs start in a terminal in a repository that tracks a next-issue skill and closes stdin at the question sees exit code 1, an error that says no answer came, no run, and the index and the skill folder as they were', async (t) => {
+  const { root, project } = await trackingSkills();
+  const home = await tempDir();
+  const before = await gitState(root);
+  const skill = await readFile(join(project, 'SKILL.md'), 'utf8');
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const started = startInTerminal(t, root, '', home);
+  assert.equal(await started.exited, 1, started.stderr());
+  assert.match(started.stderr(), /stdin closed before an answer/);
+  assert.equal(fake.calls.length, 0);
+  assert.deepEqual(await gitState(root), before);
+  assert.equal(await readFile(join(project, 'SKILL.md'), 'utf8'), skill);
+});
+
 test('a user who runs start with no terminal in a repository that tracks a next-issue skill sees exit code 1, the command to untrack the skill folders and no commit or push command, and nothing changed', async (t) => {
   const { root, project } = await trackingSkills();
   const home = await tempDir();
