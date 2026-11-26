@@ -41,7 +41,7 @@ async function refundBudget(job: Run, budget: Budget): Promise<void> {
   await writeState(context.repo, state);
 }
 
-/** Gives the spent budget back if the process is killed (third Ctrl-C) or the run is stopped while `body` runs. */
+/** Gives the spent budget back if the worker is killed or the run is stopped while `body` runs. */
 export async function refundIfCut<T>(
   job: Run,
   budget: Budget,
