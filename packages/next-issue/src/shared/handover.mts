@@ -56,10 +56,21 @@ function savedIn(asides: string[]): string {
 export async function finishDone(job: Run, note?: string): Promise<Finished> {
   const { context, issue } = job;
   if (issue.closed !== true) {
-    job.state.closing = true;
-    await writeState(context.repo, job.state);
-    if (note !== undefined) {
-      await context.ports.commentOnIssue(context.repo, issue.number, fitComment(note, COMMENT_CUT));
+    const { state } = job;
+    state.closing = true;
+    if (note !== undefined && state.donePosted !== true) {
+      state.doneNote = note;
+    }
+    await writeState(context.repo, state);
+    if (state.doneNote !== undefined) {
+      await context.ports.commentOnIssue(
+        context.repo,
+        issue.number,
+        fitComment(state.doneNote, COMMENT_CUT),
+      );
+      state.donePosted = true;
+      delete state.doneNote;
+      await writeState(context.repo, state);
     }
     await setStatus(context, issue.number, context.config.labels.done);
     await context.ports.closeIssue(context.repo, issue.number);

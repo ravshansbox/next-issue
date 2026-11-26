@@ -35,6 +35,10 @@ export type IssueState = {
   handedOver?: boolean;
   pendingHandOver?: PendingHandOver;
   closing?: boolean;
+  /** The already done note to post while closing, until it is posted. */
+  doneNote?: string;
+  /** The already done note is on the issue, so no resume posts it again. */
+  donePosted?: boolean;
   /** The run halted while a commit of this issue was, or may be, on the base with checks nobody awaited. */
   halted?: boolean;
   /** No worktree of the issue opened yet, so a worktree that holds its branch is a person's. */
@@ -139,6 +143,8 @@ function isState(value: unknown): value is IssueState {
     isOptional(value.handedOver, 'boolean') &&
     (value.pendingHandOver === undefined || isPending(value.pendingHandOver)) &&
     isOptional(value.closing, 'boolean') &&
+    isOptional(value.doneNote, 'string') &&
+    isOptional(value.donePosted, 'boolean') &&
     isOptional(value.halted, 'boolean') &&
     isOptional(value.fresh, 'boolean')
   );
@@ -161,7 +167,7 @@ export function newState(issue: number, branch: string): IssueState {
 }
 
 /**
- * Drops the budgets and findings of a handed-over issue, and cancels an approval, the closing mark, the review start and the squash start,
+ * Drops the budgets and findings of a handed-over issue, and cancels an approval, the closing mark and its unposted note, the review start and the squash start,
  * so a resume that stops before it finishes is resumed again rather than closed as done.
  */
 export function resetState(state: IssueState): IssueState {
@@ -169,6 +175,7 @@ export function resetState(state: IssueState): IssueState {
     handedOver: _handedOver,
     pendingHandOver: _pending,
     closing: _closing,
+    doneNote: _doneNote,
     reviewing: _reviewing,
     squashing: _squashing,
     ...rest

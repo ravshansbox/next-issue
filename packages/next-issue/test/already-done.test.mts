@@ -5,6 +5,8 @@ import { APPROVE, changes, harness, ISSUE, type Plan } from './harness.mts';
 import { landedFiles, useGit, writeFiles } from './real-git.mts';
 
 const DONE = 'I changed nothing.\ndone: src/flag.mts already reads the flag at line 12.';
+const DONE_NOTE =
+  '### next-issue · Worker: already done\n\nsrc/flag.mts already reads the flag at line 12.\n\nReview: Good.';
 
 test('a user whose implementer finds the issue already done on the base and whose reviewer agrees gets the issue closed as done with the evidence in a comment', async (t) => {
   const target = await harness(t, {
@@ -78,7 +80,7 @@ test('a user whose ready parent issue is blocked by its sub-issues gets it skipp
   assert.equal(target.labels.at(-1)!.label, 'status:done');
 });
 
-test('a user whose worker is killed while it posts the already done comment gets the next run to close the issue as done with no second review or comment', async (t) => {
+test('a user whose worker is killed while it posts the already done comment gets the next run to post the comment and close the issue as done with no second review', async (t) => {
   const first = await harness(t, {
     commits: [false],
     implementerText: [DONE],
@@ -99,7 +101,7 @@ test('a user whose worker is killed while it posts the already done comment gets
   assert.equal(report.outcome, 'done');
   assert.deepEqual(resumed.closed, [7]);
   assert.deepEqual(resumed.prompts, []);
-  assert.deepEqual(resumed.issueNotes, []);
+  assert.deepEqual(resumed.issueNotes, [{ number: 7, body: DONE_NOTE }]);
 });
 
 async function doneThenReviewer(
@@ -160,4 +162,52 @@ test('a user who resumes an issue after a stop now during the already done revie
     'a.txt': 'a.txt',
     'implementer.txt': 'implementer',
   });
+});
+
+test('a user whose already done issue fails to close after its note was posted gets the note posted only once when the answered issue is resumed and closed as done', async (t) => {
+  const first = await harness(t, {
+    commits: [false],
+    implementerText: [DONE],
+    verdicts: [APPROVE],
+  });
+  first.context.ports.closeIssue = async () => {
+    throw new Error('gh: HTTP 502');
+  };
+  assert.equal((await first.run()).outcome, 'error');
+  assert.deepEqual(
+    first.issueNotes.filter((note) => note.body === DONE_NOTE),
+    [{ number: 7, body: DONE_NOTE }],
+  );
+  const resumed = await harness(t, {
+    root: first.context.repo.root,
+    issue: { ...ISSUE, labels: [] },
+    commits: [false],
+    implementerText: [DONE],
+    verdicts: [APPROVE],
+  });
+  assert.equal((await resumed.run()).outcome, 'done');
+  assert.deepEqual(resumed.closed, [7]);
+  assert.deepEqual(
+    resumed.issueNotes.filter((note) => note.body === DONE_NOTE),
+    [],
+  );
+});
+
+test('a user whose worker stops after it marks the already done issue as closing and before it posts the note gets the note posted when the next run closes the issue', async (t) => {
+  const first = await harness(t, {
+    commits: [false],
+    implementerText: [DONE],
+    verdicts: [APPROVE],
+  });
+  first.context.ports.commentOnIssue = async () => {
+    first.stopNow();
+    throw new Error('The run stopped.');
+  };
+  assert.equal((await first.run()).outcome, 'stopped');
+  assert.equal((await first.state())?.closing, true);
+  const resumed = await harness(t, { root: first.context.repo.root });
+  assert.equal((await resumed.run()).outcome, 'done');
+  assert.deepEqual(resumed.closed, [7]);
+  assert.deepEqual(resumed.prompts, []);
+  assert.deepEqual(resumed.issueNotes, [{ number: 7, body: DONE_NOTE }]);
 });
