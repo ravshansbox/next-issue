@@ -13,11 +13,12 @@ setup() {
 #!/usr/bin/env bash
 name=${2%@*}
 version=${2##*@}
+if [ -e "$SLEPT" ] && grep -qx "$name" <<<"$SERVED_LATER"; then echo "$version"; exit 0; fi
 if grep -qx "$name" <<<"$SERVED"; then echo "$version"; else exit 1; fi
 EOF
   cat > "$bin/sleep" <<'EOF'
 #!/usr/bin/env bash
-exit 0
+echo slept >> "$SLEPT"
 EOF
   chmod +x "$bin/npm" "$bin/sleep"
   echo '{"name":"first","version":"0.0.0"}' > "$repo/packages/first/package.json"
@@ -25,7 +26,7 @@ EOF
 }
 
 wait_for() {
-  (cd "$repo" && PATH="$bin:$PATH" SERVED="$1" "$script" 1.2.0 0) > /dev/null 2>&1
+  (cd "$repo" && PATH="$bin:$PATH" SERVED="$1" SERVED_LATER="${3:-}" SLEPT="$root/slept" "$script" 1.2.0 "${2:-0}") > /dev/null 2>&1
 }
 
 check() {
@@ -46,5 +47,9 @@ check 'the release job waits for every public package and none that is private' 
 setup
 if wait_for ''; then result=0; else result=1; fi
 check 'the release job fails when npm does not serve a public package in time' 1 "$result"
+
+setup
+if wait_for '' 600 first; then result=0; else result=1; fi
+check 'the release job retries until npm serves a public package after one wait' '0 1' "$result $(wc -l 2>/dev/null < "$root/slept" | tr -d ' ')"
 
 exit "$failures"
