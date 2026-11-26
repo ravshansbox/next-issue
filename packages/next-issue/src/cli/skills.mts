@@ -6,7 +6,7 @@ import { createInterface } from 'node:readline/promises';
 import type { Scope } from '../shared/args.mts';
 import { OWN_SKILLS } from '../shared/agents.mts';
 import { hasCode } from '../shared/errors.mts';
-import { git, repoRoot } from '../shared/git.mts';
+import { git, repoRoot, succeeds } from '../shared/git.mts';
 
 const SKILLS = join(import.meta.dirname, '..', '..', 'skills');
 
@@ -183,6 +183,7 @@ export async function untrackSkills(root: string): Promise<string[]> {
     throw new Error(`${tracked}; \`npx -y next-issue@latest start\` needs them untracked`);
   }
   const committed =
+    (await succeeds(root, ['rev-parse', '--quiet', '--verify', 'HEAD'])) &&
     (await git(root, ['ls-tree', '-r', '--name-only', 'HEAD', '--', ...folders])) !== '';
   await git(root, ['rm', '-r', '-q', '--cached', '-f', '--ignore-unmatch', '--', ...folders]);
   return [

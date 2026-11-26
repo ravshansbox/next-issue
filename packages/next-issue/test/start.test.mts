@@ -428,6 +428,24 @@ test('a user who staged a next-issue skill that no commit holds who runs start i
   );
 });
 
+test('a user who staged a next-issue skill in a repository with no commit who runs start in a terminal and answers yes gets the skill unstaged, still no commit, the other staged file still staged and the run started', async (t) => {
+  const root = await repository(ORIGIN);
+  const project = join(root, '.claude', 'skills', 'answer-hand-over');
+  await cp(join(SKILLS, 'answer-hand-over'), project, { recursive: true });
+  await writeFile(join(root, 'notes.md'), 'staged\n');
+  await must('git', ['add', '.claude/skills', 'notes.md'], { cwd: root });
+  const fake = fakeRuns();
+  await fakeWorker(t, root, fake.runRepo);
+  const started = startInTerminal(t, root, 'y\n', await tempDir());
+  assert.equal(await started.exited, 0, started.stderr());
+  fake.finish();
+  assert.equal(fake.calls.length, 1);
+  assert.match(started.stderr(), / untracked \.claude\/skills\/answer-hand-over\/$/m);
+  await assert.rejects(must('git', ['rev-parse', '--verify', '-q', 'HEAD'], { cwd: root }));
+  assert.equal(await must('git', ['ls-files', '--', '.claude/skills'], { cwd: root }), '');
+  assert.equal(await must('git', ['diff', '--cached', '--name-only'], { cwd: root }), 'notes.md');
+});
+
 async function trackingOwnSkill(): Promise<{ root: string; folder: string; own: string }> {
   const { root } = await trackingSkills();
   await must('git', ['rm', '-r', '-q', '--', '.claude/skills'], { cwd: root });
